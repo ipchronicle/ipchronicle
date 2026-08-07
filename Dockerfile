@@ -39,14 +39,16 @@ RUN apt-get update \
     && rm -rf /var/lib/apt/lists/* \
     && groupadd --system --gid 10001 ipchronicle \
     && useradd --system --uid 10001 --gid ipchronicle --home-dir /var/lib/ipchronicle ipchronicle \
-    && install -d -o ipchronicle -g ipchronicle /var/lib/ipchronicle /licenses
+    && install -d -o ipchronicle -g ipchronicle \
+      /var/lib/ipchronicle /var/lib/ipchronicle/config \
+      /var/lib/ipchronicle/history /licenses
 
 COPY --from=go-build /out/ipchronicle-center /usr/local/bin/ipchronicle-center
 COPY LICENSE THIRD_PARTY_NOTICES.md /licenses/
 
 USER ipchronicle
 WORKDIR /var/lib/ipchronicle
-VOLUME ["/var/lib/ipchronicle"]
+VOLUME ["/var/lib/ipchronicle/config", "/var/lib/ipchronicle/history"]
 EXPOSE 8080
 ENV IPCHRONICLE_LISTEN_ADDRESS=:8080
 HEALTHCHECK --interval=10s --timeout=5s --start-period=5s --retries=6 \

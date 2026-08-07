@@ -9,13 +9,248 @@ info:
 servers:
   - url: /
 paths:
+  /api/v1/auth/login:
+    post:
+      operationId: login
+      summary: Start an administrator session
+      security: []
+      tags: [authentication]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/LoginRequest"
+      responses:
+        "200":
+          description: The administrator is authenticated.
+          headers:
+            Set-Cookie:
+              schema:
+                type: string
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AuthenticatedSession"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "429":
+          description: Login attempts are temporarily throttled.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+  /api/v1/auth/session:
+    get:
+      operationId: getAuthenticatedSession
+      summary: Read the current administrator session
+      tags: [authentication]
+      responses:
+        "200":
+          description: The current session and account.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AuthenticatedSession"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+  /api/v1/auth/logout:
+    post:
+      operationId: logout
+      summary: Revoke the current administrator session
+      tags: [authentication]
+      parameters:
+        - $ref: "#/components/parameters/CSRFToken"
+      responses:
+        "204":
+          description: The session was revoked.
+          headers:
+            Set-Cookie:
+              schema:
+                type: string
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+  /api/v1/account:
+    get:
+      operationId: getAccount
+      summary: Read the administrator account
+      tags: [account]
+      responses:
+        "200":
+          description: The administrator account.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Account"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+    patch:
+      operationId: updateAccount
+      summary: Change the administrator username or password
+      tags: [account]
+      parameters:
+        - $ref: "#/components/parameters/CSRFToken"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/AccountUpdateRequest"
+      responses:
+        "200":
+          description: The account was updated.
+          headers:
+            Set-Cookie:
+              schema:
+                type: string
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AccountUpdateResult"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+  /api/v1/account/locale:
+    put:
+      operationId: updateAccountLocale
+      summary: Persist the administrator language preference
+      tags: [account]
+      parameters:
+        - $ref: "#/components/parameters/CSRFToken"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/LocaleUpdateRequest"
+      responses:
+        "200":
+          description: The account language was updated.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Account"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+  /api/v1/account/totp/enrollment:
+    post:
+      operationId: startTOTPEnrollment
+      summary: Start TOTP enrollment
+      tags: [account]
+      parameters:
+        - $ref: "#/components/parameters/CSRFToken"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CurrentPasswordRequest"
+      responses:
+        "200":
+          description: One-time TOTP enrollment material.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/TOTPEnrollment"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "409":
+          $ref: "#/components/responses/Conflict"
+  /api/v1/account/totp:
+    post:
+      operationId: confirmTOTPEnrollment
+      summary: Confirm and enable TOTP
+      tags: [account]
+      parameters:
+        - $ref: "#/components/parameters/CSRFToken"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/TOTPCodeRequest"
+      responses:
+        "200":
+          description: TOTP was enabled.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Account"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "409":
+          $ref: "#/components/responses/Conflict"
+    delete:
+      operationId: disableTOTP
+      summary: Disable TOTP and revoke all sessions
+      tags: [account]
+      parameters:
+        - $ref: "#/components/parameters/CSRFToken"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/DisableTOTPRequest"
+      responses:
+        "204":
+          description: TOTP was disabled and all sessions were revoked.
+          headers:
+            Set-Cookie:
+              schema:
+                type: string
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "409":
+          $ref: "#/components/responses/Conflict"
+  /api/v1/account/sessions:
+    delete:
+      operationId: revokeAllSessions
+      summary: Revoke every administrator session
+      tags: [account]
+      parameters:
+        - $ref: "#/components/parameters/CSRFToken"
+      responses:
+        "204":
+          description: Every administrator session was revoked.
+          headers:
+            Set-Cookie:
+              schema:
+                type: string
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
   /api/v1/system/status:
     get:
       operationId: getSystemStatus
       summary: Read center status
-      security: []
-      tags:
-        - system
+      tags: [system]
       responses:
         "200":
           description: The center is available.
@@ -23,8 +258,197 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/SystemStatus"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
 components:
+  securitySchemes:
+    administratorSession:
+      type: apiKey
+      in: cookie
+      name: ipchronicle_session
+  parameters:
+    CSRFToken:
+      name: X-CSRF-Token
+      in: header
+      required: false
+      schema:
+        type: string
+        minLength: 20
+        maxLength: 128
+  responses:
+    BadRequest:
+      description: The request failed validation.
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ErrorResponse"
+    Unauthorized:
+      description: Authentication is required or failed.
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ErrorResponse"
+    Forbidden:
+      description: The request failed an origin or CSRF check.
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ErrorResponse"
+    Conflict:
+      description: The requested account transition conflicts with current state.
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ErrorResponse"
   schemas:
+    SupportedLocale:
+      type: string
+      enum: [zh-CN, en]
+    Account:
+      type: object
+      additionalProperties: false
+      required: [username, locale, usesDefaultCredentials, totpEnabled]
+      properties:
+        username:
+          type: string
+          minLength: 1
+          maxLength: 64
+        locale:
+          $ref: "#/components/schemas/SupportedLocale"
+        usesDefaultCredentials:
+          type: boolean
+        totpEnabled:
+          type: boolean
+    AuthenticatedSession:
+      type: object
+      additionalProperties: false
+      required: [account, csrfToken, expiresAt]
+      properties:
+        account:
+          $ref: "#/components/schemas/Account"
+        csrfToken:
+          type: string
+          minLength: 20
+        expiresAt:
+          type: string
+          format: date-time
+    LoginRequest:
+      type: object
+      additionalProperties: false
+      required: [username, password]
+      properties:
+        username:
+          type: string
+          minLength: 1
+          maxLength: 64
+        password:
+          type: string
+          minLength: 1
+          maxLength: 128
+        totpCode:
+          type: string
+          pattern: "^[0-9]{6}$"
+    AccountUpdateRequest:
+      type: object
+      additionalProperties: false
+      required: [currentPassword]
+      properties:
+        currentPassword:
+          type: string
+          minLength: 1
+          maxLength: 128
+        username:
+          type: string
+          minLength: 1
+          maxLength: 64
+        newPassword:
+          type: string
+          minLength: 8
+          maxLength: 128
+    AccountUpdateResult:
+      type: object
+      additionalProperties: false
+      required: [account, sessionRevoked]
+      properties:
+        account:
+          $ref: "#/components/schemas/Account"
+        sessionRevoked:
+          type: boolean
+    LocaleUpdateRequest:
+      type: object
+      additionalProperties: false
+      required: [locale]
+      properties:
+        locale:
+          $ref: "#/components/schemas/SupportedLocale"
+    CurrentPasswordRequest:
+      type: object
+      additionalProperties: false
+      required: [currentPassword]
+      properties:
+        currentPassword:
+          type: string
+          minLength: 1
+          maxLength: 128
+    TOTPCodeRequest:
+      type: object
+      additionalProperties: false
+      required: [code]
+      properties:
+        code:
+          type: string
+          pattern: "^[0-9]{6}$"
+    DisableTOTPRequest:
+      type: object
+      additionalProperties: false
+      required: [currentPassword, code]
+      properties:
+        currentPassword:
+          type: string
+          minLength: 1
+          maxLength: 128
+        code:
+          type: string
+          pattern: "^[0-9]{6}$"
+    TOTPEnrollment:
+      type: object
+      additionalProperties: false
+      required: [secret, provisioningUri]
+      properties:
+        secret:
+          type: string
+          minLength: 16
+        provisioningUri:
+          type: string
+          format: uri
+    ErrorCode:
+      type: string
+      enum:
+        - invalid_request
+        - invalid_credentials
+        - totp_required
+        - rate_limited
+        - unauthenticated
+        - csrf_failed
+        - origin_not_allowed
+        - current_password_invalid
+        - invalid_totp
+        - totp_already_enabled
+        - totp_not_enabled
+        - totp_enrollment_not_started
+        - no_account_change
+        - internal_error
+    ErrorResponse:
+      type: object
+      additionalProperties: false
+      required: [code]
+      properties:
+        code:
+          $ref: "#/components/schemas/ErrorCode"
+        parameters:
+          type: object
+          additionalProperties:
+            type: string
     SystemStatus:
       type: object
       additionalProperties: false
@@ -32,15 +456,38 @@ components:
         - service
         - status
         - version
+        - configSchemaVersion
+        - historySchemaVersion
+        - transportSecurity
+        - transportWarning
+        - externalOriginConfigured
+        - trustedProxyConfigured
       properties:
         service:
           type: string
-          enum:
-            - ipchronicle-center
+          enum: [ipchronicle-center]
         status:
           type: string
-          enum:
-            - ok
+          enum: [ok]
         version:
           type: string
           minLength: 1
+        configSchemaVersion:
+          type: integer
+          format: int64
+          minimum: 1
+        historySchemaVersion:
+          type: integer
+          format: int64
+          minimum: 1
+        transportSecurity:
+          type: string
+          enum: [http, https]
+        transportWarning:
+          type: boolean
+        externalOriginConfigured:
+          type: boolean
+        trustedProxyConfigured:
+          type: boolean
+security:
+  - administratorSession: []

@@ -9,9 +9,83 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
+	"time"
 
 	"github.com/go-chi/chi/v5"
+	"github.com/oapi-codegen/runtime"
 )
+
+// Defines values for ErrorCode.
+const (
+	CsrfFailed               ErrorCode = "csrf_failed"
+	CurrentPasswordInvalid   ErrorCode = "current_password_invalid"
+	InternalError            ErrorCode = "internal_error"
+	InvalidCredentials       ErrorCode = "invalid_credentials"
+	InvalidRequest           ErrorCode = "invalid_request"
+	InvalidTotp              ErrorCode = "invalid_totp"
+	NoAccountChange          ErrorCode = "no_account_change"
+	OriginNotAllowed         ErrorCode = "origin_not_allowed"
+	RateLimited              ErrorCode = "rate_limited"
+	TotpAlreadyEnabled       ErrorCode = "totp_already_enabled"
+	TotpEnrollmentNotStarted ErrorCode = "totp_enrollment_not_started"
+	TotpNotEnabled           ErrorCode = "totp_not_enabled"
+	TotpRequired             ErrorCode = "totp_required"
+	Unauthenticated          ErrorCode = "unauthenticated"
+)
+
+// Valid indicates whether the value is a known member of the ErrorCode enum.
+func (e ErrorCode) Valid() bool {
+	switch e {
+	case CsrfFailed:
+		return true
+	case CurrentPasswordInvalid:
+		return true
+	case InternalError:
+		return true
+	case InvalidCredentials:
+		return true
+	case InvalidRequest:
+		return true
+	case InvalidTotp:
+		return true
+	case NoAccountChange:
+		return true
+	case OriginNotAllowed:
+		return true
+	case RateLimited:
+		return true
+	case TotpAlreadyEnabled:
+		return true
+	case TotpEnrollmentNotStarted:
+		return true
+	case TotpNotEnabled:
+		return true
+	case TotpRequired:
+		return true
+	case Unauthenticated:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for SupportedLocale.
+const (
+	En   SupportedLocale = "en"
+	ZhCN SupportedLocale = "zh-CN"
+)
+
+// Valid indicates whether the value is a known member of the SupportedLocale enum.
+func (e SupportedLocale) Valid() bool {
+	switch e {
+	case En:
+		return true
+	case ZhCN:
+		return true
+	default:
+		return false
+	}
+}
 
 // Defines values for SystemStatusService.
 const (
@@ -43,11 +117,98 @@ func (e SystemStatusStatus) Valid() bool {
 	}
 }
 
+// Defines values for SystemStatusTransportSecurity.
+const (
+	Http  SystemStatusTransportSecurity = "http"
+	Https SystemStatusTransportSecurity = "https"
+)
+
+// Valid indicates whether the value is a known member of the SystemStatusTransportSecurity enum.
+func (e SystemStatusTransportSecurity) Valid() bool {
+	switch e {
+	case Http:
+		return true
+	case Https:
+		return true
+	default:
+		return false
+	}
+}
+
+// Account defines model for Account.
+type Account struct {
+	Locale                 SupportedLocale `json:"locale"`
+	TotpEnabled            bool            `json:"totpEnabled"`
+	Username               string          `json:"username"`
+	UsesDefaultCredentials bool            `json:"usesDefaultCredentials"`
+}
+
+// AccountUpdateRequest defines model for AccountUpdateRequest.
+type AccountUpdateRequest struct {
+	CurrentPassword string  `json:"currentPassword"`
+	NewPassword     *string `json:"newPassword,omitempty"`
+	Username        *string `json:"username,omitempty"`
+}
+
+// AccountUpdateResult defines model for AccountUpdateResult.
+type AccountUpdateResult struct {
+	Account        Account `json:"account"`
+	SessionRevoked bool    `json:"sessionRevoked"`
+}
+
+// AuthenticatedSession defines model for AuthenticatedSession.
+type AuthenticatedSession struct {
+	Account   Account   `json:"account"`
+	CsrfToken string    `json:"csrfToken"`
+	ExpiresAt time.Time `json:"expiresAt"`
+}
+
+// CurrentPasswordRequest defines model for CurrentPasswordRequest.
+type CurrentPasswordRequest struct {
+	CurrentPassword string `json:"currentPassword"`
+}
+
+// DisableTOTPRequest defines model for DisableTOTPRequest.
+type DisableTOTPRequest struct {
+	Code            string `json:"code"`
+	CurrentPassword string `json:"currentPassword"`
+}
+
+// ErrorCode defines model for ErrorCode.
+type ErrorCode string
+
+// ErrorResponse defines model for ErrorResponse.
+type ErrorResponse struct {
+	Code       ErrorCode          `json:"code"`
+	Parameters *map[string]string `json:"parameters,omitempty"`
+}
+
+// LocaleUpdateRequest defines model for LocaleUpdateRequest.
+type LocaleUpdateRequest struct {
+	Locale SupportedLocale `json:"locale"`
+}
+
+// LoginRequest defines model for LoginRequest.
+type LoginRequest struct {
+	Password string  `json:"password"`
+	TotpCode *string `json:"totpCode,omitempty"`
+	Username string  `json:"username"`
+}
+
+// SupportedLocale defines model for SupportedLocale.
+type SupportedLocale string
+
 // SystemStatus defines model for SystemStatus.
 type SystemStatus struct {
-	Service SystemStatusService `json:"service"`
-	Status  SystemStatusStatus  `json:"status"`
-	Version string              `json:"version"`
+	ConfigSchemaVersion      int64                         `json:"configSchemaVersion"`
+	ExternalOriginConfigured bool                          `json:"externalOriginConfigured"`
+	HistorySchemaVersion     int64                         `json:"historySchemaVersion"`
+	Service                  SystemStatusService           `json:"service"`
+	Status                   SystemStatusStatus            `json:"status"`
+	TransportSecurity        SystemStatusTransportSecurity `json:"transportSecurity"`
+	TransportWarning         bool                          `json:"transportWarning"`
+	TrustedProxyConfigured   bool                          `json:"trustedProxyConfigured"`
+	Version                  string                        `json:"version"`
 }
 
 // SystemStatusService defines model for SystemStatus.Service.
@@ -56,8 +217,120 @@ type SystemStatusService string
 // SystemStatusStatus defines model for SystemStatus.Status.
 type SystemStatusStatus string
 
+// SystemStatusTransportSecurity defines model for SystemStatus.TransportSecurity.
+type SystemStatusTransportSecurity string
+
+// TOTPCodeRequest defines model for TOTPCodeRequest.
+type TOTPCodeRequest struct {
+	Code string `json:"code"`
+}
+
+// TOTPEnrollment defines model for TOTPEnrollment.
+type TOTPEnrollment struct {
+	ProvisioningUri string `json:"provisioningUri"`
+	Secret          string `json:"secret"`
+}
+
+// CSRFToken defines model for CSRFToken.
+type CSRFToken = string
+
+// BadRequest defines model for BadRequest.
+type BadRequest = ErrorResponse
+
+// Conflict defines model for Conflict.
+type Conflict = ErrorResponse
+
+// Forbidden defines model for Forbidden.
+type Forbidden = ErrorResponse
+
+// Unauthorized defines model for Unauthorized.
+type Unauthorized = ErrorResponse
+
+// UpdateAccountParams defines parameters for UpdateAccount.
+type UpdateAccountParams struct {
+	XCSRFToken *CSRFToken `json:"X-CSRF-Token,omitempty"`
+}
+
+// UpdateAccountLocaleParams defines parameters for UpdateAccountLocale.
+type UpdateAccountLocaleParams struct {
+	XCSRFToken *CSRFToken `json:"X-CSRF-Token,omitempty"`
+}
+
+// RevokeAllSessionsParams defines parameters for RevokeAllSessions.
+type RevokeAllSessionsParams struct {
+	XCSRFToken *CSRFToken `json:"X-CSRF-Token,omitempty"`
+}
+
+// DisableTOTPParams defines parameters for DisableTOTP.
+type DisableTOTPParams struct {
+	XCSRFToken *CSRFToken `json:"X-CSRF-Token,omitempty"`
+}
+
+// ConfirmTOTPEnrollmentParams defines parameters for ConfirmTOTPEnrollment.
+type ConfirmTOTPEnrollmentParams struct {
+	XCSRFToken *CSRFToken `json:"X-CSRF-Token,omitempty"`
+}
+
+// StartTOTPEnrollmentParams defines parameters for StartTOTPEnrollment.
+type StartTOTPEnrollmentParams struct {
+	XCSRFToken *CSRFToken `json:"X-CSRF-Token,omitempty"`
+}
+
+// LogoutParams defines parameters for Logout.
+type LogoutParams struct {
+	XCSRFToken *CSRFToken `json:"X-CSRF-Token,omitempty"`
+}
+
+// UpdateAccountJSONRequestBody defines body for UpdateAccount for application/json ContentType.
+type UpdateAccountJSONRequestBody = AccountUpdateRequest
+
+// UpdateAccountLocaleJSONRequestBody defines body for UpdateAccountLocale for application/json ContentType.
+type UpdateAccountLocaleJSONRequestBody = LocaleUpdateRequest
+
+// DisableTOTPJSONRequestBody defines body for DisableTOTP for application/json ContentType.
+type DisableTOTPJSONRequestBody = DisableTOTPRequest
+
+// ConfirmTOTPEnrollmentJSONRequestBody defines body for ConfirmTOTPEnrollment for application/json ContentType.
+type ConfirmTOTPEnrollmentJSONRequestBody = TOTPCodeRequest
+
+// StartTOTPEnrollmentJSONRequestBody defines body for StartTOTPEnrollment for application/json ContentType.
+type StartTOTPEnrollmentJSONRequestBody = CurrentPasswordRequest
+
+// LoginJSONRequestBody defines body for Login for application/json ContentType.
+type LoginJSONRequestBody = LoginRequest
+
 // ServerInterface represents all server handlers.
 type ServerInterface interface {
+	// GetAccount Read the administrator account
+	// (GET /api/v1/account)
+	GetAccount(w http.ResponseWriter, r *http.Request)
+	// UpdateAccount Change the administrator username or password
+	// (PATCH /api/v1/account)
+	UpdateAccount(w http.ResponseWriter, r *http.Request, params UpdateAccountParams)
+	// UpdateAccountLocale Persist the administrator language preference
+	// (PUT /api/v1/account/locale)
+	UpdateAccountLocale(w http.ResponseWriter, r *http.Request, params UpdateAccountLocaleParams)
+	// RevokeAllSessions Revoke every administrator session
+	// (DELETE /api/v1/account/sessions)
+	RevokeAllSessions(w http.ResponseWriter, r *http.Request, params RevokeAllSessionsParams)
+	// DisableTOTP Disable TOTP and revoke all sessions
+	// (DELETE /api/v1/account/totp)
+	DisableTOTP(w http.ResponseWriter, r *http.Request, params DisableTOTPParams)
+	// ConfirmTOTPEnrollment Confirm and enable TOTP
+	// (POST /api/v1/account/totp)
+	ConfirmTOTPEnrollment(w http.ResponseWriter, r *http.Request, params ConfirmTOTPEnrollmentParams)
+	// StartTOTPEnrollment Start TOTP enrollment
+	// (POST /api/v1/account/totp/enrollment)
+	StartTOTPEnrollment(w http.ResponseWriter, r *http.Request, params StartTOTPEnrollmentParams)
+	// Login Start an administrator session
+	// (POST /api/v1/auth/login)
+	Login(w http.ResponseWriter, r *http.Request)
+	// Logout Revoke the current administrator session
+	// (POST /api/v1/auth/logout)
+	Logout(w http.ResponseWriter, r *http.Request, params LogoutParams)
+	// GetAuthenticatedSession Read the current administrator session
+	// (GET /api/v1/auth/session)
+	GetAuthenticatedSession(w http.ResponseWriter, r *http.Request)
 	// GetSystemStatus Read center status
 	// (GET /api/v1/system/status)
 	GetSystemStatus(w http.ResponseWriter, r *http.Request)
@@ -66,6 +339,66 @@ type ServerInterface interface {
 // Unimplemented server implementation that returns http.StatusNotImplemented for each endpoint.
 
 type Unimplemented struct{}
+
+// GetAccount Read the administrator account
+// (GET /api/v1/account)
+func (_ Unimplemented) GetAccount(w http.ResponseWriter, r *http.Request) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
+// UpdateAccount Change the administrator username or password
+// (PATCH /api/v1/account)
+func (_ Unimplemented) UpdateAccount(w http.ResponseWriter, r *http.Request, params UpdateAccountParams) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
+// UpdateAccountLocale Persist the administrator language preference
+// (PUT /api/v1/account/locale)
+func (_ Unimplemented) UpdateAccountLocale(w http.ResponseWriter, r *http.Request, params UpdateAccountLocaleParams) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
+// RevokeAllSessions Revoke every administrator session
+// (DELETE /api/v1/account/sessions)
+func (_ Unimplemented) RevokeAllSessions(w http.ResponseWriter, r *http.Request, params RevokeAllSessionsParams) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
+// DisableTOTP Disable TOTP and revoke all sessions
+// (DELETE /api/v1/account/totp)
+func (_ Unimplemented) DisableTOTP(w http.ResponseWriter, r *http.Request, params DisableTOTPParams) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
+// ConfirmTOTPEnrollment Confirm and enable TOTP
+// (POST /api/v1/account/totp)
+func (_ Unimplemented) ConfirmTOTPEnrollment(w http.ResponseWriter, r *http.Request, params ConfirmTOTPEnrollmentParams) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
+// StartTOTPEnrollment Start TOTP enrollment
+// (POST /api/v1/account/totp/enrollment)
+func (_ Unimplemented) StartTOTPEnrollment(w http.ResponseWriter, r *http.Request, params StartTOTPEnrollmentParams) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
+// Login Start an administrator session
+// (POST /api/v1/auth/login)
+func (_ Unimplemented) Login(w http.ResponseWriter, r *http.Request) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
+// Logout Revoke the current administrator session
+// (POST /api/v1/auth/logout)
+func (_ Unimplemented) Logout(w http.ResponseWriter, r *http.Request, params LogoutParams) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
+// GetAuthenticatedSession Read the current administrator session
+// (GET /api/v1/auth/session)
+func (_ Unimplemented) GetAuthenticatedSession(w http.ResponseWriter, r *http.Request) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
 
 // GetSystemStatus Read center status
 // (GET /api/v1/system/status)
@@ -81,6 +414,335 @@ type ServerInterfaceWrapper struct {
 }
 
 type MiddlewareFunc func(http.Handler) http.Handler
+
+// GetAccount operation middleware
+func (siw *ServerInterfaceWrapper) GetAccount(w http.ResponseWriter, r *http.Request) {
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.GetAccount(w, r)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// UpdateAccount operation middleware
+func (siw *ServerInterfaceWrapper) UpdateAccount(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	// Parameter object where we will unmarshal all parameters from the context
+	var params UpdateAccountParams
+
+	headers := r.Header
+
+	// ------------- Optional header parameter "X-CSRF-Token" -------------
+	if valueList, found := headers[http.CanonicalHeaderKey("X-CSRF-Token")]; found {
+		var XCSRFToken CSRFToken
+		n := len(valueList)
+		if n != 1 {
+			siw.ErrorHandlerFunc(w, r, &TooManyValuesForParamError{ParamName: "X-CSRF-Token", Count: n})
+			return
+		}
+
+		err = runtime.BindStyledParameterWithOptions("simple", "X-CSRF-Token", valueList[0], &XCSRFToken, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: false, Type: "string", Format: ""})
+		if err != nil {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "X-CSRF-Token", Err: err})
+			return
+		}
+
+		params.XCSRFToken = &XCSRFToken
+
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.UpdateAccount(w, r, params)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// UpdateAccountLocale operation middleware
+func (siw *ServerInterfaceWrapper) UpdateAccountLocale(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	// Parameter object where we will unmarshal all parameters from the context
+	var params UpdateAccountLocaleParams
+
+	headers := r.Header
+
+	// ------------- Optional header parameter "X-CSRF-Token" -------------
+	if valueList, found := headers[http.CanonicalHeaderKey("X-CSRF-Token")]; found {
+		var XCSRFToken CSRFToken
+		n := len(valueList)
+		if n != 1 {
+			siw.ErrorHandlerFunc(w, r, &TooManyValuesForParamError{ParamName: "X-CSRF-Token", Count: n})
+			return
+		}
+
+		err = runtime.BindStyledParameterWithOptions("simple", "X-CSRF-Token", valueList[0], &XCSRFToken, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: false, Type: "string", Format: ""})
+		if err != nil {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "X-CSRF-Token", Err: err})
+			return
+		}
+
+		params.XCSRFToken = &XCSRFToken
+
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.UpdateAccountLocale(w, r, params)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// RevokeAllSessions operation middleware
+func (siw *ServerInterfaceWrapper) RevokeAllSessions(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	// Parameter object where we will unmarshal all parameters from the context
+	var params RevokeAllSessionsParams
+
+	headers := r.Header
+
+	// ------------- Optional header parameter "X-CSRF-Token" -------------
+	if valueList, found := headers[http.CanonicalHeaderKey("X-CSRF-Token")]; found {
+		var XCSRFToken CSRFToken
+		n := len(valueList)
+		if n != 1 {
+			siw.ErrorHandlerFunc(w, r, &TooManyValuesForParamError{ParamName: "X-CSRF-Token", Count: n})
+			return
+		}
+
+		err = runtime.BindStyledParameterWithOptions("simple", "X-CSRF-Token", valueList[0], &XCSRFToken, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: false, Type: "string", Format: ""})
+		if err != nil {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "X-CSRF-Token", Err: err})
+			return
+		}
+
+		params.XCSRFToken = &XCSRFToken
+
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.RevokeAllSessions(w, r, params)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// DisableTOTP operation middleware
+func (siw *ServerInterfaceWrapper) DisableTOTP(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	// Parameter object where we will unmarshal all parameters from the context
+	var params DisableTOTPParams
+
+	headers := r.Header
+
+	// ------------- Optional header parameter "X-CSRF-Token" -------------
+	if valueList, found := headers[http.CanonicalHeaderKey("X-CSRF-Token")]; found {
+		var XCSRFToken CSRFToken
+		n := len(valueList)
+		if n != 1 {
+			siw.ErrorHandlerFunc(w, r, &TooManyValuesForParamError{ParamName: "X-CSRF-Token", Count: n})
+			return
+		}
+
+		err = runtime.BindStyledParameterWithOptions("simple", "X-CSRF-Token", valueList[0], &XCSRFToken, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: false, Type: "string", Format: ""})
+		if err != nil {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "X-CSRF-Token", Err: err})
+			return
+		}
+
+		params.XCSRFToken = &XCSRFToken
+
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.DisableTOTP(w, r, params)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// ConfirmTOTPEnrollment operation middleware
+func (siw *ServerInterfaceWrapper) ConfirmTOTPEnrollment(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	// Parameter object where we will unmarshal all parameters from the context
+	var params ConfirmTOTPEnrollmentParams
+
+	headers := r.Header
+
+	// ------------- Optional header parameter "X-CSRF-Token" -------------
+	if valueList, found := headers[http.CanonicalHeaderKey("X-CSRF-Token")]; found {
+		var XCSRFToken CSRFToken
+		n := len(valueList)
+		if n != 1 {
+			siw.ErrorHandlerFunc(w, r, &TooManyValuesForParamError{ParamName: "X-CSRF-Token", Count: n})
+			return
+		}
+
+		err = runtime.BindStyledParameterWithOptions("simple", "X-CSRF-Token", valueList[0], &XCSRFToken, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: false, Type: "string", Format: ""})
+		if err != nil {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "X-CSRF-Token", Err: err})
+			return
+		}
+
+		params.XCSRFToken = &XCSRFToken
+
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.ConfirmTOTPEnrollment(w, r, params)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// StartTOTPEnrollment operation middleware
+func (siw *ServerInterfaceWrapper) StartTOTPEnrollment(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	// Parameter object where we will unmarshal all parameters from the context
+	var params StartTOTPEnrollmentParams
+
+	headers := r.Header
+
+	// ------------- Optional header parameter "X-CSRF-Token" -------------
+	if valueList, found := headers[http.CanonicalHeaderKey("X-CSRF-Token")]; found {
+		var XCSRFToken CSRFToken
+		n := len(valueList)
+		if n != 1 {
+			siw.ErrorHandlerFunc(w, r, &TooManyValuesForParamError{ParamName: "X-CSRF-Token", Count: n})
+			return
+		}
+
+		err = runtime.BindStyledParameterWithOptions("simple", "X-CSRF-Token", valueList[0], &XCSRFToken, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: false, Type: "string", Format: ""})
+		if err != nil {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "X-CSRF-Token", Err: err})
+			return
+		}
+
+		params.XCSRFToken = &XCSRFToken
+
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.StartTOTPEnrollment(w, r, params)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// Login operation middleware
+func (siw *ServerInterfaceWrapper) Login(w http.ResponseWriter, r *http.Request) {
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.Login(w, r)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// Logout operation middleware
+func (siw *ServerInterfaceWrapper) Logout(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	// Parameter object where we will unmarshal all parameters from the context
+	var params LogoutParams
+
+	headers := r.Header
+
+	// ------------- Optional header parameter "X-CSRF-Token" -------------
+	if valueList, found := headers[http.CanonicalHeaderKey("X-CSRF-Token")]; found {
+		var XCSRFToken CSRFToken
+		n := len(valueList)
+		if n != 1 {
+			siw.ErrorHandlerFunc(w, r, &TooManyValuesForParamError{ParamName: "X-CSRF-Token", Count: n})
+			return
+		}
+
+		err = runtime.BindStyledParameterWithOptions("simple", "X-CSRF-Token", valueList[0], &XCSRFToken, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: false, Type: "string", Format: ""})
+		if err != nil {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "X-CSRF-Token", Err: err})
+			return
+		}
+
+		params.XCSRFToken = &XCSRFToken
+
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.Logout(w, r, params)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// GetAuthenticatedSession operation middleware
+func (siw *ServerInterfaceWrapper) GetAuthenticatedSession(w http.ResponseWriter, r *http.Request) {
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.GetAuthenticatedSession(w, r)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
 
 // GetSystemStatus operation middleware
 func (siw *ServerInterfaceWrapper) GetSystemStatus(w http.ResponseWriter, r *http.Request) {
@@ -210,10 +872,689 @@ func HandlerWithOptions(si ServerInterface, options ChiServerOptions) http.Handl
 	}
 
 	r.Group(func(r chi.Router) {
+		r.Post(options.BaseURL+"/api/v1/auth/login", wrapper.Login)
+	})
+	r.Group(func(r chi.Router) {
+		r.Get(options.BaseURL+"/api/v1/auth/session", wrapper.GetAuthenticatedSession)
+	})
+	r.Group(func(r chi.Router) {
+		r.Post(options.BaseURL+"/api/v1/auth/logout", wrapper.Logout)
+	})
+	r.Group(func(r chi.Router) {
+		r.Get(options.BaseURL+"/api/v1/account", wrapper.GetAccount)
+	})
+	r.Group(func(r chi.Router) {
+		r.Patch(options.BaseURL+"/api/v1/account", wrapper.UpdateAccount)
+	})
+	r.Group(func(r chi.Router) {
+		r.Put(options.BaseURL+"/api/v1/account/locale", wrapper.UpdateAccountLocale)
+	})
+	r.Group(func(r chi.Router) {
+		r.Post(options.BaseURL+"/api/v1/account/totp/enrollment", wrapper.StartTOTPEnrollment)
+	})
+	r.Group(func(r chi.Router) {
+		r.Delete(options.BaseURL+"/api/v1/account/totp", wrapper.DisableTOTP)
+	})
+	r.Group(func(r chi.Router) {
+		r.Post(options.BaseURL+"/api/v1/account/totp", wrapper.ConfirmTOTPEnrollment)
+	})
+	r.Group(func(r chi.Router) {
+		r.Delete(options.BaseURL+"/api/v1/account/sessions", wrapper.RevokeAllSessions)
+	})
+	r.Group(func(r chi.Router) {
 		r.Get(options.BaseURL+"/api/v1/system/status", wrapper.GetSystemStatus)
 	})
 
 	return r
+}
+
+type BadRequestJSONResponse ErrorResponse
+
+type ConflictJSONResponse ErrorResponse
+
+type ForbiddenJSONResponse ErrorResponse
+
+type UnauthorizedJSONResponse ErrorResponse
+
+type GetAccountRequestObject struct {
+}
+
+type GetAccountResponseObject interface {
+	VisitGetAccountResponse(w http.ResponseWriter) error
+}
+
+type GetAccount200JSONResponse Account
+
+func (response GetAccount200JSONResponse) VisitGetAccountResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type GetAccount401JSONResponse struct{ UnauthorizedJSONResponse }
+
+func (response GetAccount401JSONResponse) VisitGetAccountResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(401)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type UpdateAccountRequestObject struct {
+	Params UpdateAccountParams
+	Body   *UpdateAccountJSONRequestBody
+}
+
+type UpdateAccountResponseObject interface {
+	VisitUpdateAccountResponse(w http.ResponseWriter) error
+}
+
+type UpdateAccount200ResponseHeaders struct {
+	SetCookie *string
+}
+
+type UpdateAccount200JSONResponse struct {
+	Body    AccountUpdateResult
+	Headers UpdateAccount200ResponseHeaders
+}
+
+func (response UpdateAccount200JSONResponse) VisitUpdateAccountResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response.Body); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	if response.Headers.SetCookie != nil {
+		w.Header().Set("Set-Cookie", fmt.Sprint(*response.Headers.SetCookie))
+	}
+	w.WriteHeader(200)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type UpdateAccount400JSONResponse struct{ BadRequestJSONResponse }
+
+func (response UpdateAccount400JSONResponse) VisitUpdateAccountResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(400)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type UpdateAccount401JSONResponse struct{ UnauthorizedJSONResponse }
+
+func (response UpdateAccount401JSONResponse) VisitUpdateAccountResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(401)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type UpdateAccount403JSONResponse struct{ ForbiddenJSONResponse }
+
+func (response UpdateAccount403JSONResponse) VisitUpdateAccountResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(403)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type UpdateAccountLocaleRequestObject struct {
+	Params UpdateAccountLocaleParams
+	Body   *UpdateAccountLocaleJSONRequestBody
+}
+
+type UpdateAccountLocaleResponseObject interface {
+	VisitUpdateAccountLocaleResponse(w http.ResponseWriter) error
+}
+
+type UpdateAccountLocale200JSONResponse Account
+
+func (response UpdateAccountLocale200JSONResponse) VisitUpdateAccountLocaleResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type UpdateAccountLocale400JSONResponse struct{ BadRequestJSONResponse }
+
+func (response UpdateAccountLocale400JSONResponse) VisitUpdateAccountLocaleResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(400)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type UpdateAccountLocale401JSONResponse struct{ UnauthorizedJSONResponse }
+
+func (response UpdateAccountLocale401JSONResponse) VisitUpdateAccountLocaleResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(401)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type UpdateAccountLocale403JSONResponse struct{ ForbiddenJSONResponse }
+
+func (response UpdateAccountLocale403JSONResponse) VisitUpdateAccountLocaleResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(403)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type RevokeAllSessionsRequestObject struct {
+	Params RevokeAllSessionsParams
+}
+
+type RevokeAllSessionsResponseObject interface {
+	VisitRevokeAllSessionsResponse(w http.ResponseWriter) error
+}
+
+type RevokeAllSessions204ResponseHeaders struct {
+	SetCookie *string
+}
+
+type RevokeAllSessions204Response struct {
+	Headers RevokeAllSessions204ResponseHeaders
+}
+
+func (response RevokeAllSessions204Response) VisitRevokeAllSessionsResponse(w http.ResponseWriter) error {
+	if response.Headers.SetCookie != nil {
+		w.Header().Set("Set-Cookie", fmt.Sprint(*response.Headers.SetCookie))
+	}
+	w.WriteHeader(204)
+	return nil
+}
+
+type RevokeAllSessions401JSONResponse struct{ UnauthorizedJSONResponse }
+
+func (response RevokeAllSessions401JSONResponse) VisitRevokeAllSessionsResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(401)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type RevokeAllSessions403JSONResponse struct{ ForbiddenJSONResponse }
+
+func (response RevokeAllSessions403JSONResponse) VisitRevokeAllSessionsResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(403)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type DisableTOTPRequestObject struct {
+	Params DisableTOTPParams
+	Body   *DisableTOTPJSONRequestBody
+}
+
+type DisableTOTPResponseObject interface {
+	VisitDisableTOTPResponse(w http.ResponseWriter) error
+}
+
+type DisableTOTP204ResponseHeaders struct {
+	SetCookie *string
+}
+
+type DisableTOTP204Response struct {
+	Headers DisableTOTP204ResponseHeaders
+}
+
+func (response DisableTOTP204Response) VisitDisableTOTPResponse(w http.ResponseWriter) error {
+	if response.Headers.SetCookie != nil {
+		w.Header().Set("Set-Cookie", fmt.Sprint(*response.Headers.SetCookie))
+	}
+	w.WriteHeader(204)
+	return nil
+}
+
+type DisableTOTP400JSONResponse struct{ BadRequestJSONResponse }
+
+func (response DisableTOTP400JSONResponse) VisitDisableTOTPResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(400)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type DisableTOTP401JSONResponse struct{ UnauthorizedJSONResponse }
+
+func (response DisableTOTP401JSONResponse) VisitDisableTOTPResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(401)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type DisableTOTP403JSONResponse struct{ ForbiddenJSONResponse }
+
+func (response DisableTOTP403JSONResponse) VisitDisableTOTPResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(403)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type DisableTOTP409JSONResponse struct{ ConflictJSONResponse }
+
+func (response DisableTOTP409JSONResponse) VisitDisableTOTPResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(409)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type ConfirmTOTPEnrollmentRequestObject struct {
+	Params ConfirmTOTPEnrollmentParams
+	Body   *ConfirmTOTPEnrollmentJSONRequestBody
+}
+
+type ConfirmTOTPEnrollmentResponseObject interface {
+	VisitConfirmTOTPEnrollmentResponse(w http.ResponseWriter) error
+}
+
+type ConfirmTOTPEnrollment200JSONResponse Account
+
+func (response ConfirmTOTPEnrollment200JSONResponse) VisitConfirmTOTPEnrollmentResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type ConfirmTOTPEnrollment400JSONResponse struct{ BadRequestJSONResponse }
+
+func (response ConfirmTOTPEnrollment400JSONResponse) VisitConfirmTOTPEnrollmentResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(400)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type ConfirmTOTPEnrollment401JSONResponse struct{ UnauthorizedJSONResponse }
+
+func (response ConfirmTOTPEnrollment401JSONResponse) VisitConfirmTOTPEnrollmentResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(401)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type ConfirmTOTPEnrollment403JSONResponse struct{ ForbiddenJSONResponse }
+
+func (response ConfirmTOTPEnrollment403JSONResponse) VisitConfirmTOTPEnrollmentResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(403)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type ConfirmTOTPEnrollment409JSONResponse struct{ ConflictJSONResponse }
+
+func (response ConfirmTOTPEnrollment409JSONResponse) VisitConfirmTOTPEnrollmentResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(409)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type StartTOTPEnrollmentRequestObject struct {
+	Params StartTOTPEnrollmentParams
+	Body   *StartTOTPEnrollmentJSONRequestBody
+}
+
+type StartTOTPEnrollmentResponseObject interface {
+	VisitStartTOTPEnrollmentResponse(w http.ResponseWriter) error
+}
+
+type StartTOTPEnrollment200JSONResponse TOTPEnrollment
+
+func (response StartTOTPEnrollment200JSONResponse) VisitStartTOTPEnrollmentResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type StartTOTPEnrollment400JSONResponse struct{ BadRequestJSONResponse }
+
+func (response StartTOTPEnrollment400JSONResponse) VisitStartTOTPEnrollmentResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(400)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type StartTOTPEnrollment401JSONResponse struct{ UnauthorizedJSONResponse }
+
+func (response StartTOTPEnrollment401JSONResponse) VisitStartTOTPEnrollmentResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(401)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type StartTOTPEnrollment403JSONResponse struct{ ForbiddenJSONResponse }
+
+func (response StartTOTPEnrollment403JSONResponse) VisitStartTOTPEnrollmentResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(403)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type StartTOTPEnrollment409JSONResponse struct{ ConflictJSONResponse }
+
+func (response StartTOTPEnrollment409JSONResponse) VisitStartTOTPEnrollmentResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(409)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type LoginRequestObject struct {
+	Body *LoginJSONRequestBody
+}
+
+type LoginResponseObject interface {
+	VisitLoginResponse(w http.ResponseWriter) error
+}
+
+type Login200ResponseHeaders struct {
+	SetCookie *string
+}
+
+type Login200JSONResponse struct {
+	Body    AuthenticatedSession
+	Headers Login200ResponseHeaders
+}
+
+func (response Login200JSONResponse) VisitLoginResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response.Body); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	if response.Headers.SetCookie != nil {
+		w.Header().Set("Set-Cookie", fmt.Sprint(*response.Headers.SetCookie))
+	}
+	w.WriteHeader(200)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type Login400JSONResponse struct{ BadRequestJSONResponse }
+
+func (response Login400JSONResponse) VisitLoginResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(400)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type Login401JSONResponse struct{ UnauthorizedJSONResponse }
+
+func (response Login401JSONResponse) VisitLoginResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(401)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type Login403JSONResponse struct{ ForbiddenJSONResponse }
+
+func (response Login403JSONResponse) VisitLoginResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(403)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type Login429JSONResponse ErrorResponse
+
+func (response Login429JSONResponse) VisitLoginResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(429)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type LogoutRequestObject struct {
+	Params LogoutParams
+}
+
+type LogoutResponseObject interface {
+	VisitLogoutResponse(w http.ResponseWriter) error
+}
+
+type Logout204ResponseHeaders struct {
+	SetCookie *string
+}
+
+type Logout204Response struct {
+	Headers Logout204ResponseHeaders
+}
+
+func (response Logout204Response) VisitLogoutResponse(w http.ResponseWriter) error {
+	if response.Headers.SetCookie != nil {
+		w.Header().Set("Set-Cookie", fmt.Sprint(*response.Headers.SetCookie))
+	}
+	w.WriteHeader(204)
+	return nil
+}
+
+type Logout401JSONResponse struct{ UnauthorizedJSONResponse }
+
+func (response Logout401JSONResponse) VisitLogoutResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(401)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type Logout403JSONResponse struct{ ForbiddenJSONResponse }
+
+func (response Logout403JSONResponse) VisitLogoutResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(403)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type GetAuthenticatedSessionRequestObject struct {
+}
+
+type GetAuthenticatedSessionResponseObject interface {
+	VisitGetAuthenticatedSessionResponse(w http.ResponseWriter) error
+}
+
+type GetAuthenticatedSession200JSONResponse AuthenticatedSession
+
+func (response GetAuthenticatedSession200JSONResponse) VisitGetAuthenticatedSessionResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type GetAuthenticatedSession401JSONResponse struct{ UnauthorizedJSONResponse }
+
+func (response GetAuthenticatedSession401JSONResponse) VisitGetAuthenticatedSessionResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(401)
+	_, err := buf.WriteTo(w)
+	return err
 }
 
 type GetSystemStatusRequestObject struct {
@@ -237,8 +1578,52 @@ func (response GetSystemStatus200JSONResponse) VisitGetSystemStatusResponse(w ht
 	return err
 }
 
+type GetSystemStatus401JSONResponse struct{ UnauthorizedJSONResponse }
+
+func (response GetSystemStatus401JSONResponse) VisitGetSystemStatusResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(401)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
 // StrictServerInterface represents all server handlers.
 type StrictServerInterface interface {
+	// GetAccount Read the administrator account
+	// (GET /api/v1/account)
+	GetAccount(ctx context.Context, request GetAccountRequestObject) (GetAccountResponseObject, error)
+	// UpdateAccount Change the administrator username or password
+	// (PATCH /api/v1/account)
+	UpdateAccount(ctx context.Context, request UpdateAccountRequestObject) (UpdateAccountResponseObject, error)
+	// UpdateAccountLocale Persist the administrator language preference
+	// (PUT /api/v1/account/locale)
+	UpdateAccountLocale(ctx context.Context, request UpdateAccountLocaleRequestObject) (UpdateAccountLocaleResponseObject, error)
+	// RevokeAllSessions Revoke every administrator session
+	// (DELETE /api/v1/account/sessions)
+	RevokeAllSessions(ctx context.Context, request RevokeAllSessionsRequestObject) (RevokeAllSessionsResponseObject, error)
+	// DisableTOTP Disable TOTP and revoke all sessions
+	// (DELETE /api/v1/account/totp)
+	DisableTOTP(ctx context.Context, request DisableTOTPRequestObject) (DisableTOTPResponseObject, error)
+	// ConfirmTOTPEnrollment Confirm and enable TOTP
+	// (POST /api/v1/account/totp)
+	ConfirmTOTPEnrollment(ctx context.Context, request ConfirmTOTPEnrollmentRequestObject) (ConfirmTOTPEnrollmentResponseObject, error)
+	// StartTOTPEnrollment Start TOTP enrollment
+	// (POST /api/v1/account/totp/enrollment)
+	StartTOTPEnrollment(ctx context.Context, request StartTOTPEnrollmentRequestObject) (StartTOTPEnrollmentResponseObject, error)
+	// Login Start an administrator session
+	// (POST /api/v1/auth/login)
+	Login(ctx context.Context, request LoginRequestObject) (LoginResponseObject, error)
+	// Logout Revoke the current administrator session
+	// (POST /api/v1/auth/logout)
+	Logout(ctx context.Context, request LogoutRequestObject) (LogoutResponseObject, error)
+	// GetAuthenticatedSession Read the current administrator session
+	// (GET /api/v1/auth/session)
+	GetAuthenticatedSession(ctx context.Context, request GetAuthenticatedSessionRequestObject) (GetAuthenticatedSessionResponseObject, error)
 	// GetSystemStatus Read center status
 	// (GET /api/v1/system/status)
 	GetSystemStatus(ctx context.Context, request GetSystemStatusRequestObject) (GetSystemStatusResponseObject, error)
@@ -281,6 +1666,302 @@ type strictHandler struct {
 	ssi         StrictServerInterface
 	middlewares []StrictMiddlewareFunc
 	options     StrictHTTPServerOptions
+}
+
+// GetAccount operation middleware
+func (sh *strictHandler) GetAccount(w http.ResponseWriter, r *http.Request) {
+	var request GetAccountRequestObject
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.GetAccount(ctx, request.(GetAccountRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "GetAccount")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(GetAccountResponseObject); ok {
+		if err := validResponse.VisitGetAccountResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// UpdateAccount operation middleware
+func (sh *strictHandler) UpdateAccount(w http.ResponseWriter, r *http.Request, params UpdateAccountParams) {
+	var request UpdateAccountRequestObject
+
+	request.Params = params
+
+	var body UpdateAccountJSONRequestBody
+	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+		sh.options.RequestErrorHandlerFunc(w, r, fmt.Errorf("can't decode JSON body: %w", err))
+		return
+	}
+	request.Body = &body
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.UpdateAccount(ctx, request.(UpdateAccountRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "UpdateAccount")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(UpdateAccountResponseObject); ok {
+		if err := validResponse.VisitUpdateAccountResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// UpdateAccountLocale operation middleware
+func (sh *strictHandler) UpdateAccountLocale(w http.ResponseWriter, r *http.Request, params UpdateAccountLocaleParams) {
+	var request UpdateAccountLocaleRequestObject
+
+	request.Params = params
+
+	var body UpdateAccountLocaleJSONRequestBody
+	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+		sh.options.RequestErrorHandlerFunc(w, r, fmt.Errorf("can't decode JSON body: %w", err))
+		return
+	}
+	request.Body = &body
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.UpdateAccountLocale(ctx, request.(UpdateAccountLocaleRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "UpdateAccountLocale")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(UpdateAccountLocaleResponseObject); ok {
+		if err := validResponse.VisitUpdateAccountLocaleResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// RevokeAllSessions operation middleware
+func (sh *strictHandler) RevokeAllSessions(w http.ResponseWriter, r *http.Request, params RevokeAllSessionsParams) {
+	var request RevokeAllSessionsRequestObject
+
+	request.Params = params
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.RevokeAllSessions(ctx, request.(RevokeAllSessionsRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "RevokeAllSessions")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(RevokeAllSessionsResponseObject); ok {
+		if err := validResponse.VisitRevokeAllSessionsResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// DisableTOTP operation middleware
+func (sh *strictHandler) DisableTOTP(w http.ResponseWriter, r *http.Request, params DisableTOTPParams) {
+	var request DisableTOTPRequestObject
+
+	request.Params = params
+
+	var body DisableTOTPJSONRequestBody
+	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+		sh.options.RequestErrorHandlerFunc(w, r, fmt.Errorf("can't decode JSON body: %w", err))
+		return
+	}
+	request.Body = &body
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.DisableTOTP(ctx, request.(DisableTOTPRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "DisableTOTP")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(DisableTOTPResponseObject); ok {
+		if err := validResponse.VisitDisableTOTPResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// ConfirmTOTPEnrollment operation middleware
+func (sh *strictHandler) ConfirmTOTPEnrollment(w http.ResponseWriter, r *http.Request, params ConfirmTOTPEnrollmentParams) {
+	var request ConfirmTOTPEnrollmentRequestObject
+
+	request.Params = params
+
+	var body ConfirmTOTPEnrollmentJSONRequestBody
+	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+		sh.options.RequestErrorHandlerFunc(w, r, fmt.Errorf("can't decode JSON body: %w", err))
+		return
+	}
+	request.Body = &body
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.ConfirmTOTPEnrollment(ctx, request.(ConfirmTOTPEnrollmentRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "ConfirmTOTPEnrollment")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(ConfirmTOTPEnrollmentResponseObject); ok {
+		if err := validResponse.VisitConfirmTOTPEnrollmentResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// StartTOTPEnrollment operation middleware
+func (sh *strictHandler) StartTOTPEnrollment(w http.ResponseWriter, r *http.Request, params StartTOTPEnrollmentParams) {
+	var request StartTOTPEnrollmentRequestObject
+
+	request.Params = params
+
+	var body StartTOTPEnrollmentJSONRequestBody
+	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+		sh.options.RequestErrorHandlerFunc(w, r, fmt.Errorf("can't decode JSON body: %w", err))
+		return
+	}
+	request.Body = &body
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.StartTOTPEnrollment(ctx, request.(StartTOTPEnrollmentRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "StartTOTPEnrollment")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(StartTOTPEnrollmentResponseObject); ok {
+		if err := validResponse.VisitStartTOTPEnrollmentResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// Login operation middleware
+func (sh *strictHandler) Login(w http.ResponseWriter, r *http.Request) {
+	var request LoginRequestObject
+
+	var body LoginJSONRequestBody
+	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+		sh.options.RequestErrorHandlerFunc(w, r, fmt.Errorf("can't decode JSON body: %w", err))
+		return
+	}
+	request.Body = &body
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.Login(ctx, request.(LoginRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "Login")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(LoginResponseObject); ok {
+		if err := validResponse.VisitLoginResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// Logout operation middleware
+func (sh *strictHandler) Logout(w http.ResponseWriter, r *http.Request, params LogoutParams) {
+	var request LogoutRequestObject
+
+	request.Params = params
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.Logout(ctx, request.(LogoutRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "Logout")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(LogoutResponseObject); ok {
+		if err := validResponse.VisitLogoutResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// GetAuthenticatedSession operation middleware
+func (sh *strictHandler) GetAuthenticatedSession(w http.ResponseWriter, r *http.Request) {
+	var request GetAuthenticatedSessionRequestObject
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.GetAuthenticatedSession(ctx, request.(GetAuthenticatedSessionRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "GetAuthenticatedSession")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(GetAuthenticatedSessionResponseObject); ok {
+		if err := validResponse.VisitGetAuthenticatedSessionResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
 }
 
 // GetSystemStatus operation middleware

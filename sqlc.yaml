@@ -1,0 +1,20 @@
+version: "2"
+sql:
+  - engine: sqlite
+    schema: internal/center/database/migrations/config
+    queries: internal/center/database/configdb/queries.sql
+    gen:
+      go:
+        package: configdb
+        out: internal/center/database/configdb
+        emit_empty_slices: true
+        emit_pointers_for_null_types: true
+  - engine: sqlite
+    schema: internal/center/database/migrations/history
+    queries: internal/center/database/historydb/queries.sql
+    gen:
+      go:
+        package: historydb
+        out: internal/center/database/historydb
+        emit_empty_slices: true
+        emit_pointers_for_null_types: true

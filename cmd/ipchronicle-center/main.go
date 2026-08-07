@@ -4,48 +4,72 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"io"
 	"log"
 	"net/http"
 	"os"
 	"os/signal"
+	"strings"
 	"syscall"
 	"time"
 
 	"github.com/ipchronicle/ipchronicle/internal/center"
+	"github.com/ipchronicle/ipchronicle/internal/center/admin"
+	"github.com/ipchronicle/ipchronicle/internal/center/database"
 	"github.com/ipchronicle/ipchronicle/internal/version"
 	"github.com/ipchronicle/ipchronicle/internal/webui"
 )
 
-const defaultListenAddress = ":8080"
-
 func main() {
-	if len(os.Args) == 2 {
-		switch os.Args[1] {
-		case "version", "--version":
-			fmt.Println(version.Value)
-			return
-		case "healthcheck":
-			if err := healthcheck(); err != nil {
-				log.Fatal(err)
-			}
-			return
-		}
-	}
-
-	if err := serve(); err != nil {
+	if err := run(os.Args[1:]); err != nil {
 		log.Fatal(err)
 	}
 }
 
+func run(arguments []string) error {
+	if len(arguments) == 1 {
+		switch arguments[0] {
+		case "version", "--version":
+			fmt.Println(version.Value)
+			return nil
+		case "healthcheck":
+			return healthcheck()
+		}
+	}
+	if len(arguments) >= 2 && arguments[0] == "admin" {
+		return runAdministratorCommand(arguments[1:])
+	}
+	if len(arguments) != 0 {
+		return errors.New("usage: ipchronicle-center [version|healthcheck|admin reset-password --password-stdin|admin disable-totp]")
+	}
+	return serve()
+}
+
 func serve() error {
-	listenAddress := os.Getenv("IPCHRONICLE_LISTEN_ADDRESS")
-	if listenAddress == "" {
-		listenAddress = defaultListenAddress
+	configuration, err := center.LoadRuntimeConfig()
+	if err != nil {
+		return err
+	}
+	store, err := database.Open(context.Background(), configuration.DatabasePaths)
+	if err != nil {
+		return err
+	}
+	defer store.Close()
+	administrator := admin.NewService(store.Config, store.ConfigQueries, store.MasterKey)
+	if err := administrator.Bootstrap(context.Background(), configuration.AdminUsername, configuration.AdminPassword); err != nil {
+		return err
 	}
 
 	server := &http.Server{
-		Addr:              listenAddress,
-		Handler:           center.NewHTTPHandler(version.Value, webui.Handler()),
+		Addr: configuration.ListenAddress,
+		Handler: center.NewHTTPHandler(center.HTTPOptions{
+			Version:        version.Value,
+			Web:            webui.Handler(),
+			Administrator:  administrator,
+			Store:          store,
+			ExternalOrigin: configuration.ExternalOrigin,
+			TrustedProxies: configuration.TrustedProxies,
+		}),
 		ReadHeaderTimeout: 5 * time.Second,
 		IdleTimeout:       60 * time.Second,
 	}
@@ -61,12 +85,45 @@ func serve() error {
 		}
 	}()
 
-	log.Printf("IPChronicle center %s listening on %s", version.Value, listenAddress)
-	err := server.ListenAndServe()
+	log.Printf("IPChronicle center %s listening on %s", version.Value, configuration.ListenAddress)
+	err = server.ListenAndServe()
 	if errors.Is(err, http.ErrServerClosed) {
 		return nil
 	}
 	return err
+}
+
+func runAdministratorCommand(arguments []string) error {
+	paths, err := center.LoadDatabasePaths()
+	if err != nil {
+		return err
+	}
+	store, err := database.OpenConfigurationForRecovery(context.Background(), paths)
+	if err != nil {
+		return err
+	}
+	defer store.Close()
+	administrator := admin.NewService(store.Database, store.Queries, store.MasterKey)
+	if len(arguments) == 1 && arguments[0] == "disable-totp" {
+		if err := administrator.RecoverDisableTOTP(context.Background()); err != nil {
+			return err
+		}
+		fmt.Println("administrator TOTP disabled and all sessions revoked")
+		return nil
+	}
+	if len(arguments) == 2 && arguments[0] == "reset-password" && arguments[1] == "--password-stdin" {
+		input, err := io.ReadAll(io.LimitReader(os.Stdin, 1025))
+		if err != nil {
+			return fmt.Errorf("read password: %w", err)
+		}
+		password := strings.TrimSuffix(strings.TrimSuffix(string(input), "\n"), "\r")
+		if err := administrator.RecoverPassword(context.Background(), password); err != nil {
+			return err
+		}
+		fmt.Println("administrator password reset and all sessions revoked")
+		return nil
+	}
+	return errors.New("usage: ipchronicle-center admin reset-password --password-stdin | admin disable-totp")
 }
 
 func healthcheck() error {

@@ -4,6 +4,144 @@
  */
 
 export interface paths {
+    "/api/v1/auth/login": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Start an administrator session */
+        post: operations["login"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/auth/session": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Read the current administrator session */
+        get: operations["getAuthenticatedSession"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/auth/logout": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Revoke the current administrator session */
+        post: operations["logout"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/account": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Read the administrator account */
+        get: operations["getAccount"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        /** Change the administrator username or password */
+        patch: operations["updateAccount"];
+        trace?: never;
+    };
+    "/api/v1/account/locale": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /** Persist the administrator language preference */
+        put: operations["updateAccountLocale"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/account/totp/enrollment": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Start TOTP enrollment */
+        post: operations["startTOTPEnrollment"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/account/totp": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Confirm and enable TOTP */
+        post: operations["confirmTOTPEnrollment"];
+        /** Disable TOTP and revoke all sessions */
+        delete: operations["disableTOTP"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/account/sessions": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /** Revoke every administrator session */
+        delete: operations["revokeAllSessions"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/system/status": {
         parameters: {
             query?: never;
@@ -25,22 +163,397 @@ export interface paths {
 export type webhooks = Record<string, never>;
 export interface components {
     schemas: {
+        /** @enum {string} */
+        SupportedLocale: "zh-CN" | "en";
+        Account: {
+            username: string;
+            locale: components["schemas"]["SupportedLocale"];
+            usesDefaultCredentials: boolean;
+            totpEnabled: boolean;
+        };
+        AuthenticatedSession: {
+            account: components["schemas"]["Account"];
+            csrfToken: string;
+            /** Format: date-time */
+            expiresAt: string;
+        };
+        LoginRequest: {
+            username: string;
+            password: string;
+            totpCode?: string;
+        };
+        AccountUpdateRequest: {
+            currentPassword: string;
+            username?: string;
+            newPassword?: string;
+        };
+        AccountUpdateResult: {
+            account: components["schemas"]["Account"];
+            sessionRevoked: boolean;
+        };
+        LocaleUpdateRequest: {
+            locale: components["schemas"]["SupportedLocale"];
+        };
+        CurrentPasswordRequest: {
+            currentPassword: string;
+        };
+        TOTPCodeRequest: {
+            code: string;
+        };
+        DisableTOTPRequest: {
+            currentPassword: string;
+            code: string;
+        };
+        TOTPEnrollment: {
+            secret: string;
+            /** Format: uri */
+            provisioningUri: string;
+        };
+        /** @enum {string} */
+        ErrorCode: "invalid_request" | "invalid_credentials" | "totp_required" | "rate_limited" | "unauthenticated" | "csrf_failed" | "origin_not_allowed" | "current_password_invalid" | "invalid_totp" | "totp_already_enabled" | "totp_not_enabled" | "totp_enrollment_not_started" | "no_account_change" | "internal_error";
+        ErrorResponse: {
+            code: components["schemas"]["ErrorCode"];
+            parameters?: {
+                [key: string]: string;
+            };
+        };
         SystemStatus: {
             /** @enum {string} */
             service: "ipchronicle-center";
             /** @enum {string} */
             status: "ok";
             version: string;
+            /** Format: int64 */
+            configSchemaVersion: number;
+            /** Format: int64 */
+            historySchemaVersion: number;
+            /** @enum {string} */
+            transportSecurity: "http" | "https";
+            transportWarning: boolean;
+            externalOriginConfigured: boolean;
+            trustedProxyConfigured: boolean;
         };
     };
-    responses: never;
-    parameters: never;
+    responses: {
+        /** @description The request failed validation. */
+        BadRequest: {
+            headers: {
+                [name: string]: unknown;
+            };
+            content: {
+                "application/json": components["schemas"]["ErrorResponse"];
+            };
+        };
+        /** @description Authentication is required or failed. */
+        Unauthorized: {
+            headers: {
+                [name: string]: unknown;
+            };
+            content: {
+                "application/json": components["schemas"]["ErrorResponse"];
+            };
+        };
+        /** @description The request failed an origin or CSRF check. */
+        Forbidden: {
+            headers: {
+                [name: string]: unknown;
+            };
+            content: {
+                "application/json": components["schemas"]["ErrorResponse"];
+            };
+        };
+        /** @description The requested account transition conflicts with current state. */
+        Conflict: {
+            headers: {
+                [name: string]: unknown;
+            };
+            content: {
+                "application/json": components["schemas"]["ErrorResponse"];
+            };
+        };
+    };
+    parameters: {
+        CSRFToken: string;
+    };
     requestBodies: never;
     headers: never;
     pathItems: never;
 }
 export type $defs = Record<string, never>;
 export interface operations {
+    login: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["LoginRequest"];
+            };
+        };
+        responses: {
+            /** @description The administrator is authenticated. */
+            200: {
+                headers: {
+                    "Set-Cookie"?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AuthenticatedSession"];
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            /** @description Login attempts are temporarily throttled. */
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    getAuthenticatedSession: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The current session and account. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AuthenticatedSession"];
+                };
+            };
+            401: components["responses"]["Unauthorized"];
+        };
+    };
+    logout: {
+        parameters: {
+            query?: never;
+            header?: {
+                "X-CSRF-Token"?: components["parameters"]["CSRFToken"];
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The session was revoked. */
+            204: {
+                headers: {
+                    "Set-Cookie"?: string;
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+        };
+    };
+    getAccount: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The administrator account. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Account"];
+                };
+            };
+            401: components["responses"]["Unauthorized"];
+        };
+    };
+    updateAccount: {
+        parameters: {
+            query?: never;
+            header?: {
+                "X-CSRF-Token"?: components["parameters"]["CSRFToken"];
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["AccountUpdateRequest"];
+            };
+        };
+        responses: {
+            /** @description The account was updated. */
+            200: {
+                headers: {
+                    "Set-Cookie"?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AccountUpdateResult"];
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+        };
+    };
+    updateAccountLocale: {
+        parameters: {
+            query?: never;
+            header?: {
+                "X-CSRF-Token"?: components["parameters"]["CSRFToken"];
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["LocaleUpdateRequest"];
+            };
+        };
+        responses: {
+            /** @description The account language was updated. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Account"];
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+        };
+    };
+    startTOTPEnrollment: {
+        parameters: {
+            query?: never;
+            header?: {
+                "X-CSRF-Token"?: components["parameters"]["CSRFToken"];
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CurrentPasswordRequest"];
+            };
+        };
+        responses: {
+            /** @description One-time TOTP enrollment material. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TOTPEnrollment"];
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            409: components["responses"]["Conflict"];
+        };
+    };
+    confirmTOTPEnrollment: {
+        parameters: {
+            query?: never;
+            header?: {
+                "X-CSRF-Token"?: components["parameters"]["CSRFToken"];
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["TOTPCodeRequest"];
+            };
+        };
+        responses: {
+            /** @description TOTP was enabled. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Account"];
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            409: components["responses"]["Conflict"];
+        };
+    };
+    disableTOTP: {
+        parameters: {
+            query?: never;
+            header?: {
+                "X-CSRF-Token"?: components["parameters"]["CSRFToken"];
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["DisableTOTPRequest"];
+            };
+        };
+        responses: {
+            /** @description TOTP was disabled and all sessions were revoked. */
+            204: {
+                headers: {
+                    "Set-Cookie"?: string;
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            400: components["responses"]["BadRequest"];
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            409: components["responses"]["Conflict"];
+        };
+    };
+    revokeAllSessions: {
+        parameters: {
+            query?: never;
+            header?: {
+                "X-CSRF-Token"?: components["parameters"]["CSRFToken"];
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Every administrator session was revoked. */
+            204: {
+                headers: {
+                    "Set-Cookie"?: string;
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+        };
+    };
     getSystemStatus: {
         parameters: {
             query?: never;
@@ -59,6 +572,7 @@ export interface operations {
                     "application/json": components["schemas"]["SystemStatus"];
                 };
             };
+            401: components["responses"]["Unauthorized"];
         };
     };
 }

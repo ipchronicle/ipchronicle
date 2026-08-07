@@ -14,10 +14,11 @@ architecture decisions are maintained in the
 
 ## Repository Status
 
-Phase 0 provides a reproducible end-to-end foundation: a real Center health
-and status API, a generated typed client, a bilingual status interface, an
-embedded production web build, a no-CGO Agent build, and a supported Compose
-topology. Probe, persistence, enrollment, and authentication behavior belong
+Phase 1 provides the Center persistence and administrator boundary: separate
+configuration and history databases, embedded migrations, an installation
+master key, administrator bootstrap and recovery, persistent sessions, CSRF
+and origin enforcement, TOTP, account settings, and an authenticated bilingual
+status interface. Agent enrollment, node inventory, and probe behavior belong
 to later vertical slices and are not represented by placeholder success paths.
 
 ## Run The Center
@@ -27,10 +28,47 @@ docker compose -f deploy/compose.yaml up -d --build
 ```
 
 The Center is then available at <http://127.0.0.1:8080>. Set
-`IPCHRONICLE_HTTP_PORT` to publish another host port. The application stores
-future durable state at `/var/lib/ipchronicle` in the `center-data` volume.
-Phase 0 does not provide a built-in backup command; external volume copies are
-an operator responsibility.
+`IPCHRONICLE_HTTP_PORT` to publish another host port. The initial administrator
+username and password are both `admin`; the interface warns while those
+defaults remain active but does not force a change.
+
+Compose stores `config.db` and the installation master key in the
+`center-config` volume, and `history.db` in the independent `center-history`
+volume. Deliberately removing history must not require removing account or
+configuration state. The first release does not provide a built-in backup
+command; external volume copies are an operator responsibility.
+
+Bootstrap credentials can be supplied before the first start. They are read
+only when `config.db` has no administrator account:
+
+```sh
+IPCHRONICLE_ADMIN_USERNAME=owner \
+IPCHRONICLE_ADMIN_PASSWORD='choose-a-strong-password' \
+docker compose -f deploy/compose.yaml up -d --build
+```
+
+For reverse-proxy deployments, set `IPCHRONICLE_EXTERNAL_URL` to the exact
+browser-facing HTTP or HTTPS origin. Set `IPCHRONICLE_TRUSTED_PROXIES` to the
+comma-separated proxy CIDRs that may supply `X-Forwarded-For` and
+`X-Forwarded-Proto`. IPChronicle does not terminate TLS; HTTPS is recommended
+at the operator-managed reverse proxy, while intentional HTTP remains usable
+with a visible warning.
+
+## Local Administrator Recovery
+
+These commands are intended for a server operator with local Compose access.
+Both revoke every administrator session:
+
+```sh
+read -r -s IPCHRONICLE_RECOVERY_PASSWORD
+printf '%s\n' "$IPCHRONICLE_RECOVERY_PASSWORD" | \
+  docker compose -f deploy/compose.yaml exec -T center \
+    /usr/local/bin/ipchronicle-center admin reset-password --password-stdin
+unset IPCHRONICLE_RECOVERY_PASSWORD
+
+docker compose -f deploy/compose.yaml exec -T center \
+  /usr/local/bin/ipchronicle-center admin disable-totp
+```
 
 ## Development
 
@@ -51,6 +89,8 @@ make browser-test
 ```
 
 - `make generate` regenerates committed Go and TypeScript OpenAPI bindings.
+- `make generate` also runs pinned `sqlc` generation independently for
+  `config.db` and `history.db`.
 - `make check` validates generated drift, formatting, lint, types, unit and race
   tests, native Center build, no-CGO Agent builds for AMD64 and ARM64, and the
   production web build.

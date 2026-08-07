@@ -30,6 +30,7 @@
     "i18next": "26.3.6",
     "lucide-react": "1.29.0",
     "openapi-fetch": "0.17.0",
+    "qrcode.react": "4.2.0",
     "radix-ui": "1.6.7",
     "react": "19.2.8",
     "react-dom": "19.2.8",
@@ -51,11 +52,11 @@
     "jsdom": "30.0.1",
     "openapi-typescript": "7.13.0",
     "oxlint": "1.77.0",
+    "prettier": "3.9.6",
     "shadcn": "4.16.2",
     "tailwindcss": "4.3.3",
     "typescript": "5.9.3",
     "vite": "8.2.1",
-    "prettier": "3.9.6",
     "vitest": "4.1.10"
   },
   "overrides": {

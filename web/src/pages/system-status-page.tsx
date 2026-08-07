@@ -1,8 +1,19 @@
-import { useCallback, useEffect, useState } from "react";
-import { Check, RefreshCw, Server, TriangleAlert } from "lucide-react";
+import { type ReactNode, useCallback, useEffect, useState } from "react";
+import {
+  Check,
+  Database,
+  ExternalLink,
+  RefreshCw,
+  Server,
+  ShieldAlert,
+  TriangleAlert,
+} from "lucide-react";
 import { useTranslation } from "react-i18next";
+import { Link } from "react-router";
 
 import { getSystemStatus } from "@/api/system";
+import { useAuth } from "@/auth-context";
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Separator } from "@/components/ui/separator";
@@ -17,6 +28,7 @@ type ViewState =
 
 export function SystemStatusPage() {
   const { i18n, t } = useTranslation();
+  const { state: authState } = useAuth();
   const [state, setState] = useState<ViewState>({ kind: "loading" });
 
   const loadStatus = useCallback((signal?: AbortSignal) => {
@@ -46,9 +58,11 @@ export function SystemStatusPage() {
           dateStyle: "medium",
           timeStyle: "medium",
         }).format(state.checkedAt);
+  const account =
+    authState.status === "authenticated" ? authState.session.account : null;
 
   return (
-    <main className="mx-auto w-full max-w-6xl px-4 py-10 sm:px-6 sm:py-16">
+    <main className="mx-auto w-full max-w-6xl px-4 py-10 sm:px-6 sm:py-14">
       <div className="max-w-2xl">
         <p className="text-xs font-medium text-muted-foreground uppercase">
           {t("status.section")}
@@ -58,8 +72,33 @@ export function SystemStatusPage() {
         </h1>
       </div>
 
+      <div className="mt-8 space-y-3">
+        {account?.usesDefaultCredentials ? (
+          <Alert variant="destructive">
+            <ShieldAlert aria-hidden="true" />
+            <AlertTitle>{t("status.defaultCredentialsTitle")}</AlertTitle>
+            <AlertDescription className="flex flex-wrap items-center justify-between gap-3">
+              <span>{t("status.defaultCredentialsDetail")}</span>
+              <Button asChild variant="outline" size="sm">
+                <Link to="/settings/account">
+                  {t("status.openAccount")}
+                  <ExternalLink data-icon="inline-end" aria-hidden="true" />
+                </Link>
+              </Button>
+            </AlertDescription>
+          </Alert>
+        ) : null}
+        {state.kind === "success" && state.status.transportWarning ? (
+          <Alert>
+            <TriangleAlert aria-hidden="true" />
+            <AlertTitle>{t("status.httpWarningTitle")}</AlertTitle>
+            <AlertDescription>{t("status.httpWarningDetail")}</AlertDescription>
+          </Alert>
+        ) : null}
+      </div>
+
       <section
-        className="mt-8 border-y"
+        className="mt-6 border-y"
         aria-live="polite"
         aria-busy={state.kind === "loading"}
       >
@@ -75,16 +114,75 @@ export function SystemStatusPage() {
 
         <Separator />
 
-        <dl className="grid sm:grid-cols-3">
+        <dl className="grid sm:grid-cols-2 lg:grid-cols-4">
           <StatusField
+            icon={<Server aria-hidden="true" />}
             label={t("status.service")}
             value={state.kind === "success" ? state.status.service : undefined}
           />
           <StatusField
+            icon={<Server aria-hidden="true" />}
             label={t("status.version")}
             value={state.kind === "success" ? state.status.version : undefined}
           />
-          <StatusField label={t("status.checkedAt")} value={checkedAt} />
+          <StatusField
+            icon={<Database aria-hidden="true" />}
+            label={t("status.configSchema")}
+            value={
+              state.kind === "success"
+                ? String(state.status.configSchemaVersion)
+                : undefined
+            }
+          />
+          <StatusField
+            icon={<Database aria-hidden="true" />}
+            label={t("status.historySchema")}
+            value={
+              state.kind === "success"
+                ? String(state.status.historySchemaVersion)
+                : undefined
+            }
+          />
+          <StatusField
+            icon={<ShieldAlert aria-hidden="true" />}
+            label={t("status.transport")}
+            value={
+              state.kind === "success"
+                ? state.status.transportSecurity.toUpperCase()
+                : undefined
+            }
+          />
+          <StatusField
+            icon={<Server aria-hidden="true" />}
+            label={t("status.externalOrigin")}
+            value={
+              state.kind === "success"
+                ? t(
+                    state.status.externalOriginConfigured
+                      ? "status.configured"
+                      : "status.notConfigured",
+                  )
+                : undefined
+            }
+          />
+          <StatusField
+            icon={<Server aria-hidden="true" />}
+            label={t("status.trustedProxy")}
+            value={
+              state.kind === "success"
+                ? t(
+                    state.status.trustedProxyConfigured
+                      ? "status.configured"
+                      : "status.notConfigured",
+                  )
+                : undefined
+            }
+          />
+          <StatusField
+            icon={<RefreshCw aria-hidden="true" />}
+            label={t("status.checkedAt")}
+            value={checkedAt}
+          />
         </dl>
       </section>
     </main>
@@ -135,12 +233,20 @@ function StatusSummary({ state }: { state: ViewState }) {
   );
 }
 
-function StatusField({ label, value }: { label: string; value?: string }) {
+function StatusField({
+  icon,
+  label,
+  value,
+}: {
+  icon: ReactNode;
+  label: string;
+  value?: string;
+}) {
   const { t } = useTranslation();
   return (
-    <div className="min-w-0 border-b py-5 last:border-b-0 sm:border-r sm:border-b-0 sm:px-5 sm:first:pl-0 sm:last:border-r-0 sm:last:pr-0">
-      <dt className="flex items-center gap-2 text-xs font-medium text-muted-foreground">
-        <Server aria-hidden="true" className="size-3.5" />
+    <div className="min-w-0 border-b py-5 sm:border-r sm:px-5 sm:nth-[2n]:border-r-0 lg:nth-[2n]:border-r lg:nth-[4n]:border-r-0 lg:nth-[-n+4]:border-b">
+      <dt className="flex items-center gap-2 text-xs font-medium text-muted-foreground [&_svg]:size-3.5">
+        {icon}
         {label}
       </dt>
       <dd className="mt-2 break-all text-sm font-medium">

@@ -4,6 +4,7 @@ GO_IMAGE := golang:1.26.5-bookworm
 NODE_IMAGE := node:24.19.0-bookworm-slim
 PLAYWRIGHT_IMAGE := mcr.microsoft.com/playwright:v1.62.1-noble
 GITLEAKS_IMAGE := zricethezav/gitleaks:v8.30.1
+SQLC_IMAGE := sqlc/sqlc:1.31.0
 CONTAINER_USER := $(shell id -u):$(shell id -g)
 ROOT := /workspace
 VERSION ?= dev
@@ -11,6 +12,7 @@ REVISION ?= $(shell git rev-parse --short HEAD 2>/dev/null || printf unknown)
 VERSION_PACKAGE := github.com/ipchronicle/ipchronicle/internal/version.Value
 GO_RUN := docker run --rm --user $(CONTAINER_USER) -e HOME=/tmp -e GOCACHE=/tmp/go-build -e GOMODCACHE=/tmp/go-mod -v $(CURDIR):$(ROOT) -w $(ROOT) $(GO_IMAGE)
 NODE_RUN := docker run --rm --user $(CONTAINER_USER) -e HOME=/tmp -v $(CURDIR):$(ROOT) -w $(ROOT)/web $(NODE_IMAGE)
+SQLC_RUN := docker run --rm --user $(CONTAINER_USER) -v $(CURDIR):/src -w /src $(SQLC_IMAGE)
 
 .PHONY: all browser-test build check compose-smoke format generate go-check secret-scan web-assets web-check
 
@@ -18,6 +20,7 @@ all: check
 
 generate:
 	$(GO_RUN) sh -ceu 'go mod download; go tool oapi-codegen -config openapi/oapi-codegen-server.yaml openapi/openapi.yaml; go tool oapi-codegen -config openapi/oapi-codegen-agent.yaml openapi/openapi.yaml'
+	$(SQLC_RUN) generate
 	$(NODE_RUN) sh -ceu 'npm ci; npm run generate:api'
 
 format:

@@ -17,6 +17,8 @@
 - `cmd/ipchronicle-center/`: center process entry point.
 - `cmd/ipchronicle-agent/`: root Agent process entry point.
 - `internal/center/`: center HTTP composition and application modules.
+- `internal/center/database/`: embedded migrations, hand-written SQL, and the
+  generated `sqlc` query packages for the separately owned databases.
 - `internal/agent/`: Agent application modules.
 - `internal/generated/`: generated Go API bindings; never edit manually.
 - `internal/webui/`: compiled web asset embedding and SPA serving boundary.
@@ -66,6 +68,9 @@ rules that would make this file ambiguous. Do not create empty rule files.
   `context.Context` and application types.
 - `openapi/openapi.yaml` is the HTTP contract source of truth. Never edit
   generated Go or TypeScript bindings.
+- `internal/center/database/*db/db.go`, `models.go`, and `queries.sql.go` are
+  generated from `sqlc.yaml`, migrations, and `queries.sql`; never edit them
+  manually.
 - API errors use stable codes and structured parameters. The frontend
   localizes them; handler prose is not a browser contract.
 - Center SQL will use `database/sql`, `sqlc`, and explicit parameterized SQL.
