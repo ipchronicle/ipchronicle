@@ -8,7 +8,7 @@ git diff --check
 git diff --cached --check
 
 forbidden_files='(^|/)(node_modules|dist|bin|coverage|playwright-report|test-results)(/|$)|(^|/)\.env($|\.)|\.db($|-shm$|-wal$)'
-if git ls-files | rg "$forbidden_files" | rg -v '^(\.env\.example|internal/webui/dist/\.gitkeep)$'; then
+if git ls-files | grep -E "$forbidden_files" | grep -Ev '^(\.env\.example|internal/webui/dist/\.gitkeep)$'; then
   echo "tracked generated artifact or local state found" >&2
   exit 1
 fi

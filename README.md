@@ -37,6 +37,7 @@ an operator responsibility.
 Prerequisites:
 
 - Docker with Docker Compose and GNU Make for repository-level commands
+- `curl` and `jq` for the Compose smoke test
 - Node.js 24.19.0 and npm 11.17.0 for direct frontend work
 - Go 1.26.5 for direct Go work
 
