@@ -6,15 +6,18 @@ import (
 	"fmt"
 	"math"
 	"net/http"
+	"strings"
 	"time"
 
 	"github.com/ipchronicle/ipchronicle/internal/center/admin"
+	"github.com/ipchronicle/ipchronicle/internal/center/nodes"
 	"github.com/ipchronicle/ipchronicle/internal/generated/api"
 )
 
 type apiServer struct {
 	version                  string
 	administrator            *admin.Service
+	nodes                    *nodes.Service
 	configSchemaVersion      int64
 	historySchemaVersion     int64
 	externalOriginConfigured bool
@@ -300,6 +303,128 @@ func (s apiServer) GetSystemStatus(ctx context.Context, _ api.GetSystemStatusReq
 	}, nil
 }
 
+func (s apiServer) ListNodes(ctx context.Context, _ api.ListNodesRequestObject) (api.ListNodesResponseObject, error) {
+	_, failure, err := s.authorize(ctx, false, "")
+	if err != nil {
+		return nil, err
+	}
+	if failure != "" {
+		return api.ListNodes401JSONResponse{UnauthorizedJSONResponse: unauthorized(failure)}, nil
+	}
+	records, err := s.nodes.List(ctx)
+	if err != nil {
+		return nil, err
+	}
+	items := make([]api.Node, 0, len(records))
+	for _, record := range records {
+		items = append(items, nodeResponse(record))
+	}
+	return api.ListNodes200JSONResponse{Items: items}, nil
+}
+
+func (s apiServer) GetAgentEnrollment(ctx context.Context, _ api.GetAgentEnrollmentRequestObject) (api.GetAgentEnrollmentResponseObject, error) {
+	_, failure, err := s.authorize(ctx, false, "")
+	if err != nil {
+		return nil, err
+	}
+	if failure != "" {
+		return api.GetAgentEnrollment401JSONResponse{UnauthorizedJSONResponse: unauthorized(failure)}, nil
+	}
+	enrollment, err := s.nodes.Enrollment(ctx)
+	if err != nil {
+		return nil, err
+	}
+	return api.GetAgentEnrollment200JSONResponse(enrollmentResponse(enrollment, requestSecurityFromContext(ctx).ExpectedOrigin, s.version)), nil
+}
+
+func (s apiServer) UpdateAgentEnrollment(ctx context.Context, request api.UpdateAgentEnrollmentRequestObject) (api.UpdateAgentEnrollmentResponseObject, error) {
+	_, failure, err := s.authorize(ctx, true, csrfValue(request.Params.XCSRFToken))
+	if err != nil {
+		return nil, err
+	}
+	if failure == api.Unauthenticated {
+		return api.UpdateAgentEnrollment401JSONResponse{UnauthorizedJSONResponse: unauthorized(failure)}, nil
+	}
+	if failure != "" {
+		return api.UpdateAgentEnrollment403JSONResponse{ForbiddenJSONResponse: forbidden(failure)}, nil
+	}
+	if request.Body == nil {
+		return api.UpdateAgentEnrollment400JSONResponse{BadRequestJSONResponse: badRequest(api.InvalidRequest)}, nil
+	}
+	enrollment, err := s.nodes.SetEnrollmentEnabled(ctx, request.Body.Enabled)
+	if errors.Is(err, nodes.ErrEnrollmentKeyMissing) {
+		return api.UpdateAgentEnrollment409JSONResponse{ConflictJSONResponse: conflict(api.RegistrationKeyNotInitialized)}, nil
+	}
+	if err != nil {
+		return nil, err
+	}
+	return api.UpdateAgentEnrollment200JSONResponse(enrollmentResponse(enrollment, requestSecurityFromContext(ctx).ExpectedOrigin, s.version)), nil
+}
+
+func (s apiServer) RotateAgentEnrollmentKey(ctx context.Context, request api.RotateAgentEnrollmentKeyRequestObject) (api.RotateAgentEnrollmentKeyResponseObject, error) {
+	_, failure, err := s.authorize(ctx, true, csrfValue(request.Params.XCSRFToken))
+	if err != nil {
+		return nil, err
+	}
+	if failure == api.Unauthenticated {
+		return api.RotateAgentEnrollmentKey401JSONResponse{UnauthorizedJSONResponse: unauthorized(failure)}, nil
+	}
+	if failure != "" {
+		return api.RotateAgentEnrollmentKey403JSONResponse{ForbiddenJSONResponse: forbidden(failure)}, nil
+	}
+	enrollment, err := s.nodes.RotateEnrollmentKey(ctx)
+	if err != nil {
+		return nil, err
+	}
+	return api.RotateAgentEnrollmentKey200JSONResponse(enrollmentResponse(enrollment, requestSecurityFromContext(ctx).ExpectedOrigin, s.version)), nil
+}
+
+func (s apiServer) RegisterAgent(ctx context.Context, request api.RegisterAgentRequestObject) (api.RegisterAgentResponseObject, error) {
+	if request.Body == nil {
+		return api.RegisterAgent400JSONResponse{BadRequestJSONResponse: badRequest(api.InvalidRequest)}, nil
+	}
+	registration, err := s.nodes.Register(ctx, request.Body.RegistrationKey, metadataFromAPI(request.Body.Metadata))
+	switch {
+	case errors.Is(err, nodes.ErrInvalidMetadata):
+		return api.RegisterAgent400JSONResponse{BadRequestJSONResponse: badRequest(api.InvalidRequest)}, nil
+	case errors.Is(err, nodes.ErrEnrollmentKeyInvalid):
+		return api.RegisterAgent401JSONResponse{AgentUnauthorizedJSONResponse: agentUnauthorized(api.RegistrationKeyInvalid)}, nil
+	case errors.Is(err, nodes.ErrEnrollmentDisabled):
+		return api.RegisterAgent403JSONResponse{AgentForbiddenJSONResponse: agentForbidden(api.RegistrationDisabled)}, nil
+	case err != nil:
+		return nil, err
+	}
+	return api.RegisterAgent201JSONResponse{
+		NodeId: registration.NodeID, Credential: registration.Credential,
+		PollIntervalSeconds: int(nodes.PollInterval / time.Second),
+	}, nil
+}
+
+func (s apiServer) PollAgent(ctx context.Context, request api.PollAgentRequestObject) (api.PollAgentResponseObject, error) {
+	if request.Body == nil {
+		return api.PollAgent400JSONResponse{BadRequestJSONResponse: badRequest(api.InvalidRequest)}, nil
+	}
+	credential := bearerToken(requestSecurityFromContext(ctx).Authorization)
+	poll, err := s.nodes.Poll(
+		ctx, credential, metadataFromAPI(request.Body.Metadata),
+		request.Body.AppliedConfigurationRevision, request.Body.ConfigurationError,
+	)
+	switch {
+	case errors.Is(err, nodes.ErrInvalidMetadata):
+		return api.PollAgent400JSONResponse{BadRequestJSONResponse: badRequest(api.InvalidRequest)}, nil
+	case errors.Is(err, nodes.ErrAgentUnauthenticated):
+		return api.PollAgent401JSONResponse{AgentUnauthorizedJSONResponse: agentUnauthorized(api.AgentUnauthenticated)}, nil
+	case errors.Is(err, nodes.ErrAgentRevoked):
+		return api.PollAgent403JSONResponse{AgentForbiddenJSONResponse: agentForbidden(api.AgentRevoked)}, nil
+	case err != nil:
+		return nil, err
+	}
+	return api.PollAgent200JSONResponse{
+		CenterVersion: s.version, DesiredConfigurationRevision: poll.DesiredConfigurationRevision,
+		Enabled: poll.Enabled, PollIntervalSeconds: int(nodes.PollInterval / time.Second),
+	}, nil
+}
+
 func (s apiServer) authorize(ctx context.Context, mutation bool, csrf string) (admin.Principal, api.ErrorCode, error) {
 	security := requestSecurityFromContext(ctx)
 	principal, err := s.administrator.Authenticate(ctx, security.SessionToken)
@@ -356,6 +481,69 @@ func badRequest(code api.ErrorCode) api.BadRequestJSONResponse {
 
 func conflict(code api.ErrorCode) api.ConflictJSONResponse {
 	return api.ConflictJSONResponse(errorResponse(code, nil))
+}
+
+func agentUnauthorized(code api.ErrorCode) api.AgentUnauthorizedJSONResponse {
+	return api.AgentUnauthorizedJSONResponse(errorResponse(code, nil))
+}
+
+func agentForbidden(code api.ErrorCode) api.AgentForbiddenJSONResponse {
+	return api.AgentForbiddenJSONResponse(errorResponse(code, nil))
+}
+
+func metadataFromAPI(metadata api.AgentMetadata) nodes.Metadata {
+	return nodes.Metadata{
+		Hostname: metadata.Hostname, AgentVersion: metadata.AgentVersion,
+		OperatingSystem: string(metadata.OperatingSystem), Architecture: string(metadata.Architecture),
+		Capabilities: metadata.Capabilities,
+	}
+}
+
+func enrollmentResponse(enrollment nodes.Enrollment, centerURL, centerVersion string) api.AgentEnrollmentSettings {
+	response := api.AgentEnrollmentSettings{Enabled: enrollment.Enabled, HasKey: enrollment.HasKey}
+	if !enrollment.HasKey {
+		return response
+	}
+	installerURL := "https://github.com/ipchronicle/ipchronicle/releases/latest/download/install-agent.sh"
+	versionArgument := ""
+	if centerVersion != "dev" {
+		version := strings.TrimPrefix(centerVersion, "v")
+		installerURL = "https://github.com/ipchronicle/ipchronicle/releases/download/v" + version + "/install-agent.sh"
+		versionArgument = " --version " + shellQuote(version)
+	}
+	command := "curl --proto '=https' --tlsv1.2 -fsSL " + shellQuote(installerURL) + " | " +
+		"sh -s -- --center-url " + shellQuote(centerURL) + " --registration-key " +
+		shellQuote(enrollment.Key) + versionArgument
+	response.InstallationCommand = &command
+	rotatedAt := enrollment.RotatedAt
+	response.RotatedAt = &rotatedAt
+	return response
+}
+
+func nodeResponse(node nodes.Node) api.Node {
+	return api.Node{
+		Id: node.ID, Name: node.Name, Hostname: node.Hostname, Status: api.NodeStatus(node.Status),
+		Enabled: node.Enabled, AgentVersion: node.AgentVersion,
+		OperatingSystem: api.AgentPlatform(node.OperatingSystem), Architecture: api.AgentArchitecture(node.Architecture),
+		Capabilities:                 node.Capabilities,
+		DesiredConfigurationRevision: node.DesiredConfigurationRevision,
+		AppliedConfigurationRevision: node.AppliedConfigurationRevision,
+		ConfigurationStatus:          api.NodeConfigurationStatus(node.ConfigurationStatus),
+		ConfigurationError:           node.ConfigurationError,
+		RegisteredAt:                 node.RegisteredAt, LastSeenAt: node.LastSeenAt,
+	}
+}
+
+func bearerToken(header string) string {
+	scheme, token, found := strings.Cut(header, " ")
+	if !found || !strings.EqualFold(scheme, "Bearer") || token == "" || strings.ContainsAny(token, " \t\r\n") {
+		return ""
+	}
+	return token
+}
+
+func shellQuote(value string) string {
+	return "'" + strings.ReplaceAll(value, "'", "'\"'\"'") + "'"
 }
 
 func csrfValue(value *api.CSRFToken) string {

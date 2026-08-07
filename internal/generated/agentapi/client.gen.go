@@ -15,29 +15,72 @@ import (
 	"time"
 
 	"github.com/oapi-codegen/runtime"
+	openapi_types "github.com/oapi-codegen/runtime/types"
 )
+
+// Defines values for AgentArchitecture.
+const (
+	Amd64 AgentArchitecture = "amd64"
+	Arm64 AgentArchitecture = "arm64"
+)
+
+// Valid indicates whether the value is a known member of the AgentArchitecture enum.
+func (e AgentArchitecture) Valid() bool {
+	switch e {
+	case Amd64:
+		return true
+	case Arm64:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for AgentPlatform.
+const (
+	Linux AgentPlatform = "linux"
+)
+
+// Valid indicates whether the value is a known member of the AgentPlatform enum.
+func (e AgentPlatform) Valid() bool {
+	switch e {
+	case Linux:
+		return true
+	default:
+		return false
+	}
+}
 
 // Defines values for ErrorCode.
 const (
-	CsrfFailed               ErrorCode = "csrf_failed"
-	CurrentPasswordInvalid   ErrorCode = "current_password_invalid"
-	InternalError            ErrorCode = "internal_error"
-	InvalidCredentials       ErrorCode = "invalid_credentials"
-	InvalidRequest           ErrorCode = "invalid_request"
-	InvalidTotp              ErrorCode = "invalid_totp"
-	NoAccountChange          ErrorCode = "no_account_change"
-	OriginNotAllowed         ErrorCode = "origin_not_allowed"
-	RateLimited              ErrorCode = "rate_limited"
-	TotpAlreadyEnabled       ErrorCode = "totp_already_enabled"
-	TotpEnrollmentNotStarted ErrorCode = "totp_enrollment_not_started"
-	TotpNotEnabled           ErrorCode = "totp_not_enabled"
-	TotpRequired             ErrorCode = "totp_required"
-	Unauthenticated          ErrorCode = "unauthenticated"
+	AgentRevoked                  ErrorCode = "agent_revoked"
+	AgentUnauthenticated          ErrorCode = "agent_unauthenticated"
+	CsrfFailed                    ErrorCode = "csrf_failed"
+	CurrentPasswordInvalid        ErrorCode = "current_password_invalid"
+	InternalError                 ErrorCode = "internal_error"
+	InvalidCredentials            ErrorCode = "invalid_credentials"
+	InvalidRequest                ErrorCode = "invalid_request"
+	InvalidTotp                   ErrorCode = "invalid_totp"
+	NoAccountChange               ErrorCode = "no_account_change"
+	OriginNotAllowed              ErrorCode = "origin_not_allowed"
+	RateLimited                   ErrorCode = "rate_limited"
+	RegistrationDisabled          ErrorCode = "registration_disabled"
+	RegistrationKeyInvalid        ErrorCode = "registration_key_invalid"
+	RegistrationKeyNotInitialized ErrorCode = "registration_key_not_initialized"
+	TotpAlreadyEnabled            ErrorCode = "totp_already_enabled"
+	TotpEnrollmentNotStarted      ErrorCode = "totp_enrollment_not_started"
+	TotpNotEnabled                ErrorCode = "totp_not_enabled"
+	TotpRequired                  ErrorCode = "totp_required"
+	Unauthenticated               ErrorCode = "unauthenticated"
 )
 
 // Valid indicates whether the value is a known member of the ErrorCode enum.
 func (e ErrorCode) Valid() bool {
 	switch e {
+	case AgentRevoked:
+		return true
+	case AgentUnauthenticated:
+		return true
 	case CsrfFailed:
 		return true
 	case CurrentPasswordInvalid:
@@ -56,6 +99,12 @@ func (e ErrorCode) Valid() bool {
 		return true
 	case RateLimited:
 		return true
+	case RegistrationDisabled:
+		return true
+	case RegistrationKeyInvalid:
+		return true
+	case RegistrationKeyNotInitialized:
+		return true
 	case TotpAlreadyEnabled:
 		return true
 	case TotpEnrollmentNotStarted:
@@ -65,6 +114,51 @@ func (e ErrorCode) Valid() bool {
 	case TotpRequired:
 		return true
 	case Unauthenticated:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for NodeConfigurationStatus.
+const (
+	Current NodeConfigurationStatus = "current"
+	Failed  NodeConfigurationStatus = "failed"
+	Pending NodeConfigurationStatus = "pending"
+)
+
+// Valid indicates whether the value is a known member of the NodeConfigurationStatus enum.
+func (e NodeConfigurationStatus) Valid() bool {
+	switch e {
+	case Current:
+		return true
+	case Failed:
+		return true
+	case Pending:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for NodeStatus.
+const (
+	Disabled NodeStatus = "disabled"
+	Offline  NodeStatus = "offline"
+	Online   NodeStatus = "online"
+	Revoked  NodeStatus = "revoked"
+)
+
+// Valid indicates whether the value is a known member of the NodeStatus enum.
+func (e NodeStatus) Valid() bool {
+	switch e {
+	case Disabled:
+		return true
+	case Offline:
+		return true
+	case Online:
+		return true
+	case Revoked:
 		return true
 	default:
 		return false
@@ -158,6 +252,62 @@ type AccountUpdateResult struct {
 	SessionRevoked bool    `json:"sessionRevoked"`
 }
 
+// AgentArchitecture defines model for AgentArchitecture.
+type AgentArchitecture string
+
+// AgentEnrollmentSettings defines model for AgentEnrollmentSettings.
+type AgentEnrollmentSettings struct {
+	Enabled             bool       `json:"enabled"`
+	HasKey              bool       `json:"hasKey"`
+	InstallationCommand *string    `json:"installationCommand,omitempty"`
+	RotatedAt           *time.Time `json:"rotatedAt,omitempty"`
+}
+
+// AgentEnrollmentUpdate defines model for AgentEnrollmentUpdate.
+type AgentEnrollmentUpdate struct {
+	Enabled bool `json:"enabled"`
+}
+
+// AgentMetadata defines model for AgentMetadata.
+type AgentMetadata struct {
+	AgentVersion    string            `json:"agentVersion"`
+	Architecture    AgentArchitecture `json:"architecture"`
+	Capabilities    []string          `json:"capabilities"`
+	Hostname        string            `json:"hostname"`
+	OperatingSystem AgentPlatform     `json:"operatingSystem"`
+}
+
+// AgentPlatform defines model for AgentPlatform.
+type AgentPlatform string
+
+// AgentPollRequest defines model for AgentPollRequest.
+type AgentPollRequest struct {
+	AppliedConfigurationRevision int64         `json:"appliedConfigurationRevision"`
+	ConfigurationError           *string       `json:"configurationError,omitempty"`
+	Metadata                     AgentMetadata `json:"metadata"`
+}
+
+// AgentPollResult defines model for AgentPollResult.
+type AgentPollResult struct {
+	CenterVersion                string `json:"centerVersion"`
+	DesiredConfigurationRevision int64  `json:"desiredConfigurationRevision"`
+	Enabled                      bool   `json:"enabled"`
+	PollIntervalSeconds          int    `json:"pollIntervalSeconds"`
+}
+
+// AgentRegistrationRequest defines model for AgentRegistrationRequest.
+type AgentRegistrationRequest struct {
+	Metadata        AgentMetadata `json:"metadata"`
+	RegistrationKey string        `json:"registrationKey"`
+}
+
+// AgentRegistrationResult defines model for AgentRegistrationResult.
+type AgentRegistrationResult struct {
+	Credential          string             `json:"credential"`
+	NodeId              openapi_types.UUID `json:"nodeId"`
+	PollIntervalSeconds int                `json:"pollIntervalSeconds"`
+}
+
 // AuthenticatedSession defines model for AuthenticatedSession.
 type AuthenticatedSession struct {
 	Account   Account   `json:"account"`
@@ -197,6 +347,36 @@ type LoginRequest struct {
 	Username string  `json:"username"`
 }
 
+// Node defines model for Node.
+type Node struct {
+	AgentVersion                 string                  `json:"agentVersion"`
+	AppliedConfigurationRevision int64                   `json:"appliedConfigurationRevision"`
+	Architecture                 AgentArchitecture       `json:"architecture"`
+	Capabilities                 []string                `json:"capabilities"`
+	ConfigurationError           *string                 `json:"configurationError,omitempty"`
+	ConfigurationStatus          NodeConfigurationStatus `json:"configurationStatus"`
+	DesiredConfigurationRevision int64                   `json:"desiredConfigurationRevision"`
+	Enabled                      bool                    `json:"enabled"`
+	Hostname                     string                  `json:"hostname"`
+	Id                           openapi_types.UUID      `json:"id"`
+	LastSeenAt                   *time.Time              `json:"lastSeenAt,omitempty"`
+	Name                         string                  `json:"name"`
+	OperatingSystem              AgentPlatform           `json:"operatingSystem"`
+	RegisteredAt                 time.Time               `json:"registeredAt"`
+	Status                       NodeStatus              `json:"status"`
+}
+
+// NodeConfigurationStatus defines model for NodeConfigurationStatus.
+type NodeConfigurationStatus string
+
+// NodeList defines model for NodeList.
+type NodeList struct {
+	Items []Node `json:"items"`
+}
+
+// NodeStatus defines model for NodeStatus.
+type NodeStatus string
+
 // SupportedLocale defines model for SupportedLocale.
 type SupportedLocale string
 
@@ -235,6 +415,12 @@ type TOTPEnrollment struct {
 
 // CSRFToken defines model for CSRFToken.
 type CSRFToken = string
+
+// AgentForbidden defines model for AgentForbidden.
+type AgentForbidden = ErrorResponse
+
+// AgentUnauthorized defines model for AgentUnauthorized.
+type AgentUnauthorized = ErrorResponse
 
 // BadRequest defines model for BadRequest.
 type BadRequest = ErrorResponse
@@ -278,6 +464,16 @@ type StartTOTPEnrollmentParams struct {
 	XCSRFToken *CSRFToken `json:"X-CSRF-Token,omitempty"`
 }
 
+// UpdateAgentEnrollmentParams defines parameters for UpdateAgentEnrollment.
+type UpdateAgentEnrollmentParams struct {
+	XCSRFToken *CSRFToken `json:"X-CSRF-Token,omitempty"`
+}
+
+// RotateAgentEnrollmentKeyParams defines parameters for RotateAgentEnrollmentKey.
+type RotateAgentEnrollmentKeyParams struct {
+	XCSRFToken *CSRFToken `json:"X-CSRF-Token,omitempty"`
+}
+
 // LogoutParams defines parameters for Logout.
 type LogoutParams struct {
 	XCSRFToken *CSRFToken `json:"X-CSRF-Token,omitempty"`
@@ -297,6 +493,15 @@ type ConfirmTOTPEnrollmentJSONRequestBody = TOTPCodeRequest
 
 // StartTOTPEnrollmentJSONRequestBody defines body for StartTOTPEnrollment for application/json ContentType.
 type StartTOTPEnrollmentJSONRequestBody = CurrentPasswordRequest
+
+// UpdateAgentEnrollmentJSONRequestBody defines body for UpdateAgentEnrollment for application/json ContentType.
+type UpdateAgentEnrollmentJSONRequestBody = AgentEnrollmentUpdate
+
+// PollAgentJSONRequestBody defines body for PollAgent for application/json ContentType.
+type PollAgentJSONRequestBody = AgentPollRequest
+
+// RegisterAgentJSONRequestBody defines body for RegisterAgent for application/json ContentType.
+type RegisterAgentJSONRequestBody = AgentRegistrationRequest
 
 // LoginJSONRequestBody defines body for Login for application/json ContentType.
 type LoginJSONRequestBody = LoginRequest
@@ -455,6 +660,58 @@ type ClientInterface interface {
 	// Corresponds with POST /api/v1/account/totp/enrollment (the `StartTOTPEnrollment` operationId).
 	StartTOTPEnrollment(ctx context.Context, params *StartTOTPEnrollmentParams, body StartTOTPEnrollmentJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
 
+	// GetAgentEnrollment Read automatic Agent enrollment settings
+	//
+	// Corresponds with GET /api/v1/agent-enrollment (the `GetAgentEnrollment` operationId).
+	GetAgentEnrollment(ctx context.Context, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// UpdateAgentEnrollmentWithBody Enable or disable automatic Agent enrollment
+	//
+	// Takes any type of body and a specified content type.
+	//
+	// Corresponds with PUT /api/v1/agent-enrollment (the `UpdateAgentEnrollment` operationId).
+	UpdateAgentEnrollmentWithBody(ctx context.Context, params *UpdateAgentEnrollmentParams, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// UpdateAgentEnrollment Enable or disable automatic Agent enrollment
+	//
+	// Takes a body of the `application/json` content type.
+	//
+	// Corresponds with PUT /api/v1/agent-enrollment (the `UpdateAgentEnrollment` operationId).
+	UpdateAgentEnrollment(ctx context.Context, params *UpdateAgentEnrollmentParams, body UpdateAgentEnrollmentJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// RotateAgentEnrollmentKey Generate or rotate the automatic Agent enrollment key
+	//
+	// Corresponds with POST /api/v1/agent-enrollment/key (the `RotateAgentEnrollmentKey` operationId).
+	RotateAgentEnrollmentKey(ctx context.Context, params *RotateAgentEnrollmentKeyParams, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// PollAgentWithBody Report Agent state and read current control state
+	//
+	// Takes any type of body and a specified content type.
+	//
+	// Corresponds with POST /api/v1/agent/control (the `PollAgent` operationId).
+	PollAgentWithBody(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// PollAgent Report Agent state and read current control state
+	//
+	// Takes a body of the `application/json` content type.
+	//
+	// Corresponds with POST /api/v1/agent/control (the `PollAgent` operationId).
+	PollAgent(ctx context.Context, body PollAgentJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// RegisterAgentWithBody Register a new Agent and node
+	//
+	// Takes any type of body and a specified content type.
+	//
+	// Corresponds with POST /api/v1/agent/enroll (the `RegisterAgent` operationId).
+	RegisterAgentWithBody(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// RegisterAgent Register a new Agent and node
+	//
+	// Takes a body of the `application/json` content type.
+	//
+	// Corresponds with POST /api/v1/agent/enroll (the `RegisterAgent` operationId).
+	RegisterAgent(ctx context.Context, body RegisterAgentJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
+
 	// LoginWithBody Start an administrator session
 	//
 	// Takes any type of body and a specified content type.
@@ -478,6 +735,11 @@ type ClientInterface interface {
 	//
 	// Corresponds with GET /api/v1/auth/session (the `GetAuthenticatedSession` operationId).
 	GetAuthenticatedSession(ctx context.Context, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// ListNodes List registered nodes
+	//
+	// Corresponds with GET /api/v1/nodes (the `ListNodes` operationId).
+	ListNodes(ctx context.Context, reqEditors ...RequestEditorFn) (*http.Response, error)
 
 	// GetSystemStatus Read center status
 	//
@@ -685,6 +947,138 @@ func (c *Client) StartTOTPEnrollment(ctx context.Context, params *StartTOTPEnrol
 	return c.Client.Do(req)
 }
 
+// GetAgentEnrollment Read automatic Agent enrollment settings
+//
+// Corresponds with GET /api/v1/agent-enrollment (the `GetAgentEnrollment` operationId).
+func (c *Client) GetAgentEnrollment(ctx context.Context, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewGetAgentEnrollmentRequest(c.Server)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+// UpdateAgentEnrollmentWithBody Enable or disable automatic Agent enrollment
+//
+// Takes any type of body and a specified content type.
+//
+// Corresponds with PUT /api/v1/agent-enrollment (the `UpdateAgentEnrollment` operationId).
+func (c *Client) UpdateAgentEnrollmentWithBody(ctx context.Context, params *UpdateAgentEnrollmentParams, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewUpdateAgentEnrollmentRequestWithBody(c.Server, params, contentType, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+// UpdateAgentEnrollment Enable or disable automatic Agent enrollment
+//
+// Takes a body of the `application/json` content type.
+//
+// Corresponds with PUT /api/v1/agent-enrollment (the `UpdateAgentEnrollment` operationId).
+func (c *Client) UpdateAgentEnrollment(ctx context.Context, params *UpdateAgentEnrollmentParams, body UpdateAgentEnrollmentJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewUpdateAgentEnrollmentRequest(c.Server, params, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+// RotateAgentEnrollmentKey Generate or rotate the automatic Agent enrollment key
+//
+// Corresponds with POST /api/v1/agent-enrollment/key (the `RotateAgentEnrollmentKey` operationId).
+func (c *Client) RotateAgentEnrollmentKey(ctx context.Context, params *RotateAgentEnrollmentKeyParams, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewRotateAgentEnrollmentKeyRequest(c.Server, params)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+// PollAgentWithBody Report Agent state and read current control state
+//
+// Takes any type of body and a specified content type.
+//
+// Corresponds with POST /api/v1/agent/control (the `PollAgent` operationId).
+func (c *Client) PollAgentWithBody(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewPollAgentRequestWithBody(c.Server, contentType, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+// PollAgent Report Agent state and read current control state
+//
+// Takes a body of the `application/json` content type.
+//
+// Corresponds with POST /api/v1/agent/control (the `PollAgent` operationId).
+func (c *Client) PollAgent(ctx context.Context, body PollAgentJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewPollAgentRequest(c.Server, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+// RegisterAgentWithBody Register a new Agent and node
+//
+// Takes any type of body and a specified content type.
+//
+// Corresponds with POST /api/v1/agent/enroll (the `RegisterAgent` operationId).
+func (c *Client) RegisterAgentWithBody(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewRegisterAgentRequestWithBody(c.Server, contentType, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+// RegisterAgent Register a new Agent and node
+//
+// Takes a body of the `application/json` content type.
+//
+// Corresponds with POST /api/v1/agent/enroll (the `RegisterAgent` operationId).
+func (c *Client) RegisterAgent(ctx context.Context, body RegisterAgentJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewRegisterAgentRequest(c.Server, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
 // LoginWithBody Start an administrator session
 //
 // Takes any type of body and a specified content type.
@@ -739,6 +1133,21 @@ func (c *Client) Logout(ctx context.Context, params *LogoutParams, reqEditors ..
 // Corresponds with GET /api/v1/auth/session (the `GetAuthenticatedSession` operationId).
 func (c *Client) GetAuthenticatedSession(ctx context.Context, reqEditors ...RequestEditorFn) (*http.Response, error) {
 	req, err := NewGetAuthenticatedSessionRequest(c.Server)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+// ListNodes List registered nodes
+//
+// Corresponds with GET /api/v1/nodes (the `ListNodes` operationId).
+func (c *Client) ListNodes(ctx context.Context, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewListNodesRequest(c.Server)
 	if err != nil {
 		return nil, err
 	}
@@ -1108,6 +1517,210 @@ func NewStartTOTPEnrollmentRequestWithBody(server string, params *StartTOTPEnrol
 	return req, nil
 }
 
+// NewGetAgentEnrollmentRequest constructs an http.Request for the GetAgentEnrollment method
+func NewGetAgentEnrollmentRequest(server string) (*http.Request, error) {
+	var err error
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/api/v1/agent-enrollment")
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest(http.MethodGet, queryURL.String(), nil)
+	if err != nil {
+		return nil, err
+	}
+
+	return req, nil
+}
+
+// NewUpdateAgentEnrollmentRequest calls the generic UpdateAgentEnrollment builder with application/json body
+func NewUpdateAgentEnrollmentRequest(server string, params *UpdateAgentEnrollmentParams, body UpdateAgentEnrollmentJSONRequestBody) (*http.Request, error) {
+	var bodyReader io.Reader
+	buf, err := json.Marshal(body)
+	if err != nil {
+		return nil, err
+	}
+	bodyReader = bytes.NewReader(buf)
+	return NewUpdateAgentEnrollmentRequestWithBody(server, params, "application/json", bodyReader)
+}
+
+// NewUpdateAgentEnrollmentRequestWithBody constructs an http.Request for the UpdateAgentEnrollment method, with any body, and a specified content type
+func NewUpdateAgentEnrollmentRequestWithBody(server string, params *UpdateAgentEnrollmentParams, contentType string, body io.Reader) (*http.Request, error) {
+	var err error
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/api/v1/agent-enrollment")
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest(http.MethodPut, queryURL.String(), body)
+	if err != nil {
+		return nil, err
+	}
+
+	req.Header.Add("Content-Type", contentType)
+
+	if params != nil {
+
+		if params.XCSRFToken != nil {
+			var headerParam0 string
+
+			headerParam0, err = runtime.StyleParamWithOptions("simple", false, "X-CSRF-Token", *params.XCSRFToken, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationHeader, Type: "string", Format: ""})
+			if err != nil {
+				return nil, err
+			}
+
+			req.Header.Set("X-CSRF-Token", headerParam0)
+		}
+
+	}
+
+	return req, nil
+}
+
+// NewRotateAgentEnrollmentKeyRequest constructs an http.Request for the RotateAgentEnrollmentKey method
+func NewRotateAgentEnrollmentKeyRequest(server string, params *RotateAgentEnrollmentKeyParams) (*http.Request, error) {
+	var err error
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/api/v1/agent-enrollment/key")
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest(http.MethodPost, queryURL.String(), nil)
+	if err != nil {
+		return nil, err
+	}
+
+	if params != nil {
+
+		if params.XCSRFToken != nil {
+			var headerParam0 string
+
+			headerParam0, err = runtime.StyleParamWithOptions("simple", false, "X-CSRF-Token", *params.XCSRFToken, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationHeader, Type: "string", Format: ""})
+			if err != nil {
+				return nil, err
+			}
+
+			req.Header.Set("X-CSRF-Token", headerParam0)
+		}
+
+	}
+
+	return req, nil
+}
+
+// NewPollAgentRequest calls the generic PollAgent builder with application/json body
+func NewPollAgentRequest(server string, body PollAgentJSONRequestBody) (*http.Request, error) {
+	var bodyReader io.Reader
+	buf, err := json.Marshal(body)
+	if err != nil {
+		return nil, err
+	}
+	bodyReader = bytes.NewReader(buf)
+	return NewPollAgentRequestWithBody(server, "application/json", bodyReader)
+}
+
+// NewPollAgentRequestWithBody constructs an http.Request for the PollAgent method, with any body, and a specified content type
+func NewPollAgentRequestWithBody(server string, contentType string, body io.Reader) (*http.Request, error) {
+	var err error
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/api/v1/agent/control")
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest(http.MethodPost, queryURL.String(), body)
+	if err != nil {
+		return nil, err
+	}
+
+	req.Header.Add("Content-Type", contentType)
+
+	return req, nil
+}
+
+// NewRegisterAgentRequest calls the generic RegisterAgent builder with application/json body
+func NewRegisterAgentRequest(server string, body RegisterAgentJSONRequestBody) (*http.Request, error) {
+	var bodyReader io.Reader
+	buf, err := json.Marshal(body)
+	if err != nil {
+		return nil, err
+	}
+	bodyReader = bytes.NewReader(buf)
+	return NewRegisterAgentRequestWithBody(server, "application/json", bodyReader)
+}
+
+// NewRegisterAgentRequestWithBody constructs an http.Request for the RegisterAgent method, with any body, and a specified content type
+func NewRegisterAgentRequestWithBody(server string, contentType string, body io.Reader) (*http.Request, error) {
+	var err error
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/api/v1/agent/enroll")
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest(http.MethodPost, queryURL.String(), body)
+	if err != nil {
+		return nil, err
+	}
+
+	req.Header.Add("Content-Type", contentType)
+
+	return req, nil
+}
+
 // NewLoginRequest calls the generic Login builder with application/json body
 func NewLoginRequest(server string, body LoginJSONRequestBody) (*http.Request, error) {
 	var bodyReader io.Reader
@@ -1200,6 +1813,33 @@ func NewGetAuthenticatedSessionRequest(server string) (*http.Request, error) {
 	}
 
 	operationPath := fmt.Sprintf("/api/v1/auth/session")
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest(http.MethodGet, queryURL.String(), nil)
+	if err != nil {
+		return nil, err
+	}
+
+	return req, nil
+}
+
+// NewListNodesRequest constructs an http.Request for the ListNodes method
+func NewListNodesRequest(server string) (*http.Request, error) {
+	var err error
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/api/v1/nodes")
 	if operationPath[0] == '/' {
 		operationPath = "." + operationPath
 	}
@@ -1372,6 +2012,62 @@ type ClientWithResponsesInterface interface {
 	// Corresponds with POST /api/v1/account/totp/enrollment (the `StartTOTPEnrollment` operationId).
 	StartTOTPEnrollmentWithResponse(ctx context.Context, params *StartTOTPEnrollmentParams, body StartTOTPEnrollmentJSONRequestBody, reqEditors ...RequestEditorFn) (*StartTOTPEnrollmentResponse, error)
 
+	// GetAgentEnrollmentWithResponse Read automatic Agent enrollment settings
+	//
+	// Returns a wrapper object for the known response body format(s).
+	//
+	// Corresponds with GET /api/v1/agent-enrollment (the `GetAgentEnrollment` operationId).
+	GetAgentEnrollmentWithResponse(ctx context.Context, reqEditors ...RequestEditorFn) (*GetAgentEnrollmentResponse, error)
+
+	// UpdateAgentEnrollmentWithBodyWithResponse Enable or disable automatic Agent enrollment
+	//
+	// Takes any type of body and a specified content type, and returns a wrapper object for the known response body format(s).
+	//
+	// Corresponds with PUT /api/v1/agent-enrollment (the `UpdateAgentEnrollment` operationId).
+	UpdateAgentEnrollmentWithBodyWithResponse(ctx context.Context, params *UpdateAgentEnrollmentParams, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*UpdateAgentEnrollmentResponse, error)
+
+	// UpdateAgentEnrollmentWithResponse Enable or disable automatic Agent enrollment
+	//
+	// Takes a body of the `application/json` content type, and returns a wrapper object for the known response body format(s).
+	//
+	// Corresponds with PUT /api/v1/agent-enrollment (the `UpdateAgentEnrollment` operationId).
+	UpdateAgentEnrollmentWithResponse(ctx context.Context, params *UpdateAgentEnrollmentParams, body UpdateAgentEnrollmentJSONRequestBody, reqEditors ...RequestEditorFn) (*UpdateAgentEnrollmentResponse, error)
+
+	// RotateAgentEnrollmentKeyWithResponse Generate or rotate the automatic Agent enrollment key
+	//
+	// Returns a wrapper object for the known response body format(s).
+	//
+	// Corresponds with POST /api/v1/agent-enrollment/key (the `RotateAgentEnrollmentKey` operationId).
+	RotateAgentEnrollmentKeyWithResponse(ctx context.Context, params *RotateAgentEnrollmentKeyParams, reqEditors ...RequestEditorFn) (*RotateAgentEnrollmentKeyResponse, error)
+
+	// PollAgentWithBodyWithResponse Report Agent state and read current control state
+	//
+	// Takes any type of body and a specified content type, and returns a wrapper object for the known response body format(s).
+	//
+	// Corresponds with POST /api/v1/agent/control (the `PollAgent` operationId).
+	PollAgentWithBodyWithResponse(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*PollAgentResponse, error)
+
+	// PollAgentWithResponse Report Agent state and read current control state
+	//
+	// Takes a body of the `application/json` content type, and returns a wrapper object for the known response body format(s).
+	//
+	// Corresponds with POST /api/v1/agent/control (the `PollAgent` operationId).
+	PollAgentWithResponse(ctx context.Context, body PollAgentJSONRequestBody, reqEditors ...RequestEditorFn) (*PollAgentResponse, error)
+
+	// RegisterAgentWithBodyWithResponse Register a new Agent and node
+	//
+	// Takes any type of body and a specified content type, and returns a wrapper object for the known response body format(s).
+	//
+	// Corresponds with POST /api/v1/agent/enroll (the `RegisterAgent` operationId).
+	RegisterAgentWithBodyWithResponse(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*RegisterAgentResponse, error)
+
+	// RegisterAgentWithResponse Register a new Agent and node
+	//
+	// Takes a body of the `application/json` content type, and returns a wrapper object for the known response body format(s).
+	//
+	// Corresponds with POST /api/v1/agent/enroll (the `RegisterAgent` operationId).
+	RegisterAgentWithResponse(ctx context.Context, body RegisterAgentJSONRequestBody, reqEditors ...RequestEditorFn) (*RegisterAgentResponse, error)
+
 	// LoginWithBodyWithResponse Start an administrator session
 	//
 	// Takes any type of body and a specified content type, and returns a wrapper object for the known response body format(s).
@@ -1399,6 +2095,13 @@ type ClientWithResponsesInterface interface {
 	//
 	// Corresponds with GET /api/v1/auth/session (the `GetAuthenticatedSession` operationId).
 	GetAuthenticatedSessionWithResponse(ctx context.Context, reqEditors ...RequestEditorFn) (*GetAuthenticatedSessionResponse, error)
+
+	// ListNodesWithResponse List registered nodes
+	//
+	// Returns a wrapper object for the known response body format(s).
+	//
+	// Corresponds with GET /api/v1/nodes (the `ListNodes` operationId).
+	ListNodesWithResponse(ctx context.Context, reqEditors ...RequestEditorFn) (*ListNodesResponse, error)
 
 	// GetSystemStatusWithResponse Read center status
 	//
@@ -1849,6 +2552,302 @@ func (r StartTOTPEnrollmentResponse) ContentType() string {
 	return ""
 }
 
+type GetAgentEnrollmentResponse struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	// JSON200 the response for an HTTP 200 `application/json` response
+	JSON200 *AgentEnrollmentSettings
+	// JSON401 the response for an HTTP 401 `application/json` response
+	JSON401 *Unauthorized
+}
+
+// GetJSON200 returns the response for an HTTP 200 `application/json` response
+func (r GetAgentEnrollmentResponse) GetJSON200() *AgentEnrollmentSettings {
+	return r.JSON200
+}
+
+// GetJSON401 returns the response for an HTTP 401 `application/json` response
+func (r GetAgentEnrollmentResponse) GetJSON401() *Unauthorized {
+	return r.JSON401
+}
+
+// GetBody returns the raw response body bytes
+func (r GetAgentEnrollmentResponse) GetBody() []byte {
+	return r.Body
+}
+
+// Status returns HTTPResponse.Status
+func (r GetAgentEnrollmentResponse) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r GetAgentEnrollmentResponse) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+// ContentType is a convenience method to retrieve the Content-Type value from the HTTP response headers
+func (r GetAgentEnrollmentResponse) ContentType() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Header.Get("Content-Type")
+	}
+	return ""
+}
+
+type UpdateAgentEnrollmentResponse struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	// JSON200 the response for an HTTP 200 `application/json` response
+	JSON200 *AgentEnrollmentSettings
+	// JSON400 the response for an HTTP 400 `application/json` response
+	JSON400 *BadRequest
+	// JSON401 the response for an HTTP 401 `application/json` response
+	JSON401 *Unauthorized
+	// JSON403 the response for an HTTP 403 `application/json` response
+	JSON403 *Forbidden
+	// JSON409 the response for an HTTP 409 `application/json` response
+	JSON409 *Conflict
+}
+
+// GetJSON200 returns the response for an HTTP 200 `application/json` response
+func (r UpdateAgentEnrollmentResponse) GetJSON200() *AgentEnrollmentSettings {
+	return r.JSON200
+}
+
+// GetJSON400 returns the response for an HTTP 400 `application/json` response
+func (r UpdateAgentEnrollmentResponse) GetJSON400() *BadRequest {
+	return r.JSON400
+}
+
+// GetJSON401 returns the response for an HTTP 401 `application/json` response
+func (r UpdateAgentEnrollmentResponse) GetJSON401() *Unauthorized {
+	return r.JSON401
+}
+
+// GetJSON403 returns the response for an HTTP 403 `application/json` response
+func (r UpdateAgentEnrollmentResponse) GetJSON403() *Forbidden {
+	return r.JSON403
+}
+
+// GetJSON409 returns the response for an HTTP 409 `application/json` response
+func (r UpdateAgentEnrollmentResponse) GetJSON409() *Conflict {
+	return r.JSON409
+}
+
+// GetBody returns the raw response body bytes
+func (r UpdateAgentEnrollmentResponse) GetBody() []byte {
+	return r.Body
+}
+
+// Status returns HTTPResponse.Status
+func (r UpdateAgentEnrollmentResponse) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r UpdateAgentEnrollmentResponse) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+// ContentType is a convenience method to retrieve the Content-Type value from the HTTP response headers
+func (r UpdateAgentEnrollmentResponse) ContentType() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Header.Get("Content-Type")
+	}
+	return ""
+}
+
+type RotateAgentEnrollmentKeyResponse struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	// JSON200 the response for an HTTP 200 `application/json` response
+	JSON200 *AgentEnrollmentSettings
+	// JSON401 the response for an HTTP 401 `application/json` response
+	JSON401 *Unauthorized
+	// JSON403 the response for an HTTP 403 `application/json` response
+	JSON403 *Forbidden
+}
+
+// GetJSON200 returns the response for an HTTP 200 `application/json` response
+func (r RotateAgentEnrollmentKeyResponse) GetJSON200() *AgentEnrollmentSettings {
+	return r.JSON200
+}
+
+// GetJSON401 returns the response for an HTTP 401 `application/json` response
+func (r RotateAgentEnrollmentKeyResponse) GetJSON401() *Unauthorized {
+	return r.JSON401
+}
+
+// GetJSON403 returns the response for an HTTP 403 `application/json` response
+func (r RotateAgentEnrollmentKeyResponse) GetJSON403() *Forbidden {
+	return r.JSON403
+}
+
+// GetBody returns the raw response body bytes
+func (r RotateAgentEnrollmentKeyResponse) GetBody() []byte {
+	return r.Body
+}
+
+// Status returns HTTPResponse.Status
+func (r RotateAgentEnrollmentKeyResponse) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r RotateAgentEnrollmentKeyResponse) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+// ContentType is a convenience method to retrieve the Content-Type value from the HTTP response headers
+func (r RotateAgentEnrollmentKeyResponse) ContentType() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Header.Get("Content-Type")
+	}
+	return ""
+}
+
+type PollAgentResponse struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	// JSON200 the response for an HTTP 200 `application/json` response
+	JSON200 *AgentPollResult
+	// JSON400 the response for an HTTP 400 `application/json` response
+	JSON400 *BadRequest
+	// JSON401 the response for an HTTP 401 `application/json` response
+	JSON401 *AgentUnauthorized
+	// JSON403 the response for an HTTP 403 `application/json` response
+	JSON403 *AgentForbidden
+}
+
+// GetJSON200 returns the response for an HTTP 200 `application/json` response
+func (r PollAgentResponse) GetJSON200() *AgentPollResult {
+	return r.JSON200
+}
+
+// GetJSON400 returns the response for an HTTP 400 `application/json` response
+func (r PollAgentResponse) GetJSON400() *BadRequest {
+	return r.JSON400
+}
+
+// GetJSON401 returns the response for an HTTP 401 `application/json` response
+func (r PollAgentResponse) GetJSON401() *AgentUnauthorized {
+	return r.JSON401
+}
+
+// GetJSON403 returns the response for an HTTP 403 `application/json` response
+func (r PollAgentResponse) GetJSON403() *AgentForbidden {
+	return r.JSON403
+}
+
+// GetBody returns the raw response body bytes
+func (r PollAgentResponse) GetBody() []byte {
+	return r.Body
+}
+
+// Status returns HTTPResponse.Status
+func (r PollAgentResponse) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r PollAgentResponse) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+// ContentType is a convenience method to retrieve the Content-Type value from the HTTP response headers
+func (r PollAgentResponse) ContentType() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Header.Get("Content-Type")
+	}
+	return ""
+}
+
+type RegisterAgentResponse struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	// JSON201 the response for an HTTP 201 `application/json` response
+	JSON201 *AgentRegistrationResult
+	// JSON400 the response for an HTTP 400 `application/json` response
+	JSON400 *BadRequest
+	// JSON401 the response for an HTTP 401 `application/json` response
+	JSON401 *AgentUnauthorized
+	// JSON403 the response for an HTTP 403 `application/json` response
+	JSON403 *AgentForbidden
+}
+
+// GetJSON201 returns the response for an HTTP 201 `application/json` response
+func (r RegisterAgentResponse) GetJSON201() *AgentRegistrationResult {
+	return r.JSON201
+}
+
+// GetJSON400 returns the response for an HTTP 400 `application/json` response
+func (r RegisterAgentResponse) GetJSON400() *BadRequest {
+	return r.JSON400
+}
+
+// GetJSON401 returns the response for an HTTP 401 `application/json` response
+func (r RegisterAgentResponse) GetJSON401() *AgentUnauthorized {
+	return r.JSON401
+}
+
+// GetJSON403 returns the response for an HTTP 403 `application/json` response
+func (r RegisterAgentResponse) GetJSON403() *AgentForbidden {
+	return r.JSON403
+}
+
+// GetBody returns the raw response body bytes
+func (r RegisterAgentResponse) GetBody() []byte {
+	return r.Body
+}
+
+// Status returns HTTPResponse.Status
+func (r RegisterAgentResponse) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r RegisterAgentResponse) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+// ContentType is a convenience method to retrieve the Content-Type value from the HTTP response headers
+func (r RegisterAgentResponse) ContentType() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Header.Get("Content-Type")
+	}
+	return ""
+}
+
 // LoginResponse200Headers the declared response headers of an HTTP 200 response for Login
 type LoginResponse200Headers struct {
 	SetCookie *string
@@ -2022,6 +3021,54 @@ func (r GetAuthenticatedSessionResponse) StatusCode() int {
 
 // ContentType is a convenience method to retrieve the Content-Type value from the HTTP response headers
 func (r GetAuthenticatedSessionResponse) ContentType() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Header.Get("Content-Type")
+	}
+	return ""
+}
+
+type ListNodesResponse struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	// JSON200 the response for an HTTP 200 `application/json` response
+	JSON200 *NodeList
+	// JSON401 the response for an HTTP 401 `application/json` response
+	JSON401 *Unauthorized
+}
+
+// GetJSON200 returns the response for an HTTP 200 `application/json` response
+func (r ListNodesResponse) GetJSON200() *NodeList {
+	return r.JSON200
+}
+
+// GetJSON401 returns the response for an HTTP 401 `application/json` response
+func (r ListNodesResponse) GetJSON401() *Unauthorized {
+	return r.JSON401
+}
+
+// GetBody returns the raw response body bytes
+func (r ListNodesResponse) GetBody() []byte {
+	return r.Body
+}
+
+// Status returns HTTPResponse.Status
+func (r ListNodesResponse) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r ListNodesResponse) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+// ContentType is a convenience method to retrieve the Content-Type value from the HTTP response headers
+func (r ListNodesResponse) ContentType() string {
 	if r.HTTPResponse != nil {
 		return r.HTTPResponse.Header.Get("Content-Type")
 	}
@@ -2232,6 +3279,110 @@ func (c *ClientWithResponses) StartTOTPEnrollmentWithResponse(ctx context.Contex
 	return ParseStartTOTPEnrollmentResponse(rsp)
 }
 
+// GetAgentEnrollmentWithResponse Read automatic Agent enrollment settings
+//
+// Returns a wrapper object for the known response body format(s).
+//
+// Corresponds with GET /api/v1/agent-enrollment (the `GetAgentEnrollment` operationId).
+func (c *ClientWithResponses) GetAgentEnrollmentWithResponse(ctx context.Context, reqEditors ...RequestEditorFn) (*GetAgentEnrollmentResponse, error) {
+	rsp, err := c.GetAgentEnrollment(ctx, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseGetAgentEnrollmentResponse(rsp)
+}
+
+// UpdateAgentEnrollmentWithBodyWithResponse Enable or disable automatic Agent enrollment
+//
+// Takes any type of body and a specified content type, and returns a wrapper object for the known response body format(s).
+//
+// Corresponds with PUT /api/v1/agent-enrollment (the `UpdateAgentEnrollment` operationId).
+func (c *ClientWithResponses) UpdateAgentEnrollmentWithBodyWithResponse(ctx context.Context, params *UpdateAgentEnrollmentParams, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*UpdateAgentEnrollmentResponse, error) {
+	rsp, err := c.UpdateAgentEnrollmentWithBody(ctx, params, contentType, body, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseUpdateAgentEnrollmentResponse(rsp)
+}
+
+// UpdateAgentEnrollmentWithResponse Enable or disable automatic Agent enrollment
+//
+// Takes a body of the `application/json` content type, and returns a wrapper object for the known response body format(s).
+//
+// Corresponds with PUT /api/v1/agent-enrollment (the `UpdateAgentEnrollment` operationId).
+func (c *ClientWithResponses) UpdateAgentEnrollmentWithResponse(ctx context.Context, params *UpdateAgentEnrollmentParams, body UpdateAgentEnrollmentJSONRequestBody, reqEditors ...RequestEditorFn) (*UpdateAgentEnrollmentResponse, error) {
+	rsp, err := c.UpdateAgentEnrollment(ctx, params, body, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseUpdateAgentEnrollmentResponse(rsp)
+}
+
+// RotateAgentEnrollmentKeyWithResponse Generate or rotate the automatic Agent enrollment key
+//
+// Returns a wrapper object for the known response body format(s).
+//
+// Corresponds with POST /api/v1/agent-enrollment/key (the `RotateAgentEnrollmentKey` operationId).
+func (c *ClientWithResponses) RotateAgentEnrollmentKeyWithResponse(ctx context.Context, params *RotateAgentEnrollmentKeyParams, reqEditors ...RequestEditorFn) (*RotateAgentEnrollmentKeyResponse, error) {
+	rsp, err := c.RotateAgentEnrollmentKey(ctx, params, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseRotateAgentEnrollmentKeyResponse(rsp)
+}
+
+// PollAgentWithBodyWithResponse Report Agent state and read current control state
+//
+// Takes any type of body and a specified content type, and returns a wrapper object for the known response body format(s).
+//
+// Corresponds with POST /api/v1/agent/control (the `PollAgent` operationId).
+func (c *ClientWithResponses) PollAgentWithBodyWithResponse(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*PollAgentResponse, error) {
+	rsp, err := c.PollAgentWithBody(ctx, contentType, body, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParsePollAgentResponse(rsp)
+}
+
+// PollAgentWithResponse Report Agent state and read current control state
+//
+// Takes a body of the `application/json` content type, and returns a wrapper object for the known response body format(s).
+//
+// Corresponds with POST /api/v1/agent/control (the `PollAgent` operationId).
+func (c *ClientWithResponses) PollAgentWithResponse(ctx context.Context, body PollAgentJSONRequestBody, reqEditors ...RequestEditorFn) (*PollAgentResponse, error) {
+	rsp, err := c.PollAgent(ctx, body, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParsePollAgentResponse(rsp)
+}
+
+// RegisterAgentWithBodyWithResponse Register a new Agent and node
+//
+// Takes any type of body and a specified content type, and returns a wrapper object for the known response body format(s).
+//
+// Corresponds with POST /api/v1/agent/enroll (the `RegisterAgent` operationId).
+func (c *ClientWithResponses) RegisterAgentWithBodyWithResponse(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*RegisterAgentResponse, error) {
+	rsp, err := c.RegisterAgentWithBody(ctx, contentType, body, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseRegisterAgentResponse(rsp)
+}
+
+// RegisterAgentWithResponse Register a new Agent and node
+//
+// Takes a body of the `application/json` content type, and returns a wrapper object for the known response body format(s).
+//
+// Corresponds with POST /api/v1/agent/enroll (the `RegisterAgent` operationId).
+func (c *ClientWithResponses) RegisterAgentWithResponse(ctx context.Context, body RegisterAgentJSONRequestBody, reqEditors ...RequestEditorFn) (*RegisterAgentResponse, error) {
+	rsp, err := c.RegisterAgent(ctx, body, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseRegisterAgentResponse(rsp)
+}
+
 // LoginWithBodyWithResponse Start an administrator session
 //
 // Takes any type of body and a specified content type, and returns a wrapper object for the known response body format(s).
@@ -2282,6 +3433,19 @@ func (c *ClientWithResponses) GetAuthenticatedSessionWithResponse(ctx context.Co
 		return nil, err
 	}
 	return ParseGetAuthenticatedSessionResponse(rsp)
+}
+
+// ListNodesWithResponse List registered nodes
+//
+// Returns a wrapper object for the known response body format(s).
+//
+// Corresponds with GET /api/v1/nodes (the `ListNodes` operationId).
+func (c *ClientWithResponses) ListNodesWithResponse(ctx context.Context, reqEditors ...RequestEditorFn) (*ListNodesResponse, error) {
+	rsp, err := c.ListNodes(ctx, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseListNodesResponse(rsp)
 }
 
 // GetSystemStatusWithResponse Read center status
@@ -2657,6 +3821,227 @@ func ParseStartTOTPEnrollmentResponse(rsp *http.Response) (*StartTOTPEnrollmentR
 	return response, nil
 }
 
+// ParseGetAgentEnrollmentResponse parses an HTTP response from a GetAgentEnrollmentWithResponse call
+func ParseGetAgentEnrollmentResponse(rsp *http.Response) (*GetAgentEnrollmentResponse, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &GetAgentEnrollmentResponse{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest AgentEnrollmentSettings
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 401:
+		var dest Unauthorized
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON401 = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseUpdateAgentEnrollmentResponse parses an HTTP response from a UpdateAgentEnrollmentWithResponse call
+func ParseUpdateAgentEnrollmentResponse(rsp *http.Response) (*UpdateAgentEnrollmentResponse, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &UpdateAgentEnrollmentResponse{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest AgentEnrollmentSettings
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 400:
+		var dest BadRequest
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON400 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 401:
+		var dest Unauthorized
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON401 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 403:
+		var dest Forbidden
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON403 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 409:
+		var dest Conflict
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON409 = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseRotateAgentEnrollmentKeyResponse parses an HTTP response from a RotateAgentEnrollmentKeyWithResponse call
+func ParseRotateAgentEnrollmentKeyResponse(rsp *http.Response) (*RotateAgentEnrollmentKeyResponse, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &RotateAgentEnrollmentKeyResponse{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest AgentEnrollmentSettings
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 401:
+		var dest Unauthorized
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON401 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 403:
+		var dest Forbidden
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON403 = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParsePollAgentResponse parses an HTTP response from a PollAgentWithResponse call
+func ParsePollAgentResponse(rsp *http.Response) (*PollAgentResponse, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &PollAgentResponse{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest AgentPollResult
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 400:
+		var dest BadRequest
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON400 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 401:
+		var dest AgentUnauthorized
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON401 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 403:
+		var dest AgentForbidden
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON403 = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseRegisterAgentResponse parses an HTTP response from a RegisterAgentWithResponse call
+func ParseRegisterAgentResponse(rsp *http.Response) (*RegisterAgentResponse, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &RegisterAgentResponse{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 201:
+		var dest AgentRegistrationResult
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON201 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 400:
+		var dest BadRequest
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON400 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 401:
+		var dest AgentUnauthorized
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON401 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 403:
+		var dest AgentForbidden
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON403 = &dest
+
+	}
+
+	return response, nil
+}
+
 // ParseLoginResponse parses an HTTP response from a LoginWithResponse call
 func ParseLoginResponse(rsp *http.Response) (*LoginResponse, error) {
 	bodyBytes, err := io.ReadAll(rsp.Body)
@@ -2789,6 +4174,39 @@ func ParseGetAuthenticatedSessionResponse(rsp *http.Response) (*GetAuthenticated
 	switch {
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
 		var dest AuthenticatedSession
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 401:
+		var dest Unauthorized
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON401 = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseListNodesResponse parses an HTTP response from a ListNodesWithResponse call
+func ParseListNodesResponse(rsp *http.Response) (*ListNodesResponse, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &ListNodesResponse{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest NodeList
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}

@@ -260,12 +260,139 @@ paths:
                 $ref: "#/components/schemas/SystemStatus"
         "401":
           $ref: "#/components/responses/Unauthorized"
+  /api/v1/nodes:
+    get:
+      operationId: listNodes
+      summary: List registered nodes
+      tags: [nodes]
+      responses:
+        "200":
+          description: Registered nodes ordered by name.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/NodeList"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+  /api/v1/agent-enrollment:
+    get:
+      operationId: getAgentEnrollment
+      summary: Read automatic Agent enrollment settings
+      tags: [nodes]
+      responses:
+        "200":
+          description: Current automatic enrollment settings.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AgentEnrollmentSettings"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+    put:
+      operationId: updateAgentEnrollment
+      summary: Enable or disable automatic Agent enrollment
+      tags: [nodes]
+      parameters:
+        - $ref: "#/components/parameters/CSRFToken"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/AgentEnrollmentUpdate"
+      responses:
+        "200":
+          description: Updated automatic enrollment settings.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AgentEnrollmentSettings"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "409":
+          $ref: "#/components/responses/Conflict"
+  /api/v1/agent-enrollment/key:
+    post:
+      operationId: rotateAgentEnrollmentKey
+      summary: Generate or rotate the automatic Agent enrollment key
+      tags: [nodes]
+      parameters:
+        - $ref: "#/components/parameters/CSRFToken"
+      responses:
+        "200":
+          description: Automatic enrollment is enabled with a new key.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AgentEnrollmentSettings"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+  /api/v1/agent/enroll:
+    post:
+      operationId: registerAgent
+      summary: Register a new Agent and node
+      security: []
+      tags: [agent]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/AgentRegistrationRequest"
+      responses:
+        "201":
+          description: The Agent was registered with a node-specific credential.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AgentRegistrationResult"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/AgentUnauthorized"
+        "403":
+          $ref: "#/components/responses/AgentForbidden"
+  /api/v1/agent/control:
+    post:
+      operationId: pollAgent
+      summary: Report Agent state and read current control state
+      security:
+        - agentCredential: []
+      tags: [agent]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/AgentPollRequest"
+      responses:
+        "200":
+          description: Current control-plane state for this Agent.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AgentPollResult"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/AgentUnauthorized"
+        "403":
+          $ref: "#/components/responses/AgentForbidden"
 components:
   securitySchemes:
     administratorSession:
       type: apiKey
       in: cookie
       name: ipchronicle_session
+    agentCredential:
+      type: http
+      scheme: bearer
   parameters:
     CSRFToken:
       name: X-CSRF-Token
@@ -296,6 +423,18 @@ components:
             $ref: "#/components/schemas/ErrorResponse"
     Conflict:
       description: The requested account transition conflicts with current state.
+      content:
+        application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+    AgentUnauthorized:
+      description: The Agent credential or registration key is invalid.
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ErrorResponse"
+    AgentForbidden:
+      description: Agent registration or authority is disabled or revoked.
       content:
         application/json:
           schema:
@@ -437,6 +576,11 @@ components:
         - totp_not_enabled
         - totp_enrollment_not_started
         - no_account_change
+        - registration_key_not_initialized
+        - registration_key_invalid
+        - registration_disabled
+        - agent_unauthenticated
+        - agent_revoked
         - internal_error
     ErrorResponse:
       type: object
@@ -489,5 +633,200 @@ components:
           type: boolean
         trustedProxyConfigured:
           type: boolean
+    AgentEnrollmentSettings:
+      type: object
+      additionalProperties: false
+      required: [enabled, hasKey]
+      properties:
+        enabled:
+          type: boolean
+        hasKey:
+          type: boolean
+        installationCommand:
+          type: string
+          minLength: 1
+        rotatedAt:
+          type: string
+          format: date-time
+    AgentEnrollmentUpdate:
+      type: object
+      additionalProperties: false
+      required: [enabled]
+      properties:
+        enabled:
+          type: boolean
+    AgentPlatform:
+      type: string
+      enum: [linux]
+    AgentArchitecture:
+      type: string
+      enum: [amd64, arm64]
+    AgentMetadata:
+      type: object
+      additionalProperties: false
+      required: [hostname, agentVersion, operatingSystem, architecture, capabilities]
+      properties:
+        hostname:
+          type: string
+          minLength: 1
+          maxLength: 253
+        agentVersion:
+          type: string
+          minLength: 1
+          maxLength: 64
+        operatingSystem:
+          $ref: "#/components/schemas/AgentPlatform"
+        architecture:
+          $ref: "#/components/schemas/AgentArchitecture"
+        capabilities:
+          type: array
+          maxItems: 64
+          uniqueItems: true
+          items:
+            type: string
+            minLength: 1
+            maxLength: 64
+    AgentRegistrationRequest:
+      type: object
+      additionalProperties: false
+      required: [registrationKey, metadata]
+      properties:
+        registrationKey:
+          type: string
+          minLength: 32
+          maxLength: 128
+        metadata:
+          $ref: "#/components/schemas/AgentMetadata"
+    AgentRegistrationResult:
+      type: object
+      additionalProperties: false
+      required: [nodeId, credential, pollIntervalSeconds]
+      properties:
+        nodeId:
+          type: string
+          format: uuid
+        credential:
+          type: string
+          minLength: 32
+          maxLength: 128
+        pollIntervalSeconds:
+          type: integer
+          minimum: 1
+          maximum: 3600
+    AgentPollRequest:
+      type: object
+      additionalProperties: false
+      required: [appliedConfigurationRevision, metadata]
+      properties:
+        metadata:
+          $ref: "#/components/schemas/AgentMetadata"
+        appliedConfigurationRevision:
+          type: integer
+          format: int64
+          minimum: 0
+        configurationError:
+          type: string
+          minLength: 1
+          maxLength: 1024
+    AgentPollResult:
+      type: object
+      additionalProperties: false
+      required:
+        - centerVersion
+        - desiredConfigurationRevision
+        - enabled
+        - pollIntervalSeconds
+      properties:
+        centerVersion:
+          type: string
+          minLength: 1
+        desiredConfigurationRevision:
+          type: integer
+          format: int64
+          minimum: 0
+        enabled:
+          type: boolean
+        pollIntervalSeconds:
+          type: integer
+          minimum: 1
+          maximum: 3600
+    NodeStatus:
+      type: string
+      enum: [online, offline, disabled, revoked]
+    NodeConfigurationStatus:
+      type: string
+      enum: [current, pending, failed]
+    Node:
+      type: object
+      additionalProperties: false
+      required:
+        - id
+        - name
+        - hostname
+        - status
+        - enabled
+        - agentVersion
+        - operatingSystem
+        - architecture
+        - capabilities
+        - desiredConfigurationRevision
+        - appliedConfigurationRevision
+        - configurationStatus
+        - registeredAt
+      properties:
+        id:
+          type: string
+          format: uuid
+        name:
+          type: string
+          minLength: 1
+          maxLength: 64
+        hostname:
+          type: string
+          minLength: 1
+          maxLength: 253
+        status:
+          $ref: "#/components/schemas/NodeStatus"
+        enabled:
+          type: boolean
+        agentVersion:
+          type: string
+          minLength: 1
+          maxLength: 64
+        operatingSystem:
+          $ref: "#/components/schemas/AgentPlatform"
+        architecture:
+          $ref: "#/components/schemas/AgentArchitecture"
+        capabilities:
+          type: array
+          items:
+            type: string
+        desiredConfigurationRevision:
+          type: integer
+          format: int64
+          minimum: 0
+        appliedConfigurationRevision:
+          type: integer
+          format: int64
+          minimum: 0
+        configurationStatus:
+          $ref: "#/components/schemas/NodeConfigurationStatus"
+        configurationError:
+          type: string
+        registeredAt:
+          type: string
+          format: date-time
+        lastSeenAt:
+          type: string
+          format: date-time
+    NodeList:
+      type: object
+      additionalProperties: false
+      required: [items]
+      properties:
+        items:
+          type: array
+          items:
+            $ref: "#/components/schemas/Node"
 security:
   - administratorSession: []

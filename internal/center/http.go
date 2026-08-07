@@ -12,6 +12,7 @@ import (
 	"github.com/go-chi/chi/v5/middleware"
 	"github.com/ipchronicle/ipchronicle/internal/center/admin"
 	"github.com/ipchronicle/ipchronicle/internal/center/database"
+	"github.com/ipchronicle/ipchronicle/internal/center/nodes"
 	"github.com/ipchronicle/ipchronicle/internal/generated/api"
 )
 
@@ -19,6 +20,7 @@ type HTTPOptions struct {
 	Version        string
 	Web            http.Handler
 	Administrator  *admin.Service
+	Nodes          *nodes.Service
 	Store          *database.Store
 	ExternalOrigin *url.URL
 	TrustedProxies []netip.Prefix
@@ -28,7 +30,7 @@ func NewHTTPHandler(options HTTPOptions) http.Handler {
 	if strings.TrimSpace(options.Version) == "" {
 		panic("center version must not be empty")
 	}
-	if options.Web == nil || options.Administrator == nil || options.Store == nil {
+	if options.Web == nil || options.Administrator == nil || options.Nodes == nil || options.Store == nil {
 		panic("center HTTP dependencies must not be nil")
 	}
 
@@ -36,6 +38,7 @@ func NewHTTPHandler(options HTTPOptions) http.Handler {
 	server := apiServer{
 		version:                  options.Version,
 		administrator:            options.Administrator,
+		nodes:                    options.Nodes,
 		configSchemaVersion:      options.Store.ConfigSchemaVersion,
 		historySchemaVersion:     options.Store.HistorySchemaVersion,
 		externalOriginConfigured: options.ExternalOrigin != nil,

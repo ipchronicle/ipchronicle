@@ -56,6 +56,34 @@ test("changes theme immediately", async ({ page }) => {
   await expect(page.locator("html")).toHaveClass(/dark/);
 });
 
+test("generates an Agent installation command from the nodes page", async ({
+  page,
+}, testInfo) => {
+  await signIn(page);
+  const nodesLink = page.getByRole("link", { name: "Nodes", exact: true });
+  if (!(await nodesLink.isVisible())) {
+    await page.getByRole("button", { name: "Toggle sidebar" }).click();
+  }
+  await nodesLink.click();
+  await expect(page.getByRole("heading", { name: "Nodes" })).toBeVisible();
+
+  const generate = page.getByRole("button", { name: "Generate key" });
+  if (await generate.isVisible()) {
+    await generate.click();
+  }
+  await expect(
+    page.getByText("Installation command", { exact: true }),
+  ).toBeVisible();
+  await expect(
+    page.getByText("install-agent.sh", { exact: false }),
+  ).toBeVisible();
+  await expect(page.getByText("No nodes are registered")).toBeVisible();
+  await page.screenshot({
+    path: testInfo.outputPath("nodes.png"),
+    fullPage: true,
+  });
+});
+
 test("shows account validation errors and starts TOTP enrollment", async ({
   page,
 }, testInfo) => {

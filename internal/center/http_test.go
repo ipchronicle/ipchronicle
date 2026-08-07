@@ -11,6 +11,7 @@ import (
 
 	"github.com/ipchronicle/ipchronicle/internal/center/admin"
 	"github.com/ipchronicle/ipchronicle/internal/center/database"
+	"github.com/ipchronicle/ipchronicle/internal/center/nodes"
 	"github.com/ipchronicle/ipchronicle/internal/generated/api"
 )
 
@@ -58,7 +59,7 @@ func TestAdministratorLoginStatusAndLogout(t *testing.T) {
 	if err := json.NewDecoder(statusResponse.Body).Decode(&status); err != nil {
 		t.Fatal(err)
 	}
-	if status.Service != api.IpchronicleCenter || status.Status != api.Ok || !status.TransportWarning || status.ConfigSchemaVersion != 1 || status.HistorySchemaVersion != 1 {
+	if status.Service != api.IpchronicleCenter || status.Status != api.Ok || !status.TransportWarning || status.ConfigSchemaVersion != 2 || status.HistorySchemaVersion != 1 {
 		t.Fatalf("unexpected status response: %#v", status)
 	}
 
@@ -78,6 +79,104 @@ func TestMalformedJSONUsesStructuredError(t *testing.T) {
 	handler := newTestHTTPHandler(t, nil)
 	response := performRequest(handler, http.MethodPost, "/api/v1/auth/login", []byte("{"), "http://example.test", nil)
 	assertErrorCode(t, response, http.StatusBadRequest, api.InvalidRequest)
+}
+
+func TestAdministratorEnrollmentAndAgentCredentialBoundaries(t *testing.T) {
+	handler, nodeService := newTestHTTPHandlerWithNodes(t, nil)
+	unauthenticated := performRequest(handler, http.MethodGet, "/api/v1/agent-enrollment", nil, "", nil)
+	assertErrorCode(t, unauthenticated, http.StatusUnauthorized, api.Unauthenticated)
+
+	login := performRequest(handler, http.MethodPost, "/api/v1/auth/login", loginBody(), "http://example.test", nil)
+	if login.Code != http.StatusOK {
+		t.Fatalf("login status = %d, body = %s", login.Code, login.Body.String())
+	}
+	var session api.AuthenticatedSession
+	if err := json.NewDecoder(login.Body).Decode(&session); err != nil {
+		t.Fatal(err)
+	}
+	cookie := login.Result().Cookies()[0]
+	initial := performRequest(handler, http.MethodGet, "/api/v1/agent-enrollment", nil, "", cookie)
+	if initial.Code != http.StatusOK || !bytes.Contains(initial.Body.Bytes(), []byte(`"hasKey":false`)) {
+		t.Fatalf("initial enrollment response = %d %s", initial.Code, initial.Body.String())
+	}
+	rotated := performRequestWithCSRF(handler, http.MethodPost, "/api/v1/agent-enrollment/key", nil, "http://example.test", cookie, session.CsrfToken)
+	if rotated.Code != http.StatusOK || !bytes.Contains(rotated.Body.Bytes(), []byte("install-agent.sh")) ||
+		!bytes.Contains(rotated.Body.Bytes(), []byte("releases/download/v0.0.0-test")) ||
+		!bytes.Contains(rotated.Body.Bytes(), []byte("--version")) {
+		t.Fatalf("rotated enrollment response = %d %s", rotated.Code, rotated.Body.String())
+	}
+	enrollment, err := nodeService.Enrollment(context.Background())
+	if err != nil {
+		t.Fatal(err)
+	}
+	registrationBody, err := json.Marshal(api.AgentRegistrationRequest{
+		RegistrationKey: enrollment.Key,
+		Metadata: api.AgentMetadata{
+			Hostname: "edge-1", AgentVersion: "0.1.0", OperatingSystem: api.Linux,
+			Architecture: api.Amd64, Capabilities: []string{"control-v1"},
+		},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	registration := performRequest(handler, http.MethodPost, "/api/v1/agent/enroll", registrationBody, "", nil)
+	if registration.Code != http.StatusCreated {
+		t.Fatalf("registration status = %d, body = %s", registration.Code, registration.Body.String())
+	}
+	var registered api.AgentRegistrationResult
+	if err := json.NewDecoder(registration.Body).Decode(&registered); err != nil {
+		t.Fatal(err)
+	}
+	pollBody, err := json.Marshal(api.AgentPollRequest{
+		AppliedConfigurationRevision: 0,
+		Metadata: api.AgentMetadata{
+			Hostname: "edge-1", AgentVersion: "0.1.0", OperatingSystem: api.Linux,
+			Architecture: api.Amd64, Capabilities: []string{"control-v1"},
+		},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	missingCredential := performRequest(handler, http.MethodPost, "/api/v1/agent/control", pollBody, "", nil)
+	assertErrorCode(t, missingCredential, http.StatusUnauthorized, api.AgentUnauthenticated)
+	pollRequest := httptest.NewRequest(http.MethodPost, "http://example.test/api/v1/agent/control", bytes.NewReader(pollBody))
+	pollRequest.RemoteAddr = "192.0.2.10:1234"
+	pollRequest.Header.Set("Content-Type", "application/json")
+	pollRequest.Header.Set("Authorization", "Bearer "+registered.Credential)
+	poll := httptest.NewRecorder()
+	handler.ServeHTTP(poll, pollRequest)
+	if poll.Code != http.StatusOK {
+		t.Fatalf("Agent poll status = %d, body = %s", poll.Code, poll.Body.String())
+	}
+
+	list := performRequest(handler, http.MethodGet, "/api/v1/nodes", nil, "", cookie)
+	if list.Code != http.StatusOK {
+		t.Fatalf("node list status = %d, body = %s", list.Code, list.Body.String())
+	}
+	var nodes api.NodeList
+	if err := json.NewDecoder(list.Body).Decode(&nodes); err != nil {
+		t.Fatal(err)
+	}
+	if len(nodes.Items) != 1 || nodes.Items[0].Status != api.Online {
+		t.Fatalf("unexpected node list: %#v", nodes.Items)
+	}
+
+	disableBody := []byte(`{"enabled":false}`)
+	disabled := performRequestWithCSRF(handler, http.MethodPut, "/api/v1/agent-enrollment", disableBody, "http://example.test", cookie, session.CsrfToken)
+	if disabled.Code != http.StatusOK {
+		t.Fatalf("disable enrollment status = %d, body = %s", disabled.Code, disabled.Body.String())
+	}
+	rejected := performRequest(handler, http.MethodPost, "/api/v1/agent/enroll", registrationBody, "", nil)
+	assertErrorCode(t, rejected, http.StatusForbidden, api.RegistrationDisabled)
+	pollRequest = httptest.NewRequest(http.MethodPost, "http://example.test/api/v1/agent/control", bytes.NewReader(pollBody))
+	pollRequest.RemoteAddr = "192.0.2.10:1234"
+	pollRequest.Header.Set("Content-Type", "application/json")
+	pollRequest.Header.Set("Authorization", "Bearer "+registered.Credential)
+	pollAfterDisable := httptest.NewRecorder()
+	handler.ServeHTTP(pollAfterDisable, pollRequest)
+	if pollAfterDisable.Code != http.StatusOK {
+		t.Fatalf("existing Agent rejected after disabling enrollment: %d %s", pollAfterDisable.Code, pollAfterDisable.Body.String())
+	}
 }
 
 func TestTrustedProxyControlsForwardedHTTPS(t *testing.T) {
@@ -115,6 +214,12 @@ func TestUntrustedClientCannotSupplyForwardedHTTPS(t *testing.T) {
 
 func newTestHTTPHandler(t *testing.T, trustedProxies []netip.Prefix) http.Handler {
 	t.Helper()
+	handler, _ := newTestHTTPHandlerWithNodes(t, trustedProxies)
+	return handler
+}
+
+func newTestHTTPHandlerWithNodes(t *testing.T, trustedProxies []netip.Prefix) (http.Handler, *nodes.Service) {
+	t.Helper()
 	store, err := database.Open(context.Background(), database.PathsFromDataDirectory(t.TempDir()))
 	if err != nil {
 		t.Fatal(err)
@@ -124,10 +229,11 @@ func newTestHTTPHandler(t *testing.T, trustedProxies []netip.Prefix) http.Handle
 	if err := administrator.Bootstrap(context.Background(), "admin", "admin"); err != nil {
 		t.Fatal(err)
 	}
+	nodeService := nodes.NewService(store.Config, store.ConfigQueries, store.MasterKey)
 	return NewHTTPHandler(HTTPOptions{
 		Version: "0.0.0-test", Web: http.NotFoundHandler(),
-		Administrator: administrator, Store: store, TrustedProxies: trustedProxies,
-	})
+		Administrator: administrator, Nodes: nodeService, Store: store, TrustedProxies: trustedProxies,
+	}), nodeService
 }
 
 func loginBody() []byte {

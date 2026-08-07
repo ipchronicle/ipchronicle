@@ -103,3 +103,64 @@ SET history_generation = pending_history_generation,
     pending_history_generation = NULL,
     history_reset_at = ?
 WHERE id = 1 AND pending_history_generation = ?;
+
+-- name: GetAgentEnrollment :one
+SELECT id, enabled, key_digest, key_encrypted, created_at, rotated_at
+FROM agent_enrollment
+WHERE id = 1;
+
+-- name: UpsertAgentEnrollmentKey :exec
+INSERT INTO agent_enrollment (
+    id, enabled, key_digest, key_encrypted, created_at, rotated_at
+) VALUES (1, 1, ?, ?, ?, ?)
+ON CONFLICT (id) DO UPDATE SET
+    enabled = 1,
+    key_digest = excluded.key_digest,
+    key_encrypted = excluded.key_encrypted,
+    rotated_at = excluded.rotated_at;
+
+-- name: SetAgentEnrollmentEnabled :execrows
+UPDATE agent_enrollment
+SET enabled = ?
+WHERE id = 1;
+
+-- name: CreateNode :exec
+INSERT INTO nodes (
+    id, name, hostname, credential_digest, agent_version,
+    operating_system, architecture, registered_at
+) VALUES (?, ?, ?, ?, ?, ?, ?, ?);
+
+-- name: GetNodeByCredentialDigest :one
+SELECT id, name, hostname, credential_digest, enabled, revoked_at,
+       agent_version, operating_system, architecture,
+       desired_configuration_revision, applied_configuration_revision,
+       configuration_error, registered_at, last_seen_at
+FROM nodes
+WHERE credential_digest = ?;
+
+-- name: UpdateNodeHeartbeat :execrows
+UPDATE nodes
+SET hostname = ?, agent_version = ?, operating_system = ?, architecture = ?,
+    applied_configuration_revision = ?, configuration_error = ?, last_seen_at = ?
+WHERE id = ? AND revoked_at IS NULL;
+
+-- name: ListNodes :many
+SELECT id, name, hostname, credential_digest, enabled, revoked_at,
+       agent_version, operating_system, architecture,
+       desired_configuration_revision, applied_configuration_revision,
+       configuration_error, registered_at, last_seen_at
+FROM nodes
+ORDER BY name COLLATE NOCASE, id;
+
+-- name: DeleteNodeCapabilities :exec
+DELETE FROM node_capabilities
+WHERE node_id = ?;
+
+-- name: CreateNodeCapability :exec
+INSERT INTO node_capabilities (node_id, capability)
+VALUES (?, ?);
+
+-- name: ListNodeCapabilities :many
+SELECT node_id, capability
+FROM node_capabilities
+ORDER BY node_id, capability;

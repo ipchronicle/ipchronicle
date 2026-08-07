@@ -159,6 +159,92 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/nodes": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List registered nodes */
+        get: operations["listNodes"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/agent-enrollment": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Read automatic Agent enrollment settings */
+        get: operations["getAgentEnrollment"];
+        /** Enable or disable automatic Agent enrollment */
+        put: operations["updateAgentEnrollment"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/agent-enrollment/key": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Generate or rotate the automatic Agent enrollment key */
+        post: operations["rotateAgentEnrollmentKey"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/agent/enroll": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Register a new Agent and node */
+        post: operations["registerAgent"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/agent/control": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Report Agent state and read current control state */
+        post: operations["pollAgent"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
 }
 export type webhooks = Record<string, never>;
 export interface components {
@@ -210,7 +296,7 @@ export interface components {
             provisioningUri: string;
         };
         /** @enum {string} */
-        ErrorCode: "invalid_request" | "invalid_credentials" | "totp_required" | "rate_limited" | "unauthenticated" | "csrf_failed" | "origin_not_allowed" | "current_password_invalid" | "invalid_totp" | "totp_already_enabled" | "totp_not_enabled" | "totp_enrollment_not_started" | "no_account_change" | "internal_error";
+        ErrorCode: "invalid_request" | "invalid_credentials" | "totp_required" | "rate_limited" | "unauthenticated" | "csrf_failed" | "origin_not_allowed" | "current_password_invalid" | "invalid_totp" | "totp_already_enabled" | "totp_not_enabled" | "totp_enrollment_not_started" | "no_account_change" | "registration_key_not_initialized" | "registration_key_invalid" | "registration_disabled" | "agent_unauthenticated" | "agent_revoked" | "internal_error";
         ErrorResponse: {
             code: components["schemas"]["ErrorCode"];
             parameters?: {
@@ -232,6 +318,79 @@ export interface components {
             transportWarning: boolean;
             externalOriginConfigured: boolean;
             trustedProxyConfigured: boolean;
+        };
+        AgentEnrollmentSettings: {
+            enabled: boolean;
+            hasKey: boolean;
+            installationCommand?: string;
+            /** Format: date-time */
+            rotatedAt?: string;
+        };
+        AgentEnrollmentUpdate: {
+            enabled: boolean;
+        };
+        /** @enum {string} */
+        AgentPlatform: "linux";
+        /** @enum {string} */
+        AgentArchitecture: "amd64" | "arm64";
+        AgentMetadata: {
+            hostname: string;
+            agentVersion: string;
+            operatingSystem: components["schemas"]["AgentPlatform"];
+            architecture: components["schemas"]["AgentArchitecture"];
+            capabilities: string[];
+        };
+        AgentRegistrationRequest: {
+            registrationKey: string;
+            metadata: components["schemas"]["AgentMetadata"];
+        };
+        AgentRegistrationResult: {
+            /** Format: uuid */
+            nodeId: string;
+            credential: string;
+            pollIntervalSeconds: number;
+        };
+        AgentPollRequest: {
+            metadata: components["schemas"]["AgentMetadata"];
+            /** Format: int64 */
+            appliedConfigurationRevision: number;
+            configurationError?: string;
+        };
+        AgentPollResult: {
+            centerVersion: string;
+            /** Format: int64 */
+            desiredConfigurationRevision: number;
+            enabled: boolean;
+            pollIntervalSeconds: number;
+        };
+        /** @enum {string} */
+        NodeStatus: "online" | "offline" | "disabled" | "revoked";
+        /** @enum {string} */
+        NodeConfigurationStatus: "current" | "pending" | "failed";
+        Node: {
+            /** Format: uuid */
+            id: string;
+            name: string;
+            hostname: string;
+            status: components["schemas"]["NodeStatus"];
+            enabled: boolean;
+            agentVersion: string;
+            operatingSystem: components["schemas"]["AgentPlatform"];
+            architecture: components["schemas"]["AgentArchitecture"];
+            capabilities: string[];
+            /** Format: int64 */
+            desiredConfigurationRevision: number;
+            /** Format: int64 */
+            appliedConfigurationRevision: number;
+            configurationStatus: components["schemas"]["NodeConfigurationStatus"];
+            configurationError?: string;
+            /** Format: date-time */
+            registeredAt: string;
+            /** Format: date-time */
+            lastSeenAt?: string;
+        };
+        NodeList: {
+            items: components["schemas"]["Node"][];
         };
     };
     responses: {
@@ -264,6 +423,24 @@ export interface components {
         };
         /** @description The requested account transition conflicts with current state. */
         Conflict: {
+            headers: {
+                [name: string]: unknown;
+            };
+            content: {
+                "application/json": components["schemas"]["ErrorResponse"];
+            };
+        };
+        /** @description The Agent credential or registration key is invalid. */
+        AgentUnauthorized: {
+            headers: {
+                [name: string]: unknown;
+            };
+            content: {
+                "application/json": components["schemas"]["ErrorResponse"];
+            };
+        };
+        /** @description Agent registration or authority is disabled or revoked. */
+        AgentForbidden: {
             headers: {
                 [name: string]: unknown;
             };
@@ -573,6 +750,156 @@ export interface operations {
                 };
             };
             401: components["responses"]["Unauthorized"];
+        };
+    };
+    listNodes: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Registered nodes ordered by name. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["NodeList"];
+                };
+            };
+            401: components["responses"]["Unauthorized"];
+        };
+    };
+    getAgentEnrollment: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Current automatic enrollment settings. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AgentEnrollmentSettings"];
+                };
+            };
+            401: components["responses"]["Unauthorized"];
+        };
+    };
+    updateAgentEnrollment: {
+        parameters: {
+            query?: never;
+            header?: {
+                "X-CSRF-Token"?: components["parameters"]["CSRFToken"];
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["AgentEnrollmentUpdate"];
+            };
+        };
+        responses: {
+            /** @description Updated automatic enrollment settings. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AgentEnrollmentSettings"];
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            409: components["responses"]["Conflict"];
+        };
+    };
+    rotateAgentEnrollmentKey: {
+        parameters: {
+            query?: never;
+            header?: {
+                "X-CSRF-Token"?: components["parameters"]["CSRFToken"];
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Automatic enrollment is enabled with a new key. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AgentEnrollmentSettings"];
+                };
+            };
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+        };
+    };
+    registerAgent: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["AgentRegistrationRequest"];
+            };
+        };
+        responses: {
+            /** @description The Agent was registered with a node-specific credential. */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AgentRegistrationResult"];
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            401: components["responses"]["AgentUnauthorized"];
+            403: components["responses"]["AgentForbidden"];
+        };
+    };
+    pollAgent: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["AgentPollRequest"];
+            };
+        };
+        responses: {
+            /** @description Current control-plane state for this Agent. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AgentPollResult"];
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            401: components["responses"]["AgentUnauthorized"];
+            403: components["responses"]["AgentForbidden"];
         };
     };
 }

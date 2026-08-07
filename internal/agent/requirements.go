@@ -3,8 +3,7 @@ package agent
 import "errors"
 
 var (
-	ErrRootRequired       = errors.New("the IPChronicle Agent must run as root")
-	ErrRuntimeUnavailable = errors.New("the Agent control plane is not available in Phase 0")
+	ErrRootRequired = errors.New("the IPChronicle Agent must run as root")
 )
 
 func CheckRoot(effectiveUID int) error {

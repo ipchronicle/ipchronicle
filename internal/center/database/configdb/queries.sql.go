@@ -62,6 +62,53 @@ func (q *Queries) CreateAdministratorSession(ctx context.Context, arg CreateAdmi
 	return err
 }
 
+const createNode = `-- name: CreateNode :exec
+INSERT INTO nodes (
+    id, name, hostname, credential_digest, agent_version,
+    operating_system, architecture, registered_at
+) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+`
+
+type CreateNodeParams struct {
+	ID               string
+	Name             string
+	Hostname         string
+	CredentialDigest []byte
+	AgentVersion     string
+	OperatingSystem  string
+	Architecture     string
+	RegisteredAt     int64
+}
+
+func (q *Queries) CreateNode(ctx context.Context, arg CreateNodeParams) error {
+	_, err := q.db.ExecContext(ctx, createNode,
+		arg.ID,
+		arg.Name,
+		arg.Hostname,
+		arg.CredentialDigest,
+		arg.AgentVersion,
+		arg.OperatingSystem,
+		arg.Architecture,
+		arg.RegisteredAt,
+	)
+	return err
+}
+
+const createNodeCapability = `-- name: CreateNodeCapability :exec
+INSERT INTO node_capabilities (node_id, capability)
+VALUES (?, ?)
+`
+
+type CreateNodeCapabilityParams struct {
+	NodeID     string
+	Capability string
+}
+
+func (q *Queries) CreateNodeCapability(ctx context.Context, arg CreateNodeCapabilityParams) error {
+	_, err := q.db.ExecContext(ctx, createNodeCapability, arg.NodeID, arg.Capability)
+	return err
+}
+
 const createSystemState = `-- name: CreateSystemState :exec
 INSERT INTO system_state (id, history_generation)
 VALUES (1, ?)
@@ -98,6 +145,16 @@ WHERE expires_at <= ?
 
 func (q *Queries) DeleteExpiredAdministratorSessions(ctx context.Context, expiresAt int64) error {
 	_, err := q.db.ExecContext(ctx, deleteExpiredAdministratorSessions, expiresAt)
+	return err
+}
+
+const deleteNodeCapabilities = `-- name: DeleteNodeCapabilities :exec
+DELETE FROM node_capabilities
+WHERE node_id = ?
+`
+
+func (q *Queries) DeleteNodeCapabilities(ctx context.Context, nodeID string) error {
+	_, err := q.db.ExecContext(ctx, deleteNodeCapabilities, nodeID)
 	return err
 }
 
@@ -200,6 +257,57 @@ func (q *Queries) GetAdministratorSession(ctx context.Context, arg GetAdministra
 	return i, err
 }
 
+const getAgentEnrollment = `-- name: GetAgentEnrollment :one
+SELECT id, enabled, key_digest, key_encrypted, created_at, rotated_at
+FROM agent_enrollment
+WHERE id = 1
+`
+
+func (q *Queries) GetAgentEnrollment(ctx context.Context) (AgentEnrollment, error) {
+	row := q.db.QueryRowContext(ctx, getAgentEnrollment)
+	var i AgentEnrollment
+	err := row.Scan(
+		&i.ID,
+		&i.Enabled,
+		&i.KeyDigest,
+		&i.KeyEncrypted,
+		&i.CreatedAt,
+		&i.RotatedAt,
+	)
+	return i, err
+}
+
+const getNodeByCredentialDigest = `-- name: GetNodeByCredentialDigest :one
+SELECT id, name, hostname, credential_digest, enabled, revoked_at,
+       agent_version, operating_system, architecture,
+       desired_configuration_revision, applied_configuration_revision,
+       configuration_error, registered_at, last_seen_at
+FROM nodes
+WHERE credential_digest = ?
+`
+
+func (q *Queries) GetNodeByCredentialDigest(ctx context.Context, credentialDigest []byte) (Node, error) {
+	row := q.db.QueryRowContext(ctx, getNodeByCredentialDigest, credentialDigest)
+	var i Node
+	err := row.Scan(
+		&i.ID,
+		&i.Name,
+		&i.Hostname,
+		&i.CredentialDigest,
+		&i.Enabled,
+		&i.RevokedAt,
+		&i.AgentVersion,
+		&i.OperatingSystem,
+		&i.Architecture,
+		&i.DesiredConfigurationRevision,
+		&i.AppliedConfigurationRevision,
+		&i.ConfigurationError,
+		&i.RegisteredAt,
+		&i.LastSeenAt,
+	)
+	return i, err
+}
+
 const getSystemState = `-- name: GetSystemState :one
 SELECT id, history_generation, pending_history_generation, history_reset_at
 FROM system_state
@@ -216,6 +324,82 @@ func (q *Queries) GetSystemState(ctx context.Context) (SystemState, error) {
 		&i.HistoryResetAt,
 	)
 	return i, err
+}
+
+const listNodeCapabilities = `-- name: ListNodeCapabilities :many
+SELECT node_id, capability
+FROM node_capabilities
+ORDER BY node_id, capability
+`
+
+func (q *Queries) ListNodeCapabilities(ctx context.Context) ([]NodeCapability, error) {
+	rows, err := q.db.QueryContext(ctx, listNodeCapabilities)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []NodeCapability{}
+	for rows.Next() {
+		var i NodeCapability
+		if err := rows.Scan(&i.NodeID, &i.Capability); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listNodes = `-- name: ListNodes :many
+SELECT id, name, hostname, credential_digest, enabled, revoked_at,
+       agent_version, operating_system, architecture,
+       desired_configuration_revision, applied_configuration_revision,
+       configuration_error, registered_at, last_seen_at
+FROM nodes
+ORDER BY name COLLATE NOCASE, id
+`
+
+func (q *Queries) ListNodes(ctx context.Context) ([]Node, error) {
+	rows, err := q.db.QueryContext(ctx, listNodes)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []Node{}
+	for rows.Next() {
+		var i Node
+		if err := rows.Scan(
+			&i.ID,
+			&i.Name,
+			&i.Hostname,
+			&i.CredentialDigest,
+			&i.Enabled,
+			&i.RevokedAt,
+			&i.AgentVersion,
+			&i.OperatingSystem,
+			&i.Architecture,
+			&i.DesiredConfigurationRevision,
+			&i.AppliedConfigurationRevision,
+			&i.ConfigurationError,
+			&i.RegisteredAt,
+			&i.LastSeenAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
 }
 
 const promotePendingHistoryGeneration = `-- name: PromotePendingHistoryGeneration :execrows
@@ -248,6 +432,20 @@ WHERE id = 1
 func (q *Queries) RehashAdministratorPassword(ctx context.Context, passwordHash string) error {
 	_, err := q.db.ExecContext(ctx, rehashAdministratorPassword, passwordHash)
 	return err
+}
+
+const setAgentEnrollmentEnabled = `-- name: SetAgentEnrollmentEnabled :execrows
+UPDATE agent_enrollment
+SET enabled = ?
+WHERE id = 1
+`
+
+func (q *Queries) SetAgentEnrollmentEnabled(ctx context.Context, enabled int64) (int64, error) {
+	result, err := q.db.ExecContext(ctx, setAgentEnrollmentEnabled, enabled)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected()
 }
 
 const setPendingHistoryGeneration = `-- name: SetPendingHistoryGeneration :exec
@@ -317,6 +515,69 @@ type UpdateAdministratorUsernameParams struct {
 
 func (q *Queries) UpdateAdministratorUsername(ctx context.Context, arg UpdateAdministratorUsernameParams) error {
 	_, err := q.db.ExecContext(ctx, updateAdministratorUsername, arg.Username, arg.UsesDefaultCredentials, arg.CredentialsUpdatedAt)
+	return err
+}
+
+const updateNodeHeartbeat = `-- name: UpdateNodeHeartbeat :execrows
+UPDATE nodes
+SET hostname = ?, agent_version = ?, operating_system = ?, architecture = ?,
+    applied_configuration_revision = ?, configuration_error = ?, last_seen_at = ?
+WHERE id = ? AND revoked_at IS NULL
+`
+
+type UpdateNodeHeartbeatParams struct {
+	Hostname                     string
+	AgentVersion                 string
+	OperatingSystem              string
+	Architecture                 string
+	AppliedConfigurationRevision int64
+	ConfigurationError           *string
+	LastSeenAt                   *int64
+	ID                           string
+}
+
+func (q *Queries) UpdateNodeHeartbeat(ctx context.Context, arg UpdateNodeHeartbeatParams) (int64, error) {
+	result, err := q.db.ExecContext(ctx, updateNodeHeartbeat,
+		arg.Hostname,
+		arg.AgentVersion,
+		arg.OperatingSystem,
+		arg.Architecture,
+		arg.AppliedConfigurationRevision,
+		arg.ConfigurationError,
+		arg.LastSeenAt,
+		arg.ID,
+	)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected()
+}
+
+const upsertAgentEnrollmentKey = `-- name: UpsertAgentEnrollmentKey :exec
+INSERT INTO agent_enrollment (
+    id, enabled, key_digest, key_encrypted, created_at, rotated_at
+) VALUES (1, 1, ?, ?, ?, ?)
+ON CONFLICT (id) DO UPDATE SET
+    enabled = 1,
+    key_digest = excluded.key_digest,
+    key_encrypted = excluded.key_encrypted,
+    rotated_at = excluded.rotated_at
+`
+
+type UpsertAgentEnrollmentKeyParams struct {
+	KeyDigest    []byte
+	KeyEncrypted []byte
+	CreatedAt    int64
+	RotatedAt    int64
+}
+
+func (q *Queries) UpsertAgentEnrollmentKey(ctx context.Context, arg UpsertAgentEnrollmentKeyParams) error {
+	_, err := q.db.ExecContext(ctx, upsertAgentEnrollmentKey,
+		arg.KeyDigest,
+		arg.KeyEncrypted,
+		arg.CreatedAt,
+		arg.RotatedAt,
+	)
 	return err
 }
 

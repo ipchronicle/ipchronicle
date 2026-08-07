@@ -19,7 +19,7 @@ func TestFreshOpenAndRestart(t *testing.T) {
 		t.Fatal(err)
 	}
 	firstGeneration := store.HistoryGeneration
-	if store.ConfigSchemaVersion != 1 || store.HistorySchemaVersion != 1 {
+	if store.ConfigSchemaVersion != 2 || store.HistorySchemaVersion != 1 {
 		t.Fatalf("unexpected schema versions: %d/%d", store.ConfigSchemaVersion, store.HistorySchemaVersion)
 	}
 	if err := store.Close(); err != nil {

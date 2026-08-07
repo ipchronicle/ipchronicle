@@ -9,6 +9,7 @@ export const en = {
       mobileDescription: "Browse IPChronicle sections.",
       toggleSidebar: "Toggle sidebar",
       systemStatus: "System status",
+      nodes: "Nodes",
       account: "Account",
     },
     language: {
@@ -90,6 +91,69 @@ export const en = {
       httpWarningDetail:
         "Credentials, TOTP codes, and sessions are not protected from network interception.",
     },
+    nodes: {
+      section: "Managed nodes",
+      title: "Nodes",
+      detail:
+        "Enroll Linux Agents and review their current control-plane state.",
+      refresh: "Refresh",
+      retry: "Retry",
+      loadFailed: "Nodes could not be loaded",
+      notAvailable: "Not yet reported",
+      enrollment: {
+        title: "Agent enrollment",
+        detail:
+          "Control automatic registration and install an Agent with one root command.",
+        enabled: "Enrollment enabled",
+        disabled: "Enrollment disabled",
+        allowRegistration: "Allow automatic registration",
+        allowRegistrationDetail:
+          "Disabling enrollment does not disconnect Agents that are already registered.",
+        command: "Installation command",
+        commandDetail:
+          "Run as root on a supported Linux node. The command contains the reusable registration key.",
+        copy: "Copy command",
+        copied: "Installation command copied.",
+        rotatedAt: "Key rotated {{value}}",
+        rotate: "Rotate key",
+        rotateTitle: "Rotate the registration key?",
+        rotateDetail:
+          "Previously copied installation commands will stop working. Existing Agents are unaffected.",
+        rotateConfirm: "Rotate key",
+        rotated: "Registration key rotated.",
+        generated: "Registration key generated and enrollment enabled.",
+        empty: "No registration key exists",
+        emptyDetail:
+          "Generate one to enable automatic node creation and receive the installation command.",
+        generate: "Generate key",
+      },
+      inventory: {
+        title: "Node inventory",
+        detail:
+          "A node appears after its Agent completes automatic registration.",
+        count_one: "{{count}} node",
+        count_other: "{{count}} nodes",
+        empty: "No nodes are registered",
+        emptyDetail:
+          "Generate an enrollment key, then run the installation command on a Linux node you manage.",
+        node: "Node",
+        status: "Status",
+        agent: "Agent",
+        configuration: "Configuration",
+        lastSeen: "Last seen",
+      },
+      status: {
+        online: "Online",
+        offline: "Offline",
+        disabled: "Disabled",
+        revoked: "Revoked",
+      },
+      configuration: {
+        current: "Current",
+        pending: "Pending",
+        failed: "Failed",
+      },
+    },
     errors: {
       actionFailed: "The action could not be completed.",
       invalid_request: "The submitted values are invalid.",
@@ -108,6 +172,12 @@ export const en = {
       totp_enrollment_not_started:
         "Start TOTP enrollment before confirming it.",
       no_account_change: "Change the username or enter a new password.",
+      registration_key_not_initialized:
+        "Generate a registration key before enabling enrollment.",
+      registration_key_invalid: "The registration key is invalid.",
+      registration_disabled: "Automatic Agent enrollment is disabled.",
+      agent_unauthenticated: "The Agent credential is invalid.",
+      agent_revoked: "The Agent credential has been revoked.",
       internal_error: "The center could not complete the request.",
     },
   },

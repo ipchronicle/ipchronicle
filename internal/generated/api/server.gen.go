@@ -13,29 +13,72 @@ import (
 
 	"github.com/go-chi/chi/v5"
 	"github.com/oapi-codegen/runtime"
+	openapi_types "github.com/oapi-codegen/runtime/types"
 )
+
+// Defines values for AgentArchitecture.
+const (
+	Amd64 AgentArchitecture = "amd64"
+	Arm64 AgentArchitecture = "arm64"
+)
+
+// Valid indicates whether the value is a known member of the AgentArchitecture enum.
+func (e AgentArchitecture) Valid() bool {
+	switch e {
+	case Amd64:
+		return true
+	case Arm64:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for AgentPlatform.
+const (
+	Linux AgentPlatform = "linux"
+)
+
+// Valid indicates whether the value is a known member of the AgentPlatform enum.
+func (e AgentPlatform) Valid() bool {
+	switch e {
+	case Linux:
+		return true
+	default:
+		return false
+	}
+}
 
 // Defines values for ErrorCode.
 const (
-	CsrfFailed               ErrorCode = "csrf_failed"
-	CurrentPasswordInvalid   ErrorCode = "current_password_invalid"
-	InternalError            ErrorCode = "internal_error"
-	InvalidCredentials       ErrorCode = "invalid_credentials"
-	InvalidRequest           ErrorCode = "invalid_request"
-	InvalidTotp              ErrorCode = "invalid_totp"
-	NoAccountChange          ErrorCode = "no_account_change"
-	OriginNotAllowed         ErrorCode = "origin_not_allowed"
-	RateLimited              ErrorCode = "rate_limited"
-	TotpAlreadyEnabled       ErrorCode = "totp_already_enabled"
-	TotpEnrollmentNotStarted ErrorCode = "totp_enrollment_not_started"
-	TotpNotEnabled           ErrorCode = "totp_not_enabled"
-	TotpRequired             ErrorCode = "totp_required"
-	Unauthenticated          ErrorCode = "unauthenticated"
+	AgentRevoked                  ErrorCode = "agent_revoked"
+	AgentUnauthenticated          ErrorCode = "agent_unauthenticated"
+	CsrfFailed                    ErrorCode = "csrf_failed"
+	CurrentPasswordInvalid        ErrorCode = "current_password_invalid"
+	InternalError                 ErrorCode = "internal_error"
+	InvalidCredentials            ErrorCode = "invalid_credentials"
+	InvalidRequest                ErrorCode = "invalid_request"
+	InvalidTotp                   ErrorCode = "invalid_totp"
+	NoAccountChange               ErrorCode = "no_account_change"
+	OriginNotAllowed              ErrorCode = "origin_not_allowed"
+	RateLimited                   ErrorCode = "rate_limited"
+	RegistrationDisabled          ErrorCode = "registration_disabled"
+	RegistrationKeyInvalid        ErrorCode = "registration_key_invalid"
+	RegistrationKeyNotInitialized ErrorCode = "registration_key_not_initialized"
+	TotpAlreadyEnabled            ErrorCode = "totp_already_enabled"
+	TotpEnrollmentNotStarted      ErrorCode = "totp_enrollment_not_started"
+	TotpNotEnabled                ErrorCode = "totp_not_enabled"
+	TotpRequired                  ErrorCode = "totp_required"
+	Unauthenticated               ErrorCode = "unauthenticated"
 )
 
 // Valid indicates whether the value is a known member of the ErrorCode enum.
 func (e ErrorCode) Valid() bool {
 	switch e {
+	case AgentRevoked:
+		return true
+	case AgentUnauthenticated:
+		return true
 	case CsrfFailed:
 		return true
 	case CurrentPasswordInvalid:
@@ -54,6 +97,12 @@ func (e ErrorCode) Valid() bool {
 		return true
 	case RateLimited:
 		return true
+	case RegistrationDisabled:
+		return true
+	case RegistrationKeyInvalid:
+		return true
+	case RegistrationKeyNotInitialized:
+		return true
 	case TotpAlreadyEnabled:
 		return true
 	case TotpEnrollmentNotStarted:
@@ -63,6 +112,51 @@ func (e ErrorCode) Valid() bool {
 	case TotpRequired:
 		return true
 	case Unauthenticated:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for NodeConfigurationStatus.
+const (
+	Current NodeConfigurationStatus = "current"
+	Failed  NodeConfigurationStatus = "failed"
+	Pending NodeConfigurationStatus = "pending"
+)
+
+// Valid indicates whether the value is a known member of the NodeConfigurationStatus enum.
+func (e NodeConfigurationStatus) Valid() bool {
+	switch e {
+	case Current:
+		return true
+	case Failed:
+		return true
+	case Pending:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for NodeStatus.
+const (
+	Disabled NodeStatus = "disabled"
+	Offline  NodeStatus = "offline"
+	Online   NodeStatus = "online"
+	Revoked  NodeStatus = "revoked"
+)
+
+// Valid indicates whether the value is a known member of the NodeStatus enum.
+func (e NodeStatus) Valid() bool {
+	switch e {
+	case Disabled:
+		return true
+	case Offline:
+		return true
+	case Online:
+		return true
+	case Revoked:
 		return true
 	default:
 		return false
@@ -156,6 +250,62 @@ type AccountUpdateResult struct {
 	SessionRevoked bool    `json:"sessionRevoked"`
 }
 
+// AgentArchitecture defines model for AgentArchitecture.
+type AgentArchitecture string
+
+// AgentEnrollmentSettings defines model for AgentEnrollmentSettings.
+type AgentEnrollmentSettings struct {
+	Enabled             bool       `json:"enabled"`
+	HasKey              bool       `json:"hasKey"`
+	InstallationCommand *string    `json:"installationCommand,omitempty"`
+	RotatedAt           *time.Time `json:"rotatedAt,omitempty"`
+}
+
+// AgentEnrollmentUpdate defines model for AgentEnrollmentUpdate.
+type AgentEnrollmentUpdate struct {
+	Enabled bool `json:"enabled"`
+}
+
+// AgentMetadata defines model for AgentMetadata.
+type AgentMetadata struct {
+	AgentVersion    string            `json:"agentVersion"`
+	Architecture    AgentArchitecture `json:"architecture"`
+	Capabilities    []string          `json:"capabilities"`
+	Hostname        string            `json:"hostname"`
+	OperatingSystem AgentPlatform     `json:"operatingSystem"`
+}
+
+// AgentPlatform defines model for AgentPlatform.
+type AgentPlatform string
+
+// AgentPollRequest defines model for AgentPollRequest.
+type AgentPollRequest struct {
+	AppliedConfigurationRevision int64         `json:"appliedConfigurationRevision"`
+	ConfigurationError           *string       `json:"configurationError,omitempty"`
+	Metadata                     AgentMetadata `json:"metadata"`
+}
+
+// AgentPollResult defines model for AgentPollResult.
+type AgentPollResult struct {
+	CenterVersion                string `json:"centerVersion"`
+	DesiredConfigurationRevision int64  `json:"desiredConfigurationRevision"`
+	Enabled                      bool   `json:"enabled"`
+	PollIntervalSeconds          int    `json:"pollIntervalSeconds"`
+}
+
+// AgentRegistrationRequest defines model for AgentRegistrationRequest.
+type AgentRegistrationRequest struct {
+	Metadata        AgentMetadata `json:"metadata"`
+	RegistrationKey string        `json:"registrationKey"`
+}
+
+// AgentRegistrationResult defines model for AgentRegistrationResult.
+type AgentRegistrationResult struct {
+	Credential          string             `json:"credential"`
+	NodeId              openapi_types.UUID `json:"nodeId"`
+	PollIntervalSeconds int                `json:"pollIntervalSeconds"`
+}
+
 // AuthenticatedSession defines model for AuthenticatedSession.
 type AuthenticatedSession struct {
 	Account   Account   `json:"account"`
@@ -195,6 +345,36 @@ type LoginRequest struct {
 	Username string  `json:"username"`
 }
 
+// Node defines model for Node.
+type Node struct {
+	AgentVersion                 string                  `json:"agentVersion"`
+	AppliedConfigurationRevision int64                   `json:"appliedConfigurationRevision"`
+	Architecture                 AgentArchitecture       `json:"architecture"`
+	Capabilities                 []string                `json:"capabilities"`
+	ConfigurationError           *string                 `json:"configurationError,omitempty"`
+	ConfigurationStatus          NodeConfigurationStatus `json:"configurationStatus"`
+	DesiredConfigurationRevision int64                   `json:"desiredConfigurationRevision"`
+	Enabled                      bool                    `json:"enabled"`
+	Hostname                     string                  `json:"hostname"`
+	Id                           openapi_types.UUID      `json:"id"`
+	LastSeenAt                   *time.Time              `json:"lastSeenAt,omitempty"`
+	Name                         string                  `json:"name"`
+	OperatingSystem              AgentPlatform           `json:"operatingSystem"`
+	RegisteredAt                 time.Time               `json:"registeredAt"`
+	Status                       NodeStatus              `json:"status"`
+}
+
+// NodeConfigurationStatus defines model for NodeConfigurationStatus.
+type NodeConfigurationStatus string
+
+// NodeList defines model for NodeList.
+type NodeList struct {
+	Items []Node `json:"items"`
+}
+
+// NodeStatus defines model for NodeStatus.
+type NodeStatus string
+
 // SupportedLocale defines model for SupportedLocale.
 type SupportedLocale string
 
@@ -233,6 +413,12 @@ type TOTPEnrollment struct {
 
 // CSRFToken defines model for CSRFToken.
 type CSRFToken = string
+
+// AgentForbidden defines model for AgentForbidden.
+type AgentForbidden = ErrorResponse
+
+// AgentUnauthorized defines model for AgentUnauthorized.
+type AgentUnauthorized = ErrorResponse
 
 // BadRequest defines model for BadRequest.
 type BadRequest = ErrorResponse
@@ -276,6 +462,16 @@ type StartTOTPEnrollmentParams struct {
 	XCSRFToken *CSRFToken `json:"X-CSRF-Token,omitempty"`
 }
 
+// UpdateAgentEnrollmentParams defines parameters for UpdateAgentEnrollment.
+type UpdateAgentEnrollmentParams struct {
+	XCSRFToken *CSRFToken `json:"X-CSRF-Token,omitempty"`
+}
+
+// RotateAgentEnrollmentKeyParams defines parameters for RotateAgentEnrollmentKey.
+type RotateAgentEnrollmentKeyParams struct {
+	XCSRFToken *CSRFToken `json:"X-CSRF-Token,omitempty"`
+}
+
 // LogoutParams defines parameters for Logout.
 type LogoutParams struct {
 	XCSRFToken *CSRFToken `json:"X-CSRF-Token,omitempty"`
@@ -295,6 +491,15 @@ type ConfirmTOTPEnrollmentJSONRequestBody = TOTPCodeRequest
 
 // StartTOTPEnrollmentJSONRequestBody defines body for StartTOTPEnrollment for application/json ContentType.
 type StartTOTPEnrollmentJSONRequestBody = CurrentPasswordRequest
+
+// UpdateAgentEnrollmentJSONRequestBody defines body for UpdateAgentEnrollment for application/json ContentType.
+type UpdateAgentEnrollmentJSONRequestBody = AgentEnrollmentUpdate
+
+// PollAgentJSONRequestBody defines body for PollAgent for application/json ContentType.
+type PollAgentJSONRequestBody = AgentPollRequest
+
+// RegisterAgentJSONRequestBody defines body for RegisterAgent for application/json ContentType.
+type RegisterAgentJSONRequestBody = AgentRegistrationRequest
 
 // LoginJSONRequestBody defines body for Login for application/json ContentType.
 type LoginJSONRequestBody = LoginRequest
@@ -322,6 +527,21 @@ type ServerInterface interface {
 	// StartTOTPEnrollment Start TOTP enrollment
 	// (POST /api/v1/account/totp/enrollment)
 	StartTOTPEnrollment(w http.ResponseWriter, r *http.Request, params StartTOTPEnrollmentParams)
+	// GetAgentEnrollment Read automatic Agent enrollment settings
+	// (GET /api/v1/agent-enrollment)
+	GetAgentEnrollment(w http.ResponseWriter, r *http.Request)
+	// UpdateAgentEnrollment Enable or disable automatic Agent enrollment
+	// (PUT /api/v1/agent-enrollment)
+	UpdateAgentEnrollment(w http.ResponseWriter, r *http.Request, params UpdateAgentEnrollmentParams)
+	// RotateAgentEnrollmentKey Generate or rotate the automatic Agent enrollment key
+	// (POST /api/v1/agent-enrollment/key)
+	RotateAgentEnrollmentKey(w http.ResponseWriter, r *http.Request, params RotateAgentEnrollmentKeyParams)
+	// PollAgent Report Agent state and read current control state
+	// (POST /api/v1/agent/control)
+	PollAgent(w http.ResponseWriter, r *http.Request)
+	// RegisterAgent Register a new Agent and node
+	// (POST /api/v1/agent/enroll)
+	RegisterAgent(w http.ResponseWriter, r *http.Request)
 	// Login Start an administrator session
 	// (POST /api/v1/auth/login)
 	Login(w http.ResponseWriter, r *http.Request)
@@ -331,6 +551,9 @@ type ServerInterface interface {
 	// GetAuthenticatedSession Read the current administrator session
 	// (GET /api/v1/auth/session)
 	GetAuthenticatedSession(w http.ResponseWriter, r *http.Request)
+	// ListNodes List registered nodes
+	// (GET /api/v1/nodes)
+	ListNodes(w http.ResponseWriter, r *http.Request)
 	// GetSystemStatus Read center status
 	// (GET /api/v1/system/status)
 	GetSystemStatus(w http.ResponseWriter, r *http.Request)
@@ -382,6 +605,36 @@ func (_ Unimplemented) StartTOTPEnrollment(w http.ResponseWriter, r *http.Reques
 	w.WriteHeader(http.StatusNotImplemented)
 }
 
+// GetAgentEnrollment Read automatic Agent enrollment settings
+// (GET /api/v1/agent-enrollment)
+func (_ Unimplemented) GetAgentEnrollment(w http.ResponseWriter, r *http.Request) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
+// UpdateAgentEnrollment Enable or disable automatic Agent enrollment
+// (PUT /api/v1/agent-enrollment)
+func (_ Unimplemented) UpdateAgentEnrollment(w http.ResponseWriter, r *http.Request, params UpdateAgentEnrollmentParams) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
+// RotateAgentEnrollmentKey Generate or rotate the automatic Agent enrollment key
+// (POST /api/v1/agent-enrollment/key)
+func (_ Unimplemented) RotateAgentEnrollmentKey(w http.ResponseWriter, r *http.Request, params RotateAgentEnrollmentKeyParams) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
+// PollAgent Report Agent state and read current control state
+// (POST /api/v1/agent/control)
+func (_ Unimplemented) PollAgent(w http.ResponseWriter, r *http.Request) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
+// RegisterAgent Register a new Agent and node
+// (POST /api/v1/agent/enroll)
+func (_ Unimplemented) RegisterAgent(w http.ResponseWriter, r *http.Request) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
 // Login Start an administrator session
 // (POST /api/v1/auth/login)
 func (_ Unimplemented) Login(w http.ResponseWriter, r *http.Request) {
@@ -397,6 +650,12 @@ func (_ Unimplemented) Logout(w http.ResponseWriter, r *http.Request, params Log
 // GetAuthenticatedSession Read the current administrator session
 // (GET /api/v1/auth/session)
 func (_ Unimplemented) GetAuthenticatedSession(w http.ResponseWriter, r *http.Request) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
+// ListNodes List registered nodes
+// (GET /api/v1/nodes)
+func (_ Unimplemented) ListNodes(w http.ResponseWriter, r *http.Request) {
 	w.WriteHeader(http.StatusNotImplemented)
 }
 
@@ -675,6 +934,130 @@ func (siw *ServerInterfaceWrapper) StartTOTPEnrollment(w http.ResponseWriter, r 
 	handler.ServeHTTP(w, r)
 }
 
+// GetAgentEnrollment operation middleware
+func (siw *ServerInterfaceWrapper) GetAgentEnrollment(w http.ResponseWriter, r *http.Request) {
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.GetAgentEnrollment(w, r)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// UpdateAgentEnrollment operation middleware
+func (siw *ServerInterfaceWrapper) UpdateAgentEnrollment(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	// Parameter object where we will unmarshal all parameters from the context
+	var params UpdateAgentEnrollmentParams
+
+	headers := r.Header
+
+	// ------------- Optional header parameter "X-CSRF-Token" -------------
+	if valueList, found := headers[http.CanonicalHeaderKey("X-CSRF-Token")]; found {
+		var XCSRFToken CSRFToken
+		n := len(valueList)
+		if n != 1 {
+			siw.ErrorHandlerFunc(w, r, &TooManyValuesForParamError{ParamName: "X-CSRF-Token", Count: n})
+			return
+		}
+
+		err = runtime.BindStyledParameterWithOptions("simple", "X-CSRF-Token", valueList[0], &XCSRFToken, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: false, Type: "string", Format: ""})
+		if err != nil {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "X-CSRF-Token", Err: err})
+			return
+		}
+
+		params.XCSRFToken = &XCSRFToken
+
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.UpdateAgentEnrollment(w, r, params)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// RotateAgentEnrollmentKey operation middleware
+func (siw *ServerInterfaceWrapper) RotateAgentEnrollmentKey(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	// Parameter object where we will unmarshal all parameters from the context
+	var params RotateAgentEnrollmentKeyParams
+
+	headers := r.Header
+
+	// ------------- Optional header parameter "X-CSRF-Token" -------------
+	if valueList, found := headers[http.CanonicalHeaderKey("X-CSRF-Token")]; found {
+		var XCSRFToken CSRFToken
+		n := len(valueList)
+		if n != 1 {
+			siw.ErrorHandlerFunc(w, r, &TooManyValuesForParamError{ParamName: "X-CSRF-Token", Count: n})
+			return
+		}
+
+		err = runtime.BindStyledParameterWithOptions("simple", "X-CSRF-Token", valueList[0], &XCSRFToken, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: false, Type: "string", Format: ""})
+		if err != nil {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "X-CSRF-Token", Err: err})
+			return
+		}
+
+		params.XCSRFToken = &XCSRFToken
+
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.RotateAgentEnrollmentKey(w, r, params)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// PollAgent operation middleware
+func (siw *ServerInterfaceWrapper) PollAgent(w http.ResponseWriter, r *http.Request) {
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.PollAgent(w, r)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// RegisterAgent operation middleware
+func (siw *ServerInterfaceWrapper) RegisterAgent(w http.ResponseWriter, r *http.Request) {
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.RegisterAgent(w, r)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
 // Login operation middleware
 func (siw *ServerInterfaceWrapper) Login(w http.ResponseWriter, r *http.Request) {
 
@@ -735,6 +1118,20 @@ func (siw *ServerInterfaceWrapper) GetAuthenticatedSession(w http.ResponseWriter
 
 	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		siw.Handler.GetAuthenticatedSession(w, r)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// ListNodes operation middleware
+func (siw *ServerInterfaceWrapper) ListNodes(w http.ResponseWriter, r *http.Request) {
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.ListNodes(w, r)
 	}))
 
 	for _, middleware := range siw.HandlerMiddlewares {
@@ -904,9 +1301,31 @@ func HandlerWithOptions(si ServerInterface, options ChiServerOptions) http.Handl
 	r.Group(func(r chi.Router) {
 		r.Get(options.BaseURL+"/api/v1/system/status", wrapper.GetSystemStatus)
 	})
+	r.Group(func(r chi.Router) {
+		r.Get(options.BaseURL+"/api/v1/nodes", wrapper.ListNodes)
+	})
+	r.Group(func(r chi.Router) {
+		r.Get(options.BaseURL+"/api/v1/agent-enrollment", wrapper.GetAgentEnrollment)
+	})
+	r.Group(func(r chi.Router) {
+		r.Put(options.BaseURL+"/api/v1/agent-enrollment", wrapper.UpdateAgentEnrollment)
+	})
+	r.Group(func(r chi.Router) {
+		r.Post(options.BaseURL+"/api/v1/agent-enrollment/key", wrapper.RotateAgentEnrollmentKey)
+	})
+	r.Group(func(r chi.Router) {
+		r.Post(options.BaseURL+"/api/v1/agent/enroll", wrapper.RegisterAgent)
+	})
+	r.Group(func(r chi.Router) {
+		r.Post(options.BaseURL+"/api/v1/agent/control", wrapper.PollAgent)
+	})
 
 	return r
 }
+
+type AgentForbiddenJSONResponse ErrorResponse
+
+type AgentUnauthorizedJSONResponse ErrorResponse
 
 type BadRequestJSONResponse ErrorResponse
 
@@ -1382,6 +1801,298 @@ func (response StartTOTPEnrollment409JSONResponse) VisitStartTOTPEnrollmentRespo
 	return err
 }
 
+type GetAgentEnrollmentRequestObject struct {
+}
+
+type GetAgentEnrollmentResponseObject interface {
+	VisitGetAgentEnrollmentResponse(w http.ResponseWriter) error
+}
+
+type GetAgentEnrollment200JSONResponse AgentEnrollmentSettings
+
+func (response GetAgentEnrollment200JSONResponse) VisitGetAgentEnrollmentResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type GetAgentEnrollment401JSONResponse struct{ UnauthorizedJSONResponse }
+
+func (response GetAgentEnrollment401JSONResponse) VisitGetAgentEnrollmentResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(401)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type UpdateAgentEnrollmentRequestObject struct {
+	Params UpdateAgentEnrollmentParams
+	Body   *UpdateAgentEnrollmentJSONRequestBody
+}
+
+type UpdateAgentEnrollmentResponseObject interface {
+	VisitUpdateAgentEnrollmentResponse(w http.ResponseWriter) error
+}
+
+type UpdateAgentEnrollment200JSONResponse AgentEnrollmentSettings
+
+func (response UpdateAgentEnrollment200JSONResponse) VisitUpdateAgentEnrollmentResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type UpdateAgentEnrollment400JSONResponse struct{ BadRequestJSONResponse }
+
+func (response UpdateAgentEnrollment400JSONResponse) VisitUpdateAgentEnrollmentResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(400)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type UpdateAgentEnrollment401JSONResponse struct{ UnauthorizedJSONResponse }
+
+func (response UpdateAgentEnrollment401JSONResponse) VisitUpdateAgentEnrollmentResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(401)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type UpdateAgentEnrollment403JSONResponse struct{ ForbiddenJSONResponse }
+
+func (response UpdateAgentEnrollment403JSONResponse) VisitUpdateAgentEnrollmentResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(403)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type UpdateAgentEnrollment409JSONResponse struct{ ConflictJSONResponse }
+
+func (response UpdateAgentEnrollment409JSONResponse) VisitUpdateAgentEnrollmentResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(409)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type RotateAgentEnrollmentKeyRequestObject struct {
+	Params RotateAgentEnrollmentKeyParams
+}
+
+type RotateAgentEnrollmentKeyResponseObject interface {
+	VisitRotateAgentEnrollmentKeyResponse(w http.ResponseWriter) error
+}
+
+type RotateAgentEnrollmentKey200JSONResponse AgentEnrollmentSettings
+
+func (response RotateAgentEnrollmentKey200JSONResponse) VisitRotateAgentEnrollmentKeyResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type RotateAgentEnrollmentKey401JSONResponse struct{ UnauthorizedJSONResponse }
+
+func (response RotateAgentEnrollmentKey401JSONResponse) VisitRotateAgentEnrollmentKeyResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(401)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type RotateAgentEnrollmentKey403JSONResponse struct{ ForbiddenJSONResponse }
+
+func (response RotateAgentEnrollmentKey403JSONResponse) VisitRotateAgentEnrollmentKeyResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(403)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type PollAgentRequestObject struct {
+	Body *PollAgentJSONRequestBody
+}
+
+type PollAgentResponseObject interface {
+	VisitPollAgentResponse(w http.ResponseWriter) error
+}
+
+type PollAgent200JSONResponse AgentPollResult
+
+func (response PollAgent200JSONResponse) VisitPollAgentResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type PollAgent400JSONResponse struct{ BadRequestJSONResponse }
+
+func (response PollAgent400JSONResponse) VisitPollAgentResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(400)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type PollAgent401JSONResponse struct{ AgentUnauthorizedJSONResponse }
+
+func (response PollAgent401JSONResponse) VisitPollAgentResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(401)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type PollAgent403JSONResponse struct{ AgentForbiddenJSONResponse }
+
+func (response PollAgent403JSONResponse) VisitPollAgentResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(403)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type RegisterAgentRequestObject struct {
+	Body *RegisterAgentJSONRequestBody
+}
+
+type RegisterAgentResponseObject interface {
+	VisitRegisterAgentResponse(w http.ResponseWriter) error
+}
+
+type RegisterAgent201JSONResponse AgentRegistrationResult
+
+func (response RegisterAgent201JSONResponse) VisitRegisterAgentResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(201)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type RegisterAgent400JSONResponse struct{ BadRequestJSONResponse }
+
+func (response RegisterAgent400JSONResponse) VisitRegisterAgentResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(400)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type RegisterAgent401JSONResponse struct{ AgentUnauthorizedJSONResponse }
+
+func (response RegisterAgent401JSONResponse) VisitRegisterAgentResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(401)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type RegisterAgent403JSONResponse struct{ AgentForbiddenJSONResponse }
+
+func (response RegisterAgent403JSONResponse) VisitRegisterAgentResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(403)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
 type LoginRequestObject struct {
 	Body *LoginJSONRequestBody
 }
@@ -1557,6 +2268,41 @@ func (response GetAuthenticatedSession401JSONResponse) VisitGetAuthenticatedSess
 	return err
 }
 
+type ListNodesRequestObject struct {
+}
+
+type ListNodesResponseObject interface {
+	VisitListNodesResponse(w http.ResponseWriter) error
+}
+
+type ListNodes200JSONResponse NodeList
+
+func (response ListNodes200JSONResponse) VisitListNodesResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type ListNodes401JSONResponse struct{ UnauthorizedJSONResponse }
+
+func (response ListNodes401JSONResponse) VisitListNodesResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(401)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
 type GetSystemStatusRequestObject struct {
 }
 
@@ -1615,6 +2361,21 @@ type StrictServerInterface interface {
 	// StartTOTPEnrollment Start TOTP enrollment
 	// (POST /api/v1/account/totp/enrollment)
 	StartTOTPEnrollment(ctx context.Context, request StartTOTPEnrollmentRequestObject) (StartTOTPEnrollmentResponseObject, error)
+	// GetAgentEnrollment Read automatic Agent enrollment settings
+	// (GET /api/v1/agent-enrollment)
+	GetAgentEnrollment(ctx context.Context, request GetAgentEnrollmentRequestObject) (GetAgentEnrollmentResponseObject, error)
+	// UpdateAgentEnrollment Enable or disable automatic Agent enrollment
+	// (PUT /api/v1/agent-enrollment)
+	UpdateAgentEnrollment(ctx context.Context, request UpdateAgentEnrollmentRequestObject) (UpdateAgentEnrollmentResponseObject, error)
+	// RotateAgentEnrollmentKey Generate or rotate the automatic Agent enrollment key
+	// (POST /api/v1/agent-enrollment/key)
+	RotateAgentEnrollmentKey(ctx context.Context, request RotateAgentEnrollmentKeyRequestObject) (RotateAgentEnrollmentKeyResponseObject, error)
+	// PollAgent Report Agent state and read current control state
+	// (POST /api/v1/agent/control)
+	PollAgent(ctx context.Context, request PollAgentRequestObject) (PollAgentResponseObject, error)
+	// RegisterAgent Register a new Agent and node
+	// (POST /api/v1/agent/enroll)
+	RegisterAgent(ctx context.Context, request RegisterAgentRequestObject) (RegisterAgentResponseObject, error)
 	// Login Start an administrator session
 	// (POST /api/v1/auth/login)
 	Login(ctx context.Context, request LoginRequestObject) (LoginResponseObject, error)
@@ -1624,6 +2385,9 @@ type StrictServerInterface interface {
 	// GetAuthenticatedSession Read the current administrator session
 	// (GET /api/v1/auth/session)
 	GetAuthenticatedSession(ctx context.Context, request GetAuthenticatedSessionRequestObject) (GetAuthenticatedSessionResponseObject, error)
+	// ListNodes List registered nodes
+	// (GET /api/v1/nodes)
+	ListNodes(ctx context.Context, request ListNodesRequestObject) (ListNodesResponseObject, error)
 	// GetSystemStatus Read center status
 	// (GET /api/v1/system/status)
 	GetSystemStatus(ctx context.Context, request GetSystemStatusRequestObject) (GetSystemStatusResponseObject, error)
@@ -1883,6 +2647,151 @@ func (sh *strictHandler) StartTOTPEnrollment(w http.ResponseWriter, r *http.Requ
 	}
 }
 
+// GetAgentEnrollment operation middleware
+func (sh *strictHandler) GetAgentEnrollment(w http.ResponseWriter, r *http.Request) {
+	var request GetAgentEnrollmentRequestObject
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.GetAgentEnrollment(ctx, request.(GetAgentEnrollmentRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "GetAgentEnrollment")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(GetAgentEnrollmentResponseObject); ok {
+		if err := validResponse.VisitGetAgentEnrollmentResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// UpdateAgentEnrollment operation middleware
+func (sh *strictHandler) UpdateAgentEnrollment(w http.ResponseWriter, r *http.Request, params UpdateAgentEnrollmentParams) {
+	var request UpdateAgentEnrollmentRequestObject
+
+	request.Params = params
+
+	var body UpdateAgentEnrollmentJSONRequestBody
+	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+		sh.options.RequestErrorHandlerFunc(w, r, fmt.Errorf("can't decode JSON body: %w", err))
+		return
+	}
+	request.Body = &body
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.UpdateAgentEnrollment(ctx, request.(UpdateAgentEnrollmentRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "UpdateAgentEnrollment")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(UpdateAgentEnrollmentResponseObject); ok {
+		if err := validResponse.VisitUpdateAgentEnrollmentResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// RotateAgentEnrollmentKey operation middleware
+func (sh *strictHandler) RotateAgentEnrollmentKey(w http.ResponseWriter, r *http.Request, params RotateAgentEnrollmentKeyParams) {
+	var request RotateAgentEnrollmentKeyRequestObject
+
+	request.Params = params
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.RotateAgentEnrollmentKey(ctx, request.(RotateAgentEnrollmentKeyRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "RotateAgentEnrollmentKey")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(RotateAgentEnrollmentKeyResponseObject); ok {
+		if err := validResponse.VisitRotateAgentEnrollmentKeyResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// PollAgent operation middleware
+func (sh *strictHandler) PollAgent(w http.ResponseWriter, r *http.Request) {
+	var request PollAgentRequestObject
+
+	var body PollAgentJSONRequestBody
+	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+		sh.options.RequestErrorHandlerFunc(w, r, fmt.Errorf("can't decode JSON body: %w", err))
+		return
+	}
+	request.Body = &body
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.PollAgent(ctx, request.(PollAgentRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "PollAgent")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(PollAgentResponseObject); ok {
+		if err := validResponse.VisitPollAgentResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// RegisterAgent operation middleware
+func (sh *strictHandler) RegisterAgent(w http.ResponseWriter, r *http.Request) {
+	var request RegisterAgentRequestObject
+
+	var body RegisterAgentJSONRequestBody
+	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+		sh.options.RequestErrorHandlerFunc(w, r, fmt.Errorf("can't decode JSON body: %w", err))
+		return
+	}
+	request.Body = &body
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.RegisterAgent(ctx, request.(RegisterAgentRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "RegisterAgent")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(RegisterAgentResponseObject); ok {
+		if err := validResponse.VisitRegisterAgentResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
 // Login operation middleware
 func (sh *strictHandler) Login(w http.ResponseWriter, r *http.Request) {
 	var request LoginRequestObject
@@ -1957,6 +2866,30 @@ func (sh *strictHandler) GetAuthenticatedSession(w http.ResponseWriter, r *http.
 		sh.options.ResponseErrorHandlerFunc(w, r, err)
 	} else if validResponse, ok := response.(GetAuthenticatedSessionResponseObject); ok {
 		if err := validResponse.VisitGetAuthenticatedSessionResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// ListNodes operation middleware
+func (sh *strictHandler) ListNodes(w http.ResponseWriter, r *http.Request) {
+	var request ListNodesRequestObject
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.ListNodes(ctx, request.(ListNodesRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "ListNodes")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(ListNodesResponseObject); ok {
+		if err := validResponse.VisitListNodesResponse(w); err != nil {
 			sh.options.ResponseErrorHandlerFunc(w, r, err)
 		}
 	} else if response != nil {

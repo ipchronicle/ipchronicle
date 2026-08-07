@@ -12,6 +12,7 @@ import (
 const administratorSessionCookie = "ipchronicle_session"
 
 type requestSecurity struct {
+	Authorization  string
 	ClientAddress  string
 	Scheme         string
 	ExpectedOrigin string
@@ -60,6 +61,7 @@ func (p proxyPolicy) middleware(next http.Handler) http.Handler {
 			sessionToken = cookie.Value
 		}
 		security := requestSecurity{
+			Authorization:  r.Header.Get("Authorization"),
 			ClientAddress:  client.String(),
 			Scheme:         scheme,
 			ExpectedOrigin: expectedOrigin,

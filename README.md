@@ -18,8 +18,14 @@ Phase 1 provides the Center persistence and administrator boundary: separate
 configuration and history databases, embedded migrations, an installation
 master key, administrator bootstrap and recovery, persistent sessions, CSRF
 and origin enforcement, TOTP, account settings, and an authenticated bilingual
-status interface. Agent enrollment, node inventory, and probe behavior belong
-to later vertical slices and are not represented by placeholder success paths.
+status interface.
+
+The first Phase 2 slice adds automatic Agent enrollment, root-only encrypted
+bbolt identity storage, 30-second authenticated control polling, two-minute
+online state, a systemd/OpenRC installer, and the bilingual node inventory.
+Desired configuration snapshots, temporary WebSocket synchronization, network
+egress discovery, and complete probes remain later slices; the current control
+API does not expose placeholder success for them.
 
 ## Run The Center
 
@@ -37,6 +43,27 @@ Compose stores `config.db` and the installation master key in the
 volume. Deliberately removing history must not require removing account or
 configuration state. The first release does not provide a built-in backup
 command; external volume copies are an operator responsibility.
+
+## Enroll A Node
+
+Sign in, open **Nodes**, and generate the automatic-registration key. The page
+shows one command to run as root on a supported Linux node. The command checks
+the operating system, CPU architecture, and init system before changing the
+host; installs the documented IPQuality dependencies; verifies the matching
+Agent version from the official GitHub Release checksums; registers the node;
+and starts a systemd
+or OpenRC service.
+
+The shared registration key is used only during enrollment. The Agent stores
+its node-specific credential encrypted in `/var/lib/ipchronicle-agent/state.db`
+using a separate root-only local master key, and the installed service contains
+neither credential. Re-running the command preserves an existing valid local
+identity. Disabling automatic enrollment prevents new nodes without
+disconnecting registered Agents.
+
+The pre-release installer recognizes Debian, Ubuntu, RHEL, Rocky Linux,
+AlmaLinux, CentOS, and Alpine on Linux AMD64 or ARM64. The exact supported
+distribution-version matrix is fixed and tested for each public release.
 
 Bootstrap credentials can be supplied before the first start. They are read
 only when `config.db` has no administrator account:

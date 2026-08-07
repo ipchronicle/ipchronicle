@@ -1,4 +1,4 @@
-import { CircleUserRound, Gauge, Radar } from "lucide-react";
+import { CircleUserRound, Gauge, Radar, Server } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { Link, useLocation } from "react-router";
 
@@ -71,6 +71,25 @@ export function AppSidebar() {
                     >
                       <Gauge aria-hidden="true" />
                       <span>{t("navigation.systemStatus")}</span>
+                    </SidebarLink>
+                  </SidebarMenuButton>
+                </SidebarMenuItem>
+                <SidebarMenuItem>
+                  <SidebarMenuButton
+                    asChild
+                    isActive={location.pathname.startsWith("/nodes")}
+                    tooltip={t("navigation.nodes")}
+                  >
+                    <SidebarLink
+                      to="/nodes"
+                      aria-current={
+                        location.pathname.startsWith("/nodes")
+                          ? "page"
+                          : undefined
+                      }
+                    >
+                      <Server aria-hidden="true" />
+                      <span>{t("navigation.nodes")}</span>
                     </SidebarLink>
                   </SidebarMenuButton>
                 </SidebarMenuItem>

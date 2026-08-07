@@ -8,6 +8,7 @@ import { SidebarInset, SidebarProvider } from "@/components/ui/sidebar";
 import { Skeleton } from "@/components/ui/skeleton";
 import { AccountPage } from "@/pages/account-page";
 import { LoginPage } from "@/pages/login-page";
+import { NodesPage } from "@/pages/nodes-page";
 import { SystemStatusPage } from "@/pages/system-status-page";
 
 function App() {
@@ -41,6 +42,7 @@ function App() {
         <Routes>
           <Route path="/" element={<SystemStatusPage />} />
           <Route path="/system/status" element={<SystemStatusPage />} />
+          <Route path="/nodes" element={<NodesPage />} />
           <Route path="/settings/account" element={<AccountPage />} />
           <Route path="/login" element={<Navigate to="/" replace />} />
           <Route path="*" element={<Navigate to="/" replace />} />

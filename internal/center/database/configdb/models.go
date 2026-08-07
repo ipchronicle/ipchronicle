@@ -25,6 +25,37 @@ type AdministratorSession struct {
 	UserAgent     string
 }
 
+type AgentEnrollment struct {
+	ID           int64
+	Enabled      int64
+	KeyDigest    []byte
+	KeyEncrypted []byte
+	CreatedAt    int64
+	RotatedAt    int64
+}
+
+type Node struct {
+	ID                           string
+	Name                         string
+	Hostname                     string
+	CredentialDigest             []byte
+	Enabled                      int64
+	RevokedAt                    *int64
+	AgentVersion                 string
+	OperatingSystem              string
+	Architecture                 string
+	DesiredConfigurationRevision int64
+	AppliedConfigurationRevision int64
+	ConfigurationError           *string
+	RegisteredAt                 int64
+	LastSeenAt                   *int64
+}
+
+type NodeCapability struct {
+	NodeID     string
+	Capability string
+}
+
 type SystemState struct {
 	ID                       int64
 	HistoryGeneration        string

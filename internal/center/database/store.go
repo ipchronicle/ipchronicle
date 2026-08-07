@@ -23,7 +23,7 @@ import (
 
 const (
 	MasterKeySize        = 32
-	configSchemaVersion  = 1
+	configSchemaVersion  = 2
 	historySchemaVersion = 1
 )
 

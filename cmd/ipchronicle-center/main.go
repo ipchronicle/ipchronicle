@@ -16,6 +16,7 @@ import (
 	"github.com/ipchronicle/ipchronicle/internal/center"
 	"github.com/ipchronicle/ipchronicle/internal/center/admin"
 	"github.com/ipchronicle/ipchronicle/internal/center/database"
+	"github.com/ipchronicle/ipchronicle/internal/center/nodes"
 	"github.com/ipchronicle/ipchronicle/internal/version"
 	"github.com/ipchronicle/ipchronicle/internal/webui"
 )
@@ -59,6 +60,7 @@ func serve() error {
 	if err := administrator.Bootstrap(context.Background(), configuration.AdminUsername, configuration.AdminPassword); err != nil {
 		return err
 	}
+	nodeService := nodes.NewService(store.Config, store.ConfigQueries, store.MasterKey)
 
 	server := &http.Server{
 		Addr: configuration.ListenAddress,
@@ -66,6 +68,7 @@ func serve() error {
 			Version:        version.Value,
 			Web:            webui.Handler(),
 			Administrator:  administrator,
+			Nodes:          nodeService,
 			Store:          store,
 			ExternalOrigin: configuration.ExternalOrigin,
 			TrustedProxies: configuration.TrustedProxies,
