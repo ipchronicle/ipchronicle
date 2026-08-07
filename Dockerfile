@@ -1,6 +1,6 @@
 # syntax=docker/dockerfile:1.7
 
-FROM --platform=$BUILDPLATFORM node:24.19.0-bookworm-slim AS web-build
+FROM --platform=$BUILDPLATFORM node:26.5.1-bookworm-slim AS web-build
 WORKDIR /src
 COPY web/package.json web/package-lock.json ./web/
 RUN --mount=type=cache,target=/root/.npm npm --prefix web ci
