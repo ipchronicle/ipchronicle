@@ -5,6 +5,9 @@ export const en = {
       cancel: "Cancel",
     },
     navigation: {
+      menu: "Primary navigation",
+      mobileDescription: "Browse IPChronicle sections.",
+      toggleSidebar: "Toggle sidebar",
       systemStatus: "System status",
       account: "Account",
     },

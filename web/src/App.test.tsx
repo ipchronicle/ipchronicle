@@ -96,6 +96,17 @@ describe("administrator application", () => {
     expect(
       await screen.findByRole("heading", { name: "System status" }),
     ).toBeInTheDocument();
+    expect(
+      screen.getByRole("navigation", { name: "Primary navigation" }),
+    ).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "System status" })).toHaveAttribute(
+      "aria-current",
+      "page",
+    );
+    const sidebar = document.querySelector('[data-slot="sidebar"][data-state]');
+    expect(sidebar).toHaveAttribute("data-state", "expanded");
+    fireEvent.click(screen.getByRole("button", { name: "Toggle sidebar" }));
+    expect(sidebar).toHaveAttribute("data-state", "collapsed");
     expect(screen.getByText("Operational")).toBeInTheDocument();
     expect(
       screen.getByText("Default credentials are still active"),
@@ -122,15 +133,16 @@ describe("administrator application", () => {
     updateLocaleMock.mockResolvedValue({ ...session.account, locale: "zh-CN" });
     renderApplication("/");
 
+    await screen.findByRole("heading", { name: "System status" });
     fireEvent.click(
       await screen.findByRole("button", {
         name: "Switch to Simplified Chinese",
       }),
     );
+    await waitFor(() => expect(updateLocaleMock).toHaveBeenCalledWith("zh-CN"));
     expect(
       await screen.findByRole("heading", { name: "系统状态" }),
     ).toBeInTheDocument();
-    await waitFor(() => expect(updateLocaleMock).toHaveBeenCalledWith("zh-CN"));
     fireEvent.click(screen.getByRole("button", { name: "使用深色主题" }));
     expect(document.documentElement).toHaveClass("dark");
   });

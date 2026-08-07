@@ -1,18 +1,11 @@
-import { type ReactNode, useState } from "react";
-import {
-  CircleUserRound,
-  Gauge,
-  Languages,
-  LogOut,
-  Moon,
-  Radar,
-  Sun,
-} from "lucide-react";
+import { useState } from "react";
+import { Languages, LogOut, Moon, Radar, Sun } from "lucide-react";
 import { useTranslation } from "react-i18next";
-import { Link, useLocation } from "react-router";
+import { Link } from "react-router";
 
 import { useAuth } from "@/auth-context";
 import { Button } from "@/components/ui/button";
+import { SidebarTrigger } from "@/components/ui/sidebar";
 import {
   Tooltip,
   TooltipContent,
@@ -21,11 +14,10 @@ import {
 import { type SupportedLocale } from "@/i18n";
 import { useTheme } from "@/theme";
 
-export function AppHeader() {
+export function AppHeader({ withSidebar = false }: { withSidebar?: boolean }) {
   const { i18n, t } = useTranslation();
   const { state, changeLocale, logout } = useAuth();
   const { theme, setTheme } = useTheme();
-  const location = useLocation();
   const [actionError, setActionError] = useState(false);
   const currentLocale: SupportedLocale =
     i18n.resolvedLanguage === "zh-CN" ? "zh-CN" : "en";
@@ -52,41 +44,46 @@ export function AppHeader() {
   }
 
   return (
-    <header className="border-b bg-background/95">
-      <div className="mx-auto flex h-14 max-w-6xl items-center justify-between gap-2 px-3 sm:px-6">
-        <Link
-          to={state.status === "authenticated" ? "/" : "/login"}
-          className="flex min-w-0 items-center gap-2.5"
-          aria-label={t("appName")}
-        >
-          <span className="flex size-8 shrink-0 items-center justify-center rounded-md bg-foreground text-background">
-            <Radar aria-hidden="true" className="size-4.5" />
-          </span>
-          <span className="hidden truncate text-sm font-semibold sm:inline">
-            {t("appName")}
-          </span>
-        </Link>
+    <header className="sticky top-0 z-20 border-b bg-background/95 backdrop-blur">
+      <div
+        className={
+          withSidebar
+            ? "flex h-14 items-center justify-between gap-2 px-3 sm:px-4"
+            : "mx-auto flex h-14 max-w-6xl items-center justify-between gap-2 px-3 sm:px-6"
+        }
+      >
+        {withSidebar ? (
+          <div className="flex min-w-0 items-center gap-2">
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <SidebarTrigger
+                  className="size-8"
+                  label={t("navigation.toggleSidebar")}
+                  aria-label={t("navigation.toggleSidebar")}
+                />
+              </TooltipTrigger>
+              <TooltipContent>{t("navigation.toggleSidebar")}</TooltipContent>
+            </Tooltip>
+            <Link to="/" className="truncate text-sm font-semibold md:hidden">
+              {t("appName")}
+            </Link>
+          </div>
+        ) : (
+          <Link
+            to="/login"
+            className="flex min-w-0 items-center gap-2.5"
+            aria-label={t("appName")}
+          >
+            <span className="flex size-8 shrink-0 items-center justify-center rounded-md bg-foreground text-background">
+              <Radar aria-hidden="true" className="size-4.5" />
+            </span>
+            <span className="hidden truncate text-sm font-semibold sm:inline">
+              {t("appName")}
+            </span>
+          </Link>
+        )}
 
         <div className="flex min-w-0 items-center gap-0.5 sm:gap-1">
-          {state.status === "authenticated" ? (
-            <>
-              <HeaderLink
-                to="/"
-                active={
-                  location.pathname === "/" ||
-                  location.pathname === "/system/status"
-                }
-                label={t("navigation.systemStatus")}
-                icon={<Gauge aria-hidden="true" />}
-              />
-              <HeaderLink
-                to="/settings/account"
-                active={location.pathname === "/settings/account"}
-                label={t("navigation.account")}
-                icon={<CircleUserRound aria-hidden="true" />}
-              />
-            </>
-          ) : null}
           <Button
             variant="ghost"
             size="sm"
@@ -139,31 +136,5 @@ export function AppHeader() {
         </p>
       ) : null}
     </header>
-  );
-}
-
-function HeaderLink({
-  to,
-  active,
-  label,
-  icon,
-}: {
-  to: string;
-  active: boolean;
-  label: string;
-  icon: ReactNode;
-}) {
-  return (
-    <Tooltip>
-      <TooltipTrigger asChild>
-        <Button asChild variant={active ? "secondary" : "ghost"} size="sm">
-          <Link to={to} aria-label={label}>
-            {icon}
-            <span className="hidden lg:inline">{label}</span>
-          </Link>
-        </Button>
-      </TooltipTrigger>
-      <TooltipContent>{label}</TooltipContent>
-    </Tooltip>
   );
 }

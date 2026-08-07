@@ -16,7 +16,7 @@ import { useAuth } from "@/auth-context";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Separator } from "@/components/ui/separator";
+import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 
 type SystemStatus = Awaited<ReturnType<typeof getSystemStatus>>;
@@ -62,7 +62,7 @@ export function SystemStatusPage() {
     authState.status === "authenticated" ? authState.session.account : null;
 
   return (
-    <main className="mx-auto w-full max-w-6xl px-4 py-10 sm:px-6 sm:py-14">
+    <div className="mx-auto w-full max-w-6xl px-4 py-10 sm:px-6 sm:py-14">
       <div className="max-w-2xl">
         <p className="text-xs font-medium text-muted-foreground uppercase">
           {t("status.section")}
@@ -97,95 +97,100 @@ export function SystemStatusPage() {
         ) : null}
       </div>
 
-      <section
-        className="mt-6 border-y"
+      <Card
+        className="mt-6 gap-0"
         aria-live="polite"
         aria-busy={state.kind === "loading"}
       >
-        <div className="flex min-h-36 flex-col justify-between gap-6 py-6 sm:flex-row sm:items-center">
-          <StatusSummary state={state} />
-          {state.kind === "error" ? (
-            <Button variant="outline" onClick={() => loadStatus()}>
-              <RefreshCw data-icon="inline-start" aria-hidden="true" />
-              {t("status.retry")}
-            </Button>
-          ) : null}
-        </div>
-
-        <Separator />
-
-        <dl className="grid sm:grid-cols-2 lg:grid-cols-4">
-          <StatusField
-            icon={<Server aria-hidden="true" />}
-            label={t("status.service")}
-            value={state.kind === "success" ? state.status.service : undefined}
-          />
-          <StatusField
-            icon={<Server aria-hidden="true" />}
-            label={t("status.version")}
-            value={state.kind === "success" ? state.status.version : undefined}
-          />
-          <StatusField
-            icon={<Database aria-hidden="true" />}
-            label={t("status.configSchema")}
-            value={
-              state.kind === "success"
-                ? String(state.status.configSchemaVersion)
-                : undefined
-            }
-          />
-          <StatusField
-            icon={<Database aria-hidden="true" />}
-            label={t("status.historySchema")}
-            value={
-              state.kind === "success"
-                ? String(state.status.historySchemaVersion)
-                : undefined
-            }
-          />
-          <StatusField
-            icon={<ShieldAlert aria-hidden="true" />}
-            label={t("status.transport")}
-            value={
-              state.kind === "success"
-                ? state.status.transportSecurity.toUpperCase()
-                : undefined
-            }
-          />
-          <StatusField
-            icon={<Server aria-hidden="true" />}
-            label={t("status.externalOrigin")}
-            value={
-              state.kind === "success"
-                ? t(
-                    state.status.externalOriginConfigured
-                      ? "status.configured"
-                      : "status.notConfigured",
-                  )
-                : undefined
-            }
-          />
-          <StatusField
-            icon={<Server aria-hidden="true" />}
-            label={t("status.trustedProxy")}
-            value={
-              state.kind === "success"
-                ? t(
-                    state.status.trustedProxyConfigured
-                      ? "status.configured"
-                      : "status.notConfigured",
-                  )
-                : undefined
-            }
-          />
-          <StatusField
-            icon={<RefreshCw aria-hidden="true" />}
-            label={t("status.checkedAt")}
-            value={checkedAt}
-          />
-        </dl>
-      </section>
-    </main>
+        <CardHeader className="pb-6">
+          <div className="flex min-h-24 flex-col justify-between gap-6 sm:flex-row sm:items-center">
+            <StatusSummary state={state} />
+            {state.kind === "error" ? (
+              <Button variant="outline" onClick={() => loadStatus()}>
+                <RefreshCw data-icon="inline-start" aria-hidden="true" />
+                {t("status.retry")}
+              </Button>
+            ) : null}
+          </div>
+        </CardHeader>
+        <CardContent className="border-t px-0">
+          <dl className="grid sm:grid-cols-2 lg:grid-cols-4">
+            <StatusField
+              icon={<Server aria-hidden="true" />}
+              label={t("status.service")}
+              value={
+                state.kind === "success" ? state.status.service : undefined
+              }
+            />
+            <StatusField
+              icon={<Server aria-hidden="true" />}
+              label={t("status.version")}
+              value={
+                state.kind === "success" ? state.status.version : undefined
+              }
+            />
+            <StatusField
+              icon={<Database aria-hidden="true" />}
+              label={t("status.configSchema")}
+              value={
+                state.kind === "success"
+                  ? String(state.status.configSchemaVersion)
+                  : undefined
+              }
+            />
+            <StatusField
+              icon={<Database aria-hidden="true" />}
+              label={t("status.historySchema")}
+              value={
+                state.kind === "success"
+                  ? String(state.status.historySchemaVersion)
+                  : undefined
+              }
+            />
+            <StatusField
+              icon={<ShieldAlert aria-hidden="true" />}
+              label={t("status.transport")}
+              value={
+                state.kind === "success"
+                  ? state.status.transportSecurity.toUpperCase()
+                  : undefined
+              }
+            />
+            <StatusField
+              icon={<Server aria-hidden="true" />}
+              label={t("status.externalOrigin")}
+              value={
+                state.kind === "success"
+                  ? t(
+                      state.status.externalOriginConfigured
+                        ? "status.configured"
+                        : "status.notConfigured",
+                    )
+                  : undefined
+              }
+            />
+            <StatusField
+              icon={<Server aria-hidden="true" />}
+              label={t("status.trustedProxy")}
+              value={
+                state.kind === "success"
+                  ? t(
+                      state.status.trustedProxyConfigured
+                        ? "status.configured"
+                        : "status.notConfigured",
+                    )
+                  : undefined
+              }
+            />
+            <StatusField
+              icon={<RefreshCw aria-hidden="true" />}
+              label={t("status.checkedAt")}
+              value={checkedAt}
+            />
+          </dl>
+        </CardContent>
+      </Card>
+    </div>
   );
 }
 
@@ -244,7 +249,7 @@ function StatusField({
 }) {
   const { t } = useTranslation();
   return (
-    <div className="min-w-0 border-b py-5 sm:border-r sm:px-5 sm:nth-[2n]:border-r-0 lg:nth-[2n]:border-r lg:nth-[4n]:border-r-0 lg:nth-[-n+4]:border-b">
+    <div className="min-w-0 border-b px-4 py-5 last:border-b-0 sm:border-r sm:px-5 sm:nth-[2n]:border-r-0 sm:nth-[n+7]:border-b-0 lg:nth-[2n]:border-r lg:nth-[4n]:border-r-0 lg:nth-[n+5]:border-b-0">
       <dt className="flex items-center gap-2 text-xs font-medium text-muted-foreground [&_svg]:size-3.5">
         {icon}
         {label}

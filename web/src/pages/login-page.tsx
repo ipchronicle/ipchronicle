@@ -7,6 +7,7 @@ import { APIError } from "@/api/errors";
 import { useAuth } from "@/auth-context";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
+import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { formatAPIError } from "@/lib/api-error";
@@ -45,79 +46,82 @@ export function LoginPage() {
 
   return (
     <main className="mx-auto flex min-h-[calc(100svh-3.5rem)] w-full max-w-6xl items-center px-4 py-10 sm:px-6">
-      <div className="mx-auto w-full max-w-sm">
-        <p className="text-xs font-medium text-muted-foreground uppercase">
-          {t("authentication.section")}
-        </p>
-        <h1 className="mt-2 text-2xl font-semibold">
-          {t("authentication.loginTitle")}
-        </h1>
-
-        <form className="mt-8 space-y-5 border-y py-6" onSubmit={submit}>
-          {error ? (
-            <Alert variant="destructive">
-              <AlertDescription>{error}</AlertDescription>
-            </Alert>
-          ) : null}
-          <div className="space-y-2">
-            <Label htmlFor="username">{t("account.username")}</Label>
-            <Input
-              id="username"
-              name="username"
-              autoComplete="username"
-              value={username}
-              maxLength={64}
-              onChange={(event) => setUsername(event.target.value)}
-              required
-              autoFocus
-            />
-          </div>
-          <div className="space-y-2">
-            <Label htmlFor="password">{t("account.password")}</Label>
-            <Input
-              id="password"
-              name="password"
-              type="password"
-              autoComplete="current-password"
-              value={password}
-              maxLength={128}
-              onChange={(event) => setPassword(event.target.value)}
-              required
-            />
-          </div>
-          {showTOTP ? (
+      <Card className="mx-auto w-full max-w-sm">
+        <CardHeader>
+          <p className="text-xs font-medium text-muted-foreground uppercase">
+            {t("authentication.section")}
+          </p>
+          <h1 className="mt-1 text-2xl font-semibold">
+            {t("authentication.loginTitle")}
+          </h1>
+        </CardHeader>
+        <CardContent>
+          <form className="space-y-5" onSubmit={submit}>
+            {error ? (
+              <Alert variant="destructive">
+                <AlertDescription>{error}</AlertDescription>
+              </Alert>
+            ) : null}
             <div className="space-y-2">
-              <Label htmlFor="totp-code">{t("totp.code")}</Label>
+              <Label htmlFor="username">{t("account.username")}</Label>
               <Input
-                id="totp-code"
-                name="totp-code"
-                inputMode="numeric"
-                autoComplete="one-time-code"
-                pattern="[0-9]{6}"
-                value={totpCode}
-                maxLength={6}
-                onChange={(event) =>
-                  setTOTPCode(event.target.value.replace(/\D/g, ""))
-                }
+                id="username"
+                name="username"
+                autoComplete="username"
+                value={username}
+                maxLength={64}
+                onChange={(event) => setUsername(event.target.value)}
                 required
                 autoFocus
               />
             </div>
-          ) : null}
-          <Button className="w-full" type="submit" disabled={submitting}>
-            {submitting ? (
-              <LoaderCircle
-                data-icon="inline-start"
-                aria-hidden="true"
-                className="animate-spin"
+            <div className="space-y-2">
+              <Label htmlFor="password">{t("account.password")}</Label>
+              <Input
+                id="password"
+                name="password"
+                type="password"
+                autoComplete="current-password"
+                value={password}
+                maxLength={128}
+                onChange={(event) => setPassword(event.target.value)}
+                required
               />
-            ) : (
-              <LogIn data-icon="inline-start" aria-hidden="true" />
-            )}
-            {t("authentication.login")}
-          </Button>
-        </form>
-      </div>
+            </div>
+            {showTOTP ? (
+              <div className="space-y-2">
+                <Label htmlFor="totp-code">{t("totp.code")}</Label>
+                <Input
+                  id="totp-code"
+                  name="totp-code"
+                  inputMode="numeric"
+                  autoComplete="one-time-code"
+                  pattern="[0-9]{6}"
+                  value={totpCode}
+                  maxLength={6}
+                  onChange={(event) =>
+                    setTOTPCode(event.target.value.replace(/\D/g, ""))
+                  }
+                  required
+                  autoFocus
+                />
+              </div>
+            ) : null}
+            <Button className="w-full" type="submit" disabled={submitting}>
+              {submitting ? (
+                <LoaderCircle
+                  data-icon="inline-start"
+                  aria-hidden="true"
+                  className="animate-spin"
+                />
+              ) : (
+                <LogIn data-icon="inline-start" aria-hidden="true" />
+              )}
+              {t("authentication.login")}
+            </Button>
+          </form>
+        </CardContent>
+      </Card>
     </main>
   );
 }

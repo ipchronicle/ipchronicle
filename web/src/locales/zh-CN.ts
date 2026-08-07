@@ -5,6 +5,9 @@ export const zhCN = {
       cancel: "取消",
     },
     navigation: {
+      menu: "主导航",
+      mobileDescription: "浏览 IPChronicle 功能页面。",
+      toggleSidebar: "展开或收起侧边栏",
       systemStatus: "系统状态",
       account: "账户",
     },

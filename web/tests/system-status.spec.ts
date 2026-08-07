@@ -58,9 +58,17 @@ test("changes theme immediately", async ({ page }) => {
 
 test("shows account validation errors and starts TOTP enrollment", async ({
   page,
-}) => {
+}, testInfo) => {
   await signIn(page);
-  await page.getByRole("link", { name: "Account", exact: true }).click();
+  const accountLink = page.getByRole("link", { name: "Account", exact: true });
+  if (!(await accountLink.isVisible())) {
+    await page.getByRole("button", { name: "Toggle sidebar" }).click();
+    await expect(accountLink).toBeVisible();
+    await page.screenshot({
+      path: testInfo.outputPath("sidebar-open.png"),
+    });
+  }
+  await accountLink.click();
   await expect(
     page.getByRole("heading", { name: "Account and security" }),
   ).toBeVisible();

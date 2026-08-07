@@ -23,6 +23,7 @@ import {
 import { useAuth } from "@/auth-context";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
+import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import {
@@ -47,7 +48,7 @@ export function AccountPage() {
   const account = state.session.account;
 
   return (
-    <main className="mx-auto w-full max-w-4xl px-4 py-10 sm:px-6 sm:py-14">
+    <div className="mx-auto w-full max-w-4xl px-4 py-10 sm:px-6 sm:py-14">
       <div className="max-w-2xl">
         <p className="text-xs font-medium text-muted-foreground uppercase">
           {t("settings.section")}
@@ -57,7 +58,7 @@ export function AccountPage() {
         </h1>
       </div>
 
-      <div className="mt-8 border-y">
+      <div className="mt-8 grid gap-4">
         <ProfileSection
           account={account}
           setAccount={setAccount}
@@ -71,7 +72,7 @@ export function AccountPage() {
         />
         <SessionSection clearSession={clearSession} />
       </div>
-    </main>
+    </div>
   );
 }
 
@@ -142,64 +143,68 @@ function ProfileSection({
 
   const hasChange = username !== account.username || newPassword !== "";
   return (
-    <section className="py-7">
-      <SectionHeading
-        icon={<UserRound aria-hidden="true" className="size-4" />}
-        title={t("account.profile")}
-        detail={t("account.profileDetail")}
-      />
-      <form className="mt-6 max-w-lg space-y-5" onSubmit={submit}>
-        <FeedbackAlert feedback={feedback} />
-        <div className="space-y-2">
-          <Label htmlFor="account-username">{t("account.username")}</Label>
-          <Input
-            id="account-username"
-            value={username}
-            maxLength={64}
-            onChange={(event) => setUsername(event.target.value)}
-            required
-          />
-        </div>
-        <div className="space-y-2">
-          <Label htmlFor="new-password">{t("account.newPassword")}</Label>
-          <Input
-            id="new-password"
-            type="password"
-            autoComplete="new-password"
-            value={newPassword}
-            minLength={8}
-            maxLength={128}
-            onChange={(event) => setNewPassword(event.target.value)}
-          />
-        </div>
-        <div className="space-y-2">
-          <Label htmlFor="profile-current-password">
-            {t("account.currentPassword")}
-          </Label>
-          <Input
-            id="profile-current-password"
-            type="password"
-            autoComplete="current-password"
-            value={currentPassword}
-            maxLength={128}
-            onChange={(event) => setCurrentPassword(event.target.value)}
-            required
-          />
-        </div>
-        <Button type="submit" disabled={!hasChange || saving}>
-          {saving ? (
-            <LoaderCircle
-              data-icon="inline-start"
-              aria-hidden="true"
-              className="animate-spin"
+    <Card>
+      <CardHeader>
+        <SectionHeading
+          icon={<UserRound aria-hidden="true" className="size-4" />}
+          title={t("account.profile")}
+          detail={t("account.profileDetail")}
+        />
+      </CardHeader>
+      <CardContent>
+        <form className="max-w-lg space-y-5" onSubmit={submit}>
+          <FeedbackAlert feedback={feedback} />
+          <div className="space-y-2">
+            <Label htmlFor="account-username">{t("account.username")}</Label>
+            <Input
+              id="account-username"
+              value={username}
+              maxLength={64}
+              onChange={(event) => setUsername(event.target.value)}
+              required
             />
-          ) : (
-            <KeyRound data-icon="inline-start" aria-hidden="true" />
-          )}
-          {t("account.save")}
-        </Button>
-      </form>
-    </section>
+          </div>
+          <div className="space-y-2">
+            <Label htmlFor="new-password">{t("account.newPassword")}</Label>
+            <Input
+              id="new-password"
+              type="password"
+              autoComplete="new-password"
+              value={newPassword}
+              minLength={8}
+              maxLength={128}
+              onChange={(event) => setNewPassword(event.target.value)}
+            />
+          </div>
+          <div className="space-y-2">
+            <Label htmlFor="profile-current-password">
+              {t("account.currentPassword")}
+            </Label>
+            <Input
+              id="profile-current-password"
+              type="password"
+              autoComplete="current-password"
+              value={currentPassword}
+              maxLength={128}
+              onChange={(event) => setCurrentPassword(event.target.value)}
+              required
+            />
+          </div>
+          <Button type="submit" disabled={!hasChange || saving}>
+            {saving ? (
+              <LoaderCircle
+                data-icon="inline-start"
+                aria-hidden="true"
+                className="animate-spin"
+              />
+            ) : (
+              <KeyRound data-icon="inline-start" aria-hidden="true" />
+            )}
+            {t("account.save")}
+          </Button>
+        </form>
+      </CardContent>
+    </Card>
   );
 }
 
@@ -228,46 +233,50 @@ function LocaleSection({
   }
 
   return (
-    <section className="border-t py-7">
-      <SectionHeading
-        icon={
-          <span aria-hidden="true" className="text-xs font-semibold">
-            A
-          </span>
-        }
-        title={t("account.language")}
-        detail={t("account.languageDetail")}
-      />
-      <div className="mt-6 max-w-lg space-y-4">
-        <FeedbackAlert feedback={feedback} />
-        <div
-          className="inline-flex rounded-lg border bg-muted/40 p-1"
-          role="group"
-          aria-label={t("account.language")}
-        >
-          <Button
-            type="button"
-            size="sm"
-            variant={locale === "zh-CN" ? "secondary" : "ghost"}
-            aria-pressed={locale === "zh-CN"}
-            disabled={saving}
-            onClick={() => void selectLocale("zh-CN")}
+    <Card>
+      <CardHeader>
+        <SectionHeading
+          icon={
+            <span aria-hidden="true" className="text-xs font-semibold">
+              A
+            </span>
+          }
+          title={t("account.language")}
+          detail={t("account.languageDetail")}
+        />
+      </CardHeader>
+      <CardContent>
+        <div className="max-w-lg space-y-4">
+          <FeedbackAlert feedback={feedback} />
+          <div
+            className="inline-flex rounded-lg border bg-muted/40 p-1"
+            role="group"
+            aria-label={t("account.language")}
           >
-            简体中文
-          </Button>
-          <Button
-            type="button"
-            size="sm"
-            variant={locale === "en" ? "secondary" : "ghost"}
-            aria-pressed={locale === "en"}
-            disabled={saving}
-            onClick={() => void selectLocale("en")}
-          >
-            English
-          </Button>
+            <Button
+              type="button"
+              size="sm"
+              variant={locale === "zh-CN" ? "secondary" : "ghost"}
+              aria-pressed={locale === "zh-CN"}
+              disabled={saving}
+              onClick={() => void selectLocale("zh-CN")}
+            >
+              简体中文
+            </Button>
+            <Button
+              type="button"
+              size="sm"
+              variant={locale === "en" ? "secondary" : "ghost"}
+              aria-pressed={locale === "en"}
+              disabled={saving}
+              onClick={() => void selectLocale("en")}
+            >
+              English
+            </Button>
+          </div>
         </div>
-      </div>
-    </section>
+      </CardContent>
+    </Card>
   );
 }
 
@@ -343,116 +352,120 @@ function TOTPSection({
   }
 
   return (
-    <section className="border-t py-7">
-      <SectionHeading
-        icon={
-          enabled ? (
-            <ShieldCheck aria-hidden="true" className="size-4" />
-          ) : (
-            <ShieldOff aria-hidden="true" className="size-4" />
-          )
-        }
-        title={t("totp.title")}
-        detail={enabled ? t("totp.active") : t("totp.inactive")}
-      />
-      <div className="mt-6 max-w-lg space-y-5">
-        <FeedbackAlert feedback={feedback} />
-        {!enabled && enrollment === null ? (
-          <form className="space-y-4" onSubmit={beginEnrollment}>
-            <div className="space-y-2">
-              <Label htmlFor="totp-current-password">
-                {t("account.currentPassword")}
-              </Label>
-              <Input
-                id="totp-current-password"
-                type="password"
-                autoComplete="current-password"
-                value={currentPassword}
-                maxLength={128}
-                onChange={(event) => setCurrentPassword(event.target.value)}
-                required
-              />
-            </div>
-            <Button type="submit" disabled={working}>
-              <ShieldCheck data-icon="inline-start" aria-hidden="true" />
-              {t("totp.enable")}
-            </Button>
-          </form>
-        ) : null}
-        {!enabled && enrollment !== null ? (
-          <form className="space-y-5" onSubmit={confirmEnrollment}>
-            <div className="w-fit rounded-md bg-white p-3">
-              <QRCodeSVG
-                value={enrollment.provisioningUri}
-                size={168}
-                level="M"
-                bgColor="#ffffff"
-                fgColor="#000000"
-                aria-label={t("totp.qrCode")}
-              />
-            </div>
-            <div className="space-y-2">
-              <Label>{t("totp.secret")}</Label>
-              <div className="flex min-w-0 items-center gap-2">
-                <code className="min-w-0 flex-1 overflow-x-auto rounded-md bg-muted px-3 py-2 text-sm">
-                  {enrollment.secret}
-                </code>
-                <Tooltip>
-                  <TooltipTrigger asChild>
-                    <Button
-                      type="button"
-                      size="icon"
-                      variant="outline"
-                      onClick={() => void copySecret()}
-                      aria-label={t("totp.copySecret")}
-                    >
-                      <Clipboard aria-hidden="true" />
-                    </Button>
-                  </TooltipTrigger>
-                  <TooltipContent>{t("totp.copySecret")}</TooltipContent>
-                </Tooltip>
-              </div>
-            </div>
-            <TOTPCodeInput code={code} setCode={setCode} />
-            <Button type="submit" disabled={working}>
-              {working ? (
-                <LoaderCircle
-                  data-icon="inline-start"
-                  aria-hidden="true"
-                  className="animate-spin"
+    <Card>
+      <CardHeader>
+        <SectionHeading
+          icon={
+            enabled ? (
+              <ShieldCheck aria-hidden="true" className="size-4" />
+            ) : (
+              <ShieldOff aria-hidden="true" className="size-4" />
+            )
+          }
+          title={t("totp.title")}
+          detail={enabled ? t("totp.active") : t("totp.inactive")}
+        />
+      </CardHeader>
+      <CardContent>
+        <div className="max-w-lg space-y-5">
+          <FeedbackAlert feedback={feedback} />
+          {!enabled && enrollment === null ? (
+            <form className="space-y-4" onSubmit={beginEnrollment}>
+              <div className="space-y-2">
+                <Label htmlFor="totp-current-password">
+                  {t("account.currentPassword")}
+                </Label>
+                <Input
+                  id="totp-current-password"
+                  type="password"
+                  autoComplete="current-password"
+                  value={currentPassword}
+                  maxLength={128}
+                  onChange={(event) => setCurrentPassword(event.target.value)}
+                  required
                 />
-              ) : (
-                <CheckCircle2 data-icon="inline-start" aria-hidden="true" />
-              )}
-              {t("totp.confirm")}
-            </Button>
-          </form>
-        ) : null}
-        {enabled ? (
-          <form className="space-y-4" onSubmit={removeTOTP}>
-            <div className="space-y-2">
-              <Label htmlFor="disable-totp-password">
-                {t("account.currentPassword")}
-              </Label>
-              <Input
-                id="disable-totp-password"
-                type="password"
-                autoComplete="current-password"
-                value={currentPassword}
-                maxLength={128}
-                onChange={(event) => setCurrentPassword(event.target.value)}
-                required
-              />
-            </div>
-            <TOTPCodeInput code={code} setCode={setCode} id="disable-code" />
-            <Button type="submit" variant="destructive" disabled={working}>
-              <ShieldOff data-icon="inline-start" aria-hidden="true" />
-              {t("totp.disable")}
-            </Button>
-          </form>
-        ) : null}
-      </div>
-    </section>
+              </div>
+              <Button type="submit" disabled={working}>
+                <ShieldCheck data-icon="inline-start" aria-hidden="true" />
+                {t("totp.enable")}
+              </Button>
+            </form>
+          ) : null}
+          {!enabled && enrollment !== null ? (
+            <form className="space-y-5" onSubmit={confirmEnrollment}>
+              <div className="w-fit rounded-md bg-white p-3">
+                <QRCodeSVG
+                  value={enrollment.provisioningUri}
+                  size={168}
+                  level="M"
+                  bgColor="#ffffff"
+                  fgColor="#000000"
+                  aria-label={t("totp.qrCode")}
+                />
+              </div>
+              <div className="space-y-2">
+                <Label>{t("totp.secret")}</Label>
+                <div className="flex min-w-0 items-center gap-2">
+                  <code className="min-w-0 flex-1 overflow-x-auto rounded-md bg-muted px-3 py-2 text-sm">
+                    {enrollment.secret}
+                  </code>
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <Button
+                        type="button"
+                        size="icon"
+                        variant="outline"
+                        onClick={() => void copySecret()}
+                        aria-label={t("totp.copySecret")}
+                      >
+                        <Clipboard aria-hidden="true" />
+                      </Button>
+                    </TooltipTrigger>
+                    <TooltipContent>{t("totp.copySecret")}</TooltipContent>
+                  </Tooltip>
+                </div>
+              </div>
+              <TOTPCodeInput code={code} setCode={setCode} />
+              <Button type="submit" disabled={working}>
+                {working ? (
+                  <LoaderCircle
+                    data-icon="inline-start"
+                    aria-hidden="true"
+                    className="animate-spin"
+                  />
+                ) : (
+                  <CheckCircle2 data-icon="inline-start" aria-hidden="true" />
+                )}
+                {t("totp.confirm")}
+              </Button>
+            </form>
+          ) : null}
+          {enabled ? (
+            <form className="space-y-4" onSubmit={removeTOTP}>
+              <div className="space-y-2">
+                <Label htmlFor="disable-totp-password">
+                  {t("account.currentPassword")}
+                </Label>
+                <Input
+                  id="disable-totp-password"
+                  type="password"
+                  autoComplete="current-password"
+                  value={currentPassword}
+                  maxLength={128}
+                  onChange={(event) => setCurrentPassword(event.target.value)}
+                  required
+                />
+              </div>
+              <TOTPCodeInput code={code} setCode={setCode} id="disable-code" />
+              <Button type="submit" variant="destructive" disabled={working}>
+                <ShieldOff data-icon="inline-start" aria-hidden="true" />
+                {t("totp.disable")}
+              </Button>
+            </form>
+          ) : null}
+        </div>
+      </CardContent>
+    </Card>
   );
 }
 
@@ -502,48 +515,52 @@ function SessionSection({ clearSession }: { clearSession: () => void }) {
   }
 
   return (
-    <section className="border-t py-7">
-      <SectionHeading
-        icon={<LogOut aria-hidden="true" className="size-4" />}
-        title={t("sessions.title")}
-        detail={t("sessions.detail")}
-      />
-      <div className="mt-6 max-w-lg space-y-4">
-        <FeedbackAlert feedback={feedback} />
-        {confirming ? (
-          <Alert variant="destructive">
-            <AlertTitle>{t("sessions.confirmTitle")}</AlertTitle>
-            <AlertDescription className="mt-3 flex flex-wrap gap-2">
-              <Button
-                type="button"
-                variant="destructive"
-                onClick={() => void revoke()}
-                disabled={working}
-              >
-                {t("sessions.confirm")}
-              </Button>
-              <Button
-                type="button"
-                variant="outline"
-                onClick={() => setConfirming(false)}
-                disabled={working}
-              >
-                {t("common.cancel")}
-              </Button>
-            </AlertDescription>
-          </Alert>
-        ) : (
-          <Button
-            type="button"
-            variant="destructive"
-            onClick={() => setConfirming(true)}
-          >
-            <LogOut data-icon="inline-start" aria-hidden="true" />
-            {t("sessions.revokeAll")}
-          </Button>
-        )}
-      </div>
-    </section>
+    <Card>
+      <CardHeader>
+        <SectionHeading
+          icon={<LogOut aria-hidden="true" className="size-4" />}
+          title={t("sessions.title")}
+          detail={t("sessions.detail")}
+        />
+      </CardHeader>
+      <CardContent>
+        <div className="max-w-lg space-y-4">
+          <FeedbackAlert feedback={feedback} />
+          {confirming ? (
+            <Alert variant="destructive">
+              <AlertTitle>{t("sessions.confirmTitle")}</AlertTitle>
+              <AlertDescription className="mt-3 flex flex-wrap gap-2">
+                <Button
+                  type="button"
+                  variant="destructive"
+                  onClick={() => void revoke()}
+                  disabled={working}
+                >
+                  {t("sessions.confirm")}
+                </Button>
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={() => setConfirming(false)}
+                  disabled={working}
+                >
+                  {t("common.cancel")}
+                </Button>
+              </AlertDescription>
+            </Alert>
+          ) : (
+            <Button
+              type="button"
+              variant="destructive"
+              onClick={() => setConfirming(true)}
+            >
+              <LogOut data-icon="inline-start" aria-hidden="true" />
+              {t("sessions.revokeAll")}
+            </Button>
+          )}
+        </div>
+      </CardContent>
+    </Card>
   );
 }
 
