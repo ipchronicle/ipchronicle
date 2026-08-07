@@ -19,7 +19,7 @@ func TestFreshOpenAndRestart(t *testing.T) {
 		t.Fatal(err)
 	}
 	firstGeneration := store.HistoryGeneration
-	if store.ConfigSchemaVersion != 2 || store.HistorySchemaVersion != 1 {
+	if store.ConfigSchemaVersion != 3 || store.HistorySchemaVersion != 1 {
 		t.Fatalf("unexpected schema versions: %d/%d", store.ConfigSchemaVersion, store.HistorySchemaVersion)
 	}
 	if err := store.Close(); err != nil {
@@ -86,6 +86,14 @@ func TestDeletedHistoryAdvancesGeneration(t *testing.T) {
 		t.Fatal(err)
 	}
 	firstGeneration := store.HistoryGeneration
+	if _, err := store.Config.ExecContext(context.Background(), `
+		INSERT INTO nodes (
+			id, name, hostname, credential_digest, agent_version,
+			operating_system, architecture, desired_configuration_revision, registered_at
+		) VALUES (?, ?, ?, ?, ?, ?, ?, 1, ?)
+	`, "7289cfa3-a75d-4a3f-ac06-8f1074446a85", "edge-1", "edge-1", make([]byte, 32), "test", "linux", "amd64", 1); err != nil {
+		t.Fatal(err)
+	}
 	if err := store.Close(); err != nil {
 		t.Fatal(err)
 	}
@@ -105,6 +113,10 @@ func TestDeletedHistoryAdvancesGeneration(t *testing.T) {
 	}
 	if state.PendingHistoryGeneration != nil || state.HistoryGeneration != restarted.HistoryGeneration || state.HistoryResetAt == nil {
 		t.Fatalf("history reset was not fully reconciled: %#v", state)
+	}
+	node, err := restarted.ConfigQueries.GetNodeByID(context.Background(), "7289cfa3-a75d-4a3f-ac06-8f1074446a85")
+	if err != nil || node.DesiredConfigurationRevision != 2 {
+		t.Fatalf("history reset did not advance node configuration: %#v, %v", node, err)
 	}
 }
 

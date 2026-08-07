@@ -23,7 +23,7 @@ import (
 
 const (
 	MasterKeySize        = 32
-	configSchemaVersion  = 2
+	configSchemaVersion  = 3
 	historySchemaVersion = 1
 )
 
@@ -394,7 +394,13 @@ func reconcileHistoryGeneration(ctx context.Context, store *Store, historyExiste
 		if metadata.Generation != *state.PendingHistoryGeneration {
 			return "", errors.New("history generation does not match the pending reset generation")
 		}
-		updated, err := store.ConfigQueries.PromotePendingHistoryGeneration(ctx, configdb.PromotePendingHistoryGenerationParams{
+		transaction, err := store.Config.BeginTx(ctx, nil)
+		if err != nil {
+			return "", err
+		}
+		defer transaction.Rollback()
+		queries := store.ConfigQueries.WithTx(transaction)
+		updated, err := queries.PromotePendingHistoryGeneration(ctx, configdb.PromotePendingHistoryGenerationParams{
 			HistoryResetAt:           pointerTo(time.Now().UTC().Unix()),
 			PendingHistoryGeneration: state.PendingHistoryGeneration,
 		})
@@ -403,6 +409,12 @@ func reconcileHistoryGeneration(ctx context.Context, store *Store, historyExiste
 		}
 		if updated != 1 {
 			return "", errors.New("pending history generation was not promoted")
+		}
+		if err := queries.IncrementAllNodeDesiredConfigurationRevisions(ctx); err != nil {
+			return "", err
+		}
+		if err := transaction.Commit(); err != nil {
+			return "", err
 		}
 		return metadata.Generation, nil
 	}

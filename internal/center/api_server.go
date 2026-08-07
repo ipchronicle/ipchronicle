@@ -322,6 +322,78 @@ func (s apiServer) ListNodes(ctx context.Context, _ api.ListNodesRequestObject) 
 	return api.ListNodes200JSONResponse{Items: items}, nil
 }
 
+func (s apiServer) UpdateNode(ctx context.Context, request api.UpdateNodeRequestObject) (api.UpdateNodeResponseObject, error) {
+	_, failure, err := s.authorize(ctx, true, csrfValue(request.Params.XCSRFToken))
+	if err != nil {
+		return nil, err
+	}
+	if failure == api.Unauthenticated {
+		return api.UpdateNode401JSONResponse{UnauthorizedJSONResponse: unauthorized(failure)}, nil
+	}
+	if failure != "" {
+		return api.UpdateNode403JSONResponse{ForbiddenJSONResponse: forbidden(failure)}, nil
+	}
+	if request.Body == nil {
+		return api.UpdateNode400JSONResponse{BadRequestJSONResponse: badRequest(api.InvalidRequest)}, nil
+	}
+	node, err := s.nodes.SetEnabled(ctx, request.NodeId, request.Body.Enabled)
+	switch {
+	case errors.Is(err, nodes.ErrNodeNotFound):
+		return api.UpdateNode404JSONResponse{NotFoundJSONResponse: notFound(api.NodeNotFound)}, nil
+	case errors.Is(err, nodes.ErrNodeRevoked):
+		return api.UpdateNode409JSONResponse{ConflictJSONResponse: conflict(api.NodeRevoked)}, nil
+	case errors.Is(err, nodes.ErrNodeDeletionPending):
+		return api.UpdateNode409JSONResponse{ConflictJSONResponse: conflict(api.NodeDeletionPending)}, nil
+	case err != nil:
+		return nil, err
+	}
+	return api.UpdateNode200JSONResponse(nodeResponse(node)), nil
+}
+
+func (s apiServer) RevokeNode(ctx context.Context, request api.RevokeNodeRequestObject) (api.RevokeNodeResponseObject, error) {
+	_, failure, err := s.authorize(ctx, true, csrfValue(request.Params.XCSRFToken))
+	if err != nil {
+		return nil, err
+	}
+	if failure == api.Unauthenticated {
+		return api.RevokeNode401JSONResponse{UnauthorizedJSONResponse: unauthorized(failure)}, nil
+	}
+	if failure != "" {
+		return api.RevokeNode403JSONResponse{ForbiddenJSONResponse: forbidden(failure)}, nil
+	}
+	node, err := s.nodes.Revoke(ctx, request.NodeId)
+	switch {
+	case errors.Is(err, nodes.ErrNodeNotFound):
+		return api.RevokeNode404JSONResponse{NotFoundJSONResponse: notFound(api.NodeNotFound)}, nil
+	case errors.Is(err, nodes.ErrNodeDeletionPending):
+		return api.RevokeNode409JSONResponse{ConflictJSONResponse: conflict(api.NodeDeletionPending)}, nil
+	case err != nil:
+		return nil, err
+	}
+	return api.RevokeNode200JSONResponse(nodeResponse(node)), nil
+}
+
+func (s apiServer) DeleteNode(ctx context.Context, request api.DeleteNodeRequestObject) (api.DeleteNodeResponseObject, error) {
+	_, failure, err := s.authorize(ctx, true, csrfValue(request.Params.XCSRFToken))
+	if err != nil {
+		return nil, err
+	}
+	if failure == api.Unauthenticated {
+		return api.DeleteNode401JSONResponse{UnauthorizedJSONResponse: unauthorized(failure)}, nil
+	}
+	if failure != "" {
+		return api.DeleteNode403JSONResponse{ForbiddenJSONResponse: forbidden(failure)}, nil
+	}
+	deletion, err := s.nodes.Delete(ctx, request.NodeId)
+	if errors.Is(err, nodes.ErrNodeNotFound) {
+		return api.DeleteNode404JSONResponse{NotFoundJSONResponse: notFound(api.NodeNotFound)}, nil
+	}
+	if err != nil {
+		return nil, err
+	}
+	return api.DeleteNode202JSONResponse(deletionResponse(deletion)), nil
+}
+
 func (s apiServer) GetAgentEnrollment(ctx context.Context, _ api.GetAgentEnrollmentRequestObject) (api.GetAgentEnrollmentResponseObject, error) {
 	_, failure, err := s.authorize(ctx, false, "")
 	if err != nil {
@@ -408,6 +480,7 @@ func (s apiServer) PollAgent(ctx context.Context, request api.PollAgentRequestOb
 	poll, err := s.nodes.Poll(
 		ctx, credential, metadataFromAPI(request.Body.Metadata),
 		request.Body.AppliedConfigurationRevision, request.Body.ConfigurationError,
+		request.Body.ConfigurationErrorRevision,
 	)
 	switch {
 	case errors.Is(err, nodes.ErrInvalidMetadata):
@@ -422,6 +495,24 @@ func (s apiServer) PollAgent(ctx context.Context, request api.PollAgentRequestOb
 	return api.PollAgent200JSONResponse{
 		CenterVersion: s.version, DesiredConfigurationRevision: poll.DesiredConfigurationRevision,
 		Enabled: poll.Enabled, PollIntervalSeconds: int(nodes.PollInterval / time.Second),
+	}, nil
+}
+
+func (s apiServer) GetAgentConfiguration(ctx context.Context, _ api.GetAgentConfigurationRequestObject) (api.GetAgentConfigurationResponseObject, error) {
+	credential := bearerToken(requestSecurityFromContext(ctx).Authorization)
+	configuration, err := s.nodes.Configuration(ctx, credential)
+	switch {
+	case errors.Is(err, nodes.ErrAgentUnauthenticated):
+		return api.GetAgentConfiguration401JSONResponse{AgentUnauthorizedJSONResponse: agentUnauthorized(api.AgentUnauthenticated)}, nil
+	case errors.Is(err, nodes.ErrAgentRevoked):
+		return api.GetAgentConfiguration403JSONResponse{AgentForbiddenJSONResponse: agentForbidden(api.AgentRevoked)}, nil
+	case err != nil:
+		return nil, err
+	}
+	return api.GetAgentConfiguration200JSONResponse{
+		SchemaVersion: api.AgentConfigurationSnapshotSchemaVersion(configuration.SchemaVersion),
+		Revision:      configuration.Revision, Enabled: configuration.Enabled,
+		HistoryGeneration: configuration.HistoryGeneration,
 	}, nil
 }
 
@@ -483,6 +574,10 @@ func conflict(code api.ErrorCode) api.ConflictJSONResponse {
 	return api.ConflictJSONResponse(errorResponse(code, nil))
 }
 
+func notFound(code api.ErrorCode) api.NotFoundJSONResponse {
+	return api.NotFoundJSONResponse(errorResponse(code, nil))
+}
+
 func agentUnauthorized(code api.ErrorCode) api.AgentUnauthorizedJSONResponse {
 	return api.AgentUnauthorizedJSONResponse(errorResponse(code, nil))
 }
@@ -530,8 +625,25 @@ func nodeResponse(node nodes.Node) api.Node {
 		AppliedConfigurationRevision: node.AppliedConfigurationRevision,
 		ConfigurationStatus:          api.NodeConfigurationStatus(node.ConfigurationStatus),
 		ConfigurationError:           node.ConfigurationError,
+		DeletionStatus:               deletionStatus(node.DeletionStatus),
+		DeletionError:                node.DeletionError,
 		RegisteredAt:                 node.RegisteredAt, LastSeenAt: node.LastSeenAt,
 	}
+}
+
+func deletionResponse(deletion nodes.Deletion) api.NodeDeletion {
+	return api.NodeDeletion{
+		NodeId: deletion.NodeID, Status: api.NodeDeletionStatus(deletion.Status),
+		RequestedAt: deletion.RequestedAt, Error: deletion.Error,
+	}
+}
+
+func deletionStatus(status *string) *api.NodeDeletionStatus {
+	if status == nil {
+		return nil
+	}
+	value := api.NodeDeletionStatus(*status)
+	return &value
 }
 
 func bearerToken(header string) string {

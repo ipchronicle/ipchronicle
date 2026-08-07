@@ -60,7 +60,7 @@ func serve() error {
 	if err := administrator.Bootstrap(context.Background(), configuration.AdminUsername, configuration.AdminPassword); err != nil {
 		return err
 	}
-	nodeService := nodes.NewService(store.Config, store.ConfigQueries, store.MasterKey)
+	nodeService := nodes.NewService(store.Config, store.History, store.ConfigQueries, store.MasterKey)
 
 	server := &http.Server{
 		Addr: configuration.ListenAddress,
@@ -79,6 +79,7 @@ func serve() error {
 
 	shutdownContext, stop := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
 	defer stop()
+	go nodeService.RunDeletionWorker(shutdownContext, log.Default())
 	go func() {
 		<-shutdownContext.Done()
 		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)

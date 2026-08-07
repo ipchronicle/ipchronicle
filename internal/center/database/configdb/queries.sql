@@ -127,30 +127,122 @@ WHERE id = 1;
 -- name: CreateNode :exec
 INSERT INTO nodes (
     id, name, hostname, credential_digest, agent_version,
-    operating_system, architecture, registered_at
-) VALUES (?, ?, ?, ?, ?, ?, ?, ?);
+    operating_system, architecture, desired_configuration_revision, registered_at
+) VALUES (?, ?, ?, ?, ?, ?, ?, 1, ?);
 
 -- name: GetNodeByCredentialDigest :one
 SELECT id, name, hostname, credential_digest, enabled, revoked_at,
        agent_version, operating_system, architecture,
        desired_configuration_revision, applied_configuration_revision,
-       configuration_error, registered_at, last_seen_at
+       configuration_error, registered_at, last_seen_at,
+       configuration_error_revision
 FROM nodes
 WHERE credential_digest = ?;
+
+-- name: GetNodeByID :one
+SELECT id, name, hostname, credential_digest, enabled, revoked_at,
+       agent_version, operating_system, architecture,
+       desired_configuration_revision, applied_configuration_revision,
+       configuration_error, registered_at, last_seen_at,
+       configuration_error_revision
+FROM nodes
+WHERE id = ?;
 
 -- name: UpdateNodeHeartbeat :execrows
 UPDATE nodes
 SET hostname = ?, agent_version = ?, operating_system = ?, architecture = ?,
-    applied_configuration_revision = ?, configuration_error = ?, last_seen_at = ?
+    applied_configuration_revision = ?, configuration_error = ?,
+    configuration_error_revision = ?, last_seen_at = ?
 WHERE id = ? AND revoked_at IS NULL;
 
 -- name: ListNodes :many
 SELECT id, name, hostname, credential_digest, enabled, revoked_at,
        agent_version, operating_system, architecture,
        desired_configuration_revision, applied_configuration_revision,
-       configuration_error, registered_at, last_seen_at
+       configuration_error, registered_at, last_seen_at,
+       configuration_error_revision
 FROM nodes
 ORDER BY name COLLATE NOCASE, id;
+
+-- name: SetNodeEnabled :execrows
+UPDATE nodes
+SET enabled = ?,
+    desired_configuration_revision = desired_configuration_revision + 1,
+    configuration_error = NULL,
+    configuration_error_revision = NULL
+WHERE id = ? AND enabled != ? AND revoked_at IS NULL
+  AND NOT EXISTS (
+      SELECT 1 FROM node_deletion_operations
+      WHERE node_id = nodes.id AND status != 'completed'
+  );
+
+-- name: RevokeNode :execrows
+UPDATE nodes
+SET enabled = 0, revoked_at = ?, configuration_error = NULL,
+    configuration_error_revision = NULL
+WHERE id = ? AND revoked_at IS NULL;
+
+-- name: IncrementAllNodeDesiredConfigurationRevisions :exec
+UPDATE nodes
+SET desired_configuration_revision = desired_configuration_revision + 1,
+    configuration_error = NULL,
+    configuration_error_revision = NULL
+WHERE revoked_at IS NULL;
+
+-- name: GetRevokedAgentCredential :one
+SELECT credential_digest, revoked_at, reason
+FROM revoked_agent_credentials
+WHERE credential_digest = ?;
+
+-- name: UpsertRevokedAgentCredential :exec
+INSERT INTO revoked_agent_credentials (credential_digest, revoked_at, reason)
+VALUES (?, ?, ?)
+ON CONFLICT (credential_digest) DO UPDATE SET
+    revoked_at = excluded.revoked_at,
+    reason = excluded.reason;
+
+-- name: CreateNodeDeletion :exec
+INSERT INTO node_deletion_operations (
+    node_id, credential_digest, status, requested_at, updated_at
+) VALUES (?, ?, 'pending', ?, ?)
+ON CONFLICT (node_id) DO UPDATE SET
+    status = CASE
+        WHEN node_deletion_operations.status = 'completed' THEN 'completed'
+        ELSE 'pending'
+    END,
+    updated_at = excluded.updated_at,
+    last_error = NULL;
+
+-- name: GetNodeDeletion :one
+SELECT node_id, credential_digest, status, requested_at, updated_at, last_error
+FROM node_deletion_operations
+WHERE node_id = ?;
+
+-- name: ListActiveNodeDeletions :many
+SELECT node_id, credential_digest, status, requested_at, updated_at, last_error
+FROM node_deletion_operations
+WHERE status IN ('pending', 'failed')
+ORDER BY requested_at, node_id
+LIMIT ?;
+
+-- name: RetryNodeDeletion :exec
+UPDATE node_deletion_operations
+SET status = 'pending', updated_at = ?, last_error = NULL
+WHERE node_id = ? AND status = 'failed';
+
+-- name: FailNodeDeletion :exec
+UPDATE node_deletion_operations
+SET status = 'failed', updated_at = ?, last_error = ?
+WHERE node_id = ? AND status != 'completed';
+
+-- name: CompleteNodeDeletion :exec
+UPDATE node_deletion_operations
+SET status = 'completed', updated_at = ?, last_error = NULL
+WHERE node_id = ?;
+
+-- name: DeleteNode :exec
+DELETE FROM nodes
+WHERE id = ?;
 
 -- name: DeleteNodeCapabilities :exec
 DELETE FROM node_capabilities

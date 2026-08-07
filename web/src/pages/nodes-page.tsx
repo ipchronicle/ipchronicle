@@ -4,10 +4,14 @@ import {
   Clipboard,
   KeyRound,
   LoaderCircle,
+  Pause,
+  Play,
   RefreshCw,
   RotateCw,
   Server,
+  ShieldX,
   Terminal,
+  Trash2,
   TriangleAlert,
   Wifi,
   WifiOff,
@@ -15,12 +19,16 @@ import {
 import { useTranslation } from "react-i18next";
 
 import {
+  deleteNode,
   getAgentEnrollment,
   listNodes,
+  revokeNode,
   rotateAgentEnrollmentKey,
+  updateNode,
   updateAgentEnrollment,
   type AgentEnrollmentSettings,
   type Node,
+  type NodeDeletion,
 } from "@/api/nodes";
 import { useAuth } from "@/auth-context";
 import {
@@ -56,6 +64,11 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
 import { formatAPIError } from "@/lib/api-error";
 
 type ViewState =
@@ -163,7 +176,42 @@ export function NodesPage() {
                 )
               }
             />
-            <NodeListCard nodes={state.nodes} />
+            <NodeListCard
+              nodes={state.nodes}
+              csrfToken={csrfToken}
+              onNodeChange={(node) =>
+                setState((current) =>
+                  current.kind === "success"
+                    ? {
+                        ...current,
+                        nodes: current.nodes.map((item) =>
+                          item.id === node.id ? node : item,
+                        ),
+                      }
+                    : current,
+                )
+              }
+              onDeletionQueued={(deletion) =>
+                setState((current) =>
+                  current.kind === "success"
+                    ? {
+                        ...current,
+                        nodes: current.nodes.map((item) =>
+                          item.id === deletion.nodeId
+                            ? {
+                                ...item,
+                                status: "revoked",
+                                enabled: false,
+                                deletionStatus: deletion.status,
+                                deletionError: deletion.error,
+                              }
+                            : item,
+                        ),
+                      }
+                    : current,
+                )
+              }
+            />
           </>
         ) : null}
       </div>
@@ -376,7 +424,17 @@ function EnrollmentCard({
   );
 }
 
-function NodeListCard({ nodes }: { nodes: Node[] }) {
+function NodeListCard({
+  nodes,
+  csrfToken,
+  onNodeChange,
+  onDeletionQueued,
+}: {
+  nodes: Node[];
+  csrfToken: string;
+  onNodeChange: (node: Node) => void;
+  onDeletionQueued: (deletion: NodeDeletion) => void;
+}) {
   const { t } = useTranslation();
   return (
     <Card>
@@ -417,6 +475,9 @@ function NodeListCard({ nodes }: { nodes: Node[] }) {
                   <TableHead className="text-right">
                     {t("nodes.inventory.lastSeen")}
                   </TableHead>
+                  <TableHead className="w-28 text-right">
+                    <span className="sr-only">{t("nodes.actions.title")}</span>
+                  </TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -442,6 +503,14 @@ function NodeListCard({ nodes }: { nodes: Node[] }) {
                     </TableCell>
                     <TableCell className="text-right text-muted-foreground">
                       <NodeTime value={node.lastSeenAt} />
+                    </TableCell>
+                    <TableCell>
+                      <NodeActions
+                        node={node}
+                        csrfToken={csrfToken}
+                        onNodeChange={onNodeChange}
+                        onDeletionQueued={onDeletionQueued}
+                      />
                     </TableCell>
                   </TableRow>
                 ))}
@@ -486,6 +555,12 @@ function NodeListCard({ nodes }: { nodes: Node[] }) {
                     </dd>
                   </div>
                 </dl>
+                <NodeActions
+                  node={node}
+                  csrfToken={csrfToken}
+                  onNodeChange={onNodeChange}
+                  onDeletionQueued={onDeletionQueued}
+                />
               </div>
             ))}
           </CardContent>
@@ -503,6 +578,16 @@ function NodeStatusBadge({ node }: { node: Node }) {
     disabled: t("nodes.status.disabled"),
     revoked: t("nodes.status.revoked"),
   };
+  if (node.deletionStatus !== undefined) {
+    return (
+      <Badge variant="destructive">
+        <Trash2 aria-hidden="true" />
+        {node.deletionStatus === "failed"
+          ? t("nodes.deletion.failed")
+          : t("nodes.deletion.pending")}
+      </Badge>
+    );
+  }
   return (
     <Badge
       variant={
@@ -520,6 +605,197 @@ function NodeStatusBadge({ node }: { node: Node }) {
       )}
       {labels[node.status]}
     </Badge>
+  );
+}
+
+function NodeActions({
+  node,
+  csrfToken,
+  onNodeChange,
+  onDeletionQueued,
+}: {
+  node: Node;
+  csrfToken: string;
+  onNodeChange: (node: Node) => void;
+  onDeletionQueued: (deletion: NodeDeletion) => void;
+}) {
+  const { t } = useTranslation();
+  const [working, setWorking] = useState(false);
+  const [error, setError] = useState<string>();
+  const deletionPending = node.deletionStatus === "pending";
+
+  async function toggleEnabled() {
+    setWorking(true);
+    setError(undefined);
+    try {
+      onNodeChange(await updateNode(node.id, !node.enabled, csrfToken));
+    } catch (cause) {
+      setError(formatAPIError(cause, t));
+    } finally {
+      setWorking(false);
+    }
+  }
+
+  async function revoke() {
+    setWorking(true);
+    setError(undefined);
+    try {
+      onNodeChange(await revokeNode(node.id, csrfToken));
+    } catch (cause) {
+      setError(formatAPIError(cause, t));
+    } finally {
+      setWorking(false);
+    }
+  }
+
+  async function remove() {
+    setWorking(true);
+    setError(undefined);
+    try {
+      onDeletionQueued(await deleteNode(node.id, csrfToken));
+    } catch (cause) {
+      setError(formatAPIError(cause, t));
+    } finally {
+      setWorking(false);
+    }
+  }
+
+  return (
+    <div className="flex flex-wrap items-center justify-end gap-1">
+      {node.status !== "revoked" && node.deletionStatus === undefined ? (
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <Button
+              variant="ghost"
+              size="icon-sm"
+              disabled={working}
+              aria-label={
+                node.enabled
+                  ? t("nodes.actions.disable")
+                  : t("nodes.actions.enable")
+              }
+              onClick={() => void toggleEnabled()}
+            >
+              {working ? (
+                <LoaderCircle className="animate-spin" aria-hidden="true" />
+              ) : node.enabled ? (
+                <Pause aria-hidden="true" />
+              ) : (
+                <Play aria-hidden="true" />
+              )}
+            </Button>
+          </TooltipTrigger>
+          <TooltipContent>
+            {node.enabled
+              ? t("nodes.actions.disable")
+              : t("nodes.actions.enable")}
+          </TooltipContent>
+        </Tooltip>
+      ) : null}
+
+      {node.status !== "revoked" && node.deletionStatus === undefined ? (
+        <AlertDialog>
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <AlertDialogTrigger asChild>
+                <Button
+                  variant="ghost"
+                  size="icon-sm"
+                  disabled={working}
+                  aria-label={t("nodes.actions.revoke")}
+                >
+                  <ShieldX aria-hidden="true" />
+                </Button>
+              </AlertDialogTrigger>
+            </TooltipTrigger>
+            <TooltipContent>{t("nodes.actions.revoke")}</TooltipContent>
+          </Tooltip>
+          <AlertDialogContent>
+            <AlertDialogHeader>
+              <AlertDialogMedia>
+                <ShieldX aria-hidden="true" />
+              </AlertDialogMedia>
+              <AlertDialogTitle>
+                {t("nodes.revoke.title", { name: node.name })}
+              </AlertDialogTitle>
+              <AlertDialogDescription>
+                {t("nodes.revoke.detail")}
+              </AlertDialogDescription>
+            </AlertDialogHeader>
+            <AlertDialogFooter>
+              <AlertDialogCancel>{t("common.cancel")}</AlertDialogCancel>
+              <AlertDialogAction
+                variant="destructive"
+                onClick={() => void revoke()}
+              >
+                {t("nodes.revoke.confirm")}
+              </AlertDialogAction>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialog>
+      ) : null}
+
+      <AlertDialog>
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <AlertDialogTrigger asChild>
+              <Button
+                variant="ghost"
+                size="icon-sm"
+                disabled={working || deletionPending}
+                aria-label={
+                  node.deletionStatus === "failed"
+                    ? t("nodes.actions.retryDeletion")
+                    : t("nodes.actions.delete")
+                }
+              >
+                <Trash2 aria-hidden="true" />
+              </Button>
+            </AlertDialogTrigger>
+          </TooltipTrigger>
+          <TooltipContent>
+            {node.deletionStatus === "failed"
+              ? t("nodes.actions.retryDeletion")
+              : t("nodes.actions.delete")}
+          </TooltipContent>
+        </Tooltip>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogMedia>
+              <Trash2 aria-hidden="true" />
+            </AlertDialogMedia>
+            <AlertDialogTitle>
+              {t("nodes.deletion.title", { name: node.name })}
+            </AlertDialogTitle>
+            <AlertDialogDescription>
+              {t("nodes.deletion.detail")}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>{t("common.cancel")}</AlertDialogCancel>
+            <AlertDialogAction
+              variant="destructive"
+              onClick={() => void remove()}
+            >
+              {node.deletionStatus === "failed"
+                ? t("nodes.actions.retryDeletion")
+                : t("nodes.deletion.confirm")}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      {error !== undefined ? (
+        <p className="w-full text-right text-xs text-destructive" role="alert">
+          {error}
+        </p>
+      ) : null}
+      {node.deletionError !== undefined ? (
+        <p className="w-full text-right text-xs text-destructive" role="alert">
+          {node.deletionError}
+        </p>
+      ) : null}
+    </div>
   );
 }
 

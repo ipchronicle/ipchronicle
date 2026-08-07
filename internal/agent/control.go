@@ -1,9 +1,12 @@
 package agent
 
 import (
+	"bytes"
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
 	"log"
 	"net/http"
 	"net/url"
@@ -18,6 +21,10 @@ import (
 
 const controlCapability = "control-v1"
 
+const maxAgentAPIResponseSize = 64 * 1024
+
+var ErrAgentRevoked = errors.New("Agent identity is revoked")
+
 type ControlClient struct {
 	client *agentapi.ClientWithResponses
 }
@@ -27,7 +34,10 @@ func NewControlClient(centerURL string) (*ControlClient, error) {
 	if err != nil {
 		return nil, err
 	}
-	httpClient := &http.Client{Timeout: 15 * time.Second}
+	httpClient := &http.Client{
+		Transport: boundedResponseTransport{base: http.DefaultTransport, maxBytes: maxAgentAPIResponseSize},
+		Timeout:   15 * time.Second,
+	}
 	client, err := agentapi.NewClientWithResponses(normalized, agentapi.WithHTTPClient(httpClient))
 	if err != nil {
 		return nil, fmt.Errorf("create Agent API client: %w", err)
@@ -112,12 +122,30 @@ func Run(ctx context.Context, store *state.Store, version string, logger *log.Lo
 	interval := 30 * time.Second
 	logger.Printf("Agent %s polling %s", identity.NodeID, identity.CenterURL)
 	for {
-		pollInterval, err := client.poll(ctx, identity, metadata)
+		controlState, err := store.ControlState()
+		if err != nil {
+			return err
+		}
+		if controlState.Revoked {
+			logger.Printf("Agent %s is revoked; control polling has stopped", identity.NodeID)
+			return nil
+		}
+		pollInterval, applied, err := client.poll(ctx, store, identity, metadata, controlState)
+		if errors.Is(err, ErrAgentRevoked) {
+			if markErr := store.MarkRevoked(); markErr != nil {
+				return errors.Join(err, markErr)
+			}
+			logger.Printf("Agent %s was revoked by the center; control polling has stopped", identity.NodeID)
+			return nil
+		}
 		if err != nil && !errors.Is(err, context.Canceled) {
 			logger.Printf("control poll failed: %v", err)
 		}
 		if pollInterval >= 5*time.Second && pollInterval <= time.Hour {
 			interval = pollInterval
+		}
+		if applied {
+			continue
 		}
 		timer := time.NewTimer(interval)
 		select {
@@ -131,21 +159,102 @@ func Run(ctx context.Context, store *state.Store, version string, logger *log.Lo
 	}
 }
 
-func (c *ControlClient) poll(ctx context.Context, identity state.Identity, metadata agentapi.AgentMetadata) (time.Duration, error) {
+func (c *ControlClient) poll(ctx context.Context, store *state.Store, identity state.Identity, metadata agentapi.AgentMetadata, controlState state.ControlState) (time.Duration, bool, error) {
 	response, err := c.client.PollAgentWithResponse(ctx, agentapi.AgentPollRequest{
-		AppliedConfigurationRevision: identity.AppliedConfigurationRevision,
+		AppliedConfigurationRevision: controlState.AppliedConfigurationRevision,
+		ConfigurationError:           controlState.ConfigurationError,
+		ConfigurationErrorRevision:   controlState.ConfigurationErrorRevision,
 		Metadata:                     metadata,
 	}, func(_ context.Context, request *http.Request) error {
 		request.Header.Set("Authorization", "Bearer "+identity.Credential)
 		return nil
 	})
 	if err != nil {
-		return 0, err
+		return 0, false, err
 	}
 	if response.JSON200 == nil {
-		return 0, responseError("poll center", response.StatusCode(), response.JSON400, response.JSON401, response.JSON403)
+		return 0, false, responseError("poll center", response.StatusCode(), response.JSON400, response.JSON401, response.JSON403)
 	}
-	return time.Duration(response.JSON200.PollIntervalSeconds) * time.Second, nil
+	interval := time.Duration(response.JSON200.PollIntervalSeconds) * time.Second
+	if response.JSON200.DesiredConfigurationRevision == controlState.AppliedConfigurationRevision {
+		return interval, false, nil
+	}
+	if response.JSON200.DesiredConfigurationRevision < controlState.AppliedConfigurationRevision {
+		return interval, false, errors.New("center desired configuration revision moved backwards")
+	}
+	desiredRevision := response.JSON200.DesiredConfigurationRevision
+	configuration, err := c.configuration(ctx, identity.Credential, desiredRevision)
+	if err == nil {
+		err = store.ApplyConfiguration(configuration)
+	}
+	if err != nil {
+		if errors.Is(err, ErrAgentRevoked) {
+			return interval, false, err
+		}
+		if recordErr := store.RecordConfigurationFailure(desiredRevision, err); recordErr != nil {
+			return interval, false, errors.Join(err, recordErr)
+		}
+		return interval, false, fmt.Errorf("apply configuration revision %d: %w", desiredRevision, err)
+	}
+	return interval, true, nil
+}
+
+func (c *ControlClient) configuration(ctx context.Context, credential string, desiredRevision int64) (state.Configuration, error) {
+	response, err := c.client.GetAgentConfigurationWithResponse(ctx, func(_ context.Context, request *http.Request) error {
+		request.Header.Set("Authorization", "Bearer "+credential)
+		return nil
+	})
+	if err != nil {
+		return state.Configuration{}, err
+	}
+	if response.JSON200 == nil {
+		return state.Configuration{}, responseError("fetch Agent configuration", response.StatusCode(), response.JSON401, response.JSON403)
+	}
+	if len(response.Body) > maxAgentAPIResponseSize {
+		return state.Configuration{}, errors.New("Agent configuration snapshot exceeds 64 KiB")
+	}
+	var configuration state.Configuration
+	decoder := json.NewDecoder(bytes.NewReader(response.Body))
+	decoder.DisallowUnknownFields()
+	if err := decoder.Decode(&configuration); err != nil {
+		return state.Configuration{}, fmt.Errorf("decode Agent configuration snapshot: %w", err)
+	}
+	if err := ensureJSONEnd(decoder); err != nil {
+		return state.Configuration{}, err
+	}
+	if configuration.Revision != desiredRevision {
+		return state.Configuration{}, fmt.Errorf("configuration revision is %d, expected %d", configuration.Revision, desiredRevision)
+	}
+	return configuration, nil
+}
+
+type boundedResponseTransport struct {
+	base     http.RoundTripper
+	maxBytes int64
+}
+
+func (transport boundedResponseTransport) RoundTrip(request *http.Request) (*http.Response, error) {
+	response, err := transport.base.RoundTrip(request)
+	if err != nil {
+		return nil, err
+	}
+	if response.Body != nil {
+		response.Body = struct {
+			io.Reader
+			io.Closer
+		}{Reader: io.LimitReader(response.Body, transport.maxBytes+1), Closer: response.Body}
+	}
+	return response, nil
+}
+
+func ensureJSONEnd(decoder *json.Decoder) error {
+	var extra any
+	if err := decoder.Decode(&extra); errors.Is(err, io.EOF) {
+		return nil
+	} else if err != nil {
+		return fmt.Errorf("decode Agent configuration suffix: %w", err)
+	}
+	return errors.New("Agent configuration contains multiple JSON values")
 }
 
 func currentMetadata(version string) (agentapi.AgentMetadata, error) {
@@ -163,13 +272,16 @@ func currentMetadata(version string) (agentapi.AgentMetadata, error) {
 	return agentapi.AgentMetadata{
 		Hostname: hostname, AgentVersion: version,
 		OperatingSystem: agentapi.Linux, Architecture: agentapi.AgentArchitecture(runtime.GOARCH),
-		Capabilities: []string{controlCapability},
+		Capabilities: []string{controlCapability, "configuration-v1"},
 	}, nil
 }
 
 func responseError(operation string, status int, responses ...*agentapi.ErrorResponse) error {
 	for _, response := range responses {
 		if response != nil {
+			if response.Code == agentapi.AgentRevoked {
+				return fmt.Errorf("%w: %s returned HTTP %d", ErrAgentRevoked, operation, status)
+			}
 			return fmt.Errorf("%s returned HTTP %d (%s)", operation, status, response.Code)
 		}
 	}

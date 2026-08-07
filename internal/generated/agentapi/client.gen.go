@@ -36,6 +36,21 @@ func (e AgentArchitecture) Valid() bool {
 	}
 }
 
+// Defines values for AgentConfigurationSnapshotSchemaVersion.
+const (
+	N1 AgentConfigurationSnapshotSchemaVersion = 1
+)
+
+// Valid indicates whether the value is a known member of the AgentConfigurationSnapshotSchemaVersion enum.
+func (e AgentConfigurationSnapshotSchemaVersion) Valid() bool {
+	switch e {
+	case N1:
+		return true
+	default:
+		return false
+	}
+}
+
 // Defines values for AgentPlatform.
 const (
 	Linux AgentPlatform = "linux"
@@ -62,6 +77,9 @@ const (
 	InvalidRequest                ErrorCode = "invalid_request"
 	InvalidTotp                   ErrorCode = "invalid_totp"
 	NoAccountChange               ErrorCode = "no_account_change"
+	NodeDeletionPending           ErrorCode = "node_deletion_pending"
+	NodeNotFound                  ErrorCode = "node_not_found"
+	NodeRevoked                   ErrorCode = "node_revoked"
 	OriginNotAllowed              ErrorCode = "origin_not_allowed"
 	RateLimited                   ErrorCode = "rate_limited"
 	RegistrationDisabled          ErrorCode = "registration_disabled"
@@ -95,6 +113,12 @@ func (e ErrorCode) Valid() bool {
 		return true
 	case NoAccountChange:
 		return true
+	case NodeDeletionPending:
+		return true
+	case NodeNotFound:
+		return true
+	case NodeRevoked:
+		return true
 	case OriginNotAllowed:
 		return true
 	case RateLimited:
@@ -122,19 +146,37 @@ func (e ErrorCode) Valid() bool {
 
 // Defines values for NodeConfigurationStatus.
 const (
-	Current NodeConfigurationStatus = "current"
-	Failed  NodeConfigurationStatus = "failed"
-	Pending NodeConfigurationStatus = "pending"
+	NodeConfigurationStatusCurrent NodeConfigurationStatus = "current"
+	NodeConfigurationStatusFailed  NodeConfigurationStatus = "failed"
+	NodeConfigurationStatusPending NodeConfigurationStatus = "pending"
 )
 
 // Valid indicates whether the value is a known member of the NodeConfigurationStatus enum.
 func (e NodeConfigurationStatus) Valid() bool {
 	switch e {
-	case Current:
+	case NodeConfigurationStatusCurrent:
 		return true
-	case Failed:
+	case NodeConfigurationStatusFailed:
 		return true
-	case Pending:
+	case NodeConfigurationStatusPending:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for NodeDeletionStatus.
+const (
+	NodeDeletionStatusFailed  NodeDeletionStatus = "failed"
+	NodeDeletionStatusPending NodeDeletionStatus = "pending"
+)
+
+// Valid indicates whether the value is a known member of the NodeDeletionStatus enum.
+func (e NodeDeletionStatus) Valid() bool {
+	switch e {
+	case NodeDeletionStatusFailed:
+		return true
+	case NodeDeletionStatusPending:
 		return true
 	default:
 		return false
@@ -255,6 +297,17 @@ type AccountUpdateResult struct {
 // AgentArchitecture defines model for AgentArchitecture.
 type AgentArchitecture string
 
+// AgentConfigurationSnapshot defines model for AgentConfigurationSnapshot.
+type AgentConfigurationSnapshot struct {
+	Enabled           bool                                    `json:"enabled"`
+	HistoryGeneration string                                  `json:"historyGeneration"`
+	Revision          int64                                   `json:"revision"`
+	SchemaVersion     AgentConfigurationSnapshotSchemaVersion `json:"schemaVersion"`
+}
+
+// AgentConfigurationSnapshotSchemaVersion defines model for AgentConfigurationSnapshot.SchemaVersion.
+type AgentConfigurationSnapshotSchemaVersion int
+
 // AgentEnrollmentSettings defines model for AgentEnrollmentSettings.
 type AgentEnrollmentSettings struct {
 	Enabled             bool       `json:"enabled"`
@@ -284,6 +337,7 @@ type AgentPlatform string
 type AgentPollRequest struct {
 	AppliedConfigurationRevision int64         `json:"appliedConfigurationRevision"`
 	ConfigurationError           *string       `json:"configurationError,omitempty"`
+	ConfigurationErrorRevision   *int64        `json:"configurationErrorRevision,omitempty"`
 	Metadata                     AgentMetadata `json:"metadata"`
 }
 
@@ -355,6 +409,8 @@ type Node struct {
 	Capabilities                 []string                `json:"capabilities"`
 	ConfigurationError           *string                 `json:"configurationError,omitempty"`
 	ConfigurationStatus          NodeConfigurationStatus `json:"configurationStatus"`
+	DeletionError                *string                 `json:"deletionError,omitempty"`
+	DeletionStatus               *NodeDeletionStatus     `json:"deletionStatus,omitempty"`
 	DesiredConfigurationRevision int64                   `json:"desiredConfigurationRevision"`
 	Enabled                      bool                    `json:"enabled"`
 	Hostname                     string                  `json:"hostname"`
@@ -369,6 +425,17 @@ type Node struct {
 // NodeConfigurationStatus defines model for NodeConfigurationStatus.
 type NodeConfigurationStatus string
 
+// NodeDeletion defines model for NodeDeletion.
+type NodeDeletion struct {
+	Error       *string            `json:"error,omitempty"`
+	NodeId      openapi_types.UUID `json:"nodeId"`
+	RequestedAt time.Time          `json:"requestedAt"`
+	Status      NodeDeletionStatus `json:"status"`
+}
+
+// NodeDeletionStatus defines model for NodeDeletionStatus.
+type NodeDeletionStatus string
+
 // NodeList defines model for NodeList.
 type NodeList struct {
 	Items []Node `json:"items"`
@@ -376,6 +443,11 @@ type NodeList struct {
 
 // NodeStatus defines model for NodeStatus.
 type NodeStatus string
+
+// NodeUpdate defines model for NodeUpdate.
+type NodeUpdate struct {
+	Enabled bool `json:"enabled"`
+}
 
 // SupportedLocale defines model for SupportedLocale.
 type SupportedLocale string
@@ -416,6 +488,9 @@ type TOTPEnrollment struct {
 // CSRFToken defines model for CSRFToken.
 type CSRFToken = string
 
+// NodeId defines model for NodeId.
+type NodeId = openapi_types.UUID
+
 // AgentForbidden defines model for AgentForbidden.
 type AgentForbidden = ErrorResponse
 
@@ -430,6 +505,9 @@ type Conflict = ErrorResponse
 
 // Forbidden defines model for Forbidden.
 type Forbidden = ErrorResponse
+
+// NotFound defines model for NotFound.
+type NotFound = ErrorResponse
 
 // Unauthorized defines model for Unauthorized.
 type Unauthorized = ErrorResponse
@@ -479,6 +557,21 @@ type LogoutParams struct {
 	XCSRFToken *CSRFToken `json:"X-CSRF-Token,omitempty"`
 }
 
+// DeleteNodeParams defines parameters for DeleteNode.
+type DeleteNodeParams struct {
+	XCSRFToken *CSRFToken `json:"X-CSRF-Token,omitempty"`
+}
+
+// UpdateNodeParams defines parameters for UpdateNode.
+type UpdateNodeParams struct {
+	XCSRFToken *CSRFToken `json:"X-CSRF-Token,omitempty"`
+}
+
+// RevokeNodeParams defines parameters for RevokeNode.
+type RevokeNodeParams struct {
+	XCSRFToken *CSRFToken `json:"X-CSRF-Token,omitempty"`
+}
+
 // UpdateAccountJSONRequestBody defines body for UpdateAccount for application/json ContentType.
 type UpdateAccountJSONRequestBody = AccountUpdateRequest
 
@@ -505,6 +598,9 @@ type RegisterAgentJSONRequestBody = AgentRegistrationRequest
 
 // LoginJSONRequestBody defines body for Login for application/json ContentType.
 type LoginJSONRequestBody = LoginRequest
+
+// UpdateNodeJSONRequestBody defines body for UpdateNode for application/json ContentType.
+type UpdateNodeJSONRequestBody = NodeUpdate
 
 // RequestEditorFn is the function signature for the RequestEditor callback function
 type RequestEditorFn func(ctx context.Context, req *http.Request) error
@@ -684,6 +780,11 @@ type ClientInterface interface {
 	// Corresponds with POST /api/v1/agent-enrollment/key (the `RotateAgentEnrollmentKey` operationId).
 	RotateAgentEnrollmentKey(ctx context.Context, params *RotateAgentEnrollmentKeyParams, reqEditors ...RequestEditorFn) (*http.Response, error)
 
+	// GetAgentConfiguration Read the current complete desired Agent configuration
+	//
+	// Corresponds with GET /api/v1/agent/configuration (the `GetAgentConfiguration` operationId).
+	GetAgentConfiguration(ctx context.Context, reqEditors ...RequestEditorFn) (*http.Response, error)
+
 	// PollAgentWithBody Report Agent state and read current control state
 	//
 	// Takes any type of body and a specified content type.
@@ -740,6 +841,30 @@ type ClientInterface interface {
 	//
 	// Corresponds with GET /api/v1/nodes (the `ListNodes` operationId).
 	ListNodes(ctx context.Context, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// DeleteNode Permanently delete a node and all owned data
+	//
+	// Corresponds with DELETE /api/v1/nodes/{nodeId} (the `DeleteNode` operationId).
+	DeleteNode(ctx context.Context, nodeId NodeId, params *DeleteNodeParams, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// UpdateNodeWithBody Update node monitoring state
+	//
+	// Takes any type of body and a specified content type.
+	//
+	// Corresponds with PATCH /api/v1/nodes/{nodeId} (the `UpdateNode` operationId).
+	UpdateNodeWithBody(ctx context.Context, nodeId NodeId, params *UpdateNodeParams, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// UpdateNode Update node monitoring state
+	//
+	// Takes a body of the `application/json` content type.
+	//
+	// Corresponds with PATCH /api/v1/nodes/{nodeId} (the `UpdateNode` operationId).
+	UpdateNode(ctx context.Context, nodeId NodeId, params *UpdateNodeParams, body UpdateNodeJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// RevokeNode Permanently revoke a node Agent credential
+	//
+	// Corresponds with POST /api/v1/nodes/{nodeId}/revoke (the `RevokeNode` operationId).
+	RevokeNode(ctx context.Context, nodeId NodeId, params *RevokeNodeParams, reqEditors ...RequestEditorFn) (*http.Response, error)
 
 	// GetSystemStatus Read center status
 	//
@@ -1011,6 +1136,21 @@ func (c *Client) RotateAgentEnrollmentKey(ctx context.Context, params *RotateAge
 	return c.Client.Do(req)
 }
 
+// GetAgentConfiguration Read the current complete desired Agent configuration
+//
+// Corresponds with GET /api/v1/agent/configuration (the `GetAgentConfiguration` operationId).
+func (c *Client) GetAgentConfiguration(ctx context.Context, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewGetAgentConfigurationRequest(c.Server)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
 // PollAgentWithBody Report Agent state and read current control state
 //
 // Takes any type of body and a specified content type.
@@ -1148,6 +1288,70 @@ func (c *Client) GetAuthenticatedSession(ctx context.Context, reqEditors ...Requ
 // Corresponds with GET /api/v1/nodes (the `ListNodes` operationId).
 func (c *Client) ListNodes(ctx context.Context, reqEditors ...RequestEditorFn) (*http.Response, error) {
 	req, err := NewListNodesRequest(c.Server)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+// DeleteNode Permanently delete a node and all owned data
+//
+// Corresponds with DELETE /api/v1/nodes/{nodeId} (the `DeleteNode` operationId).
+func (c *Client) DeleteNode(ctx context.Context, nodeId NodeId, params *DeleteNodeParams, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewDeleteNodeRequest(c.Server, nodeId, params)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+// UpdateNodeWithBody Update node monitoring state
+//
+// Takes any type of body and a specified content type.
+//
+// Corresponds with PATCH /api/v1/nodes/{nodeId} (the `UpdateNode` operationId).
+func (c *Client) UpdateNodeWithBody(ctx context.Context, nodeId NodeId, params *UpdateNodeParams, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewUpdateNodeRequestWithBody(c.Server, nodeId, params, contentType, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+// UpdateNode Update node monitoring state
+//
+// Takes a body of the `application/json` content type.
+//
+// Corresponds with PATCH /api/v1/nodes/{nodeId} (the `UpdateNode` operationId).
+func (c *Client) UpdateNode(ctx context.Context, nodeId NodeId, params *UpdateNodeParams, body UpdateNodeJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewUpdateNodeRequest(c.Server, nodeId, params, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+// RevokeNode Permanently revoke a node Agent credential
+//
+// Corresponds with POST /api/v1/nodes/{nodeId}/revoke (the `RevokeNode` operationId).
+func (c *Client) RevokeNode(ctx context.Context, nodeId NodeId, params *RevokeNodeParams, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewRevokeNodeRequest(c.Server, nodeId, params)
 	if err != nil {
 		return nil, err
 	}
@@ -1641,6 +1845,33 @@ func NewRotateAgentEnrollmentKeyRequest(server string, params *RotateAgentEnroll
 	return req, nil
 }
 
+// NewGetAgentConfigurationRequest constructs an http.Request for the GetAgentConfiguration method
+func NewGetAgentConfigurationRequest(server string) (*http.Request, error) {
+	var err error
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/api/v1/agent/configuration")
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest(http.MethodGet, queryURL.String(), nil)
+	if err != nil {
+		return nil, err
+	}
+
+	return req, nil
+}
+
 // NewPollAgentRequest calls the generic PollAgent builder with application/json body
 func NewPollAgentRequest(server string, body PollAgentJSONRequestBody) (*http.Request, error) {
 	var bodyReader io.Reader
@@ -1857,6 +2088,166 @@ func NewListNodesRequest(server string) (*http.Request, error) {
 	return req, nil
 }
 
+// NewDeleteNodeRequest constructs an http.Request for the DeleteNode method
+func NewDeleteNodeRequest(server string, nodeId NodeId, params *DeleteNodeParams) (*http.Request, error) {
+	var err error
+
+	var pathParam0 string
+
+	pathParam0, err = runtime.StyleParamWithOptions("simple", false, "nodeId", nodeId, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationPath, Type: "string", Format: "uuid"})
+	if err != nil {
+		return nil, err
+	}
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/api/v1/nodes/%s", pathParam0)
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest(http.MethodDelete, queryURL.String(), nil)
+	if err != nil {
+		return nil, err
+	}
+
+	if params != nil {
+
+		if params.XCSRFToken != nil {
+			var headerParam0 string
+
+			headerParam0, err = runtime.StyleParamWithOptions("simple", false, "X-CSRF-Token", *params.XCSRFToken, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationHeader, Type: "string", Format: ""})
+			if err != nil {
+				return nil, err
+			}
+
+			req.Header.Set("X-CSRF-Token", headerParam0)
+		}
+
+	}
+
+	return req, nil
+}
+
+// NewUpdateNodeRequest calls the generic UpdateNode builder with application/json body
+func NewUpdateNodeRequest(server string, nodeId NodeId, params *UpdateNodeParams, body UpdateNodeJSONRequestBody) (*http.Request, error) {
+	var bodyReader io.Reader
+	buf, err := json.Marshal(body)
+	if err != nil {
+		return nil, err
+	}
+	bodyReader = bytes.NewReader(buf)
+	return NewUpdateNodeRequestWithBody(server, nodeId, params, "application/json", bodyReader)
+}
+
+// NewUpdateNodeRequestWithBody constructs an http.Request for the UpdateNode method, with any body, and a specified content type
+func NewUpdateNodeRequestWithBody(server string, nodeId NodeId, params *UpdateNodeParams, contentType string, body io.Reader) (*http.Request, error) {
+	var err error
+
+	var pathParam0 string
+
+	pathParam0, err = runtime.StyleParamWithOptions("simple", false, "nodeId", nodeId, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationPath, Type: "string", Format: "uuid"})
+	if err != nil {
+		return nil, err
+	}
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/api/v1/nodes/%s", pathParam0)
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest(http.MethodPatch, queryURL.String(), body)
+	if err != nil {
+		return nil, err
+	}
+
+	req.Header.Add("Content-Type", contentType)
+
+	if params != nil {
+
+		if params.XCSRFToken != nil {
+			var headerParam0 string
+
+			headerParam0, err = runtime.StyleParamWithOptions("simple", false, "X-CSRF-Token", *params.XCSRFToken, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationHeader, Type: "string", Format: ""})
+			if err != nil {
+				return nil, err
+			}
+
+			req.Header.Set("X-CSRF-Token", headerParam0)
+		}
+
+	}
+
+	return req, nil
+}
+
+// NewRevokeNodeRequest constructs an http.Request for the RevokeNode method
+func NewRevokeNodeRequest(server string, nodeId NodeId, params *RevokeNodeParams) (*http.Request, error) {
+	var err error
+
+	var pathParam0 string
+
+	pathParam0, err = runtime.StyleParamWithOptions("simple", false, "nodeId", nodeId, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationPath, Type: "string", Format: "uuid"})
+	if err != nil {
+		return nil, err
+	}
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/api/v1/nodes/%s/revoke", pathParam0)
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest(http.MethodPost, queryURL.String(), nil)
+	if err != nil {
+		return nil, err
+	}
+
+	if params != nil {
+
+		if params.XCSRFToken != nil {
+			var headerParam0 string
+
+			headerParam0, err = runtime.StyleParamWithOptions("simple", false, "X-CSRF-Token", *params.XCSRFToken, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationHeader, Type: "string", Format: ""})
+			if err != nil {
+				return nil, err
+			}
+
+			req.Header.Set("X-CSRF-Token", headerParam0)
+		}
+
+	}
+
+	return req, nil
+}
+
 // NewGetSystemStatusRequest constructs an http.Request for the GetSystemStatus method
 func NewGetSystemStatusRequest(server string) (*http.Request, error) {
 	var err error
@@ -2040,6 +2431,13 @@ type ClientWithResponsesInterface interface {
 	// Corresponds with POST /api/v1/agent-enrollment/key (the `RotateAgentEnrollmentKey` operationId).
 	RotateAgentEnrollmentKeyWithResponse(ctx context.Context, params *RotateAgentEnrollmentKeyParams, reqEditors ...RequestEditorFn) (*RotateAgentEnrollmentKeyResponse, error)
 
+	// GetAgentConfigurationWithResponse Read the current complete desired Agent configuration
+	//
+	// Returns a wrapper object for the known response body format(s).
+	//
+	// Corresponds with GET /api/v1/agent/configuration (the `GetAgentConfiguration` operationId).
+	GetAgentConfigurationWithResponse(ctx context.Context, reqEditors ...RequestEditorFn) (*GetAgentConfigurationResponse, error)
+
 	// PollAgentWithBodyWithResponse Report Agent state and read current control state
 	//
 	// Takes any type of body and a specified content type, and returns a wrapper object for the known response body format(s).
@@ -2102,6 +2500,34 @@ type ClientWithResponsesInterface interface {
 	//
 	// Corresponds with GET /api/v1/nodes (the `ListNodes` operationId).
 	ListNodesWithResponse(ctx context.Context, reqEditors ...RequestEditorFn) (*ListNodesResponse, error)
+
+	// DeleteNodeWithResponse Permanently delete a node and all owned data
+	//
+	// Returns a wrapper object for the known response body format(s).
+	//
+	// Corresponds with DELETE /api/v1/nodes/{nodeId} (the `DeleteNode` operationId).
+	DeleteNodeWithResponse(ctx context.Context, nodeId NodeId, params *DeleteNodeParams, reqEditors ...RequestEditorFn) (*DeleteNodeResponse, error)
+
+	// UpdateNodeWithBodyWithResponse Update node monitoring state
+	//
+	// Takes any type of body and a specified content type, and returns a wrapper object for the known response body format(s).
+	//
+	// Corresponds with PATCH /api/v1/nodes/{nodeId} (the `UpdateNode` operationId).
+	UpdateNodeWithBodyWithResponse(ctx context.Context, nodeId NodeId, params *UpdateNodeParams, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*UpdateNodeResponse, error)
+
+	// UpdateNodeWithResponse Update node monitoring state
+	//
+	// Takes a body of the `application/json` content type, and returns a wrapper object for the known response body format(s).
+	//
+	// Corresponds with PATCH /api/v1/nodes/{nodeId} (the `UpdateNode` operationId).
+	UpdateNodeWithResponse(ctx context.Context, nodeId NodeId, params *UpdateNodeParams, body UpdateNodeJSONRequestBody, reqEditors ...RequestEditorFn) (*UpdateNodeResponse, error)
+
+	// RevokeNodeWithResponse Permanently revoke a node Agent credential
+	//
+	// Returns a wrapper object for the known response body format(s).
+	//
+	// Corresponds with POST /api/v1/nodes/{nodeId}/revoke (the `RevokeNode` operationId).
+	RevokeNodeWithResponse(ctx context.Context, nodeId NodeId, params *RevokeNodeParams, reqEditors ...RequestEditorFn) (*RevokeNodeResponse, error)
 
 	// GetSystemStatusWithResponse Read center status
 	//
@@ -2724,6 +3150,61 @@ func (r RotateAgentEnrollmentKeyResponse) ContentType() string {
 	return ""
 }
 
+type GetAgentConfigurationResponse struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	// JSON200 the response for an HTTP 200 `application/json` response
+	JSON200 *AgentConfigurationSnapshot
+	// JSON401 the response for an HTTP 401 `application/json` response
+	JSON401 *AgentUnauthorized
+	// JSON403 the response for an HTTP 403 `application/json` response
+	JSON403 *AgentForbidden
+}
+
+// GetJSON200 returns the response for an HTTP 200 `application/json` response
+func (r GetAgentConfigurationResponse) GetJSON200() *AgentConfigurationSnapshot {
+	return r.JSON200
+}
+
+// GetJSON401 returns the response for an HTTP 401 `application/json` response
+func (r GetAgentConfigurationResponse) GetJSON401() *AgentUnauthorized {
+	return r.JSON401
+}
+
+// GetJSON403 returns the response for an HTTP 403 `application/json` response
+func (r GetAgentConfigurationResponse) GetJSON403() *AgentForbidden {
+	return r.JSON403
+}
+
+// GetBody returns the raw response body bytes
+func (r GetAgentConfigurationResponse) GetBody() []byte {
+	return r.Body
+}
+
+// Status returns HTTPResponse.Status
+func (r GetAgentConfigurationResponse) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r GetAgentConfigurationResponse) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+// ContentType is a convenience method to retrieve the Content-Type value from the HTTP response headers
+func (r GetAgentConfigurationResponse) ContentType() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Header.Get("Content-Type")
+	}
+	return ""
+}
+
 type PollAgentResponse struct {
 	Body         []byte
 	HTTPResponse *http.Response
@@ -3075,6 +3556,213 @@ func (r ListNodesResponse) ContentType() string {
 	return ""
 }
 
+type DeleteNodeResponse struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	// JSON202 the response for an HTTP 202 `application/json` response
+	JSON202 *NodeDeletion
+	// JSON401 the response for an HTTP 401 `application/json` response
+	JSON401 *Unauthorized
+	// JSON403 the response for an HTTP 403 `application/json` response
+	JSON403 *Forbidden
+	// JSON404 the response for an HTTP 404 `application/json` response
+	JSON404 *NotFound
+}
+
+// GetJSON202 returns the response for an HTTP 202 `application/json` response
+func (r DeleteNodeResponse) GetJSON202() *NodeDeletion {
+	return r.JSON202
+}
+
+// GetJSON401 returns the response for an HTTP 401 `application/json` response
+func (r DeleteNodeResponse) GetJSON401() *Unauthorized {
+	return r.JSON401
+}
+
+// GetJSON403 returns the response for an HTTP 403 `application/json` response
+func (r DeleteNodeResponse) GetJSON403() *Forbidden {
+	return r.JSON403
+}
+
+// GetJSON404 returns the response for an HTTP 404 `application/json` response
+func (r DeleteNodeResponse) GetJSON404() *NotFound {
+	return r.JSON404
+}
+
+// GetBody returns the raw response body bytes
+func (r DeleteNodeResponse) GetBody() []byte {
+	return r.Body
+}
+
+// Status returns HTTPResponse.Status
+func (r DeleteNodeResponse) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r DeleteNodeResponse) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+// ContentType is a convenience method to retrieve the Content-Type value from the HTTP response headers
+func (r DeleteNodeResponse) ContentType() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Header.Get("Content-Type")
+	}
+	return ""
+}
+
+type UpdateNodeResponse struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	// JSON200 the response for an HTTP 200 `application/json` response
+	JSON200 *Node
+	// JSON400 the response for an HTTP 400 `application/json` response
+	JSON400 *BadRequest
+	// JSON401 the response for an HTTP 401 `application/json` response
+	JSON401 *Unauthorized
+	// JSON403 the response for an HTTP 403 `application/json` response
+	JSON403 *Forbidden
+	// JSON404 the response for an HTTP 404 `application/json` response
+	JSON404 *NotFound
+	// JSON409 the response for an HTTP 409 `application/json` response
+	JSON409 *Conflict
+}
+
+// GetJSON200 returns the response for an HTTP 200 `application/json` response
+func (r UpdateNodeResponse) GetJSON200() *Node {
+	return r.JSON200
+}
+
+// GetJSON400 returns the response for an HTTP 400 `application/json` response
+func (r UpdateNodeResponse) GetJSON400() *BadRequest {
+	return r.JSON400
+}
+
+// GetJSON401 returns the response for an HTTP 401 `application/json` response
+func (r UpdateNodeResponse) GetJSON401() *Unauthorized {
+	return r.JSON401
+}
+
+// GetJSON403 returns the response for an HTTP 403 `application/json` response
+func (r UpdateNodeResponse) GetJSON403() *Forbidden {
+	return r.JSON403
+}
+
+// GetJSON404 returns the response for an HTTP 404 `application/json` response
+func (r UpdateNodeResponse) GetJSON404() *NotFound {
+	return r.JSON404
+}
+
+// GetJSON409 returns the response for an HTTP 409 `application/json` response
+func (r UpdateNodeResponse) GetJSON409() *Conflict {
+	return r.JSON409
+}
+
+// GetBody returns the raw response body bytes
+func (r UpdateNodeResponse) GetBody() []byte {
+	return r.Body
+}
+
+// Status returns HTTPResponse.Status
+func (r UpdateNodeResponse) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r UpdateNodeResponse) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+// ContentType is a convenience method to retrieve the Content-Type value from the HTTP response headers
+func (r UpdateNodeResponse) ContentType() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Header.Get("Content-Type")
+	}
+	return ""
+}
+
+type RevokeNodeResponse struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	// JSON200 the response for an HTTP 200 `application/json` response
+	JSON200 *Node
+	// JSON401 the response for an HTTP 401 `application/json` response
+	JSON401 *Unauthorized
+	// JSON403 the response for an HTTP 403 `application/json` response
+	JSON403 *Forbidden
+	// JSON404 the response for an HTTP 404 `application/json` response
+	JSON404 *NotFound
+	// JSON409 the response for an HTTP 409 `application/json` response
+	JSON409 *Conflict
+}
+
+// GetJSON200 returns the response for an HTTP 200 `application/json` response
+func (r RevokeNodeResponse) GetJSON200() *Node {
+	return r.JSON200
+}
+
+// GetJSON401 returns the response for an HTTP 401 `application/json` response
+func (r RevokeNodeResponse) GetJSON401() *Unauthorized {
+	return r.JSON401
+}
+
+// GetJSON403 returns the response for an HTTP 403 `application/json` response
+func (r RevokeNodeResponse) GetJSON403() *Forbidden {
+	return r.JSON403
+}
+
+// GetJSON404 returns the response for an HTTP 404 `application/json` response
+func (r RevokeNodeResponse) GetJSON404() *NotFound {
+	return r.JSON404
+}
+
+// GetJSON409 returns the response for an HTTP 409 `application/json` response
+func (r RevokeNodeResponse) GetJSON409() *Conflict {
+	return r.JSON409
+}
+
+// GetBody returns the raw response body bytes
+func (r RevokeNodeResponse) GetBody() []byte {
+	return r.Body
+}
+
+// Status returns HTTPResponse.Status
+func (r RevokeNodeResponse) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r RevokeNodeResponse) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+// ContentType is a convenience method to retrieve the Content-Type value from the HTTP response headers
+func (r RevokeNodeResponse) ContentType() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Header.Get("Content-Type")
+	}
+	return ""
+}
+
 type GetSystemStatusResponse struct {
 	Body         []byte
 	HTTPResponse *http.Response
@@ -3331,6 +4019,19 @@ func (c *ClientWithResponses) RotateAgentEnrollmentKeyWithResponse(ctx context.C
 	return ParseRotateAgentEnrollmentKeyResponse(rsp)
 }
 
+// GetAgentConfigurationWithResponse Read the current complete desired Agent configuration
+//
+// Returns a wrapper object for the known response body format(s).
+//
+// Corresponds with GET /api/v1/agent/configuration (the `GetAgentConfiguration` operationId).
+func (c *ClientWithResponses) GetAgentConfigurationWithResponse(ctx context.Context, reqEditors ...RequestEditorFn) (*GetAgentConfigurationResponse, error) {
+	rsp, err := c.GetAgentConfiguration(ctx, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseGetAgentConfigurationResponse(rsp)
+}
+
 // PollAgentWithBodyWithResponse Report Agent state and read current control state
 //
 // Takes any type of body and a specified content type, and returns a wrapper object for the known response body format(s).
@@ -3446,6 +4147,58 @@ func (c *ClientWithResponses) ListNodesWithResponse(ctx context.Context, reqEdit
 		return nil, err
 	}
 	return ParseListNodesResponse(rsp)
+}
+
+// DeleteNodeWithResponse Permanently delete a node and all owned data
+//
+// Returns a wrapper object for the known response body format(s).
+//
+// Corresponds with DELETE /api/v1/nodes/{nodeId} (the `DeleteNode` operationId).
+func (c *ClientWithResponses) DeleteNodeWithResponse(ctx context.Context, nodeId NodeId, params *DeleteNodeParams, reqEditors ...RequestEditorFn) (*DeleteNodeResponse, error) {
+	rsp, err := c.DeleteNode(ctx, nodeId, params, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseDeleteNodeResponse(rsp)
+}
+
+// UpdateNodeWithBodyWithResponse Update node monitoring state
+//
+// Takes any type of body and a specified content type, and returns a wrapper object for the known response body format(s).
+//
+// Corresponds with PATCH /api/v1/nodes/{nodeId} (the `UpdateNode` operationId).
+func (c *ClientWithResponses) UpdateNodeWithBodyWithResponse(ctx context.Context, nodeId NodeId, params *UpdateNodeParams, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*UpdateNodeResponse, error) {
+	rsp, err := c.UpdateNodeWithBody(ctx, nodeId, params, contentType, body, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseUpdateNodeResponse(rsp)
+}
+
+// UpdateNodeWithResponse Update node monitoring state
+//
+// Takes a body of the `application/json` content type, and returns a wrapper object for the known response body format(s).
+//
+// Corresponds with PATCH /api/v1/nodes/{nodeId} (the `UpdateNode` operationId).
+func (c *ClientWithResponses) UpdateNodeWithResponse(ctx context.Context, nodeId NodeId, params *UpdateNodeParams, body UpdateNodeJSONRequestBody, reqEditors ...RequestEditorFn) (*UpdateNodeResponse, error) {
+	rsp, err := c.UpdateNode(ctx, nodeId, params, body, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseUpdateNodeResponse(rsp)
+}
+
+// RevokeNodeWithResponse Permanently revoke a node Agent credential
+//
+// Returns a wrapper object for the known response body format(s).
+//
+// Corresponds with POST /api/v1/nodes/{nodeId}/revoke (the `RevokeNode` operationId).
+func (c *ClientWithResponses) RevokeNodeWithResponse(ctx context.Context, nodeId NodeId, params *RevokeNodeParams, reqEditors ...RequestEditorFn) (*RevokeNodeResponse, error) {
+	rsp, err := c.RevokeNode(ctx, nodeId, params, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseRevokeNodeResponse(rsp)
 }
 
 // GetSystemStatusWithResponse Read center status
@@ -3948,6 +4701,46 @@ func ParseRotateAgentEnrollmentKeyResponse(rsp *http.Response) (*RotateAgentEnro
 	return response, nil
 }
 
+// ParseGetAgentConfigurationResponse parses an HTTP response from a GetAgentConfigurationWithResponse call
+func ParseGetAgentConfigurationResponse(rsp *http.Response) (*GetAgentConfigurationResponse, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &GetAgentConfigurationResponse{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest AgentConfigurationSnapshot
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 401:
+		var dest AgentUnauthorized
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON401 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 403:
+		var dest AgentForbidden
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON403 = &dest
+
+	}
+
+	return response, nil
+}
+
 // ParsePollAgentResponse parses an HTTP response from a PollAgentWithResponse call
 func ParsePollAgentResponse(rsp *http.Response) (*PollAgentResponse, error) {
 	bodyBytes, err := io.ReadAll(rsp.Body)
@@ -4218,6 +5011,168 @@ func ParseListNodesResponse(rsp *http.Response) (*ListNodesResponse, error) {
 			return nil, err
 		}
 		response.JSON401 = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseDeleteNodeResponse parses an HTTP response from a DeleteNodeWithResponse call
+func ParseDeleteNodeResponse(rsp *http.Response) (*DeleteNodeResponse, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &DeleteNodeResponse{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 202:
+		var dest NodeDeletion
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON202 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 401:
+		var dest Unauthorized
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON401 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 403:
+		var dest Forbidden
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON403 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 404:
+		var dest NotFound
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON404 = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseUpdateNodeResponse parses an HTTP response from a UpdateNodeWithResponse call
+func ParseUpdateNodeResponse(rsp *http.Response) (*UpdateNodeResponse, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &UpdateNodeResponse{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest Node
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 400:
+		var dest BadRequest
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON400 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 401:
+		var dest Unauthorized
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON401 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 403:
+		var dest Forbidden
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON403 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 404:
+		var dest NotFound
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON404 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 409:
+		var dest Conflict
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON409 = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseRevokeNodeResponse parses an HTTP response from a RevokeNodeWithResponse call
+func ParseRevokeNodeResponse(rsp *http.Response) (*RevokeNodeResponse, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &RevokeNodeResponse{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest Node
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 401:
+		var dest Unauthorized
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON401 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 403:
+		var dest Forbidden
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON403 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 404:
+		var dest NotFound
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON404 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 409:
+		var dest Conflict
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON409 = &dest
 
 	}
 

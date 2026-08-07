@@ -34,6 +34,21 @@ func (e AgentArchitecture) Valid() bool {
 	}
 }
 
+// Defines values for AgentConfigurationSnapshotSchemaVersion.
+const (
+	N1 AgentConfigurationSnapshotSchemaVersion = 1
+)
+
+// Valid indicates whether the value is a known member of the AgentConfigurationSnapshotSchemaVersion enum.
+func (e AgentConfigurationSnapshotSchemaVersion) Valid() bool {
+	switch e {
+	case N1:
+		return true
+	default:
+		return false
+	}
+}
+
 // Defines values for AgentPlatform.
 const (
 	Linux AgentPlatform = "linux"
@@ -60,6 +75,9 @@ const (
 	InvalidRequest                ErrorCode = "invalid_request"
 	InvalidTotp                   ErrorCode = "invalid_totp"
 	NoAccountChange               ErrorCode = "no_account_change"
+	NodeDeletionPending           ErrorCode = "node_deletion_pending"
+	NodeNotFound                  ErrorCode = "node_not_found"
+	NodeRevoked                   ErrorCode = "node_revoked"
 	OriginNotAllowed              ErrorCode = "origin_not_allowed"
 	RateLimited                   ErrorCode = "rate_limited"
 	RegistrationDisabled          ErrorCode = "registration_disabled"
@@ -93,6 +111,12 @@ func (e ErrorCode) Valid() bool {
 		return true
 	case NoAccountChange:
 		return true
+	case NodeDeletionPending:
+		return true
+	case NodeNotFound:
+		return true
+	case NodeRevoked:
+		return true
 	case OriginNotAllowed:
 		return true
 	case RateLimited:
@@ -120,19 +144,37 @@ func (e ErrorCode) Valid() bool {
 
 // Defines values for NodeConfigurationStatus.
 const (
-	Current NodeConfigurationStatus = "current"
-	Failed  NodeConfigurationStatus = "failed"
-	Pending NodeConfigurationStatus = "pending"
+	NodeConfigurationStatusCurrent NodeConfigurationStatus = "current"
+	NodeConfigurationStatusFailed  NodeConfigurationStatus = "failed"
+	NodeConfigurationStatusPending NodeConfigurationStatus = "pending"
 )
 
 // Valid indicates whether the value is a known member of the NodeConfigurationStatus enum.
 func (e NodeConfigurationStatus) Valid() bool {
 	switch e {
-	case Current:
+	case NodeConfigurationStatusCurrent:
 		return true
-	case Failed:
+	case NodeConfigurationStatusFailed:
 		return true
-	case Pending:
+	case NodeConfigurationStatusPending:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for NodeDeletionStatus.
+const (
+	NodeDeletionStatusFailed  NodeDeletionStatus = "failed"
+	NodeDeletionStatusPending NodeDeletionStatus = "pending"
+)
+
+// Valid indicates whether the value is a known member of the NodeDeletionStatus enum.
+func (e NodeDeletionStatus) Valid() bool {
+	switch e {
+	case NodeDeletionStatusFailed:
+		return true
+	case NodeDeletionStatusPending:
 		return true
 	default:
 		return false
@@ -253,6 +295,17 @@ type AccountUpdateResult struct {
 // AgentArchitecture defines model for AgentArchitecture.
 type AgentArchitecture string
 
+// AgentConfigurationSnapshot defines model for AgentConfigurationSnapshot.
+type AgentConfigurationSnapshot struct {
+	Enabled           bool                                    `json:"enabled"`
+	HistoryGeneration string                                  `json:"historyGeneration"`
+	Revision          int64                                   `json:"revision"`
+	SchemaVersion     AgentConfigurationSnapshotSchemaVersion `json:"schemaVersion"`
+}
+
+// AgentConfigurationSnapshotSchemaVersion defines model for AgentConfigurationSnapshot.SchemaVersion.
+type AgentConfigurationSnapshotSchemaVersion int
+
 // AgentEnrollmentSettings defines model for AgentEnrollmentSettings.
 type AgentEnrollmentSettings struct {
 	Enabled             bool       `json:"enabled"`
@@ -282,6 +335,7 @@ type AgentPlatform string
 type AgentPollRequest struct {
 	AppliedConfigurationRevision int64         `json:"appliedConfigurationRevision"`
 	ConfigurationError           *string       `json:"configurationError,omitempty"`
+	ConfigurationErrorRevision   *int64        `json:"configurationErrorRevision,omitempty"`
 	Metadata                     AgentMetadata `json:"metadata"`
 }
 
@@ -353,6 +407,8 @@ type Node struct {
 	Capabilities                 []string                `json:"capabilities"`
 	ConfigurationError           *string                 `json:"configurationError,omitempty"`
 	ConfigurationStatus          NodeConfigurationStatus `json:"configurationStatus"`
+	DeletionError                *string                 `json:"deletionError,omitempty"`
+	DeletionStatus               *NodeDeletionStatus     `json:"deletionStatus,omitempty"`
 	DesiredConfigurationRevision int64                   `json:"desiredConfigurationRevision"`
 	Enabled                      bool                    `json:"enabled"`
 	Hostname                     string                  `json:"hostname"`
@@ -367,6 +423,17 @@ type Node struct {
 // NodeConfigurationStatus defines model for NodeConfigurationStatus.
 type NodeConfigurationStatus string
 
+// NodeDeletion defines model for NodeDeletion.
+type NodeDeletion struct {
+	Error       *string            `json:"error,omitempty"`
+	NodeId      openapi_types.UUID `json:"nodeId"`
+	RequestedAt time.Time          `json:"requestedAt"`
+	Status      NodeDeletionStatus `json:"status"`
+}
+
+// NodeDeletionStatus defines model for NodeDeletionStatus.
+type NodeDeletionStatus string
+
 // NodeList defines model for NodeList.
 type NodeList struct {
 	Items []Node `json:"items"`
@@ -374,6 +441,11 @@ type NodeList struct {
 
 // NodeStatus defines model for NodeStatus.
 type NodeStatus string
+
+// NodeUpdate defines model for NodeUpdate.
+type NodeUpdate struct {
+	Enabled bool `json:"enabled"`
+}
 
 // SupportedLocale defines model for SupportedLocale.
 type SupportedLocale string
@@ -414,6 +486,9 @@ type TOTPEnrollment struct {
 // CSRFToken defines model for CSRFToken.
 type CSRFToken = string
 
+// NodeId defines model for NodeId.
+type NodeId = openapi_types.UUID
+
 // AgentForbidden defines model for AgentForbidden.
 type AgentForbidden = ErrorResponse
 
@@ -428,6 +503,9 @@ type Conflict = ErrorResponse
 
 // Forbidden defines model for Forbidden.
 type Forbidden = ErrorResponse
+
+// NotFound defines model for NotFound.
+type NotFound = ErrorResponse
 
 // Unauthorized defines model for Unauthorized.
 type Unauthorized = ErrorResponse
@@ -477,6 +555,21 @@ type LogoutParams struct {
 	XCSRFToken *CSRFToken `json:"X-CSRF-Token,omitempty"`
 }
 
+// DeleteNodeParams defines parameters for DeleteNode.
+type DeleteNodeParams struct {
+	XCSRFToken *CSRFToken `json:"X-CSRF-Token,omitempty"`
+}
+
+// UpdateNodeParams defines parameters for UpdateNode.
+type UpdateNodeParams struct {
+	XCSRFToken *CSRFToken `json:"X-CSRF-Token,omitempty"`
+}
+
+// RevokeNodeParams defines parameters for RevokeNode.
+type RevokeNodeParams struct {
+	XCSRFToken *CSRFToken `json:"X-CSRF-Token,omitempty"`
+}
+
 // UpdateAccountJSONRequestBody defines body for UpdateAccount for application/json ContentType.
 type UpdateAccountJSONRequestBody = AccountUpdateRequest
 
@@ -503,6 +596,9 @@ type RegisterAgentJSONRequestBody = AgentRegistrationRequest
 
 // LoginJSONRequestBody defines body for Login for application/json ContentType.
 type LoginJSONRequestBody = LoginRequest
+
+// UpdateNodeJSONRequestBody defines body for UpdateNode for application/json ContentType.
+type UpdateNodeJSONRequestBody = NodeUpdate
 
 // ServerInterface represents all server handlers.
 type ServerInterface interface {
@@ -536,6 +632,9 @@ type ServerInterface interface {
 	// RotateAgentEnrollmentKey Generate or rotate the automatic Agent enrollment key
 	// (POST /api/v1/agent-enrollment/key)
 	RotateAgentEnrollmentKey(w http.ResponseWriter, r *http.Request, params RotateAgentEnrollmentKeyParams)
+	// GetAgentConfiguration Read the current complete desired Agent configuration
+	// (GET /api/v1/agent/configuration)
+	GetAgentConfiguration(w http.ResponseWriter, r *http.Request)
 	// PollAgent Report Agent state and read current control state
 	// (POST /api/v1/agent/control)
 	PollAgent(w http.ResponseWriter, r *http.Request)
@@ -554,6 +653,15 @@ type ServerInterface interface {
 	// ListNodes List registered nodes
 	// (GET /api/v1/nodes)
 	ListNodes(w http.ResponseWriter, r *http.Request)
+	// DeleteNode Permanently delete a node and all owned data
+	// (DELETE /api/v1/nodes/{nodeId})
+	DeleteNode(w http.ResponseWriter, r *http.Request, nodeId NodeId, params DeleteNodeParams)
+	// UpdateNode Update node monitoring state
+	// (PATCH /api/v1/nodes/{nodeId})
+	UpdateNode(w http.ResponseWriter, r *http.Request, nodeId NodeId, params UpdateNodeParams)
+	// RevokeNode Permanently revoke a node Agent credential
+	// (POST /api/v1/nodes/{nodeId}/revoke)
+	RevokeNode(w http.ResponseWriter, r *http.Request, nodeId NodeId, params RevokeNodeParams)
 	// GetSystemStatus Read center status
 	// (GET /api/v1/system/status)
 	GetSystemStatus(w http.ResponseWriter, r *http.Request)
@@ -623,6 +731,12 @@ func (_ Unimplemented) RotateAgentEnrollmentKey(w http.ResponseWriter, r *http.R
 	w.WriteHeader(http.StatusNotImplemented)
 }
 
+// GetAgentConfiguration Read the current complete desired Agent configuration
+// (GET /api/v1/agent/configuration)
+func (_ Unimplemented) GetAgentConfiguration(w http.ResponseWriter, r *http.Request) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
 // PollAgent Report Agent state and read current control state
 // (POST /api/v1/agent/control)
 func (_ Unimplemented) PollAgent(w http.ResponseWriter, r *http.Request) {
@@ -656,6 +770,24 @@ func (_ Unimplemented) GetAuthenticatedSession(w http.ResponseWriter, r *http.Re
 // ListNodes List registered nodes
 // (GET /api/v1/nodes)
 func (_ Unimplemented) ListNodes(w http.ResponseWriter, r *http.Request) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
+// DeleteNode Permanently delete a node and all owned data
+// (DELETE /api/v1/nodes/{nodeId})
+func (_ Unimplemented) DeleteNode(w http.ResponseWriter, r *http.Request, nodeId NodeId, params DeleteNodeParams) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
+// UpdateNode Update node monitoring state
+// (PATCH /api/v1/nodes/{nodeId})
+func (_ Unimplemented) UpdateNode(w http.ResponseWriter, r *http.Request, nodeId NodeId, params UpdateNodeParams) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
+// RevokeNode Permanently revoke a node Agent credential
+// (POST /api/v1/nodes/{nodeId}/revoke)
+func (_ Unimplemented) RevokeNode(w http.ResponseWriter, r *http.Request, nodeId NodeId, params RevokeNodeParams) {
 	w.WriteHeader(http.StatusNotImplemented)
 }
 
@@ -1030,6 +1162,20 @@ func (siw *ServerInterfaceWrapper) RotateAgentEnrollmentKey(w http.ResponseWrite
 	handler.ServeHTTP(w, r)
 }
 
+// GetAgentConfiguration operation middleware
+func (siw *ServerInterfaceWrapper) GetAgentConfiguration(w http.ResponseWriter, r *http.Request) {
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.GetAgentConfiguration(w, r)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
 // PollAgent operation middleware
 func (siw *ServerInterfaceWrapper) PollAgent(w http.ResponseWriter, r *http.Request) {
 
@@ -1132,6 +1278,156 @@ func (siw *ServerInterfaceWrapper) ListNodes(w http.ResponseWriter, r *http.Requ
 
 	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		siw.Handler.ListNodes(w, r)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// DeleteNode operation middleware
+func (siw *ServerInterfaceWrapper) DeleteNode(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "nodeId" -------------
+	var nodeId NodeId
+
+	err = runtime.BindStyledParameterWithOptions("simple", "nodeId", chi.URLParam(r, "nodeId"), &nodeId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "uuid", ValueIsUnescaped: r.URL.RawPath == ""})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "nodeId", Err: err})
+		return
+	}
+
+	// Parameter object where we will unmarshal all parameters from the context
+	var params DeleteNodeParams
+
+	headers := r.Header
+
+	// ------------- Optional header parameter "X-CSRF-Token" -------------
+	if valueList, found := headers[http.CanonicalHeaderKey("X-CSRF-Token")]; found {
+		var XCSRFToken CSRFToken
+		n := len(valueList)
+		if n != 1 {
+			siw.ErrorHandlerFunc(w, r, &TooManyValuesForParamError{ParamName: "X-CSRF-Token", Count: n})
+			return
+		}
+
+		err = runtime.BindStyledParameterWithOptions("simple", "X-CSRF-Token", valueList[0], &XCSRFToken, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: false, Type: "string", Format: ""})
+		if err != nil {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "X-CSRF-Token", Err: err})
+			return
+		}
+
+		params.XCSRFToken = &XCSRFToken
+
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.DeleteNode(w, r, nodeId, params)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// UpdateNode operation middleware
+func (siw *ServerInterfaceWrapper) UpdateNode(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "nodeId" -------------
+	var nodeId NodeId
+
+	err = runtime.BindStyledParameterWithOptions("simple", "nodeId", chi.URLParam(r, "nodeId"), &nodeId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "uuid", ValueIsUnescaped: r.URL.RawPath == ""})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "nodeId", Err: err})
+		return
+	}
+
+	// Parameter object where we will unmarshal all parameters from the context
+	var params UpdateNodeParams
+
+	headers := r.Header
+
+	// ------------- Optional header parameter "X-CSRF-Token" -------------
+	if valueList, found := headers[http.CanonicalHeaderKey("X-CSRF-Token")]; found {
+		var XCSRFToken CSRFToken
+		n := len(valueList)
+		if n != 1 {
+			siw.ErrorHandlerFunc(w, r, &TooManyValuesForParamError{ParamName: "X-CSRF-Token", Count: n})
+			return
+		}
+
+		err = runtime.BindStyledParameterWithOptions("simple", "X-CSRF-Token", valueList[0], &XCSRFToken, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: false, Type: "string", Format: ""})
+		if err != nil {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "X-CSRF-Token", Err: err})
+			return
+		}
+
+		params.XCSRFToken = &XCSRFToken
+
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.UpdateNode(w, r, nodeId, params)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// RevokeNode operation middleware
+func (siw *ServerInterfaceWrapper) RevokeNode(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "nodeId" -------------
+	var nodeId NodeId
+
+	err = runtime.BindStyledParameterWithOptions("simple", "nodeId", chi.URLParam(r, "nodeId"), &nodeId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "uuid", ValueIsUnescaped: r.URL.RawPath == ""})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "nodeId", Err: err})
+		return
+	}
+
+	// Parameter object where we will unmarshal all parameters from the context
+	var params RevokeNodeParams
+
+	headers := r.Header
+
+	// ------------- Optional header parameter "X-CSRF-Token" -------------
+	if valueList, found := headers[http.CanonicalHeaderKey("X-CSRF-Token")]; found {
+		var XCSRFToken CSRFToken
+		n := len(valueList)
+		if n != 1 {
+			siw.ErrorHandlerFunc(w, r, &TooManyValuesForParamError{ParamName: "X-CSRF-Token", Count: n})
+			return
+		}
+
+		err = runtime.BindStyledParameterWithOptions("simple", "X-CSRF-Token", valueList[0], &XCSRFToken, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: false, Type: "string", Format: ""})
+		if err != nil {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "X-CSRF-Token", Err: err})
+			return
+		}
+
+		params.XCSRFToken = &XCSRFToken
+
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.RevokeNode(w, r, nodeId, params)
 	}))
 
 	for _, middleware := range siw.HandlerMiddlewares {
@@ -1305,6 +1601,15 @@ func HandlerWithOptions(si ServerInterface, options ChiServerOptions) http.Handl
 		r.Get(options.BaseURL+"/api/v1/nodes", wrapper.ListNodes)
 	})
 	r.Group(func(r chi.Router) {
+		r.Delete(options.BaseURL+"/api/v1/nodes/{nodeId}", wrapper.DeleteNode)
+	})
+	r.Group(func(r chi.Router) {
+		r.Patch(options.BaseURL+"/api/v1/nodes/{nodeId}", wrapper.UpdateNode)
+	})
+	r.Group(func(r chi.Router) {
+		r.Post(options.BaseURL+"/api/v1/nodes/{nodeId}/revoke", wrapper.RevokeNode)
+	})
+	r.Group(func(r chi.Router) {
 		r.Get(options.BaseURL+"/api/v1/agent-enrollment", wrapper.GetAgentEnrollment)
 	})
 	r.Group(func(r chi.Router) {
@@ -1319,6 +1624,9 @@ func HandlerWithOptions(si ServerInterface, options ChiServerOptions) http.Handl
 	r.Group(func(r chi.Router) {
 		r.Post(options.BaseURL+"/api/v1/agent/control", wrapper.PollAgent)
 	})
+	r.Group(func(r chi.Router) {
+		r.Get(options.BaseURL+"/api/v1/agent/configuration", wrapper.GetAgentConfiguration)
+	})
 
 	return r
 }
@@ -1332,6 +1640,8 @@ type BadRequestJSONResponse ErrorResponse
 type ConflictJSONResponse ErrorResponse
 
 type ForbiddenJSONResponse ErrorResponse
+
+type NotFoundJSONResponse ErrorResponse
 
 type UnauthorizedJSONResponse ErrorResponse
 
@@ -1965,6 +2275,55 @@ func (response RotateAgentEnrollmentKey403JSONResponse) VisitRotateAgentEnrollme
 	return err
 }
 
+type GetAgentConfigurationRequestObject struct {
+}
+
+type GetAgentConfigurationResponseObject interface {
+	VisitGetAgentConfigurationResponse(w http.ResponseWriter) error
+}
+
+type GetAgentConfiguration200JSONResponse AgentConfigurationSnapshot
+
+func (response GetAgentConfiguration200JSONResponse) VisitGetAgentConfigurationResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type GetAgentConfiguration401JSONResponse struct{ AgentUnauthorizedJSONResponse }
+
+func (response GetAgentConfiguration401JSONResponse) VisitGetAgentConfigurationResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(401)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type GetAgentConfiguration403JSONResponse struct{ AgentForbiddenJSONResponse }
+
+func (response GetAgentConfiguration403JSONResponse) VisitGetAgentConfigurationResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(403)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
 type PollAgentRequestObject struct {
 	Body *PollAgentJSONRequestBody
 }
@@ -2303,6 +2662,244 @@ func (response ListNodes401JSONResponse) VisitListNodesResponse(w http.ResponseW
 	return err
 }
 
+type DeleteNodeRequestObject struct {
+	NodeId NodeId `json:"nodeId"`
+	Params DeleteNodeParams
+}
+
+type DeleteNodeResponseObject interface {
+	VisitDeleteNodeResponse(w http.ResponseWriter) error
+}
+
+type DeleteNode202JSONResponse NodeDeletion
+
+func (response DeleteNode202JSONResponse) VisitDeleteNodeResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(202)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type DeleteNode401JSONResponse struct{ UnauthorizedJSONResponse }
+
+func (response DeleteNode401JSONResponse) VisitDeleteNodeResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(401)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type DeleteNode403JSONResponse struct{ ForbiddenJSONResponse }
+
+func (response DeleteNode403JSONResponse) VisitDeleteNodeResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(403)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type DeleteNode404JSONResponse struct{ NotFoundJSONResponse }
+
+func (response DeleteNode404JSONResponse) VisitDeleteNodeResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(404)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type UpdateNodeRequestObject struct {
+	NodeId NodeId `json:"nodeId"`
+	Params UpdateNodeParams
+	Body   *UpdateNodeJSONRequestBody
+}
+
+type UpdateNodeResponseObject interface {
+	VisitUpdateNodeResponse(w http.ResponseWriter) error
+}
+
+type UpdateNode200JSONResponse Node
+
+func (response UpdateNode200JSONResponse) VisitUpdateNodeResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type UpdateNode400JSONResponse struct{ BadRequestJSONResponse }
+
+func (response UpdateNode400JSONResponse) VisitUpdateNodeResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(400)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type UpdateNode401JSONResponse struct{ UnauthorizedJSONResponse }
+
+func (response UpdateNode401JSONResponse) VisitUpdateNodeResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(401)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type UpdateNode403JSONResponse struct{ ForbiddenJSONResponse }
+
+func (response UpdateNode403JSONResponse) VisitUpdateNodeResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(403)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type UpdateNode404JSONResponse struct{ NotFoundJSONResponse }
+
+func (response UpdateNode404JSONResponse) VisitUpdateNodeResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(404)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type UpdateNode409JSONResponse struct{ ConflictJSONResponse }
+
+func (response UpdateNode409JSONResponse) VisitUpdateNodeResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(409)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type RevokeNodeRequestObject struct {
+	NodeId NodeId `json:"nodeId"`
+	Params RevokeNodeParams
+}
+
+type RevokeNodeResponseObject interface {
+	VisitRevokeNodeResponse(w http.ResponseWriter) error
+}
+
+type RevokeNode200JSONResponse Node
+
+func (response RevokeNode200JSONResponse) VisitRevokeNodeResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type RevokeNode401JSONResponse struct{ UnauthorizedJSONResponse }
+
+func (response RevokeNode401JSONResponse) VisitRevokeNodeResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(401)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type RevokeNode403JSONResponse struct{ ForbiddenJSONResponse }
+
+func (response RevokeNode403JSONResponse) VisitRevokeNodeResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(403)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type RevokeNode404JSONResponse struct{ NotFoundJSONResponse }
+
+func (response RevokeNode404JSONResponse) VisitRevokeNodeResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(404)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type RevokeNode409JSONResponse struct{ ConflictJSONResponse }
+
+func (response RevokeNode409JSONResponse) VisitRevokeNodeResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(409)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
 type GetSystemStatusRequestObject struct {
 }
 
@@ -2370,6 +2967,9 @@ type StrictServerInterface interface {
 	// RotateAgentEnrollmentKey Generate or rotate the automatic Agent enrollment key
 	// (POST /api/v1/agent-enrollment/key)
 	RotateAgentEnrollmentKey(ctx context.Context, request RotateAgentEnrollmentKeyRequestObject) (RotateAgentEnrollmentKeyResponseObject, error)
+	// GetAgentConfiguration Read the current complete desired Agent configuration
+	// (GET /api/v1/agent/configuration)
+	GetAgentConfiguration(ctx context.Context, request GetAgentConfigurationRequestObject) (GetAgentConfigurationResponseObject, error)
 	// PollAgent Report Agent state and read current control state
 	// (POST /api/v1/agent/control)
 	PollAgent(ctx context.Context, request PollAgentRequestObject) (PollAgentResponseObject, error)
@@ -2388,6 +2988,15 @@ type StrictServerInterface interface {
 	// ListNodes List registered nodes
 	// (GET /api/v1/nodes)
 	ListNodes(ctx context.Context, request ListNodesRequestObject) (ListNodesResponseObject, error)
+	// DeleteNode Permanently delete a node and all owned data
+	// (DELETE /api/v1/nodes/{nodeId})
+	DeleteNode(ctx context.Context, request DeleteNodeRequestObject) (DeleteNodeResponseObject, error)
+	// UpdateNode Update node monitoring state
+	// (PATCH /api/v1/nodes/{nodeId})
+	UpdateNode(ctx context.Context, request UpdateNodeRequestObject) (UpdateNodeResponseObject, error)
+	// RevokeNode Permanently revoke a node Agent credential
+	// (POST /api/v1/nodes/{nodeId}/revoke)
+	RevokeNode(ctx context.Context, request RevokeNodeRequestObject) (RevokeNodeResponseObject, error)
 	// GetSystemStatus Read center status
 	// (GET /api/v1/system/status)
 	GetSystemStatus(ctx context.Context, request GetSystemStatusRequestObject) (GetSystemStatusResponseObject, error)
@@ -2730,6 +3339,30 @@ func (sh *strictHandler) RotateAgentEnrollmentKey(w http.ResponseWriter, r *http
 	}
 }
 
+// GetAgentConfiguration operation middleware
+func (sh *strictHandler) GetAgentConfiguration(w http.ResponseWriter, r *http.Request) {
+	var request GetAgentConfigurationRequestObject
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.GetAgentConfiguration(ctx, request.(GetAgentConfigurationRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "GetAgentConfiguration")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(GetAgentConfigurationResponseObject); ok {
+		if err := validResponse.VisitGetAgentConfigurationResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
 // PollAgent operation middleware
 func (sh *strictHandler) PollAgent(w http.ResponseWriter, r *http.Request) {
 	var request PollAgentRequestObject
@@ -2890,6 +3523,94 @@ func (sh *strictHandler) ListNodes(w http.ResponseWriter, r *http.Request) {
 		sh.options.ResponseErrorHandlerFunc(w, r, err)
 	} else if validResponse, ok := response.(ListNodesResponseObject); ok {
 		if err := validResponse.VisitListNodesResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// DeleteNode operation middleware
+func (sh *strictHandler) DeleteNode(w http.ResponseWriter, r *http.Request, nodeId NodeId, params DeleteNodeParams) {
+	var request DeleteNodeRequestObject
+
+	request.NodeId = nodeId
+	request.Params = params
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.DeleteNode(ctx, request.(DeleteNodeRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "DeleteNode")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(DeleteNodeResponseObject); ok {
+		if err := validResponse.VisitDeleteNodeResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// UpdateNode operation middleware
+func (sh *strictHandler) UpdateNode(w http.ResponseWriter, r *http.Request, nodeId NodeId, params UpdateNodeParams) {
+	var request UpdateNodeRequestObject
+
+	request.NodeId = nodeId
+	request.Params = params
+
+	var body UpdateNodeJSONRequestBody
+	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+		sh.options.RequestErrorHandlerFunc(w, r, fmt.Errorf("can't decode JSON body: %w", err))
+		return
+	}
+	request.Body = &body
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.UpdateNode(ctx, request.(UpdateNodeRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "UpdateNode")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(UpdateNodeResponseObject); ok {
+		if err := validResponse.VisitUpdateNodeResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// RevokeNode operation middleware
+func (sh *strictHandler) RevokeNode(w http.ResponseWriter, r *http.Request, nodeId NodeId, params RevokeNodeParams) {
+	var request RevokeNodeRequestObject
+
+	request.NodeId = nodeId
+	request.Params = params
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.RevokeNode(ctx, request.(RevokeNodeRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "RevokeNode")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(RevokeNodeResponseObject); ok {
+		if err := validResponse.VisitRevokeNodeResponse(w); err != nil {
 			sh.options.ResponseErrorHandlerFunc(w, r, err)
 		}
 	} else if response != nil {

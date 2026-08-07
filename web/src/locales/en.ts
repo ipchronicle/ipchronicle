@@ -153,6 +153,28 @@ export const en = {
         pending: "Pending",
         failed: "Failed",
       },
+      actions: {
+        title: "Node actions",
+        enable: "Enable node",
+        disable: "Pause node",
+        revoke: "Revoke Agent credential",
+        delete: "Permanently delete node",
+        retryDeletion: "Retry permanent deletion",
+      },
+      revoke: {
+        title: "Revoke the Agent credential for {{name}}?",
+        detail:
+          "This cannot be undone. The Agent stops control polling and local schedules after its next connection; node configuration and history remain available.",
+        confirm: "Revoke credential",
+      },
+      deletion: {
+        title: "Permanently delete {{name}}?",
+        detail:
+          "The node, egresses, current state, history, starred snapshots, and related notification records are irreversibly removed. The Center does not uninstall the Agent service from the host.",
+        confirm: "Permanently delete",
+        pending: "Deleting",
+        failed: "Deletion failed",
+      },
     },
     errors: {
       actionFailed: "The action could not be completed.",
@@ -178,6 +200,10 @@ export const en = {
       registration_disabled: "Automatic Agent enrollment is disabled.",
       agent_unauthenticated: "The Agent credential is invalid.",
       agent_revoked: "The Agent credential has been revoked.",
+      node_not_found: "The node does not exist or has already been deleted.",
+      node_revoked: "A node with a revoked Agent credential cannot be enabled.",
+      node_deletion_pending:
+        "The node is being permanently deleted and cannot accept other changes.",
       internal_error: "The center could not complete the request.",
     },
   },

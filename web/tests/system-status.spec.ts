@@ -78,6 +78,69 @@ test("generates an Agent installation command from the nodes page", async ({
     page.getByText("install-agent.sh", { exact: false }),
   ).toBeVisible();
   await expect(page.getByText("No nodes are registered")).toBeVisible();
+
+  const installationCommand = await page.locator("pre code").textContent();
+  const registrationKey = installationCommand?.match(
+    /--registration-key '([^']+)'/,
+  )?.[1];
+  expect(registrationKey).toBeTruthy();
+  const registration = await page.request.post("/api/v1/agent/enroll", {
+    data: {
+      registrationKey,
+      metadata: {
+        hostname: "edge-e2e",
+        agentVersion: "0.1.0-e2e",
+        operatingSystem: "linux",
+        architecture: "amd64",
+        capabilities: ["control-v1", "configuration-v1"],
+      },
+    },
+  });
+  expect(registration.status()).toBe(201);
+
+  await page.reload();
+  const responsiveItem = (text: string) => {
+    const items = page.getByText(text, { exact: true });
+    return testInfo.project.name === "mobile-chromium"
+      ? items.last()
+      : items.first();
+  };
+  await expect(responsiveItem("edge-e2e")).toBeVisible();
+  await page.getByRole("button", { name: "Pause node" }).click();
+  await expect(responsiveItem("Disabled")).toBeVisible();
+  await expect(responsiveItem("Pending · 0/2")).toBeVisible();
+  await page.screenshot({
+    path: testInfo.outputPath("node-actions.png"),
+    fullPage: true,
+  });
+
+  await page.getByRole("button", { name: "Revoke Agent credential" }).click();
+  await expect(
+    page.getByRole("heading", {
+      name: "Revoke the Agent credential for edge-e2e?",
+    }),
+  ).toBeVisible();
+  await page.getByRole("button", { name: "Revoke credential" }).click();
+  await expect(responsiveItem("Revoked")).toBeVisible();
+
+  await page.getByRole("button", { name: "Permanently delete node" }).click();
+  await expect(
+    page.getByText("The Center does not uninstall the Agent service", {
+      exact: false,
+    }),
+  ).toBeVisible();
+  await page
+    .getByRole("button", { name: "Permanently delete", exact: true })
+    .click();
+  await expect
+    .poll(async () => {
+      const response = await page.request.get("/api/v1/nodes");
+      const body = (await response.json()) as { items: unknown[] };
+      return body.items.length;
+    })
+    .toBe(0);
+  await page.reload();
+  await expect(page.getByText("No nodes are registered")).toBeVisible();
   await page.screenshot({
     path: testInfo.outputPath("nodes.png"),
     fullPage: true,

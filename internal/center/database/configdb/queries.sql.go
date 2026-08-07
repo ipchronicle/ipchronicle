@@ -9,6 +9,22 @@ import (
 	"context"
 )
 
+const completeNodeDeletion = `-- name: CompleteNodeDeletion :exec
+UPDATE node_deletion_operations
+SET status = 'completed', updated_at = ?, last_error = NULL
+WHERE node_id = ?
+`
+
+type CompleteNodeDeletionParams struct {
+	UpdatedAt int64
+	NodeID    string
+}
+
+func (q *Queries) CompleteNodeDeletion(ctx context.Context, arg CompleteNodeDeletionParams) error {
+	_, err := q.db.ExecContext(ctx, completeNodeDeletion, arg.UpdatedAt, arg.NodeID)
+	return err
+}
+
 const createAdministrator = `-- name: CreateAdministrator :exec
 INSERT INTO administrators (
     id, username, password_hash, locale, uses_default_credentials,
@@ -65,8 +81,8 @@ func (q *Queries) CreateAdministratorSession(ctx context.Context, arg CreateAdmi
 const createNode = `-- name: CreateNode :exec
 INSERT INTO nodes (
     id, name, hostname, credential_digest, agent_version,
-    operating_system, architecture, registered_at
-) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+    operating_system, architecture, desired_configuration_revision, registered_at
+) VALUES (?, ?, ?, ?, ?, ?, ?, 1, ?)
 `
 
 type CreateNodeParams struct {
@@ -109,6 +125,36 @@ func (q *Queries) CreateNodeCapability(ctx context.Context, arg CreateNodeCapabi
 	return err
 }
 
+const createNodeDeletion = `-- name: CreateNodeDeletion :exec
+INSERT INTO node_deletion_operations (
+    node_id, credential_digest, status, requested_at, updated_at
+) VALUES (?, ?, 'pending', ?, ?)
+ON CONFLICT (node_id) DO UPDATE SET
+    status = CASE
+        WHEN node_deletion_operations.status = 'completed' THEN 'completed'
+        ELSE 'pending'
+    END,
+    updated_at = excluded.updated_at,
+    last_error = NULL
+`
+
+type CreateNodeDeletionParams struct {
+	NodeID           string
+	CredentialDigest []byte
+	RequestedAt      int64
+	UpdatedAt        int64
+}
+
+func (q *Queries) CreateNodeDeletion(ctx context.Context, arg CreateNodeDeletionParams) error {
+	_, err := q.db.ExecContext(ctx, createNodeDeletion,
+		arg.NodeID,
+		arg.CredentialDigest,
+		arg.RequestedAt,
+		arg.UpdatedAt,
+	)
+	return err
+}
+
 const createSystemState = `-- name: CreateSystemState :exec
 INSERT INTO system_state (id, history_generation)
 VALUES (1, ?)
@@ -148,6 +194,16 @@ func (q *Queries) DeleteExpiredAdministratorSessions(ctx context.Context, expire
 	return err
 }
 
+const deleteNode = `-- name: DeleteNode :exec
+DELETE FROM nodes
+WHERE id = ?
+`
+
+func (q *Queries) DeleteNode(ctx context.Context, id string) error {
+	_, err := q.db.ExecContext(ctx, deleteNode, id)
+	return err
+}
+
 const deleteNodeCapabilities = `-- name: DeleteNodeCapabilities :exec
 DELETE FROM node_capabilities
 WHERE node_id = ?
@@ -178,6 +234,23 @@ WHERE id = 1 AND totp_secret_encrypted IS NOT NULL
 
 func (q *Queries) EnableTOTP(ctx context.Context, totpLastUsedStep int64) error {
 	_, err := q.db.ExecContext(ctx, enableTOTP, totpLastUsedStep)
+	return err
+}
+
+const failNodeDeletion = `-- name: FailNodeDeletion :exec
+UPDATE node_deletion_operations
+SET status = 'failed', updated_at = ?, last_error = ?
+WHERE node_id = ? AND status != 'completed'
+`
+
+type FailNodeDeletionParams struct {
+	UpdatedAt int64
+	LastError *string
+	NodeID    string
+}
+
+func (q *Queries) FailNodeDeletion(ctx context.Context, arg FailNodeDeletionParams) error {
+	_, err := q.db.ExecContext(ctx, failNodeDeletion, arg.UpdatedAt, arg.LastError, arg.NodeID)
 	return err
 }
 
@@ -281,7 +354,8 @@ const getNodeByCredentialDigest = `-- name: GetNodeByCredentialDigest :one
 SELECT id, name, hostname, credential_digest, enabled, revoked_at,
        agent_version, operating_system, architecture,
        desired_configuration_revision, applied_configuration_revision,
-       configuration_error, registered_at, last_seen_at
+       configuration_error, registered_at, last_seen_at,
+       configuration_error_revision
 FROM nodes
 WHERE credential_digest = ?
 `
@@ -304,7 +378,74 @@ func (q *Queries) GetNodeByCredentialDigest(ctx context.Context, credentialDiges
 		&i.ConfigurationError,
 		&i.RegisteredAt,
 		&i.LastSeenAt,
+		&i.ConfigurationErrorRevision,
 	)
+	return i, err
+}
+
+const getNodeByID = `-- name: GetNodeByID :one
+SELECT id, name, hostname, credential_digest, enabled, revoked_at,
+       agent_version, operating_system, architecture,
+       desired_configuration_revision, applied_configuration_revision,
+       configuration_error, registered_at, last_seen_at,
+       configuration_error_revision
+FROM nodes
+WHERE id = ?
+`
+
+func (q *Queries) GetNodeByID(ctx context.Context, id string) (Node, error) {
+	row := q.db.QueryRowContext(ctx, getNodeByID, id)
+	var i Node
+	err := row.Scan(
+		&i.ID,
+		&i.Name,
+		&i.Hostname,
+		&i.CredentialDigest,
+		&i.Enabled,
+		&i.RevokedAt,
+		&i.AgentVersion,
+		&i.OperatingSystem,
+		&i.Architecture,
+		&i.DesiredConfigurationRevision,
+		&i.AppliedConfigurationRevision,
+		&i.ConfigurationError,
+		&i.RegisteredAt,
+		&i.LastSeenAt,
+		&i.ConfigurationErrorRevision,
+	)
+	return i, err
+}
+
+const getNodeDeletion = `-- name: GetNodeDeletion :one
+SELECT node_id, credential_digest, status, requested_at, updated_at, last_error
+FROM node_deletion_operations
+WHERE node_id = ?
+`
+
+func (q *Queries) GetNodeDeletion(ctx context.Context, nodeID string) (NodeDeletionOperation, error) {
+	row := q.db.QueryRowContext(ctx, getNodeDeletion, nodeID)
+	var i NodeDeletionOperation
+	err := row.Scan(
+		&i.NodeID,
+		&i.CredentialDigest,
+		&i.Status,
+		&i.RequestedAt,
+		&i.UpdatedAt,
+		&i.LastError,
+	)
+	return i, err
+}
+
+const getRevokedAgentCredential = `-- name: GetRevokedAgentCredential :one
+SELECT credential_digest, revoked_at, reason
+FROM revoked_agent_credentials
+WHERE credential_digest = ?
+`
+
+func (q *Queries) GetRevokedAgentCredential(ctx context.Context, credentialDigest []byte) (RevokedAgentCredential, error) {
+	row := q.db.QueryRowContext(ctx, getRevokedAgentCredential, credentialDigest)
+	var i RevokedAgentCredential
+	err := row.Scan(&i.CredentialDigest, &i.RevokedAt, &i.Reason)
 	return i, err
 }
 
@@ -324,6 +465,57 @@ func (q *Queries) GetSystemState(ctx context.Context) (SystemState, error) {
 		&i.HistoryResetAt,
 	)
 	return i, err
+}
+
+const incrementAllNodeDesiredConfigurationRevisions = `-- name: IncrementAllNodeDesiredConfigurationRevisions :exec
+UPDATE nodes
+SET desired_configuration_revision = desired_configuration_revision + 1,
+    configuration_error = NULL,
+    configuration_error_revision = NULL
+WHERE revoked_at IS NULL
+`
+
+func (q *Queries) IncrementAllNodeDesiredConfigurationRevisions(ctx context.Context) error {
+	_, err := q.db.ExecContext(ctx, incrementAllNodeDesiredConfigurationRevisions)
+	return err
+}
+
+const listActiveNodeDeletions = `-- name: ListActiveNodeDeletions :many
+SELECT node_id, credential_digest, status, requested_at, updated_at, last_error
+FROM node_deletion_operations
+WHERE status IN ('pending', 'failed')
+ORDER BY requested_at, node_id
+LIMIT ?
+`
+
+func (q *Queries) ListActiveNodeDeletions(ctx context.Context, limit int64) ([]NodeDeletionOperation, error) {
+	rows, err := q.db.QueryContext(ctx, listActiveNodeDeletions, limit)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []NodeDeletionOperation{}
+	for rows.Next() {
+		var i NodeDeletionOperation
+		if err := rows.Scan(
+			&i.NodeID,
+			&i.CredentialDigest,
+			&i.Status,
+			&i.RequestedAt,
+			&i.UpdatedAt,
+			&i.LastError,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
 }
 
 const listNodeCapabilities = `-- name: ListNodeCapabilities :many
@@ -359,7 +551,8 @@ const listNodes = `-- name: ListNodes :many
 SELECT id, name, hostname, credential_digest, enabled, revoked_at,
        agent_version, operating_system, architecture,
        desired_configuration_revision, applied_configuration_revision,
-       configuration_error, registered_at, last_seen_at
+       configuration_error, registered_at, last_seen_at,
+       configuration_error_revision
 FROM nodes
 ORDER BY name COLLATE NOCASE, id
 `
@@ -388,6 +581,7 @@ func (q *Queries) ListNodes(ctx context.Context) ([]Node, error) {
 			&i.ConfigurationError,
 			&i.RegisteredAt,
 			&i.LastSeenAt,
+			&i.ConfigurationErrorRevision,
 		); err != nil {
 			return nil, err
 		}
@@ -434,6 +628,42 @@ func (q *Queries) RehashAdministratorPassword(ctx context.Context, passwordHash 
 	return err
 }
 
+const retryNodeDeletion = `-- name: RetryNodeDeletion :exec
+UPDATE node_deletion_operations
+SET status = 'pending', updated_at = ?, last_error = NULL
+WHERE node_id = ? AND status = 'failed'
+`
+
+type RetryNodeDeletionParams struct {
+	UpdatedAt int64
+	NodeID    string
+}
+
+func (q *Queries) RetryNodeDeletion(ctx context.Context, arg RetryNodeDeletionParams) error {
+	_, err := q.db.ExecContext(ctx, retryNodeDeletion, arg.UpdatedAt, arg.NodeID)
+	return err
+}
+
+const revokeNode = `-- name: RevokeNode :execrows
+UPDATE nodes
+SET enabled = 0, revoked_at = ?, configuration_error = NULL,
+    configuration_error_revision = NULL
+WHERE id = ? AND revoked_at IS NULL
+`
+
+type RevokeNodeParams struct {
+	RevokedAt *int64
+	ID        string
+}
+
+func (q *Queries) RevokeNode(ctx context.Context, arg RevokeNodeParams) (int64, error) {
+	result, err := q.db.ExecContext(ctx, revokeNode, arg.RevokedAt, arg.ID)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected()
+}
+
 const setAgentEnrollmentEnabled = `-- name: SetAgentEnrollmentEnabled :execrows
 UPDATE agent_enrollment
 SET enabled = ?
@@ -442,6 +672,33 @@ WHERE id = 1
 
 func (q *Queries) SetAgentEnrollmentEnabled(ctx context.Context, enabled int64) (int64, error) {
 	result, err := q.db.ExecContext(ctx, setAgentEnrollmentEnabled, enabled)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected()
+}
+
+const setNodeEnabled = `-- name: SetNodeEnabled :execrows
+UPDATE nodes
+SET enabled = ?,
+    desired_configuration_revision = desired_configuration_revision + 1,
+    configuration_error = NULL,
+    configuration_error_revision = NULL
+WHERE id = ? AND enabled != ? AND revoked_at IS NULL
+  AND NOT EXISTS (
+      SELECT 1 FROM node_deletion_operations
+      WHERE node_id = nodes.id AND status != 'completed'
+  )
+`
+
+type SetNodeEnabledParams struct {
+	Enabled   int64
+	ID        string
+	Enabled_2 int64
+}
+
+func (q *Queries) SetNodeEnabled(ctx context.Context, arg SetNodeEnabledParams) (int64, error) {
+	result, err := q.db.ExecContext(ctx, setNodeEnabled, arg.Enabled, arg.ID, arg.Enabled_2)
 	if err != nil {
 		return 0, err
 	}
@@ -521,7 +778,8 @@ func (q *Queries) UpdateAdministratorUsername(ctx context.Context, arg UpdateAdm
 const updateNodeHeartbeat = `-- name: UpdateNodeHeartbeat :execrows
 UPDATE nodes
 SET hostname = ?, agent_version = ?, operating_system = ?, architecture = ?,
-    applied_configuration_revision = ?, configuration_error = ?, last_seen_at = ?
+    applied_configuration_revision = ?, configuration_error = ?,
+    configuration_error_revision = ?, last_seen_at = ?
 WHERE id = ? AND revoked_at IS NULL
 `
 
@@ -532,6 +790,7 @@ type UpdateNodeHeartbeatParams struct {
 	Architecture                 string
 	AppliedConfigurationRevision int64
 	ConfigurationError           *string
+	ConfigurationErrorRevision   *int64
 	LastSeenAt                   *int64
 	ID                           string
 }
@@ -544,6 +803,7 @@ func (q *Queries) UpdateNodeHeartbeat(ctx context.Context, arg UpdateNodeHeartbe
 		arg.Architecture,
 		arg.AppliedConfigurationRevision,
 		arg.ConfigurationError,
+		arg.ConfigurationErrorRevision,
 		arg.LastSeenAt,
 		arg.ID,
 	)
@@ -578,6 +838,25 @@ func (q *Queries) UpsertAgentEnrollmentKey(ctx context.Context, arg UpsertAgentE
 		arg.CreatedAt,
 		arg.RotatedAt,
 	)
+	return err
+}
+
+const upsertRevokedAgentCredential = `-- name: UpsertRevokedAgentCredential :exec
+INSERT INTO revoked_agent_credentials (credential_digest, revoked_at, reason)
+VALUES (?, ?, ?)
+ON CONFLICT (credential_digest) DO UPDATE SET
+    revoked_at = excluded.revoked_at,
+    reason = excluded.reason
+`
+
+type UpsertRevokedAgentCredentialParams struct {
+	CredentialDigest []byte
+	RevokedAt        int64
+	Reason           string
+}
+
+func (q *Queries) UpsertRevokedAgentCredential(ctx context.Context, arg UpsertRevokedAgentCredentialParams) error {
+	_, err := q.db.ExecContext(ctx, upsertRevokedAgentCredential, arg.CredentialDigest, arg.RevokedAt, arg.Reason)
 	return err
 }
 

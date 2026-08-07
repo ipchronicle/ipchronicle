@@ -59,7 +59,7 @@ func TestAdministratorLoginStatusAndLogout(t *testing.T) {
 	if err := json.NewDecoder(statusResponse.Body).Decode(&status); err != nil {
 		t.Fatal(err)
 	}
-	if status.Service != api.IpchronicleCenter || status.Status != api.Ok || !status.TransportWarning || status.ConfigSchemaVersion != 2 || status.HistorySchemaVersion != 1 {
+	if status.Service != api.IpchronicleCenter || status.Status != api.Ok || !status.TransportWarning || status.ConfigSchemaVersion != 3 || status.HistorySchemaVersion != 1 {
 		t.Fatalf("unexpected status response: %#v", status)
 	}
 
@@ -177,6 +177,44 @@ func TestAdministratorEnrollmentAndAgentCredentialBoundaries(t *testing.T) {
 	if pollAfterDisable.Code != http.StatusOK {
 		t.Fatalf("existing Agent rejected after disabling enrollment: %d %s", pollAfterDisable.Code, pollAfterDisable.Body.String())
 	}
+
+	nodeUpdate := performRequestWithCSRF(
+		handler, http.MethodPatch, "/api/v1/nodes/"+registered.NodeId.String(),
+		[]byte(`{"enabled":false}`), "http://example.test", cookie, session.CsrfToken,
+	)
+	if nodeUpdate.Code != http.StatusOK {
+		t.Fatalf("disable node status = %d, body = %s", nodeUpdate.Code, nodeUpdate.Body.String())
+	}
+	configurationRequest := httptest.NewRequest(http.MethodGet, "http://example.test/api/v1/agent/configuration", nil)
+	configurationRequest.RemoteAddr = "192.0.2.10:1234"
+	configurationRequest.Header.Set("Authorization", "Bearer "+registered.Credential)
+	configurationResponse := httptest.NewRecorder()
+	handler.ServeHTTP(configurationResponse, configurationRequest)
+	if configurationResponse.Code != http.StatusOK {
+		t.Fatalf("Agent configuration status = %d, body = %s", configurationResponse.Code, configurationResponse.Body.String())
+	}
+	var configuration api.AgentConfigurationSnapshot
+	if err := json.NewDecoder(configurationResponse.Body).Decode(&configuration); err != nil {
+		t.Fatal(err)
+	}
+	if configuration.Revision != 2 || configuration.Enabled || len(configuration.HistoryGeneration) != 64 {
+		t.Fatalf("unexpected Agent configuration: %#v", configuration)
+	}
+
+	revoked := performRequestWithCSRF(
+		handler, http.MethodPost, "/api/v1/nodes/"+registered.NodeId.String()+"/revoke",
+		nil, "http://example.test", cookie, session.CsrfToken,
+	)
+	if revoked.Code != http.StatusOK {
+		t.Fatalf("revoke node status = %d, body = %s", revoked.Code, revoked.Body.String())
+	}
+	pollRequest = httptest.NewRequest(http.MethodPost, "http://example.test/api/v1/agent/control", bytes.NewReader(pollBody))
+	pollRequest.RemoteAddr = "192.0.2.10:1234"
+	pollRequest.Header.Set("Content-Type", "application/json")
+	pollRequest.Header.Set("Authorization", "Bearer "+registered.Credential)
+	pollAfterRevoke := httptest.NewRecorder()
+	handler.ServeHTTP(pollAfterRevoke, pollRequest)
+	assertErrorCode(t, pollAfterRevoke, http.StatusForbidden, api.AgentRevoked)
 }
 
 func TestTrustedProxyControlsForwardedHTTPS(t *testing.T) {
@@ -229,7 +267,7 @@ func newTestHTTPHandlerWithNodes(t *testing.T, trustedProxies []netip.Prefix) (h
 	if err := administrator.Bootstrap(context.Background(), "admin", "admin"); err != nil {
 		t.Fatal(err)
 	}
-	nodeService := nodes.NewService(store.Config, store.ConfigQueries, store.MasterKey)
+	nodeService := nodes.NewService(store.Config, store.History, store.ConfigQueries, store.MasterKey)
 	return NewHTTPHandler(HTTPOptions{
 		Version: "0.0.0-test", Web: http.NotFoundHandler(),
 		Administrator: administrator, Nodes: nodeService, Store: store, TrustedProxies: trustedProxies,

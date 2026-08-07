@@ -274,6 +274,81 @@ paths:
                 $ref: "#/components/schemas/NodeList"
         "401":
           $ref: "#/components/responses/Unauthorized"
+  /api/v1/nodes/{nodeId}:
+    parameters:
+      - $ref: "#/components/parameters/NodeId"
+    patch:
+      operationId: updateNode
+      summary: Update node monitoring state
+      tags: [nodes]
+      parameters:
+        - $ref: "#/components/parameters/CSRFToken"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/NodeUpdate"
+      responses:
+        "200":
+          description: The node was updated.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Node"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "409":
+          $ref: "#/components/responses/Conflict"
+    delete:
+      operationId: deleteNode
+      summary: Permanently delete a node and all owned data
+      tags: [nodes]
+      parameters:
+        - $ref: "#/components/parameters/CSRFToken"
+      responses:
+        "202":
+          description: Durable node deletion has been queued.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/NodeDeletion"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+  /api/v1/nodes/{nodeId}/revoke:
+    parameters:
+      - $ref: "#/components/parameters/NodeId"
+    post:
+      operationId: revokeNode
+      summary: Permanently revoke a node Agent credential
+      tags: [nodes]
+      parameters:
+        - $ref: "#/components/parameters/CSRFToken"
+      responses:
+        "200":
+          description: The Agent credential was revoked.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Node"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "409":
+          $ref: "#/components/responses/Conflict"
   /api/v1/agent-enrollment:
     get:
       operationId: getAgentEnrollment
@@ -384,6 +459,24 @@ paths:
           $ref: "#/components/responses/AgentUnauthorized"
         "403":
           $ref: "#/components/responses/AgentForbidden"
+  /api/v1/agent/configuration:
+    get:
+      operationId: getAgentConfiguration
+      summary: Read the current complete desired Agent configuration
+      security:
+        - agentCredential: []
+      tags: [agent]
+      responses:
+        "200":
+          description: Current complete desired configuration snapshot.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AgentConfigurationSnapshot"
+        "401":
+          $ref: "#/components/responses/AgentUnauthorized"
+        "403":
+          $ref: "#/components/responses/AgentForbidden"
 components:
   securitySchemes:
     administratorSession:
@@ -402,6 +495,13 @@ components:
         type: string
         minLength: 20
         maxLength: 128
+    NodeId:
+      name: nodeId
+      in: path
+      required: true
+      schema:
+        type: string
+        format: uuid
   responses:
     BadRequest:
       description: The request failed validation.
@@ -422,13 +522,19 @@ components:
           schema:
             $ref: "#/components/schemas/ErrorResponse"
     Conflict:
-      description: The requested account transition conflicts with current state.
+      description: The requested state transition conflicts with current state.
       content:
         application/json:
               schema:
                 $ref: "#/components/schemas/ErrorResponse"
     AgentUnauthorized:
       description: The Agent credential or registration key is invalid.
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ErrorResponse"
+    NotFound:
+      description: The requested resource does not exist.
       content:
         application/json:
           schema:
@@ -581,6 +687,9 @@ components:
         - registration_disabled
         - agent_unauthenticated
         - agent_revoked
+        - node_not_found
+        - node_revoked
+        - node_deletion_pending
         - internal_error
     ErrorResponse:
       type: object
@@ -728,6 +837,10 @@ components:
           type: string
           minLength: 1
           maxLength: 1024
+        configurationErrorRevision:
+          type: integer
+          format: int64
+          minimum: 1
     AgentPollResult:
       type: object
       additionalProperties: false
@@ -750,12 +863,54 @@ components:
           type: integer
           minimum: 1
           maximum: 3600
+    AgentConfigurationSnapshot:
+      type: object
+      additionalProperties: false
+      required: [schemaVersion, revision, enabled, historyGeneration]
+      properties:
+        schemaVersion:
+          type: integer
+          enum: [1]
+        revision:
+          type: integer
+          format: int64
+          minimum: 1
+        enabled:
+          type: boolean
+        historyGeneration:
+          type: string
+          pattern: "^[0-9a-f]{64}$"
     NodeStatus:
       type: string
       enum: [online, offline, disabled, revoked]
     NodeConfigurationStatus:
       type: string
       enum: [current, pending, failed]
+    NodeDeletionStatus:
+      type: string
+      enum: [pending, failed]
+    NodeUpdate:
+      type: object
+      additionalProperties: false
+      required: [enabled]
+      properties:
+        enabled:
+          type: boolean
+    NodeDeletion:
+      type: object
+      additionalProperties: false
+      required: [nodeId, status, requestedAt]
+      properties:
+        nodeId:
+          type: string
+          format: uuid
+        status:
+          $ref: "#/components/schemas/NodeDeletionStatus"
+        requestedAt:
+          type: string
+          format: date-time
+        error:
+          type: string
     Node:
       type: object
       additionalProperties: false
@@ -812,6 +967,10 @@ components:
         configurationStatus:
           $ref: "#/components/schemas/NodeConfigurationStatus"
         configurationError:
+          type: string
+        deletionStatus:
+          $ref: "#/components/schemas/NodeDeletionStatus"
+        deletionError:
           type: string
         registeredAt:
           type: string

@@ -5,11 +5,14 @@ import (
 	"crypto/cipher"
 	"crypto/rand"
 	"encoding/binary"
+	"encoding/hex"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
 	"os"
 	"path/filepath"
+	"strings"
 	"time"
 
 	bolt "go.etcd.io/bbolt"
@@ -17,19 +20,25 @@ import (
 
 const (
 	masterKeySize         = 32
-	localSchemaVersion    = 1
+	localSchemaVersion    = 2
 	secretEnvelopeVersion = 1
 )
 
 var (
 	ErrNotEnrolled           = errors.New("Agent is not enrolled")
+	ErrNoConfiguration       = errors.New("Agent has no applied configuration")
 	metaBucket               = []byte("meta")
 	identityBucket           = []byte("identity")
+	configurationBucket      = []byte("configuration")
 	schemaVersionKey         = []byte("schema-version")
 	centerURLKey             = []byte("center-url")
 	nodeIDKey                = []byte("node-id")
 	credentialKey            = []byte("credential")
 	appliedRevisionKey       = []byte("applied-configuration-revision")
+	configurationKey         = []byte("current")
+	configurationErrorKey    = []byte("error")
+	configurationErrorRevKey = []byte("error-revision")
+	revokedKey               = []byte("revoked")
 	credentialAdditionalData = []byte("ipchronicle:agent-credential:v1")
 )
 
@@ -38,6 +47,20 @@ type Identity struct {
 	NodeID                       string
 	Credential                   string
 	AppliedConfigurationRevision int64
+}
+
+type Configuration struct {
+	SchemaVersion     int    `json:"schemaVersion"`
+	Revision          int64  `json:"revision"`
+	Enabled           bool   `json:"enabled"`
+	HistoryGeneration string `json:"historyGeneration"`
+}
+
+type ControlState struct {
+	AppliedConfigurationRevision int64
+	ConfigurationError           *string
+	ConfigurationErrorRevision   *int64
+	Revoked                      bool
 }
 
 type Store struct {
@@ -68,6 +91,10 @@ func Open(directory string) (*Store, error) {
 	}
 	store := &Store{database: database, masterKey: masterKey}
 	if err := store.initialize(); err != nil {
+		_ = database.Close()
+		return nil, err
+	}
+	if err := store.validateCurrentConfiguration(); err != nil {
 		_ = database.Close()
 		return nil, err
 	}
@@ -149,6 +176,128 @@ func (s *Store) SaveIdentity(identity Identity) error {
 	})
 }
 
+func (s *Store) ControlState() (ControlState, error) {
+	var state ControlState
+	err := s.database.View(func(transaction *bolt.Tx) error {
+		identity := transaction.Bucket(identityBucket)
+		if identity == nil || identity.Get(nodeIDKey) == nil {
+			return ErrNotEnrolled
+		}
+		encodedRevision := identity.Get(appliedRevisionKey)
+		if len(encodedRevision) != 8 {
+			return errors.New("invalid applied configuration revision in Agent state")
+		}
+		state.AppliedConfigurationRevision = int64(binary.BigEndian.Uint64(encodedRevision))
+		configuration := transaction.Bucket(configurationBucket)
+		if configuration == nil {
+			return errors.New("Agent configuration bucket is missing")
+		}
+		if message := configuration.Get(configurationErrorKey); message != nil {
+			value := string(message)
+			state.ConfigurationError = &value
+			encodedErrorRevision := configuration.Get(configurationErrorRevKey)
+			if len(encodedErrorRevision) != 8 {
+				return errors.New("invalid Agent configuration error revision")
+			}
+			valueRevision := int64(binary.BigEndian.Uint64(encodedErrorRevision))
+			state.ConfigurationErrorRevision = &valueRevision
+		} else if configuration.Get(configurationErrorRevKey) != nil {
+			return errors.New("Agent configuration error revision exists without an error")
+		}
+		state.Revoked = len(configuration.Get(revokedKey)) == 1 && configuration.Get(revokedKey)[0] == 1
+		return nil
+	})
+	return state, err
+}
+
+func (s *Store) Configuration() (Configuration, error) {
+	var configuration Configuration
+	err := s.database.View(func(transaction *bolt.Tx) error {
+		bucket := transaction.Bucket(configurationBucket)
+		if bucket == nil || bucket.Get(configurationKey) == nil {
+			return ErrNoConfiguration
+		}
+		if err := json.Unmarshal(bucket.Get(configurationKey), &configuration); err != nil {
+			return fmt.Errorf("decode Agent configuration: %w", err)
+		}
+		return validateConfiguration(configuration)
+	})
+	return configuration, err
+}
+
+func (s *Store) ApplyConfiguration(configuration Configuration) error {
+	if err := validateConfiguration(configuration); err != nil {
+		return err
+	}
+	encoded, err := json.Marshal(configuration)
+	if err != nil {
+		return fmt.Errorf("encode Agent configuration: %w", err)
+	}
+	return s.database.Update(func(transaction *bolt.Tx) error {
+		identity := transaction.Bucket(identityBucket)
+		if identity == nil || identity.Get(nodeIDKey) == nil {
+			return ErrNotEnrolled
+		}
+		currentRevision := identity.Get(appliedRevisionKey)
+		if len(currentRevision) != 8 {
+			return errors.New("invalid applied configuration revision in Agent state")
+		}
+		if configuration.Revision <= int64(binary.BigEndian.Uint64(currentRevision)) {
+			return errors.New("Agent configuration revision must advance")
+		}
+		bucket := transaction.Bucket(configurationBucket)
+		if err := bucket.Put(configurationKey, encoded); err != nil {
+			return err
+		}
+		revision := make([]byte, 8)
+		binary.BigEndian.PutUint64(revision, uint64(configuration.Revision))
+		if err := identity.Put(appliedRevisionKey, revision); err != nil {
+			return err
+		}
+		if err := bucket.Delete(configurationErrorKey); err != nil {
+			return err
+		}
+		return bucket.Delete(configurationErrorRevKey)
+	})
+}
+
+func (s *Store) RecordConfigurationFailure(revision int64, cause error) error {
+	if revision < 1 || cause == nil {
+		return errors.New("configuration failure requires a revision and cause")
+	}
+	runes := []rune(cause.Error())
+	if len(runes) > 1024 {
+		runes = runes[:1024]
+	}
+	message := string(runes)
+	return s.database.Update(func(transaction *bolt.Tx) error {
+		identity := transaction.Bucket(identityBucket)
+		if identity == nil || identity.Get(nodeIDKey) == nil {
+			return ErrNotEnrolled
+		}
+		applied := identity.Get(appliedRevisionKey)
+		if len(applied) != 8 || revision <= int64(binary.BigEndian.Uint64(applied)) {
+			return errors.New("configuration failure revision must be newer than the applied revision")
+		}
+		bucket := transaction.Bucket(configurationBucket)
+		if err := bucket.Put(configurationErrorKey, []byte(message)); err != nil {
+			return err
+		}
+		encodedRevision := make([]byte, 8)
+		binary.BigEndian.PutUint64(encodedRevision, uint64(revision))
+		return bucket.Put(configurationErrorRevKey, encodedRevision)
+	})
+}
+
+func (s *Store) MarkRevoked() error {
+	return s.database.Update(func(transaction *bolt.Tx) error {
+		if transaction.Bucket(identityBucket).Get(nodeIDKey) == nil {
+			return ErrNotEnrolled
+		}
+		return transaction.Bucket(configurationBucket).Put(revokedKey, []byte{1})
+	})
+}
+
 func (s *Store) initialize() error {
 	return s.database.Update(func(transaction *bolt.Tx) error {
 		meta, err := transaction.CreateBucketIfNotExists(metaBucket)
@@ -162,12 +311,53 @@ func (s *Store) initialize() error {
 			if err := meta.Put(schemaVersionKey, encoded); err != nil {
 				return err
 			}
-		} else if len(version) != 8 || binary.BigEndian.Uint64(version) != localSchemaVersion {
+		} else if len(version) != 8 || binary.BigEndian.Uint64(version) > localSchemaVersion || binary.BigEndian.Uint64(version) < 1 {
 			return fmt.Errorf("unsupported Agent state schema version")
+		} else if binary.BigEndian.Uint64(version) < localSchemaVersion {
+			encoded := make([]byte, 8)
+			binary.BigEndian.PutUint64(encoded, localSchemaVersion)
+			if err := meta.Put(schemaVersionKey, encoded); err != nil {
+				return err
+			}
 		}
-		_, err = transaction.CreateBucketIfNotExists(identityBucket)
+		if _, err = transaction.CreateBucketIfNotExists(identityBucket); err != nil {
+			return err
+		}
+		_, err = transaction.CreateBucketIfNotExists(configurationBucket)
 		return err
 	})
+}
+
+func (s *Store) validateCurrentConfiguration() error {
+	control, err := s.ControlState()
+	if errors.Is(err, ErrNotEnrolled) {
+		return nil
+	}
+	if err != nil {
+		return err
+	}
+	configuration, err := s.Configuration()
+	if control.AppliedConfigurationRevision == 0 && errors.Is(err, ErrNoConfiguration) {
+		return nil
+	}
+	if err != nil {
+		return err
+	}
+	if configuration.Revision != control.AppliedConfigurationRevision {
+		return errors.New("Agent configuration revision does not match applied revision")
+	}
+	return nil
+}
+
+func validateConfiguration(configuration Configuration) error {
+	if configuration.SchemaVersion != 1 || configuration.Revision < 1 {
+		return errors.New("unsupported Agent configuration snapshot")
+	}
+	generation, err := hex.DecodeString(configuration.HistoryGeneration)
+	if err != nil || len(generation) != 32 || configuration.HistoryGeneration != strings.ToLower(configuration.HistoryGeneration) {
+		return errors.New("invalid Agent history generation")
+	}
+	return nil
 }
 
 func ensurePrivateDirectory(path string) error {

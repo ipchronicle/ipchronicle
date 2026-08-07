@@ -29,7 +29,7 @@ func TestAgentEnrollsOnceAndBecomesOnline(t *testing.T) {
 	if err := administrator.Bootstrap(ctx, "admin", "admin"); err != nil {
 		t.Fatal(err)
 	}
-	nodeService := nodes.NewService(centerStore.Config, centerStore.ConfigQueries, centerStore.MasterKey)
+	nodeService := nodes.NewService(centerStore.Config, centerStore.History, centerStore.ConfigQueries, centerStore.MasterKey)
 	enrollment, err := nodeService.RotateEnrollmentKey(ctx)
 	if err != nil {
 		t.Fatal(err)
@@ -70,13 +70,17 @@ func TestAgentEnrollsOnceAndBecomesOnline(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		if len(listed) == 1 && listed[0].Status == "online" {
+		if len(listed) == 1 && listed[0].Status == "online" && listed[0].ConfigurationStatus == "current" && listed[0].AppliedConfigurationRevision == 1 {
 			break
 		}
 		if time.Now().After(deadline) {
 			t.Fatalf("Agent did not become online: %#v", listed)
 		}
 		time.Sleep(20 * time.Millisecond)
+	}
+	configuration, err := localStore.Configuration()
+	if err != nil || configuration.Revision != 1 || !configuration.Enabled || len(configuration.HistoryGeneration) != 64 {
+		t.Fatalf("applied local configuration = %#v, %v", configuration, err)
 	}
 	cancel()
 	select {

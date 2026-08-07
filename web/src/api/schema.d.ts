@@ -176,6 +176,45 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/nodes/{nodeId}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                nodeId: components["parameters"]["NodeId"];
+            };
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /** Permanently delete a node and all owned data */
+        delete: operations["deleteNode"];
+        options?: never;
+        head?: never;
+        /** Update node monitoring state */
+        patch: operations["updateNode"];
+        trace?: never;
+    };
+    "/api/v1/nodes/{nodeId}/revoke": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                nodeId: components["parameters"]["NodeId"];
+            };
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Permanently revoke a node Agent credential */
+        post: operations["revokeNode"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/agent-enrollment": {
         parameters: {
             query?: never;
@@ -245,6 +284,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/agent/configuration": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Read the current complete desired Agent configuration */
+        get: operations["getAgentConfiguration"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
 }
 export type webhooks = Record<string, never>;
 export interface components {
@@ -296,7 +352,7 @@ export interface components {
             provisioningUri: string;
         };
         /** @enum {string} */
-        ErrorCode: "invalid_request" | "invalid_credentials" | "totp_required" | "rate_limited" | "unauthenticated" | "csrf_failed" | "origin_not_allowed" | "current_password_invalid" | "invalid_totp" | "totp_already_enabled" | "totp_not_enabled" | "totp_enrollment_not_started" | "no_account_change" | "registration_key_not_initialized" | "registration_key_invalid" | "registration_disabled" | "agent_unauthenticated" | "agent_revoked" | "internal_error";
+        ErrorCode: "invalid_request" | "invalid_credentials" | "totp_required" | "rate_limited" | "unauthenticated" | "csrf_failed" | "origin_not_allowed" | "current_password_invalid" | "invalid_totp" | "totp_already_enabled" | "totp_not_enabled" | "totp_enrollment_not_started" | "no_account_change" | "registration_key_not_initialized" | "registration_key_invalid" | "registration_disabled" | "agent_unauthenticated" | "agent_revoked" | "node_not_found" | "node_revoked" | "node_deletion_pending" | "internal_error";
         ErrorResponse: {
             code: components["schemas"]["ErrorCode"];
             parameters?: {
@@ -355,6 +411,8 @@ export interface components {
             /** Format: int64 */
             appliedConfigurationRevision: number;
             configurationError?: string;
+            /** Format: int64 */
+            configurationErrorRevision?: number;
         };
         AgentPollResult: {
             centerVersion: string;
@@ -363,10 +421,31 @@ export interface components {
             enabled: boolean;
             pollIntervalSeconds: number;
         };
+        AgentConfigurationSnapshot: {
+            /** @enum {integer} */
+            schemaVersion: 1;
+            /** Format: int64 */
+            revision: number;
+            enabled: boolean;
+            historyGeneration: string;
+        };
         /** @enum {string} */
         NodeStatus: "online" | "offline" | "disabled" | "revoked";
         /** @enum {string} */
         NodeConfigurationStatus: "current" | "pending" | "failed";
+        /** @enum {string} */
+        NodeDeletionStatus: "pending" | "failed";
+        NodeUpdate: {
+            enabled: boolean;
+        };
+        NodeDeletion: {
+            /** Format: uuid */
+            nodeId: string;
+            status: components["schemas"]["NodeDeletionStatus"];
+            /** Format: date-time */
+            requestedAt: string;
+            error?: string;
+        };
         Node: {
             /** Format: uuid */
             id: string;
@@ -384,6 +463,8 @@ export interface components {
             appliedConfigurationRevision: number;
             configurationStatus: components["schemas"]["NodeConfigurationStatus"];
             configurationError?: string;
+            deletionStatus?: components["schemas"]["NodeDeletionStatus"];
+            deletionError?: string;
             /** Format: date-time */
             registeredAt: string;
             /** Format: date-time */
@@ -421,7 +502,7 @@ export interface components {
                 "application/json": components["schemas"]["ErrorResponse"];
             };
         };
-        /** @description The requested account transition conflicts with current state. */
+        /** @description The requested state transition conflicts with current state. */
         Conflict: {
             headers: {
                 [name: string]: unknown;
@@ -432,6 +513,15 @@ export interface components {
         };
         /** @description The Agent credential or registration key is invalid. */
         AgentUnauthorized: {
+            headers: {
+                [name: string]: unknown;
+            };
+            content: {
+                "application/json": components["schemas"]["ErrorResponse"];
+            };
+        };
+        /** @description The requested resource does not exist. */
+        NotFound: {
             headers: {
                 [name: string]: unknown;
             };
@@ -451,6 +541,7 @@ export interface components {
     };
     parameters: {
         CSRFToken: string;
+        NodeId: string;
     };
     requestBodies: never;
     headers: never;
@@ -773,6 +864,94 @@ export interface operations {
             401: components["responses"]["Unauthorized"];
         };
     };
+    deleteNode: {
+        parameters: {
+            query?: never;
+            header?: {
+                "X-CSRF-Token"?: components["parameters"]["CSRFToken"];
+            };
+            path: {
+                nodeId: components["parameters"]["NodeId"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Durable node deletion has been queued. */
+            202: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["NodeDeletion"];
+                };
+            };
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+        };
+    };
+    updateNode: {
+        parameters: {
+            query?: never;
+            header?: {
+                "X-CSRF-Token"?: components["parameters"]["CSRFToken"];
+            };
+            path: {
+                nodeId: components["parameters"]["NodeId"];
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["NodeUpdate"];
+            };
+        };
+        responses: {
+            /** @description The node was updated. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Node"];
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+            409: components["responses"]["Conflict"];
+        };
+    };
+    revokeNode: {
+        parameters: {
+            query?: never;
+            header?: {
+                "X-CSRF-Token"?: components["parameters"]["CSRFToken"];
+            };
+            path: {
+                nodeId: components["parameters"]["NodeId"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The Agent credential was revoked. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Node"];
+                };
+            };
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+            409: components["responses"]["Conflict"];
+        };
+    };
     getAgentEnrollment: {
         parameters: {
             query?: never;
@@ -898,6 +1077,28 @@ export interface operations {
                 };
             };
             400: components["responses"]["BadRequest"];
+            401: components["responses"]["AgentUnauthorized"];
+            403: components["responses"]["AgentForbidden"];
+        };
+    };
+    getAgentConfiguration: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Current complete desired configuration snapshot. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AgentConfigurationSnapshot"];
+                };
+            };
             401: components["responses"]["AgentUnauthorized"];
             403: components["responses"]["AgentForbidden"];
         };

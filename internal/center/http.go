@@ -74,6 +74,9 @@ func limitAPIRequestBody(next http.Handler) http.Handler {
 		if strings.HasPrefix(r.URL.Path, "/api/") && r.Body != nil {
 			r.Body = http.MaxBytesReader(w, r.Body, 4096)
 		}
+		if strings.HasPrefix(r.URL.Path, "/api/v1/agent/") {
+			w.Header().Set("Cache-Control", "no-store")
+		}
 		next.ServeHTTP(w, r)
 	})
 }

@@ -144,6 +144,28 @@ export const zhCN = {
         pending: "等待同步",
         failed: "同步失败",
       },
+      actions: {
+        title: "节点操作",
+        enable: "启用节点",
+        disable: "暂停节点",
+        revoke: "撤销 Agent 凭据",
+        delete: "永久删除节点",
+        retryDeletion: "重试永久删除",
+      },
+      revoke: {
+        title: "撤销 {{name}} 的 Agent 凭据？",
+        detail:
+          "此操作不可撤销。Agent 下次连接时会停止控制轮询和本地计划；节点配置与历史仍会保留。",
+        confirm: "撤销凭据",
+      },
+      deletion: {
+        title: "永久删除 {{name}}？",
+        detail:
+          "节点、网络出口、当前状态、历史、收藏快照和关联通知记录都会被不可逆删除。Center 不会卸载节点上的 Agent 服务。",
+        confirm: "永久删除",
+        pending: "正在删除",
+        failed: "删除失败",
+      },
     },
     errors: {
       actionFailed: "操作未能完成。",
@@ -165,6 +187,9 @@ export const zhCN = {
       registration_disabled: "Agent 自动注册已停止。",
       agent_unauthenticated: "Agent 凭据无效。",
       agent_revoked: "Agent 凭据已撤销。",
+      node_not_found: "节点不存在或已经删除。",
+      node_revoked: "Agent 凭据已撤销，不能再启用该节点。",
+      node_deletion_pending: "节点正在永久删除，不能执行其他操作。",
       internal_error: "中心服务未能完成请求。",
     },
   },

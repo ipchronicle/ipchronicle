@@ -49,11 +49,27 @@ type Node struct {
 	ConfigurationError           *string
 	RegisteredAt                 int64
 	LastSeenAt                   *int64
+	ConfigurationErrorRevision   *int64
 }
 
 type NodeCapability struct {
 	NodeID     string
 	Capability string
+}
+
+type NodeDeletionOperation struct {
+	NodeID           string
+	CredentialDigest []byte
+	Status           string
+	RequestedAt      int64
+	UpdatedAt        int64
+	LastError        *string
+}
+
+type RevokedAgentCredential struct {
+	CredentialDigest []byte
+	RevokedAt        int64
+	Reason           string
 }
 
 type SystemState struct {

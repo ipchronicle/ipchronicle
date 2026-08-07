@@ -20,12 +20,13 @@ master key, administrator bootstrap and recovery, persistent sessions, CSRF
 and origin enforcement, TOTP, account settings, and an authenticated bilingual
 status interface.
 
-The first Phase 2 slice adds automatic Agent enrollment, root-only encrypted
-bbolt identity storage, 30-second authenticated control polling, two-minute
-online state, a systemd/OpenRC installer, and the bilingual node inventory.
-Desired configuration snapshots, temporary WebSocket synchronization, network
-egress discovery, and complete probes remain later slices; the current control
-API does not expose placeholder success for them.
+Phase 2 now provides automatic Agent enrollment, root-only encrypted bbolt
+identity storage, 30-second authenticated control polling, two-minute online
+state, complete desired-configuration snapshots with atomic revision
+convergence, node disable/revocation/permanent deletion, a systemd/OpenRC
+installer, and the bilingual node inventory. Temporary WebSocket
+synchronization, network egress discovery, and complete probes remain later
+slices; the current control API does not expose placeholder success for them.
 
 ## Run The Center
 
@@ -64,6 +65,9 @@ disconnecting registered Agents.
 The pre-release installer recognizes Debian, Ubuntu, RHEL, Rocky Linux,
 AlmaLinux, CentOS, and Alpine on Linux AMD64 or ARM64. The exact supported
 distribution-version matrix is fixed and tested for each public release.
+Until the repository publishes its first GitHub Release assets, the generated
+installation command is a release-path preview and cannot download an Agent
+binary from GitHub.
 
 Bootstrap credentials can be supplied before the first start. They are read
 only when `config.db` has no administrator account:

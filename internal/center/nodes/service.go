@@ -9,6 +9,7 @@ import (
 	"encoding/base64"
 	"errors"
 	"fmt"
+	"log"
 	"slices"
 	"strings"
 	"time"
@@ -30,13 +31,19 @@ var (
 	ErrAgentUnauthenticated = errors.New("Agent credential is invalid")
 	ErrAgentRevoked         = errors.New("Agent credential is revoked")
 	ErrInvalidMetadata      = errors.New("Agent metadata is invalid")
+	ErrNodeNotFound         = errors.New("node does not exist")
+	ErrNodeRevoked          = errors.New("node Agent credential is revoked")
+	ErrNodeDeletionPending  = errors.New("node deletion is pending")
 )
 
 type Service struct {
-	database  *sql.DB
-	queries   *configdb.Queries
-	masterKey [32]byte
-	now       func() time.Time
+	database      *sql.DB
+	history       *sql.DB
+	queries       *configdb.Queries
+	masterKey     [32]byte
+	now           func() time.Time
+	deletionWake  chan struct{}
+	deleteHistory func(context.Context, string) error
 }
 
 type Enrollment struct {
@@ -64,6 +71,20 @@ type Poll struct {
 	Enabled                      bool
 }
 
+type Configuration struct {
+	SchemaVersion     int
+	Revision          int64
+	Enabled           bool
+	HistoryGeneration string
+}
+
+type Deletion struct {
+	NodeID      uuid.UUID
+	Status      string
+	RequestedAt time.Time
+	Error       *string
+}
+
 type Node struct {
 	ID                           uuid.UUID
 	Name                         string
@@ -78,18 +99,23 @@ type Node struct {
 	AppliedConfigurationRevision int64
 	ConfigurationStatus          string
 	ConfigurationError           *string
+	ConfigurationErrorRevision   *int64
+	DeletionStatus               *string
+	DeletionError                *string
 	RegisteredAt                 time.Time
 	LastSeenAt                   *time.Time
 }
 
-func NewService(database *sql.DB, queries *configdb.Queries, masterKey [32]byte) *Service {
-	if database == nil || queries == nil {
+func NewService(database, history *sql.DB, queries *configdb.Queries, masterKey [32]byte) *Service {
+	if database == nil || history == nil || queries == nil {
 		panic("node service database dependencies must not be nil")
 	}
-	return &Service{
-		database: database, queries: queries, masterKey: masterKey,
-		now: time.Now,
+	service := &Service{
+		database: database, history: history, queries: queries, masterKey: masterKey,
+		now: time.Now, deletionWake: make(chan struct{}, 1),
 	}
+	service.deleteHistory = service.deleteNodeHistory
+	return service
 }
 
 func (s *Service) Enrollment(ctx context.Context) (Enrollment, error) {
@@ -191,23 +217,21 @@ func (s *Service) Register(ctx context.Context, registrationKey string, metadata
 	return Registration{NodeID: nodeID, Credential: credential}, nil
 }
 
-func (s *Service) Poll(ctx context.Context, credential string, metadata Metadata, appliedRevision int64, configurationError *string) (Poll, error) {
+func (s *Service) Poll(ctx context.Context, credential string, metadata Metadata, appliedRevision int64, configurationError *string, configurationErrorRevision *int64) (Poll, error) {
 	metadata, err := validateMetadata(metadata)
-	if err != nil || appliedRevision < 0 || !validConfigurationError(configurationError) {
+	if err != nil || appliedRevision < 0 || !validConfigurationError(configurationError) ||
+		(configurationError == nil) != (configurationErrorRevision == nil) {
 		return Poll{}, ErrInvalidMetadata
 	}
-	digest := sha256.Sum256([]byte(credential))
-	node, err := s.queries.GetNodeByCredentialDigest(ctx, digest[:])
-	if errors.Is(err, sql.ErrNoRows) {
-		return Poll{}, ErrAgentUnauthenticated
-	}
+	node, err := s.authenticateAgent(ctx, credential)
 	if err != nil {
 		return Poll{}, err
 	}
-	if node.RevokedAt != nil {
-		return Poll{}, ErrAgentRevoked
+	if appliedRevision < node.AppliedConfigurationRevision || appliedRevision > node.DesiredConfigurationRevision {
+		return Poll{}, ErrInvalidMetadata
 	}
-	if appliedRevision > node.DesiredConfigurationRevision {
+	if configurationErrorRevision != nil &&
+		(*configurationErrorRevision <= appliedRevision || *configurationErrorRevision > node.DesiredConfigurationRevision) {
 		return Poll{}, ErrInvalidMetadata
 	}
 	now := s.now().UTC().Truncate(time.Second).Unix()
@@ -221,7 +245,7 @@ func (s *Service) Poll(ctx context.Context, credential string, metadata Metadata
 		Hostname: metadata.Hostname, AgentVersion: metadata.AgentVersion,
 		OperatingSystem: metadata.OperatingSystem, Architecture: metadata.Architecture,
 		AppliedConfigurationRevision: appliedRevision, ConfigurationError: configurationError,
-		LastSeenAt: &now, ID: node.ID,
+		ConfigurationErrorRevision: configurationErrorRevision, LastSeenAt: &now, ID: node.ID,
 	})
 	if err != nil {
 		return Poll{}, err
@@ -241,6 +265,21 @@ func (s *Service) Poll(ctx context.Context, credential string, metadata Metadata
 	}, nil
 }
 
+func (s *Service) Configuration(ctx context.Context, credential string) (Configuration, error) {
+	node, err := s.authenticateAgent(ctx, credential)
+	if err != nil {
+		return Configuration{}, err
+	}
+	state, err := s.queries.GetSystemState(ctx)
+	if err != nil {
+		return Configuration{}, err
+	}
+	return Configuration{
+		SchemaVersion: 1, Revision: node.DesiredConfigurationRevision,
+		Enabled: node.Enabled == 1, HistoryGeneration: state.HistoryGeneration,
+	}, nil
+}
+
 func (s *Service) List(ctx context.Context) ([]Node, error) {
 	records, err := s.queries.ListNodes(ctx)
 	if err != nil {
@@ -253,6 +292,14 @@ func (s *Service) List(ctx context.Context) ([]Node, error) {
 	capabilities := make(map[string][]string, len(records))
 	for _, capability := range capabilityRecords {
 		capabilities[capability.NodeID] = append(capabilities[capability.NodeID], capability.Capability)
+	}
+	deletionRecords, err := s.queries.ListActiveNodeDeletions(ctx, 1000)
+	if err != nil {
+		return nil, err
+	}
+	deletions := make(map[string]configdb.NodeDeletionOperation, len(deletionRecords))
+	for _, deletion := range deletionRecords {
+		deletions[deletion.NodeID] = deletion
 	}
 	now := s.now().UTC()
 	nodes := make([]Node, 0, len(records))
@@ -270,7 +317,8 @@ func (s *Service) List(ctx context.Context) ([]Node, error) {
 			status = "online"
 		}
 		configurationStatus := "current"
-		if record.ConfigurationError != nil {
+		if record.ConfigurationError != nil && record.ConfigurationErrorRevision != nil &&
+			*record.ConfigurationErrorRevision == record.DesiredConfigurationRevision {
 			configurationStatus = "failed"
 		} else if record.AppliedConfigurationRevision != record.DesiredConfigurationRevision {
 			configurationStatus = "pending"
@@ -280,7 +328,7 @@ func (s *Service) List(ctx context.Context) ([]Node, error) {
 			value := time.Unix(*record.LastSeenAt, 0).UTC()
 			lastSeenAt = &value
 		}
-		nodes = append(nodes, Node{
+		node := Node{
 			ID: id, Name: record.Name, Hostname: record.Hostname, Status: status,
 			Enabled: record.Enabled == 1, AgentVersion: record.AgentVersion,
 			OperatingSystem: record.OperatingSystem, Architecture: record.Architecture,
@@ -288,10 +336,272 @@ func (s *Service) List(ctx context.Context) ([]Node, error) {
 			DesiredConfigurationRevision: record.DesiredConfigurationRevision,
 			AppliedConfigurationRevision: record.AppliedConfigurationRevision,
 			ConfigurationStatus:          configurationStatus, ConfigurationError: record.ConfigurationError,
-			RegisteredAt: time.Unix(record.RegisteredAt, 0).UTC(), LastSeenAt: lastSeenAt,
-		})
+			ConfigurationErrorRevision: record.ConfigurationErrorRevision,
+			RegisteredAt:               time.Unix(record.RegisteredAt, 0).UTC(), LastSeenAt: lastSeenAt,
+		}
+		if deletion, found := deletions[record.ID]; found {
+			status := deletion.Status
+			node.DeletionStatus = &status
+			node.DeletionError = deletion.LastError
+		}
+		nodes = append(nodes, node)
 	}
 	return nodes, nil
+}
+
+func (s *Service) Get(ctx context.Context, id uuid.UUID) (Node, error) {
+	nodes, err := s.List(ctx)
+	if err != nil {
+		return Node{}, err
+	}
+	for _, node := range nodes {
+		if node.ID == id {
+			return node, nil
+		}
+	}
+	return Node{}, ErrNodeNotFound
+}
+
+func (s *Service) SetEnabled(ctx context.Context, id uuid.UUID, enabled bool) (Node, error) {
+	transaction, err := s.database.BeginTx(ctx, nil)
+	if err != nil {
+		return Node{}, err
+	}
+	defer transaction.Rollback()
+	queries := s.queries.WithTx(transaction)
+	record, err := queries.GetNodeByID(ctx, id.String())
+	if errors.Is(err, sql.ErrNoRows) {
+		return Node{}, ErrNodeNotFound
+	}
+	if err != nil {
+		return Node{}, err
+	}
+	if deletion, deletionErr := queries.GetNodeDeletion(ctx, id.String()); deletionErr == nil && deletion.Status != "completed" {
+		return Node{}, ErrNodeDeletionPending
+	} else if deletionErr != nil && !errors.Is(deletionErr, sql.ErrNoRows) {
+		return Node{}, deletionErr
+	}
+	if record.RevokedAt != nil {
+		return Node{}, ErrNodeRevoked
+	}
+	if (record.Enabled == 1) != enabled {
+		value := boolInteger(enabled)
+		changed, err := queries.SetNodeEnabled(ctx, configdb.SetNodeEnabledParams{
+			Enabled: value, ID: id.String(), Enabled_2: value,
+		})
+		if err != nil {
+			return Node{}, err
+		}
+		if changed != 1 {
+			return Node{}, ErrNodeDeletionPending
+		}
+	}
+	if err := transaction.Commit(); err != nil {
+		return Node{}, err
+	}
+	return s.Get(ctx, id)
+}
+
+func (s *Service) Revoke(ctx context.Context, id uuid.UUID) (Node, error) {
+	now := s.now().UTC().Truncate(time.Second).Unix()
+	transaction, err := s.database.BeginTx(ctx, nil)
+	if err != nil {
+		return Node{}, err
+	}
+	defer transaction.Rollback()
+	queries := s.queries.WithTx(transaction)
+	record, err := queries.GetNodeByID(ctx, id.String())
+	if errors.Is(err, sql.ErrNoRows) {
+		return Node{}, ErrNodeNotFound
+	}
+	if err != nil {
+		return Node{}, err
+	}
+	if deletion, deletionErr := queries.GetNodeDeletion(ctx, id.String()); deletionErr == nil && deletion.Status != "completed" {
+		return Node{}, ErrNodeDeletionPending
+	} else if deletionErr != nil && !errors.Is(deletionErr, sql.ErrNoRows) {
+		return Node{}, deletionErr
+	}
+	if record.RevokedAt == nil {
+		changed, err := queries.RevokeNode(ctx, configdb.RevokeNodeParams{RevokedAt: &now, ID: id.String()})
+		if err != nil {
+			return Node{}, err
+		}
+		if changed != 1 {
+			return Node{}, ErrNodeNotFound
+		}
+	}
+	if err := queries.UpsertRevokedAgentCredential(ctx, configdb.UpsertRevokedAgentCredentialParams{
+		CredentialDigest: record.CredentialDigest, RevokedAt: now, Reason: "revoked",
+	}); err != nil {
+		return Node{}, err
+	}
+	if err := transaction.Commit(); err != nil {
+		return Node{}, err
+	}
+	return s.Get(ctx, id)
+}
+
+func (s *Service) Delete(ctx context.Context, id uuid.UUID) (Deletion, error) {
+	now := s.now().UTC().Truncate(time.Second).Unix()
+	transaction, err := s.database.BeginTx(ctx, nil)
+	if err != nil {
+		return Deletion{}, err
+	}
+	defer transaction.Rollback()
+	queries := s.queries.WithTx(transaction)
+	record, err := queries.GetNodeByID(ctx, id.String())
+	if errors.Is(err, sql.ErrNoRows) {
+		return Deletion{}, ErrNodeNotFound
+	}
+	if err != nil {
+		return Deletion{}, err
+	}
+	if record.RevokedAt == nil {
+		if _, err := queries.RevokeNode(ctx, configdb.RevokeNodeParams{RevokedAt: &now, ID: id.String()}); err != nil {
+			return Deletion{}, err
+		}
+	}
+	if err := queries.UpsertRevokedAgentCredential(ctx, configdb.UpsertRevokedAgentCredentialParams{
+		CredentialDigest: record.CredentialDigest, RevokedAt: now, Reason: "deleted",
+	}); err != nil {
+		return Deletion{}, err
+	}
+	if err := queries.CreateNodeDeletion(ctx, configdb.CreateNodeDeletionParams{
+		NodeID: id.String(), CredentialDigest: record.CredentialDigest,
+		RequestedAt: now, UpdatedAt: now,
+	}); err != nil {
+		return Deletion{}, err
+	}
+	operation, err := queries.GetNodeDeletion(ctx, id.String())
+	if err != nil {
+		return Deletion{}, err
+	}
+	if err := transaction.Commit(); err != nil {
+		return Deletion{}, err
+	}
+	select {
+	case s.deletionWake <- struct{}{}:
+	default:
+	}
+	return deletionFromRecord(operation)
+}
+
+func (s *Service) RunDeletionWorker(ctx context.Context, logger *log.Logger) {
+	if logger == nil {
+		logger = log.Default()
+	}
+	ticker := time.NewTicker(30 * time.Second)
+	defer ticker.Stop()
+	for {
+		if err := s.processDeletions(ctx, 16); err != nil && !errors.Is(err, context.Canceled) {
+			logger.Printf("process node deletions: %v", err)
+		}
+		select {
+		case <-ctx.Done():
+			return
+		case <-s.deletionWake:
+		case <-ticker.C:
+		}
+	}
+}
+
+func (s *Service) processDeletions(ctx context.Context, limit int64) error {
+	operations, err := s.queries.ListActiveNodeDeletions(ctx, limit)
+	if err != nil {
+		return err
+	}
+	for _, operation := range operations {
+		now := s.now().UTC().Truncate(time.Second).Unix()
+		if operation.Status == "failed" {
+			if err := s.queries.RetryNodeDeletion(ctx, configdb.RetryNodeDeletionParams{UpdatedAt: now, NodeID: operation.NodeID}); err != nil {
+				return err
+			}
+		}
+		if err := s.deleteHistory(ctx, operation.NodeID); err != nil {
+			message := boundedError(err)
+			if recordErr := s.queries.FailNodeDeletion(ctx, configdb.FailNodeDeletionParams{
+				UpdatedAt: now, LastError: &message, NodeID: operation.NodeID,
+			}); recordErr != nil {
+				return errors.Join(err, recordErr)
+			}
+			continue
+		}
+		transaction, err := s.database.BeginTx(ctx, nil)
+		if err != nil {
+			return err
+		}
+		queries := s.queries.WithTx(transaction)
+		if err := queries.DeleteNodeCapabilities(ctx, operation.NodeID); err == nil {
+			err = queries.DeleteNode(ctx, operation.NodeID)
+		}
+		if err == nil {
+			err = queries.CompleteNodeDeletion(ctx, configdb.CompleteNodeDeletionParams{UpdatedAt: now, NodeID: operation.NodeID})
+		}
+		if err == nil {
+			err = transaction.Commit()
+		} else {
+			_ = transaction.Rollback()
+		}
+		if err != nil {
+			message := boundedError(err)
+			if recordErr := s.queries.FailNodeDeletion(ctx, configdb.FailNodeDeletionParams{
+				UpdatedAt: now, LastError: &message, NodeID: operation.NodeID,
+			}); recordErr != nil {
+				return errors.Join(err, recordErr)
+			}
+		}
+	}
+	return nil
+}
+
+func (s *Service) deleteNodeHistory(ctx context.Context, _ string) error {
+	transaction, err := s.history.BeginTx(ctx, nil)
+	if err != nil {
+		return err
+	}
+	// Phase 2 has no node-owned history tables. Later phases add their
+	// idempotent cleanup to this transaction before the configuration commit.
+	return transaction.Commit()
+}
+
+func (s *Service) authenticateAgent(ctx context.Context, credential string) (configdb.Node, error) {
+	digest := sha256.Sum256([]byte(credential))
+	node, err := s.queries.GetNodeByCredentialDigest(ctx, digest[:])
+	if err == nil {
+		if node.RevokedAt != nil {
+			return configdb.Node{}, ErrAgentRevoked
+		}
+		return node, nil
+	}
+	if !errors.Is(err, sql.ErrNoRows) {
+		return configdb.Node{}, err
+	}
+	if _, revokedErr := s.queries.GetRevokedAgentCredential(ctx, digest[:]); revokedErr == nil {
+		return configdb.Node{}, ErrAgentRevoked
+	} else if !errors.Is(revokedErr, sql.ErrNoRows) {
+		return configdb.Node{}, revokedErr
+	}
+	return configdb.Node{}, ErrAgentUnauthenticated
+}
+
+func deletionFromRecord(record configdb.NodeDeletionOperation) (Deletion, error) {
+	id, err := uuid.Parse(record.NodeID)
+	if err != nil {
+		return Deletion{}, fmt.Errorf("parse stored node deletion ID %q: %w", record.NodeID, err)
+	}
+	return Deletion{
+		NodeID: id, Status: record.Status,
+		RequestedAt: time.Unix(record.RequestedAt, 0).UTC(), Error: record.LastError,
+	}, nil
+}
+
+func boundedError(err error) string {
+	runes := []rune(err.Error())
+	if len(runes) > 1024 {
+		runes = runes[:1024]
+	}
+	return string(runes)
 }
 
 func validateMetadata(metadata Metadata) (Metadata, error) {

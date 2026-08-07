@@ -18,7 +18,7 @@ func TestEnrollmentRegistrationAndHeartbeatLifecycle(t *testing.T) {
 		t.Fatal(err)
 	}
 	t.Cleanup(func() { _ = store.Close() })
-	service := NewService(store.Config, store.ConfigQueries, store.MasterKey)
+	service := NewService(store.Config, store.History, store.ConfigQueries, store.MasterKey)
 	now := time.Date(2026, 8, 7, 12, 0, 0, 0, time.UTC)
 	service.now = func() time.Time { return now }
 
@@ -75,13 +75,20 @@ func TestEnrollmentRegistrationAndHeartbeatLifecycle(t *testing.T) {
 	if err != nil || len(listed) != 1 || listed[0].Status != "offline" {
 		t.Fatalf("nodes before heartbeat = %#v, %v", listed, err)
 	}
-	if _, err := service.Poll(ctx, "wrong-credential", metadata, 0, nil); !errors.Is(err, ErrAgentUnauthenticated) {
+	if _, err := service.Poll(ctx, "wrong-credential", metadata, 0, nil, nil); !errors.Is(err, ErrAgentUnauthenticated) {
 		t.Fatalf("wrong Agent credential error = %v", err)
 	}
 	now = now.Add(time.Minute)
-	poll, err := service.Poll(ctx, registration.Credential, metadata, 0, nil)
-	if err != nil || !poll.Enabled || poll.DesiredConfigurationRevision != 0 {
+	poll, err := service.Poll(ctx, registration.Credential, metadata, 0, nil, nil)
+	if err != nil || !poll.Enabled || poll.DesiredConfigurationRevision != 1 {
 		t.Fatalf("poll = %#v, %v", poll, err)
+	}
+	configuration, err := service.Configuration(ctx, registration.Credential)
+	if err != nil || configuration.Revision != 1 || !configuration.Enabled || len(configuration.HistoryGeneration) != 64 {
+		t.Fatalf("configuration = %#v, %v", configuration, err)
+	}
+	if _, err := service.Poll(ctx, registration.Credential, metadata, 1, nil, nil); err != nil {
+		t.Fatalf("applied configuration poll: %v", err)
 	}
 	listed, err = service.List(ctx)
 	if err != nil || len(listed) != 1 {
@@ -92,7 +99,7 @@ func TestEnrollmentRegistrationAndHeartbeatLifecycle(t *testing.T) {
 		t.Fatalf("unexpected online node: %#v", listed[0])
 	}
 
-	restarted := NewService(store.Config, store.ConfigQueries, store.MasterKey)
+	restarted := NewService(store.Config, store.History, store.ConfigQueries, store.MasterKey)
 	restartedEnrollment, err := restarted.Enrollment(ctx)
 	if err != nil || restartedEnrollment.Key != enrollment.Key {
 		t.Fatalf("enrollment key did not survive restart: %#v, %v", restartedEnrollment, err)
@@ -104,7 +111,7 @@ func TestEnrollmentRegistrationAndHeartbeatLifecycle(t *testing.T) {
 	if _, err := restarted.Register(ctx, enrollment.Key, metadata); !errors.Is(err, ErrEnrollmentKeyInvalid) {
 		t.Fatalf("old key remains valid after rotation: %v", err)
 	}
-	if _, err := restarted.Poll(ctx, registration.Credential, metadata, 0, nil); err != nil {
+	if _, err := restarted.Poll(ctx, registration.Credential, metadata, 1, nil, nil); err != nil {
 		t.Fatalf("key rotation invalidated existing Agent: %v", err)
 	}
 }
@@ -123,6 +130,87 @@ func TestAgentMetadataValidation(t *testing.T) {
 	invalid.OperatingSystem = "windows"
 	if _, err := validateMetadata(invalid); !errors.Is(err, ErrInvalidMetadata) {
 		t.Fatalf("unsupported operating system error = %v", err)
+	}
+}
+
+func TestConfigurationFailureAndNodeLifecycle(t *testing.T) {
+	ctx := context.Background()
+	store, err := database.Open(ctx, database.PathsFromDataDirectory(t.TempDir()))
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = store.Close() })
+	service := NewService(store.Config, store.History, store.ConfigQueries, store.MasterKey)
+	now := time.Date(2026, 8, 7, 13, 0, 0, 0, time.UTC)
+	service.now = func() time.Time { return now }
+	enrollment, err := service.RotateEnrollmentKey(ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
+	registration, err := service.Register(ctx, enrollment.Key, testMetadata())
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	disabled, err := service.SetEnabled(ctx, registration.NodeID, false)
+	if err != nil || disabled.Enabled || disabled.DesiredConfigurationRevision != 2 || disabled.ConfigurationStatus != "pending" {
+		t.Fatalf("disabled node = %#v, %v", disabled, err)
+	}
+	configuration, err := service.Configuration(ctx, registration.Credential)
+	if err != nil || configuration.Enabled || configuration.Revision != 2 {
+		t.Fatalf("disabled configuration = %#v, %v", configuration, err)
+	}
+	message := "snapshot rejected for test"
+	errorRevision := int64(2)
+	if _, err := service.Poll(ctx, registration.Credential, testMetadata(), 1, &message, &errorRevision); err != nil {
+		t.Fatal(err)
+	}
+	failed, err := service.Get(ctx, registration.NodeID)
+	if err != nil || failed.ConfigurationStatus != "failed" || failed.ConfigurationError == nil {
+		t.Fatalf("failed node = %#v, %v", failed, err)
+	}
+	if _, err := service.Poll(ctx, registration.Credential, testMetadata(), 2, nil, nil); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := service.Poll(ctx, registration.Credential, testMetadata(), 1, nil, nil); !errors.Is(err, ErrInvalidMetadata) {
+		t.Fatalf("applied revision rollback error = %v", err)
+	}
+	current, err := service.Get(ctx, registration.NodeID)
+	if err != nil || current.ConfigurationStatus != "current" {
+		t.Fatalf("current node = %#v, %v", current, err)
+	}
+
+	revoked, err := service.Revoke(ctx, registration.NodeID)
+	if err != nil || revoked.Status != "revoked" {
+		t.Fatalf("revoked node = %#v, %v", revoked, err)
+	}
+	if _, err := service.Configuration(ctx, registration.Credential); !errors.Is(err, ErrAgentRevoked) {
+		t.Fatalf("revoked configuration error = %v", err)
+	}
+
+	deletion, err := service.Delete(ctx, registration.NodeID)
+	if err != nil || deletion.Status != "pending" {
+		t.Fatalf("queued deletion = %#v, %v", deletion, err)
+	}
+	service.deleteHistory = func(context.Context, string) error {
+		return errors.New("history disk unavailable")
+	}
+	if err := service.processDeletions(ctx, 1); err != nil {
+		t.Fatal(err)
+	}
+	failedDeletion, err := service.Get(ctx, registration.NodeID)
+	if err != nil || failedDeletion.DeletionStatus == nil || *failedDeletion.DeletionStatus != "failed" || failedDeletion.DeletionError == nil {
+		t.Fatalf("failed deletion node = %#v, %v", failedDeletion, err)
+	}
+	service.deleteHistory = service.deleteNodeHistory
+	if err := service.processDeletions(ctx, 1); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := service.Get(ctx, registration.NodeID); !errors.Is(err, ErrNodeNotFound) {
+		t.Fatalf("deleted node lookup error = %v", err)
+	}
+	if _, err := service.Poll(ctx, registration.Credential, testMetadata(), 2, nil, nil); !errors.Is(err, ErrAgentRevoked) {
+		t.Fatalf("deleted credential error = %v", err)
 	}
 }
 

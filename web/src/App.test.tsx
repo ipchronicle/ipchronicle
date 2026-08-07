@@ -11,9 +11,12 @@ import {
 } from "@/api/auth";
 import { getSystemStatus } from "@/api/system";
 import {
+  deleteNode,
   getAgentEnrollment,
   listNodes,
+  revokeNode,
   rotateAgentEnrollmentKey,
+  updateNode,
   updateAgentEnrollment,
 } from "@/api/nodes";
 import App from "@/App";
@@ -37,9 +40,12 @@ vi.mock("@/api/system", () => ({
 }));
 
 vi.mock("@/api/nodes", () => ({
+  deleteNode: vi.fn(),
   getAgentEnrollment: vi.fn(),
   listNodes: vi.fn(),
+  revokeNode: vi.fn(),
   rotateAgentEnrollmentKey: vi.fn(),
+  updateNode: vi.fn(),
   updateAgentEnrollment: vi.fn(),
 }));
 
@@ -51,6 +57,9 @@ const getSystemStatusMock = vi.mocked(getSystemStatus);
 const getEnrollmentMock = vi.mocked(getAgentEnrollment);
 const listNodesMock = vi.mocked(listNodes);
 const rotateEnrollmentMock = vi.mocked(rotateAgentEnrollmentKey);
+const deleteNodeMock = vi.mocked(deleteNode);
+const revokeNodeMock = vi.mocked(revokeNode);
+const updateNodeMock = vi.mocked(updateNode);
 const updateEnrollmentMock = vi.mocked(updateAgentEnrollment);
 
 const session: AuthenticatedSession = {
@@ -68,7 +77,7 @@ const healthyStatus = {
   service: "ipchronicle-center" as const,
   status: "ok" as const,
   version: "0.0.0-test",
-  configSchemaVersion: 2,
+  configSchemaVersion: 3,
   historySchemaVersion: 1,
   transportSecurity: "http" as const,
   transportWarning: true,
@@ -89,6 +98,9 @@ describe("administrator application", () => {
     getEnrollmentMock.mockReset();
     listNodesMock.mockReset();
     rotateEnrollmentMock.mockReset();
+    deleteNodeMock.mockReset();
+    revokeNodeMock.mockReset();
+    updateNodeMock.mockReset();
     updateEnrollmentMock.mockReset();
   });
 
@@ -188,8 +200,8 @@ describe("administrator application", () => {
         operatingSystem: "linux",
         architecture: "amd64",
         capabilities: ["control-v1"],
-        desiredConfigurationRevision: 0,
-        appliedConfigurationRevision: 0,
+        desiredConfigurationRevision: 1,
+        appliedConfigurationRevision: 1,
         configurationStatus: "current",
         registeredAt: "2026-08-07T12:00:00Z",
         lastSeenAt: "2026-08-07T12:01:00Z",
@@ -202,12 +214,28 @@ describe("administrator application", () => {
         "curl https://example.test/install-agent.sh | sh -s -- --registration-key secret",
       rotatedAt: "2026-08-07T12:00:00Z",
     });
+    updateNodeMock.mockResolvedValue({
+      id: "7289cfa3-a75d-4a3f-ac06-8f1074446a85",
+      name: "edge-1",
+      hostname: "edge-1",
+      status: "disabled",
+      enabled: false,
+      agentVersion: "0.1.0",
+      operatingSystem: "linux",
+      architecture: "amd64",
+      capabilities: ["control-v1"],
+      desiredConfigurationRevision: 2,
+      appliedConfigurationRevision: 1,
+      configurationStatus: "pending",
+      registeredAt: "2026-08-07T12:00:00Z",
+      lastSeenAt: "2026-08-07T12:01:00Z",
+    });
     renderApplication("/nodes");
 
     expect(
       await screen.findByRole("heading", { name: "Nodes" }),
     ).toBeInTheDocument();
-    expect(screen.getAllByText("edge-1").length).toBeGreaterThan(0);
+    expect((await screen.findAllByText("edge-1")).length).toBeGreaterThan(0);
     expect(screen.getAllByText("Online").length).toBeGreaterThan(0);
     expect(screen.getByRole("link", { name: "Nodes" })).toHaveAttribute(
       "aria-current",
@@ -222,6 +250,16 @@ describe("administrator application", () => {
         session.csrfToken,
       ),
     );
+    fireEvent.click(screen.getAllByRole("button", { name: "Pause node" })[0]);
+    await waitFor(() =>
+      expect(updateNodeMock).toHaveBeenCalledWith(
+        "7289cfa3-a75d-4a3f-ac06-8f1074446a85",
+        false,
+        session.csrfToken,
+      ),
+    );
+    expect(screen.getAllByText("Disabled").length).toBeGreaterThan(0);
+    expect(screen.getAllByText("Pending · 1/2").length).toBeGreaterThan(0);
   });
 });
 
