@@ -1,0 +1,46 @@
+openapi: 3.1.0
+info:
+  title: IPChronicle API
+  version: 0.0.0
+  description: Contract for the IPChronicle center and managed-node Agent.
+  license:
+    name: AGPL-3.0-only
+    identifier: AGPL-3.0-only
+servers:
+  - url: /
+paths:
+  /api/v1/system/status:
+    get:
+      operationId: getSystemStatus
+      summary: Read center status
+      security: []
+      tags:
+        - system
+      responses:
+        "200":
+          description: The center is available.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SystemStatus"
+components:
+  schemas:
+    SystemStatus:
+      type: object
+      additionalProperties: false
+      required:
+        - service
+        - status
+        - version
+      properties:
+        service:
+          type: string
+          enum:
+            - ipchronicle-center
+        status:
+          type: string
+          enum:
+            - ok
+        version:
+          type: string
+          minLength: 1
