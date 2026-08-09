@@ -13,6 +13,7 @@ import (
 	"github.com/ipchronicle/ipchronicle/internal/center/admin"
 	centerhistory "github.com/ipchronicle/ipchronicle/internal/center/history"
 	"github.com/ipchronicle/ipchronicle/internal/center/nodes"
+	"github.com/ipchronicle/ipchronicle/internal/center/notifications"
 	"github.com/ipchronicle/ipchronicle/internal/generated/api"
 )
 
@@ -20,6 +21,7 @@ type apiServer struct {
 	version                  string
 	administrator            *admin.Service
 	nodes                    *nodes.Service
+	notifications            *notifications.Service
 	configSchemaVersion      int64
 	historySchemaVersion     int64
 	externalOriginConfigured bool

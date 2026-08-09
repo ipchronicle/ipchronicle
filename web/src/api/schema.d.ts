@@ -469,6 +469,118 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/notification-senders": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List configured notification senders */
+        get: operations["listNotificationSenders"];
+        put?: never;
+        /** Create a notification sender */
+        post: operations["createNotificationSender"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/notification-senders/{senderId}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                senderId: components["parameters"]["SenderId"];
+            };
+            cookie?: never;
+        };
+        get?: never;
+        /** Replace a notification sender while optionally retaining hidden credentials */
+        put: operations["updateNotificationSender"];
+        post?: never;
+        /** Delete an unreferenced sender without active deliveries */
+        delete: operations["deleteNotificationSender"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/notification-senders/{senderId}/test-deliveries": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                senderId: components["parameters"]["SenderId"];
+            };
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Queue a real-path test delivery for one sender */
+        post: operations["createNotificationTestDelivery"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/notification-rules": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List current notification matching rules */
+        get: operations["listNotificationRules"];
+        put?: never;
+        /** Create a notification matching rule */
+        post: operations["createNotificationRule"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/notification-rules/{ruleId}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                ruleId: components["parameters"]["RuleId"];
+            };
+            cookie?: never;
+        };
+        get?: never;
+        /** Replace a notification matching rule */
+        put: operations["updateNotificationRule"];
+        post?: never;
+        /** Delete a notification matching rule */
+        delete: operations["deleteNotificationRule"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/notification-deliveries": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List durable notification delivery history and active work */
+        get: operations["listNotificationDeliveries"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/nodes/{nodeId}/network": {
         parameters: {
             query?: never;
@@ -738,7 +850,7 @@ export interface components {
             provisioningUri: string;
         };
         /** @enum {string} */
-        ErrorCode: "invalid_request" | "invalid_credentials" | "totp_required" | "rate_limited" | "unauthenticated" | "csrf_failed" | "origin_not_allowed" | "current_password_invalid" | "invalid_totp" | "totp_already_enabled" | "totp_not_enabled" | "totp_enrollment_not_started" | "no_account_change" | "registration_key_not_initialized" | "registration_key_invalid" | "registration_disabled" | "agent_unauthenticated" | "agent_revoked" | "node_not_found" | "node_revoked" | "node_disabled" | "node_deletion_pending" | "node_sync_unsupported" | "sync_session_unavailable" | "network_inventory_unavailable" | "invalid_egress_candidate" | "egress_already_exists" | "egress_limit_reached" | "egress_not_found" | "egress_deletion_pending" | "invalid_network_proxy" | "network_proxy_not_found" | "network_proxy_already_exists" | "network_proxy_limit_reached" | "network_proxy_in_use" | "invalid_observation_settings" | "invalid_probe_settings" | "node_offline" | "probe_task_slot_occupied" | "probe_already_running" | "probe_paused_low_memory" | "no_enabled_egress" | "probe_run_not_found" | "probe_snapshot_not_found" | "snapshot_egress_mismatch" | "internal_error";
+        ErrorCode: "invalid_request" | "invalid_credentials" | "totp_required" | "rate_limited" | "unauthenticated" | "csrf_failed" | "origin_not_allowed" | "current_password_invalid" | "invalid_totp" | "totp_already_enabled" | "totp_not_enabled" | "totp_enrollment_not_started" | "no_account_change" | "registration_key_not_initialized" | "registration_key_invalid" | "registration_disabled" | "agent_unauthenticated" | "agent_revoked" | "node_not_found" | "node_revoked" | "node_disabled" | "node_deletion_pending" | "node_sync_unsupported" | "sync_session_unavailable" | "network_inventory_unavailable" | "invalid_egress_candidate" | "egress_already_exists" | "egress_limit_reached" | "egress_not_found" | "egress_deletion_pending" | "invalid_network_proxy" | "network_proxy_not_found" | "network_proxy_already_exists" | "network_proxy_limit_reached" | "network_proxy_in_use" | "invalid_observation_settings" | "invalid_probe_settings" | "node_offline" | "probe_task_slot_occupied" | "probe_already_running" | "probe_paused_low_memory" | "no_enabled_egress" | "probe_run_not_found" | "probe_snapshot_not_found" | "snapshot_egress_mismatch" | "invalid_notification_sender" | "notification_sender_not_found" | "notification_sender_name_in_use" | "notification_sender_in_use" | "notification_sender_active" | "invalid_notification_rule" | "notification_rule_not_found" | "notification_rule_name_in_use" | "invalid_notification_delivery_query" | "internal_error";
         ErrorResponse: {
             code: components["schemas"]["ErrorCode"];
             parameters?: {
@@ -1582,6 +1694,148 @@ export interface components {
             usage: components["schemas"]["HistoryUsage"];
         };
         /** @enum {string} */
+        NotificationSenderKind: "telegram" | "webhook" | "javascript";
+        TelegramSenderCreate: {
+            chatId: string;
+            token: string;
+        };
+        TelegramSenderUpdate: {
+            chatId: string;
+            token?: string;
+        };
+        TelegramSenderView: {
+            chatId: string;
+            tokenConfigured: boolean;
+        };
+        WebhookSenderCreate: {
+            /** Format: uri */
+            url: string;
+            headers: {
+                [key: string]: string;
+            };
+        };
+        WebhookSenderUpdate: {
+            /** Format: uri */
+            url: string;
+            headers?: {
+                [key: string]: string;
+            };
+        };
+        WebhookSenderView: {
+            /** Format: uri */
+            url: string;
+            headerNames: string[];
+        };
+        JavaScriptSenderConfiguration: {
+            source: string;
+        };
+        NotificationSenderCreate: {
+            name: string;
+            kind: components["schemas"]["NotificationSenderKind"];
+            enabled: boolean;
+            telegram?: components["schemas"]["TelegramSenderCreate"];
+            webhook?: components["schemas"]["WebhookSenderCreate"];
+            javascript?: components["schemas"]["JavaScriptSenderConfiguration"];
+        };
+        NotificationSenderUpdate: {
+            name: string;
+            enabled: boolean;
+            telegram?: components["schemas"]["TelegramSenderUpdate"];
+            webhook?: components["schemas"]["WebhookSenderUpdate"];
+            javascript?: components["schemas"]["JavaScriptSenderConfiguration"];
+        };
+        NotificationSender: {
+            /** Format: uuid */
+            id: string;
+            name: string;
+            kind: components["schemas"]["NotificationSenderKind"];
+            enabled: boolean;
+            telegram?: components["schemas"]["TelegramSenderView"];
+            webhook?: components["schemas"]["WebhookSenderView"];
+            javascript?: components["schemas"]["JavaScriptSenderConfiguration"];
+            /** Format: date-time */
+            createdAt: string;
+            /** Format: date-time */
+            updatedAt: string;
+        };
+        NotificationSenderList: {
+            items: components["schemas"]["NotificationSender"][];
+        };
+        /** @enum {string} */
+        NotificationEventType: "probe-field-change" | "address-change" | "address-check-failure" | "address-check-recovery" | "probe-failure" | "probe-recovery" | "address-gap" | "probe-gap" | "format-mismatch" | "format-changed" | "format-recovery";
+        NotificationRuleWrite: {
+            name: string;
+            enabled: boolean;
+            /** Format: uuid */
+            senderId: string;
+            eventType: components["schemas"]["NotificationEventType"];
+            fieldId?: string;
+            /** Format: uuid */
+            nodeId?: string;
+            /** Format: uuid */
+            egressId?: string;
+        };
+        NotificationRule: components["schemas"]["NotificationRuleWrite"] & {
+            /** Format: uuid */
+            id: string;
+            /** Format: date-time */
+            createdAt: string;
+            /** Format: date-time */
+            updatedAt: string;
+        };
+        NotificationRuleList: {
+            items: components["schemas"]["NotificationRule"][];
+        };
+        /** @enum {string} */
+        NotificationDeliveryStatus: "pending" | "running" | "retrying" | "succeeded" | "failed";
+        NotificationDelivery: {
+            /** Format: uuid */
+            id: string;
+            /** Format: uuid */
+            eventId: string;
+            /** Format: uuid */
+            senderId: string;
+            senderName: string;
+            senderKind: components["schemas"]["NotificationSenderKind"];
+            eventType: string;
+            /** Format: uuid */
+            nodeId?: string;
+            /** Format: uuid */
+            egressId?: string;
+            test: boolean;
+            status: components["schemas"]["NotificationDeliveryStatus"];
+            /** Format: int64 */
+            attemptCount: number;
+            /** Format: date-time */
+            nextAttemptAt?: string;
+            /** Format: date-time */
+            lastAttemptAt?: string;
+            /** Format: date-time */
+            completedAt?: string;
+            errorCode?: string;
+            matchedRuleIds: string[];
+            event: {
+                [key: string]: unknown;
+            };
+            title: string;
+            body: string;
+            /** Format: date-time */
+            createdAt: string;
+            /** Format: date-time */
+            updatedAt: string;
+        };
+        NotificationDeliveryPage: {
+            items: components["schemas"]["NotificationDelivery"][];
+            /** Format: int64 */
+            page: number;
+            /** Format: int64 */
+            pageSize: number;
+            /** Format: int64 */
+            totalItems: number;
+            /** Format: int64 */
+            totalPages: number;
+        };
+        /** @enum {string} */
         NodeStatus: "online" | "offline" | "disabled" | "revoked";
         /** @enum {string} */
         NodeConfigurationStatus: "current" | "pending" | "failed";
@@ -1703,6 +1957,10 @@ export interface components {
         ProxyId: string;
         RunId: string;
         SnapshotId: string;
+        SenderId: string;
+        RuleId: string;
+        NotificationSenderFilter: string;
+        NotificationDeliveryStatusFilter: components["schemas"]["NotificationDeliveryStatus"];
         HistoryNodeFilter: string;
         HistoryEgressFilter: string;
         HistoryFrom: string;
@@ -2609,6 +2867,279 @@ export interface operations {
             };
             401: components["responses"]["Unauthorized"];
             403: components["responses"]["Forbidden"];
+        };
+    };
+    listNotificationSenders: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Current Telegram, Webhook, and JavaScript senders. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["NotificationSenderList"];
+                };
+            };
+            401: components["responses"]["Unauthorized"];
+        };
+    };
+    createNotificationSender: {
+        parameters: {
+            query?: never;
+            header?: {
+                "X-CSRF-Token"?: components["parameters"]["CSRFToken"];
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["NotificationSenderCreate"];
+            };
+        };
+        responses: {
+            /** @description The sender was created. */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["NotificationSender"];
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            409: components["responses"]["Conflict"];
+        };
+    };
+    updateNotificationSender: {
+        parameters: {
+            query?: never;
+            header?: {
+                "X-CSRF-Token"?: components["parameters"]["CSRFToken"];
+            };
+            path: {
+                senderId: components["parameters"]["SenderId"];
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["NotificationSenderUpdate"];
+            };
+        };
+        responses: {
+            /** @description The sender was updated. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["NotificationSender"];
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+            409: components["responses"]["Conflict"];
+        };
+    };
+    deleteNotificationSender: {
+        parameters: {
+            query?: never;
+            header?: {
+                "X-CSRF-Token"?: components["parameters"]["CSRFToken"];
+            };
+            path: {
+                senderId: components["parameters"]["SenderId"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The sender was deleted. */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+            409: components["responses"]["Conflict"];
+        };
+    };
+    createNotificationTestDelivery: {
+        parameters: {
+            query?: never;
+            header?: {
+                "X-CSRF-Token"?: components["parameters"]["CSRFToken"];
+            };
+            path: {
+                senderId: components["parameters"]["SenderId"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The test delivery was durably queued. */
+            202: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["NotificationDelivery"];
+                };
+            };
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+        };
+    };
+    listNotificationRules: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Current notification rules. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["NotificationRuleList"];
+                };
+            };
+            401: components["responses"]["Unauthorized"];
+        };
+    };
+    createNotificationRule: {
+        parameters: {
+            query?: never;
+            header?: {
+                "X-CSRF-Token"?: components["parameters"]["CSRFToken"];
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["NotificationRuleWrite"];
+            };
+        };
+        responses: {
+            /** @description The rule was created. */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["NotificationRule"];
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            409: components["responses"]["Conflict"];
+        };
+    };
+    updateNotificationRule: {
+        parameters: {
+            query?: never;
+            header?: {
+                "X-CSRF-Token"?: components["parameters"]["CSRFToken"];
+            };
+            path: {
+                ruleId: components["parameters"]["RuleId"];
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["NotificationRuleWrite"];
+            };
+        };
+        responses: {
+            /** @description The rule was updated. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["NotificationRule"];
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+            409: components["responses"]["Conflict"];
+        };
+    };
+    deleteNotificationRule: {
+        parameters: {
+            query?: never;
+            header?: {
+                "X-CSRF-Token"?: components["parameters"]["CSRFToken"];
+            };
+            path: {
+                ruleId: components["parameters"]["RuleId"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The rule was deleted. */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+        };
+    };
+    listNotificationDeliveries: {
+        parameters: {
+            query?: {
+                senderId?: components["parameters"]["NotificationSenderFilter"];
+                status?: components["parameters"]["NotificationDeliveryStatusFilter"];
+                page?: components["parameters"]["HistoryPage"];
+                pageSize?: components["parameters"]["HistoryPageSize"];
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Filtered delivery history. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["NotificationDeliveryPage"];
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            401: components["responses"]["Unauthorized"];
         };
     };
     getNodeNetwork: {

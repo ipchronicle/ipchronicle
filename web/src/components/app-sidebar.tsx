@@ -1,4 +1,5 @@
 import {
+  BellRing,
   CircleUserRound,
   Database,
   Gauge,
@@ -121,6 +122,25 @@ export function AppSidebar() {
                     >
                       <History aria-hidden="true" />
                       <span>{t("navigation.history")}</span>
+                    </SidebarLink>
+                  </SidebarMenuButton>
+                </SidebarMenuItem>
+                <SidebarMenuItem>
+                  <SidebarMenuButton
+                    asChild
+                    isActive={location.pathname === "/notifications"}
+                    tooltip={t("navigation.notifications")}
+                  >
+                    <SidebarLink
+                      to="/notifications"
+                      aria-current={
+                        location.pathname === "/notifications"
+                          ? "page"
+                          : undefined
+                      }
+                    >
+                      <BellRing aria-hidden="true" />
+                      <span>{t("navigation.notifications")}</span>
                     </SidebarLink>
                   </SidebarMenuButton>
                 </SidebarMenuItem>

@@ -10,6 +10,7 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/ipchronicle/ipchronicle/internal/center/database/historydb"
+	"github.com/ipchronicle/ipchronicle/internal/center/notifications"
 )
 
 var sharedIPv4Prefix = netip.MustParsePrefix("100.64.0.0/10")
@@ -143,6 +144,9 @@ func (s *Service) ingestAddressUpload(ctx context.Context, nodeID string, upload
 		if !accepted {
 			return receipt, ErrInvalidMetadata
 		}
+		if err := createAddressNotificationEvent(ctx, queries, nodeID, item, receivedAt); err != nil {
+			return receipt, err
+		}
 		receipt.AcceptedEventIDs = append(receipt.AcceptedEventIDs, item.ID)
 	}
 	for _, item := range upload.Gaps {
@@ -168,12 +172,58 @@ func (s *Service) ingestAddressUpload(ctx context.Context, nodeID string, upload
 		if rows != 1 {
 			return receipt, ErrInvalidMetadata
 		}
+		egressID := item.EgressID.String()
+		if err := notifications.CreateEvent(ctx, queries, notifications.EventInput{
+			Type: notifications.EventAddressGap, SourceKind: "address-gap", SourceID: item.ID.String(),
+			NodeID: &nodeID, EgressID: &egressID,
+			Payload: notifications.GapData{
+				Kind: "address", DroppedCount: item.DroppedCount,
+				FirstSequence: item.FirstSequence, LastSequence: item.LastSequence,
+				FirstObservedAt: item.FirstObservedAt.UTC().Unix(), LastObservedAt: item.LastObservedAt.UTC().Unix(),
+			},
+			ObservedAt: item.LastObservedAt.UTC().Unix(), RecordedAt: receivedAt,
+		}); err != nil {
+			return receipt, err
+		}
 		receipt.AcceptedGaps = append(receipt.AcceptedGaps, acknowledgement)
 	}
 	if err := transaction.Commit(); err != nil {
 		return receipt, err
 	}
 	return receipt, nil
+}
+
+func createAddressNotificationEvent(
+	ctx context.Context,
+	queries *historydb.Queries,
+	nodeID string,
+	item AddressEvent,
+	recordedAt int64,
+) error {
+	eventType := ""
+	switch item.Kind {
+	case "address-change":
+		eventType = notifications.EventAddressChange
+	case "check-failure":
+		eventType = notifications.EventAddressCheckFailure
+	case "recovery":
+		eventType = notifications.EventAddressCheckRecover
+	default:
+		return nil
+	}
+	egressID := item.EgressID.String()
+	return notifications.CreateEvent(ctx, queries, notifications.EventInput{
+		Type: eventType, SourceKind: "address-event", SourceID: item.ID.String(),
+		NodeID: &nodeID, EgressID: &egressID,
+		Payload: notifications.AddressData{
+			Sequence: item.Sequence, Kind: item.Kind, Family: item.Family,
+			PreviousAddress: item.PreviousAddress, PublicAddress: item.PublicAddress,
+			LocalInterface: item.LocalInterface, LocalAddress: item.LocalAddress,
+			ProxyPath: item.ProxyPath, LikelyNAT: item.LikelyNAT,
+			Temporary: item.Temporary, FailureReason: item.FailureReason,
+		},
+		ObservedAt: item.ObservedAt.UTC().Unix(), RecordedAt: recordedAt,
+	})
 }
 
 func validateAddressUpload(upload AddressUpload, egresses map[uuid.UUID]NetworkEgress) error {

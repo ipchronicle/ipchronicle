@@ -159,6 +159,29 @@ type NodeSyncSession struct {
 	DeliveredAt *int64
 }
 
+type NotificationRule struct {
+	ID        string
+	Name      string
+	Enabled   int64
+	SenderID  string
+	EventType string
+	FieldID   *string
+	NodeID    *string
+	EgressID  *string
+	CreatedAt int64
+	UpdatedAt int64
+}
+
+type NotificationSender struct {
+	ID                     string
+	Name                   string
+	Kind                   string
+	Enabled                int64
+	ConfigurationEncrypted []byte
+	CreatedAt              int64
+	UpdatedAt              int64
+}
+
 type ProbeTask struct {
 	ID                  string
 	NodeID              string

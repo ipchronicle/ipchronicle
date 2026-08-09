@@ -281,52 +281,61 @@ func (e EgressDeletionStatus) Valid() bool {
 
 // Defines values for ErrorCode.
 const (
-	AgentRevoked                  ErrorCode = "agent_revoked"
-	AgentUnauthenticated          ErrorCode = "agent_unauthenticated"
-	CsrfFailed                    ErrorCode = "csrf_failed"
-	CurrentPasswordInvalid        ErrorCode = "current_password_invalid"
-	EgressAlreadyExists           ErrorCode = "egress_already_exists"
-	EgressDeletionPending         ErrorCode = "egress_deletion_pending"
-	EgressLimitReached            ErrorCode = "egress_limit_reached"
-	EgressNotFound                ErrorCode = "egress_not_found"
-	InternalError                 ErrorCode = "internal_error"
-	InvalidCredentials            ErrorCode = "invalid_credentials"
-	InvalidEgressCandidate        ErrorCode = "invalid_egress_candidate"
-	InvalidNetworkProxy           ErrorCode = "invalid_network_proxy"
-	InvalidObservationSettings    ErrorCode = "invalid_observation_settings"
-	InvalidProbeSettings          ErrorCode = "invalid_probe_settings"
-	InvalidRequest                ErrorCode = "invalid_request"
-	InvalidTotp                   ErrorCode = "invalid_totp"
-	NetworkInventoryUnavailable   ErrorCode = "network_inventory_unavailable"
-	NetworkProxyAlreadyExists     ErrorCode = "network_proxy_already_exists"
-	NetworkProxyInUse             ErrorCode = "network_proxy_in_use"
-	NetworkProxyLimitReached      ErrorCode = "network_proxy_limit_reached"
-	NetworkProxyNotFound          ErrorCode = "network_proxy_not_found"
-	NoAccountChange               ErrorCode = "no_account_change"
-	NoEnabledEgress               ErrorCode = "no_enabled_egress"
-	NodeDeletionPending           ErrorCode = "node_deletion_pending"
-	NodeDisabled                  ErrorCode = "node_disabled"
-	NodeNotFound                  ErrorCode = "node_not_found"
-	NodeOffline                   ErrorCode = "node_offline"
-	NodeRevoked                   ErrorCode = "node_revoked"
-	NodeSyncUnsupported           ErrorCode = "node_sync_unsupported"
-	OriginNotAllowed              ErrorCode = "origin_not_allowed"
-	ProbeAlreadyRunning           ErrorCode = "probe_already_running"
-	ProbePausedLowMemory          ErrorCode = "probe_paused_low_memory"
-	ProbeRunNotFound              ErrorCode = "probe_run_not_found"
-	ProbeSnapshotNotFound         ErrorCode = "probe_snapshot_not_found"
-	ProbeTaskSlotOccupied         ErrorCode = "probe_task_slot_occupied"
-	RateLimited                   ErrorCode = "rate_limited"
-	RegistrationDisabled          ErrorCode = "registration_disabled"
-	RegistrationKeyInvalid        ErrorCode = "registration_key_invalid"
-	RegistrationKeyNotInitialized ErrorCode = "registration_key_not_initialized"
-	SnapshotEgressMismatch        ErrorCode = "snapshot_egress_mismatch"
-	SyncSessionUnavailable        ErrorCode = "sync_session_unavailable"
-	TotpAlreadyEnabled            ErrorCode = "totp_already_enabled"
-	TotpEnrollmentNotStarted      ErrorCode = "totp_enrollment_not_started"
-	TotpNotEnabled                ErrorCode = "totp_not_enabled"
-	TotpRequired                  ErrorCode = "totp_required"
-	Unauthenticated               ErrorCode = "unauthenticated"
+	AgentRevoked                     ErrorCode = "agent_revoked"
+	AgentUnauthenticated             ErrorCode = "agent_unauthenticated"
+	CsrfFailed                       ErrorCode = "csrf_failed"
+	CurrentPasswordInvalid           ErrorCode = "current_password_invalid"
+	EgressAlreadyExists              ErrorCode = "egress_already_exists"
+	EgressDeletionPending            ErrorCode = "egress_deletion_pending"
+	EgressLimitReached               ErrorCode = "egress_limit_reached"
+	EgressNotFound                   ErrorCode = "egress_not_found"
+	InternalError                    ErrorCode = "internal_error"
+	InvalidCredentials               ErrorCode = "invalid_credentials"
+	InvalidEgressCandidate           ErrorCode = "invalid_egress_candidate"
+	InvalidNetworkProxy              ErrorCode = "invalid_network_proxy"
+	InvalidNotificationDeliveryQuery ErrorCode = "invalid_notification_delivery_query"
+	InvalidNotificationRule          ErrorCode = "invalid_notification_rule"
+	InvalidNotificationSender        ErrorCode = "invalid_notification_sender"
+	InvalidObservationSettings       ErrorCode = "invalid_observation_settings"
+	InvalidProbeSettings             ErrorCode = "invalid_probe_settings"
+	InvalidRequest                   ErrorCode = "invalid_request"
+	InvalidTotp                      ErrorCode = "invalid_totp"
+	NetworkInventoryUnavailable      ErrorCode = "network_inventory_unavailable"
+	NetworkProxyAlreadyExists        ErrorCode = "network_proxy_already_exists"
+	NetworkProxyInUse                ErrorCode = "network_proxy_in_use"
+	NetworkProxyLimitReached         ErrorCode = "network_proxy_limit_reached"
+	NetworkProxyNotFound             ErrorCode = "network_proxy_not_found"
+	NoAccountChange                  ErrorCode = "no_account_change"
+	NoEnabledEgress                  ErrorCode = "no_enabled_egress"
+	NodeDeletionPending              ErrorCode = "node_deletion_pending"
+	NodeDisabled                     ErrorCode = "node_disabled"
+	NodeNotFound                     ErrorCode = "node_not_found"
+	NodeOffline                      ErrorCode = "node_offline"
+	NodeRevoked                      ErrorCode = "node_revoked"
+	NodeSyncUnsupported              ErrorCode = "node_sync_unsupported"
+	NotificationRuleNameInUse        ErrorCode = "notification_rule_name_in_use"
+	NotificationRuleNotFound         ErrorCode = "notification_rule_not_found"
+	NotificationSenderActive         ErrorCode = "notification_sender_active"
+	NotificationSenderInUse          ErrorCode = "notification_sender_in_use"
+	NotificationSenderNameInUse      ErrorCode = "notification_sender_name_in_use"
+	NotificationSenderNotFound       ErrorCode = "notification_sender_not_found"
+	OriginNotAllowed                 ErrorCode = "origin_not_allowed"
+	ProbeAlreadyRunning              ErrorCode = "probe_already_running"
+	ProbePausedLowMemory             ErrorCode = "probe_paused_low_memory"
+	ProbeRunNotFound                 ErrorCode = "probe_run_not_found"
+	ProbeSnapshotNotFound            ErrorCode = "probe_snapshot_not_found"
+	ProbeTaskSlotOccupied            ErrorCode = "probe_task_slot_occupied"
+	RateLimited                      ErrorCode = "rate_limited"
+	RegistrationDisabled             ErrorCode = "registration_disabled"
+	RegistrationKeyInvalid           ErrorCode = "registration_key_invalid"
+	RegistrationKeyNotInitialized    ErrorCode = "registration_key_not_initialized"
+	SnapshotEgressMismatch           ErrorCode = "snapshot_egress_mismatch"
+	SyncSessionUnavailable           ErrorCode = "sync_session_unavailable"
+	TotpAlreadyEnabled               ErrorCode = "totp_already_enabled"
+	TotpEnrollmentNotStarted         ErrorCode = "totp_enrollment_not_started"
+	TotpNotEnabled                   ErrorCode = "totp_not_enabled"
+	TotpRequired                     ErrorCode = "totp_required"
+	Unauthenticated                  ErrorCode = "unauthenticated"
 )
 
 // Valid indicates whether the value is a known member of the ErrorCode enum.
@@ -355,6 +364,12 @@ func (e ErrorCode) Valid() bool {
 	case InvalidEgressCandidate:
 		return true
 	case InvalidNetworkProxy:
+		return true
+	case InvalidNotificationDeliveryQuery:
+		return true
+	case InvalidNotificationRule:
+		return true
+	case InvalidNotificationSender:
 		return true
 	case InvalidObservationSettings:
 		return true
@@ -389,6 +404,18 @@ func (e ErrorCode) Valid() bool {
 	case NodeRevoked:
 		return true
 	case NodeSyncUnsupported:
+		return true
+	case NotificationRuleNameInUse:
+		return true
+	case NotificationRuleNotFound:
+		return true
+	case NotificationSenderActive:
+		return true
+	case NotificationSenderInUse:
+		return true
+	case NotificationSenderNameInUse:
+		return true
+	case NotificationSenderNotFound:
 		return true
 	case OriginNotAllowed:
 		return true
@@ -717,6 +744,99 @@ func (e NodeSyncStatus) Valid() bool {
 	case NodeSyncStatusDegraded:
 		return true
 	case NodeSyncStatusPending:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for NotificationDeliveryStatus.
+const (
+	NotificationDeliveryStatusFailed    NotificationDeliveryStatus = "failed"
+	NotificationDeliveryStatusPending   NotificationDeliveryStatus = "pending"
+	NotificationDeliveryStatusRetrying  NotificationDeliveryStatus = "retrying"
+	NotificationDeliveryStatusRunning   NotificationDeliveryStatus = "running"
+	NotificationDeliveryStatusSucceeded NotificationDeliveryStatus = "succeeded"
+)
+
+// Valid indicates whether the value is a known member of the NotificationDeliveryStatus enum.
+func (e NotificationDeliveryStatus) Valid() bool {
+	switch e {
+	case NotificationDeliveryStatusFailed:
+		return true
+	case NotificationDeliveryStatusPending:
+		return true
+	case NotificationDeliveryStatusRetrying:
+		return true
+	case NotificationDeliveryStatusRunning:
+		return true
+	case NotificationDeliveryStatusSucceeded:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for NotificationEventType.
+const (
+	NotificationEventTypeAddressChange        NotificationEventType = "address-change"
+	NotificationEventTypeAddressCheckFailure  NotificationEventType = "address-check-failure"
+	NotificationEventTypeAddressCheckRecovery NotificationEventType = "address-check-recovery"
+	NotificationEventTypeAddressGap           NotificationEventType = "address-gap"
+	NotificationEventTypeFormatChanged        NotificationEventType = "format-changed"
+	NotificationEventTypeFormatMismatch       NotificationEventType = "format-mismatch"
+	NotificationEventTypeFormatRecovery       NotificationEventType = "format-recovery"
+	NotificationEventTypeProbeFailure         NotificationEventType = "probe-failure"
+	NotificationEventTypeProbeFieldChange     NotificationEventType = "probe-field-change"
+	NotificationEventTypeProbeGap             NotificationEventType = "probe-gap"
+	NotificationEventTypeProbeRecovery        NotificationEventType = "probe-recovery"
+)
+
+// Valid indicates whether the value is a known member of the NotificationEventType enum.
+func (e NotificationEventType) Valid() bool {
+	switch e {
+	case NotificationEventTypeAddressChange:
+		return true
+	case NotificationEventTypeAddressCheckFailure:
+		return true
+	case NotificationEventTypeAddressCheckRecovery:
+		return true
+	case NotificationEventTypeAddressGap:
+		return true
+	case NotificationEventTypeFormatChanged:
+		return true
+	case NotificationEventTypeFormatMismatch:
+		return true
+	case NotificationEventTypeFormatRecovery:
+		return true
+	case NotificationEventTypeProbeFailure:
+		return true
+	case NotificationEventTypeProbeFieldChange:
+		return true
+	case NotificationEventTypeProbeGap:
+		return true
+	case NotificationEventTypeProbeRecovery:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for NotificationSenderKind.
+const (
+	Javascript NotificationSenderKind = "javascript"
+	Telegram   NotificationSenderKind = "telegram"
+	Webhook    NotificationSenderKind = "webhook"
+)
+
+// Valid indicates whether the value is a known member of the NotificationSenderKind enum.
+func (e NotificationSenderKind) Valid() bool {
+	switch e {
+	case Javascript:
+		return true
+	case Telegram:
+		return true
+	case Webhook:
 		return true
 	default:
 		return false
@@ -1476,6 +1596,11 @@ type HistoryUsage struct {
 	WalBytes              int64 `json:"walBytes"`
 }
 
+// JavaScriptSenderConfiguration defines model for JavaScriptSenderConfiguration.
+type JavaScriptSenderConfiguration struct {
+	Source string `json:"source"`
+}
+
 // KnownProbeField defines model for KnownProbeField.
 type KnownProbeField struct {
 	ActualType    *ProbeJSONType        `json:"actualType,omitempty"`
@@ -1745,6 +1870,116 @@ type NodeUpdate struct {
 	Enabled bool `json:"enabled"`
 }
 
+// NotificationDelivery defines model for NotificationDelivery.
+type NotificationDelivery struct {
+	AttemptCount   int64                      `json:"attemptCount"`
+	Body           string                     `json:"body"`
+	CompletedAt    *time.Time                 `json:"completedAt,omitempty"`
+	CreatedAt      time.Time                  `json:"createdAt"`
+	EgressId       *openapi_types.UUID        `json:"egressId,omitempty"`
+	ErrorCode      *string                    `json:"errorCode,omitempty"`
+	Event          map[string]interface{}     `json:"event"`
+	EventId        openapi_types.UUID         `json:"eventId"`
+	EventType      string                     `json:"eventType"`
+	Id             openapi_types.UUID         `json:"id"`
+	LastAttemptAt  *time.Time                 `json:"lastAttemptAt,omitempty"`
+	MatchedRuleIds []openapi_types.UUID       `json:"matchedRuleIds"`
+	NextAttemptAt  *time.Time                 `json:"nextAttemptAt,omitempty"`
+	NodeId         *openapi_types.UUID        `json:"nodeId,omitempty"`
+	SenderId       openapi_types.UUID         `json:"senderId"`
+	SenderKind     NotificationSenderKind     `json:"senderKind"`
+	SenderName     string                     `json:"senderName"`
+	Status         NotificationDeliveryStatus `json:"status"`
+	Test           bool                       `json:"test"`
+	Title          string                     `json:"title"`
+	UpdatedAt      time.Time                  `json:"updatedAt"`
+}
+
+// NotificationDeliveryPage defines model for NotificationDeliveryPage.
+type NotificationDeliveryPage struct {
+	Items      []NotificationDelivery `json:"items"`
+	Page       int64                  `json:"page"`
+	PageSize   int64                  `json:"pageSize"`
+	TotalItems int64                  `json:"totalItems"`
+	TotalPages int64                  `json:"totalPages"`
+}
+
+// NotificationDeliveryStatus defines model for NotificationDeliveryStatus.
+type NotificationDeliveryStatus string
+
+// NotificationEventType defines model for NotificationEventType.
+type NotificationEventType string
+
+// NotificationRule defines model for NotificationRule.
+type NotificationRule struct {
+	CreatedAt time.Time             `json:"createdAt"`
+	EgressId  *openapi_types.UUID   `json:"egressId,omitempty"`
+	Enabled   bool                  `json:"enabled"`
+	EventType NotificationEventType `json:"eventType"`
+	FieldId   *string               `json:"fieldId,omitempty"`
+	Id        openapi_types.UUID    `json:"id"`
+	Name      string                `json:"name"`
+	NodeId    *openapi_types.UUID   `json:"nodeId,omitempty"`
+	SenderId  openapi_types.UUID    `json:"senderId"`
+	UpdatedAt time.Time             `json:"updatedAt"`
+}
+
+// NotificationRuleList defines model for NotificationRuleList.
+type NotificationRuleList struct {
+	Items []NotificationRule `json:"items"`
+}
+
+// NotificationRuleWrite defines model for NotificationRuleWrite.
+type NotificationRuleWrite struct {
+	EgressId  *openapi_types.UUID   `json:"egressId,omitempty"`
+	Enabled   bool                  `json:"enabled"`
+	EventType NotificationEventType `json:"eventType"`
+	FieldId   *string               `json:"fieldId,omitempty"`
+	Name      string                `json:"name"`
+	NodeId    *openapi_types.UUID   `json:"nodeId,omitempty"`
+	SenderId  openapi_types.UUID    `json:"senderId"`
+}
+
+// NotificationSender defines model for NotificationSender.
+type NotificationSender struct {
+	CreatedAt  time.Time                      `json:"createdAt"`
+	Enabled    bool                           `json:"enabled"`
+	Id         openapi_types.UUID             `json:"id"`
+	Javascript *JavaScriptSenderConfiguration `json:"javascript,omitempty"`
+	Kind       NotificationSenderKind         `json:"kind"`
+	Name       string                         `json:"name"`
+	Telegram   *TelegramSenderView            `json:"telegram,omitempty"`
+	UpdatedAt  time.Time                      `json:"updatedAt"`
+	Webhook    *WebhookSenderView             `json:"webhook,omitempty"`
+}
+
+// NotificationSenderCreate defines model for NotificationSenderCreate.
+type NotificationSenderCreate struct {
+	Enabled    bool                           `json:"enabled"`
+	Javascript *JavaScriptSenderConfiguration `json:"javascript,omitempty"`
+	Kind       NotificationSenderKind         `json:"kind"`
+	Name       string                         `json:"name"`
+	Telegram   *TelegramSenderCreate          `json:"telegram,omitempty"`
+	Webhook    *WebhookSenderCreate           `json:"webhook,omitempty"`
+}
+
+// NotificationSenderKind defines model for NotificationSenderKind.
+type NotificationSenderKind string
+
+// NotificationSenderList defines model for NotificationSenderList.
+type NotificationSenderList struct {
+	Items []NotificationSender `json:"items"`
+}
+
+// NotificationSenderUpdate defines model for NotificationSenderUpdate.
+type NotificationSenderUpdate struct {
+	Enabled    bool                           `json:"enabled"`
+	Javascript *JavaScriptSenderConfiguration `json:"javascript,omitempty"`
+	Name       string                         `json:"name"`
+	Telegram   *TelegramSenderUpdate          `json:"telegram,omitempty"`
+	Webhook    *WebhookSenderUpdate           `json:"webhook,omitempty"`
+}
+
 // ProbeExecution defines model for ProbeExecution.
 type ProbeExecution struct {
 	CompletedAt  *time.Time           `json:"completedAt,omitempty"`
@@ -1987,6 +2222,42 @@ type TOTPEnrollment struct {
 	Secret          string `json:"secret"`
 }
 
+// TelegramSenderCreate defines model for TelegramSenderCreate.
+type TelegramSenderCreate struct {
+	ChatId string `json:"chatId"`
+	Token  string `json:"token"`
+}
+
+// TelegramSenderUpdate defines model for TelegramSenderUpdate.
+type TelegramSenderUpdate struct {
+	ChatId string  `json:"chatId"`
+	Token  *string `json:"token,omitempty"`
+}
+
+// TelegramSenderView defines model for TelegramSenderView.
+type TelegramSenderView struct {
+	ChatId          string `json:"chatId"`
+	TokenConfigured bool   `json:"tokenConfigured"`
+}
+
+// WebhookSenderCreate defines model for WebhookSenderCreate.
+type WebhookSenderCreate struct {
+	Headers map[string]string `json:"headers"`
+	Url     string            `json:"url"`
+}
+
+// WebhookSenderUpdate defines model for WebhookSenderUpdate.
+type WebhookSenderUpdate struct {
+	Headers *map[string]string `json:"headers,omitempty"`
+	Url     string             `json:"url"`
+}
+
+// WebhookSenderView defines model for WebhookSenderView.
+type WebhookSenderView struct {
+	HeaderNames []string `json:"headerNames"`
+	Url         string   `json:"url"`
+}
+
 // CSRFToken defines model for CSRFToken.
 type CSRFToken = string
 
@@ -2035,11 +2306,23 @@ type HistoryTo = time.Time
 // NodeId defines model for NodeId.
 type NodeId = openapi_types.UUID
 
+// NotificationDeliveryStatusFilter defines model for NotificationDeliveryStatusFilter.
+type NotificationDeliveryStatusFilter = NotificationDeliveryStatus
+
+// NotificationSenderFilter defines model for NotificationSenderFilter.
+type NotificationSenderFilter = openapi_types.UUID
+
 // ProxyId defines model for ProxyId.
 type ProxyId = openapi_types.UUID
 
+// RuleId defines model for RuleId.
+type RuleId = openapi_types.UUID
+
 // RunId defines model for RunId.
 type RunId = openapi_types.UUID
+
+// SenderId defines model for SenderId.
+type SenderId = openapi_types.UUID
 
 // SnapshotId defines model for SnapshotId.
 type SnapshotId = openapi_types.UUID
@@ -2248,6 +2531,49 @@ type StartNodeSyncSessionParams struct {
 	XCSRFToken *CSRFToken `json:"X-CSRF-Token,omitempty"`
 }
 
+// ListNotificationDeliveriesParams defines parameters for ListNotificationDeliveries.
+type ListNotificationDeliveriesParams struct {
+	SenderId *NotificationSenderFilter         `form:"senderId,omitempty" json:"senderId,omitempty"`
+	Status   *NotificationDeliveryStatusFilter `form:"status,omitempty" json:"status,omitempty"`
+	Page     *HistoryPage                      `form:"page,omitempty" json:"page,omitempty"`
+	PageSize *HistoryPageSize                  `form:"pageSize,omitempty" json:"pageSize,omitempty"`
+}
+
+// CreateNotificationRuleParams defines parameters for CreateNotificationRule.
+type CreateNotificationRuleParams struct {
+	XCSRFToken *CSRFToken `json:"X-CSRF-Token,omitempty"`
+}
+
+// DeleteNotificationRuleParams defines parameters for DeleteNotificationRule.
+type DeleteNotificationRuleParams struct {
+	XCSRFToken *CSRFToken `json:"X-CSRF-Token,omitempty"`
+}
+
+// UpdateNotificationRuleParams defines parameters for UpdateNotificationRule.
+type UpdateNotificationRuleParams struct {
+	XCSRFToken *CSRFToken `json:"X-CSRF-Token,omitempty"`
+}
+
+// CreateNotificationSenderParams defines parameters for CreateNotificationSender.
+type CreateNotificationSenderParams struct {
+	XCSRFToken *CSRFToken `json:"X-CSRF-Token,omitempty"`
+}
+
+// DeleteNotificationSenderParams defines parameters for DeleteNotificationSender.
+type DeleteNotificationSenderParams struct {
+	XCSRFToken *CSRFToken `json:"X-CSRF-Token,omitempty"`
+}
+
+// UpdateNotificationSenderParams defines parameters for UpdateNotificationSender.
+type UpdateNotificationSenderParams struct {
+	XCSRFToken *CSRFToken `json:"X-CSRF-Token,omitempty"`
+}
+
+// CreateNotificationTestDeliveryParams defines parameters for CreateNotificationTestDelivery.
+type CreateNotificationTestDeliveryParams struct {
+	XCSRFToken *CSRFToken `json:"X-CSRF-Token,omitempty"`
+}
+
 // UnstarProbeSnapshotParams defines parameters for UnstarProbeSnapshot.
 type UnstarProbeSnapshotParams struct {
 	XCSRFToken *CSRFToken `json:"X-CSRF-Token,omitempty"`
@@ -2311,6 +2637,18 @@ type UpdateNodeEgressJSONRequestBody = NetworkEgressUpdate
 
 // UpdateNodeProbeSettingsJSONRequestBody defines body for UpdateNodeProbeSettings for application/json ContentType.
 type UpdateNodeProbeSettingsJSONRequestBody = NodeProbeSettingsUpdate
+
+// CreateNotificationRuleJSONRequestBody defines body for CreateNotificationRule for application/json ContentType.
+type CreateNotificationRuleJSONRequestBody = NotificationRuleWrite
+
+// UpdateNotificationRuleJSONRequestBody defines body for UpdateNotificationRule for application/json ContentType.
+type UpdateNotificationRuleJSONRequestBody = NotificationRuleWrite
+
+// CreateNotificationSenderJSONRequestBody defines body for CreateNotificationSender for application/json ContentType.
+type CreateNotificationSenderJSONRequestBody = NotificationSenderCreate
+
+// UpdateNotificationSenderJSONRequestBody defines body for UpdateNotificationSender for application/json ContentType.
+type UpdateNotificationSenderJSONRequestBody = NotificationSenderUpdate
 
 // RequestEditorFn is the function signature for the RequestEditor callback function
 type RequestEditorFn func(ctx context.Context, req *http.Request) error
@@ -2772,6 +3110,92 @@ type ClientInterface interface {
 	//
 	// Corresponds with POST /api/v1/nodes/{nodeId}/sync-session (the `StartNodeSyncSession` operationId).
 	StartNodeSyncSession(ctx context.Context, nodeId NodeId, params *StartNodeSyncSessionParams, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// ListNotificationDeliveries List durable notification delivery history and active work
+	//
+	// Corresponds with GET /api/v1/notification-deliveries (the `ListNotificationDeliveries` operationId).
+	ListNotificationDeliveries(ctx context.Context, params *ListNotificationDeliveriesParams, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// ListNotificationRules List current notification matching rules
+	//
+	// Corresponds with GET /api/v1/notification-rules (the `ListNotificationRules` operationId).
+	ListNotificationRules(ctx context.Context, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// CreateNotificationRuleWithBody Create a notification matching rule
+	//
+	// Takes any type of body and a specified content type.
+	//
+	// Corresponds with POST /api/v1/notification-rules (the `CreateNotificationRule` operationId).
+	CreateNotificationRuleWithBody(ctx context.Context, params *CreateNotificationRuleParams, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// CreateNotificationRule Create a notification matching rule
+	//
+	// Takes a body of the `application/json` content type.
+	//
+	// Corresponds with POST /api/v1/notification-rules (the `CreateNotificationRule` operationId).
+	CreateNotificationRule(ctx context.Context, params *CreateNotificationRuleParams, body CreateNotificationRuleJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// DeleteNotificationRule Delete a notification matching rule
+	//
+	// Corresponds with DELETE /api/v1/notification-rules/{ruleId} (the `DeleteNotificationRule` operationId).
+	DeleteNotificationRule(ctx context.Context, ruleId RuleId, params *DeleteNotificationRuleParams, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// UpdateNotificationRuleWithBody Replace a notification matching rule
+	//
+	// Takes any type of body and a specified content type.
+	//
+	// Corresponds with PUT /api/v1/notification-rules/{ruleId} (the `UpdateNotificationRule` operationId).
+	UpdateNotificationRuleWithBody(ctx context.Context, ruleId RuleId, params *UpdateNotificationRuleParams, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// UpdateNotificationRule Replace a notification matching rule
+	//
+	// Takes a body of the `application/json` content type.
+	//
+	// Corresponds with PUT /api/v1/notification-rules/{ruleId} (the `UpdateNotificationRule` operationId).
+	UpdateNotificationRule(ctx context.Context, ruleId RuleId, params *UpdateNotificationRuleParams, body UpdateNotificationRuleJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// ListNotificationSenders List configured notification senders
+	//
+	// Corresponds with GET /api/v1/notification-senders (the `ListNotificationSenders` operationId).
+	ListNotificationSenders(ctx context.Context, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// CreateNotificationSenderWithBody Create a notification sender
+	//
+	// Takes any type of body and a specified content type.
+	//
+	// Corresponds with POST /api/v1/notification-senders (the `CreateNotificationSender` operationId).
+	CreateNotificationSenderWithBody(ctx context.Context, params *CreateNotificationSenderParams, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// CreateNotificationSender Create a notification sender
+	//
+	// Takes a body of the `application/json` content type.
+	//
+	// Corresponds with POST /api/v1/notification-senders (the `CreateNotificationSender` operationId).
+	CreateNotificationSender(ctx context.Context, params *CreateNotificationSenderParams, body CreateNotificationSenderJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// DeleteNotificationSender Delete an unreferenced sender without active deliveries
+	//
+	// Corresponds with DELETE /api/v1/notification-senders/{senderId} (the `DeleteNotificationSender` operationId).
+	DeleteNotificationSender(ctx context.Context, senderId SenderId, params *DeleteNotificationSenderParams, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// UpdateNotificationSenderWithBody Replace a notification sender while optionally retaining hidden credentials
+	//
+	// Takes any type of body and a specified content type.
+	//
+	// Corresponds with PUT /api/v1/notification-senders/{senderId} (the `UpdateNotificationSender` operationId).
+	UpdateNotificationSenderWithBody(ctx context.Context, senderId SenderId, params *UpdateNotificationSenderParams, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// UpdateNotificationSender Replace a notification sender while optionally retaining hidden credentials
+	//
+	// Takes a body of the `application/json` content type.
+	//
+	// Corresponds with PUT /api/v1/notification-senders/{senderId} (the `UpdateNotificationSender` operationId).
+	UpdateNotificationSender(ctx context.Context, senderId SenderId, params *UpdateNotificationSenderParams, body UpdateNotificationSenderJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// CreateNotificationTestDelivery Queue a real-path test delivery for one sender
+	//
+	// Corresponds with POST /api/v1/notification-senders/{senderId}/test-deliveries (the `CreateNotificationTestDelivery` operationId).
+	CreateNotificationTestDelivery(ctx context.Context, senderId SenderId, params *CreateNotificationTestDeliveryParams, reqEditors ...RequestEditorFn) (*http.Response, error)
 
 	// GetProbeRun Read one complete-probe run and its frozen egress executions
 	//
@@ -3806,6 +4230,232 @@ func (c *Client) StopNodeSyncSession(ctx context.Context, nodeId NodeId, params 
 // Corresponds with POST /api/v1/nodes/{nodeId}/sync-session (the `StartNodeSyncSession` operationId).
 func (c *Client) StartNodeSyncSession(ctx context.Context, nodeId NodeId, params *StartNodeSyncSessionParams, reqEditors ...RequestEditorFn) (*http.Response, error) {
 	req, err := NewStartNodeSyncSessionRequest(c.Server, nodeId, params)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+// ListNotificationDeliveries List durable notification delivery history and active work
+//
+// Corresponds with GET /api/v1/notification-deliveries (the `ListNotificationDeliveries` operationId).
+func (c *Client) ListNotificationDeliveries(ctx context.Context, params *ListNotificationDeliveriesParams, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewListNotificationDeliveriesRequest(c.Server, params)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+// ListNotificationRules List current notification matching rules
+//
+// Corresponds with GET /api/v1/notification-rules (the `ListNotificationRules` operationId).
+func (c *Client) ListNotificationRules(ctx context.Context, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewListNotificationRulesRequest(c.Server)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+// CreateNotificationRuleWithBody Create a notification matching rule
+//
+// Takes any type of body and a specified content type.
+//
+// Corresponds with POST /api/v1/notification-rules (the `CreateNotificationRule` operationId).
+func (c *Client) CreateNotificationRuleWithBody(ctx context.Context, params *CreateNotificationRuleParams, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewCreateNotificationRuleRequestWithBody(c.Server, params, contentType, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+// CreateNotificationRule Create a notification matching rule
+//
+// Takes a body of the `application/json` content type.
+//
+// Corresponds with POST /api/v1/notification-rules (the `CreateNotificationRule` operationId).
+func (c *Client) CreateNotificationRule(ctx context.Context, params *CreateNotificationRuleParams, body CreateNotificationRuleJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewCreateNotificationRuleRequest(c.Server, params, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+// DeleteNotificationRule Delete a notification matching rule
+//
+// Corresponds with DELETE /api/v1/notification-rules/{ruleId} (the `DeleteNotificationRule` operationId).
+func (c *Client) DeleteNotificationRule(ctx context.Context, ruleId RuleId, params *DeleteNotificationRuleParams, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewDeleteNotificationRuleRequest(c.Server, ruleId, params)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+// UpdateNotificationRuleWithBody Replace a notification matching rule
+//
+// Takes any type of body and a specified content type.
+//
+// Corresponds with PUT /api/v1/notification-rules/{ruleId} (the `UpdateNotificationRule` operationId).
+func (c *Client) UpdateNotificationRuleWithBody(ctx context.Context, ruleId RuleId, params *UpdateNotificationRuleParams, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewUpdateNotificationRuleRequestWithBody(c.Server, ruleId, params, contentType, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+// UpdateNotificationRule Replace a notification matching rule
+//
+// Takes a body of the `application/json` content type.
+//
+// Corresponds with PUT /api/v1/notification-rules/{ruleId} (the `UpdateNotificationRule` operationId).
+func (c *Client) UpdateNotificationRule(ctx context.Context, ruleId RuleId, params *UpdateNotificationRuleParams, body UpdateNotificationRuleJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewUpdateNotificationRuleRequest(c.Server, ruleId, params, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+// ListNotificationSenders List configured notification senders
+//
+// Corresponds with GET /api/v1/notification-senders (the `ListNotificationSenders` operationId).
+func (c *Client) ListNotificationSenders(ctx context.Context, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewListNotificationSendersRequest(c.Server)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+// CreateNotificationSenderWithBody Create a notification sender
+//
+// Takes any type of body and a specified content type.
+//
+// Corresponds with POST /api/v1/notification-senders (the `CreateNotificationSender` operationId).
+func (c *Client) CreateNotificationSenderWithBody(ctx context.Context, params *CreateNotificationSenderParams, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewCreateNotificationSenderRequestWithBody(c.Server, params, contentType, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+// CreateNotificationSender Create a notification sender
+//
+// Takes a body of the `application/json` content type.
+//
+// Corresponds with POST /api/v1/notification-senders (the `CreateNotificationSender` operationId).
+func (c *Client) CreateNotificationSender(ctx context.Context, params *CreateNotificationSenderParams, body CreateNotificationSenderJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewCreateNotificationSenderRequest(c.Server, params, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+// DeleteNotificationSender Delete an unreferenced sender without active deliveries
+//
+// Corresponds with DELETE /api/v1/notification-senders/{senderId} (the `DeleteNotificationSender` operationId).
+func (c *Client) DeleteNotificationSender(ctx context.Context, senderId SenderId, params *DeleteNotificationSenderParams, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewDeleteNotificationSenderRequest(c.Server, senderId, params)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+// UpdateNotificationSenderWithBody Replace a notification sender while optionally retaining hidden credentials
+//
+// Takes any type of body and a specified content type.
+//
+// Corresponds with PUT /api/v1/notification-senders/{senderId} (the `UpdateNotificationSender` operationId).
+func (c *Client) UpdateNotificationSenderWithBody(ctx context.Context, senderId SenderId, params *UpdateNotificationSenderParams, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewUpdateNotificationSenderRequestWithBody(c.Server, senderId, params, contentType, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+// UpdateNotificationSender Replace a notification sender while optionally retaining hidden credentials
+//
+// Takes a body of the `application/json` content type.
+//
+// Corresponds with PUT /api/v1/notification-senders/{senderId} (the `UpdateNotificationSender` operationId).
+func (c *Client) UpdateNotificationSender(ctx context.Context, senderId SenderId, params *UpdateNotificationSenderParams, body UpdateNotificationSenderJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewUpdateNotificationSenderRequest(c.Server, senderId, params, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+// CreateNotificationTestDelivery Queue a real-path test delivery for one sender
+//
+// Corresponds with POST /api/v1/notification-senders/{senderId}/test-deliveries (the `CreateNotificationTestDelivery` operationId).
+func (c *Client) CreateNotificationTestDelivery(ctx context.Context, senderId SenderId, params *CreateNotificationTestDeliveryParams, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewCreateNotificationTestDeliveryRequest(c.Server, senderId, params)
 	if err != nil {
 		return nil, err
 	}
@@ -6305,6 +6955,531 @@ func NewStartNodeSyncSessionRequest(server string, nodeId NodeId, params *StartN
 	return req, nil
 }
 
+// NewListNotificationDeliveriesRequest constructs an http.Request for the ListNotificationDeliveries method
+func NewListNotificationDeliveriesRequest(server string, params *ListNotificationDeliveriesParams) (*http.Request, error) {
+	var err error
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/api/v1/notification-deliveries")
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	if params != nil {
+		// queryValues collects non-styled parameters (passthrough, JSON)
+		// that are safe to round-trip through url.Values.Encode().
+		queryValues := queryURL.Query()
+		// rawQueryFragments collects pre-encoded query fragments from
+		// styled parameters, preserving literal commas as delimiters
+		// per the OpenAPI spec (e.g. "color=blue,black,brown").
+		var rawQueryFragments []string
+
+		if params.SenderId != nil {
+
+			if queryFrag, err := runtime.StyleParamWithOptions("form", true, "senderId", *params.SenderId, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationQuery, Type: "string", Format: "uuid"}); err != nil {
+				return nil, err
+			} else {
+				for _, qp := range strings.Split(queryFrag, "&") {
+					rawQueryFragments = append(rawQueryFragments, qp)
+				}
+			}
+
+		}
+
+		if params.Status != nil {
+
+			if queryFrag, err := runtime.StyleParamWithOptions("form", true, "status", *params.Status, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationQuery, Type: "string", Format: ""}); err != nil {
+				return nil, err
+			} else {
+				for _, qp := range strings.Split(queryFrag, "&") {
+					rawQueryFragments = append(rawQueryFragments, qp)
+				}
+			}
+
+		}
+
+		if params.Page != nil {
+
+			if queryFrag, err := runtime.StyleParamWithOptions("form", true, "page", *params.Page, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationQuery, Type: "integer", Format: "int64"}); err != nil {
+				return nil, err
+			} else {
+				for _, qp := range strings.Split(queryFrag, "&") {
+					rawQueryFragments = append(rawQueryFragments, qp)
+				}
+			}
+
+		}
+
+		if params.PageSize != nil {
+
+			if queryFrag, err := runtime.StyleParamWithOptions("form", true, "pageSize", *params.PageSize, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationQuery, Type: "integer", Format: "int64"}); err != nil {
+				return nil, err
+			} else {
+				for _, qp := range strings.Split(queryFrag, "&") {
+					rawQueryFragments = append(rawQueryFragments, qp)
+				}
+			}
+
+		}
+
+		if encoded := queryValues.Encode(); encoded != "" {
+			rawQueryFragments = append(rawQueryFragments, encoded)
+		}
+		queryURL.RawQuery = strings.Join(rawQueryFragments, "&")
+	}
+
+	req, err := http.NewRequest(http.MethodGet, queryURL.String(), nil)
+	if err != nil {
+		return nil, err
+	}
+
+	return req, nil
+}
+
+// NewListNotificationRulesRequest constructs an http.Request for the ListNotificationRules method
+func NewListNotificationRulesRequest(server string) (*http.Request, error) {
+	var err error
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/api/v1/notification-rules")
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest(http.MethodGet, queryURL.String(), nil)
+	if err != nil {
+		return nil, err
+	}
+
+	return req, nil
+}
+
+// NewCreateNotificationRuleRequest calls the generic CreateNotificationRule builder with application/json body
+func NewCreateNotificationRuleRequest(server string, params *CreateNotificationRuleParams, body CreateNotificationRuleJSONRequestBody) (*http.Request, error) {
+	var bodyReader io.Reader
+	buf, err := json.Marshal(body)
+	if err != nil {
+		return nil, err
+	}
+	bodyReader = bytes.NewReader(buf)
+	return NewCreateNotificationRuleRequestWithBody(server, params, "application/json", bodyReader)
+}
+
+// NewCreateNotificationRuleRequestWithBody constructs an http.Request for the CreateNotificationRule method, with any body, and a specified content type
+func NewCreateNotificationRuleRequestWithBody(server string, params *CreateNotificationRuleParams, contentType string, body io.Reader) (*http.Request, error) {
+	var err error
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/api/v1/notification-rules")
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest(http.MethodPost, queryURL.String(), body)
+	if err != nil {
+		return nil, err
+	}
+
+	req.Header.Add("Content-Type", contentType)
+
+	if params != nil {
+
+		if params.XCSRFToken != nil {
+			var headerParam0 string
+
+			headerParam0, err = runtime.StyleParamWithOptions("simple", false, "X-CSRF-Token", *params.XCSRFToken, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationHeader, Type: "string", Format: ""})
+			if err != nil {
+				return nil, err
+			}
+
+			req.Header.Set("X-CSRF-Token", headerParam0)
+		}
+
+	}
+
+	return req, nil
+}
+
+// NewDeleteNotificationRuleRequest constructs an http.Request for the DeleteNotificationRule method
+func NewDeleteNotificationRuleRequest(server string, ruleId RuleId, params *DeleteNotificationRuleParams) (*http.Request, error) {
+	var err error
+
+	var pathParam0 string
+
+	pathParam0, err = runtime.StyleParamWithOptions("simple", false, "ruleId", ruleId, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationPath, Type: "string", Format: "uuid"})
+	if err != nil {
+		return nil, err
+	}
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/api/v1/notification-rules/%s", pathParam0)
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest(http.MethodDelete, queryURL.String(), nil)
+	if err != nil {
+		return nil, err
+	}
+
+	if params != nil {
+
+		if params.XCSRFToken != nil {
+			var headerParam0 string
+
+			headerParam0, err = runtime.StyleParamWithOptions("simple", false, "X-CSRF-Token", *params.XCSRFToken, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationHeader, Type: "string", Format: ""})
+			if err != nil {
+				return nil, err
+			}
+
+			req.Header.Set("X-CSRF-Token", headerParam0)
+		}
+
+	}
+
+	return req, nil
+}
+
+// NewUpdateNotificationRuleRequest calls the generic UpdateNotificationRule builder with application/json body
+func NewUpdateNotificationRuleRequest(server string, ruleId RuleId, params *UpdateNotificationRuleParams, body UpdateNotificationRuleJSONRequestBody) (*http.Request, error) {
+	var bodyReader io.Reader
+	buf, err := json.Marshal(body)
+	if err != nil {
+		return nil, err
+	}
+	bodyReader = bytes.NewReader(buf)
+	return NewUpdateNotificationRuleRequestWithBody(server, ruleId, params, "application/json", bodyReader)
+}
+
+// NewUpdateNotificationRuleRequestWithBody constructs an http.Request for the UpdateNotificationRule method, with any body, and a specified content type
+func NewUpdateNotificationRuleRequestWithBody(server string, ruleId RuleId, params *UpdateNotificationRuleParams, contentType string, body io.Reader) (*http.Request, error) {
+	var err error
+
+	var pathParam0 string
+
+	pathParam0, err = runtime.StyleParamWithOptions("simple", false, "ruleId", ruleId, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationPath, Type: "string", Format: "uuid"})
+	if err != nil {
+		return nil, err
+	}
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/api/v1/notification-rules/%s", pathParam0)
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest(http.MethodPut, queryURL.String(), body)
+	if err != nil {
+		return nil, err
+	}
+
+	req.Header.Add("Content-Type", contentType)
+
+	if params != nil {
+
+		if params.XCSRFToken != nil {
+			var headerParam0 string
+
+			headerParam0, err = runtime.StyleParamWithOptions("simple", false, "X-CSRF-Token", *params.XCSRFToken, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationHeader, Type: "string", Format: ""})
+			if err != nil {
+				return nil, err
+			}
+
+			req.Header.Set("X-CSRF-Token", headerParam0)
+		}
+
+	}
+
+	return req, nil
+}
+
+// NewListNotificationSendersRequest constructs an http.Request for the ListNotificationSenders method
+func NewListNotificationSendersRequest(server string) (*http.Request, error) {
+	var err error
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/api/v1/notification-senders")
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest(http.MethodGet, queryURL.String(), nil)
+	if err != nil {
+		return nil, err
+	}
+
+	return req, nil
+}
+
+// NewCreateNotificationSenderRequest calls the generic CreateNotificationSender builder with application/json body
+func NewCreateNotificationSenderRequest(server string, params *CreateNotificationSenderParams, body CreateNotificationSenderJSONRequestBody) (*http.Request, error) {
+	var bodyReader io.Reader
+	buf, err := json.Marshal(body)
+	if err != nil {
+		return nil, err
+	}
+	bodyReader = bytes.NewReader(buf)
+	return NewCreateNotificationSenderRequestWithBody(server, params, "application/json", bodyReader)
+}
+
+// NewCreateNotificationSenderRequestWithBody constructs an http.Request for the CreateNotificationSender method, with any body, and a specified content type
+func NewCreateNotificationSenderRequestWithBody(server string, params *CreateNotificationSenderParams, contentType string, body io.Reader) (*http.Request, error) {
+	var err error
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/api/v1/notification-senders")
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest(http.MethodPost, queryURL.String(), body)
+	if err != nil {
+		return nil, err
+	}
+
+	req.Header.Add("Content-Type", contentType)
+
+	if params != nil {
+
+		if params.XCSRFToken != nil {
+			var headerParam0 string
+
+			headerParam0, err = runtime.StyleParamWithOptions("simple", false, "X-CSRF-Token", *params.XCSRFToken, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationHeader, Type: "string", Format: ""})
+			if err != nil {
+				return nil, err
+			}
+
+			req.Header.Set("X-CSRF-Token", headerParam0)
+		}
+
+	}
+
+	return req, nil
+}
+
+// NewDeleteNotificationSenderRequest constructs an http.Request for the DeleteNotificationSender method
+func NewDeleteNotificationSenderRequest(server string, senderId SenderId, params *DeleteNotificationSenderParams) (*http.Request, error) {
+	var err error
+
+	var pathParam0 string
+
+	pathParam0, err = runtime.StyleParamWithOptions("simple", false, "senderId", senderId, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationPath, Type: "string", Format: "uuid"})
+	if err != nil {
+		return nil, err
+	}
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/api/v1/notification-senders/%s", pathParam0)
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest(http.MethodDelete, queryURL.String(), nil)
+	if err != nil {
+		return nil, err
+	}
+
+	if params != nil {
+
+		if params.XCSRFToken != nil {
+			var headerParam0 string
+
+			headerParam0, err = runtime.StyleParamWithOptions("simple", false, "X-CSRF-Token", *params.XCSRFToken, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationHeader, Type: "string", Format: ""})
+			if err != nil {
+				return nil, err
+			}
+
+			req.Header.Set("X-CSRF-Token", headerParam0)
+		}
+
+	}
+
+	return req, nil
+}
+
+// NewUpdateNotificationSenderRequest calls the generic UpdateNotificationSender builder with application/json body
+func NewUpdateNotificationSenderRequest(server string, senderId SenderId, params *UpdateNotificationSenderParams, body UpdateNotificationSenderJSONRequestBody) (*http.Request, error) {
+	var bodyReader io.Reader
+	buf, err := json.Marshal(body)
+	if err != nil {
+		return nil, err
+	}
+	bodyReader = bytes.NewReader(buf)
+	return NewUpdateNotificationSenderRequestWithBody(server, senderId, params, "application/json", bodyReader)
+}
+
+// NewUpdateNotificationSenderRequestWithBody constructs an http.Request for the UpdateNotificationSender method, with any body, and a specified content type
+func NewUpdateNotificationSenderRequestWithBody(server string, senderId SenderId, params *UpdateNotificationSenderParams, contentType string, body io.Reader) (*http.Request, error) {
+	var err error
+
+	var pathParam0 string
+
+	pathParam0, err = runtime.StyleParamWithOptions("simple", false, "senderId", senderId, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationPath, Type: "string", Format: "uuid"})
+	if err != nil {
+		return nil, err
+	}
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/api/v1/notification-senders/%s", pathParam0)
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest(http.MethodPut, queryURL.String(), body)
+	if err != nil {
+		return nil, err
+	}
+
+	req.Header.Add("Content-Type", contentType)
+
+	if params != nil {
+
+		if params.XCSRFToken != nil {
+			var headerParam0 string
+
+			headerParam0, err = runtime.StyleParamWithOptions("simple", false, "X-CSRF-Token", *params.XCSRFToken, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationHeader, Type: "string", Format: ""})
+			if err != nil {
+				return nil, err
+			}
+
+			req.Header.Set("X-CSRF-Token", headerParam0)
+		}
+
+	}
+
+	return req, nil
+}
+
+// NewCreateNotificationTestDeliveryRequest constructs an http.Request for the CreateNotificationTestDelivery method
+func NewCreateNotificationTestDeliveryRequest(server string, senderId SenderId, params *CreateNotificationTestDeliveryParams) (*http.Request, error) {
+	var err error
+
+	var pathParam0 string
+
+	pathParam0, err = runtime.StyleParamWithOptions("simple", false, "senderId", senderId, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationPath, Type: "string", Format: "uuid"})
+	if err != nil {
+		return nil, err
+	}
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/api/v1/notification-senders/%s/test-deliveries", pathParam0)
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest(http.MethodPost, queryURL.String(), nil)
+	if err != nil {
+		return nil, err
+	}
+
+	if params != nil {
+
+		if params.XCSRFToken != nil {
+			var headerParam0 string
+
+			headerParam0, err = runtime.StyleParamWithOptions("simple", false, "X-CSRF-Token", *params.XCSRFToken, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationHeader, Type: "string", Format: ""})
+			if err != nil {
+				return nil, err
+			}
+
+			req.Header.Set("X-CSRF-Token", headerParam0)
+		}
+
+	}
+
+	return req, nil
+}
+
 // NewGetProbeRunRequest constructs an http.Request for the GetProbeRun method
 func NewGetProbeRunRequest(server string, runId RunId) (*http.Request, error) {
 	var err error
@@ -6982,6 +8157,104 @@ type ClientWithResponsesInterface interface {
 	//
 	// Corresponds with POST /api/v1/nodes/{nodeId}/sync-session (the `StartNodeSyncSession` operationId).
 	StartNodeSyncSessionWithResponse(ctx context.Context, nodeId NodeId, params *StartNodeSyncSessionParams, reqEditors ...RequestEditorFn) (*StartNodeSyncSessionResponse, error)
+
+	// ListNotificationDeliveriesWithResponse List durable notification delivery history and active work
+	//
+	// Returns a wrapper object for the known response body format(s).
+	//
+	// Corresponds with GET /api/v1/notification-deliveries (the `ListNotificationDeliveries` operationId).
+	ListNotificationDeliveriesWithResponse(ctx context.Context, params *ListNotificationDeliveriesParams, reqEditors ...RequestEditorFn) (*ListNotificationDeliveriesResponse, error)
+
+	// ListNotificationRulesWithResponse List current notification matching rules
+	//
+	// Returns a wrapper object for the known response body format(s).
+	//
+	// Corresponds with GET /api/v1/notification-rules (the `ListNotificationRules` operationId).
+	ListNotificationRulesWithResponse(ctx context.Context, reqEditors ...RequestEditorFn) (*ListNotificationRulesResponse, error)
+
+	// CreateNotificationRuleWithBodyWithResponse Create a notification matching rule
+	//
+	// Takes any type of body and a specified content type, and returns a wrapper object for the known response body format(s).
+	//
+	// Corresponds with POST /api/v1/notification-rules (the `CreateNotificationRule` operationId).
+	CreateNotificationRuleWithBodyWithResponse(ctx context.Context, params *CreateNotificationRuleParams, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*CreateNotificationRuleResponse, error)
+
+	// CreateNotificationRuleWithResponse Create a notification matching rule
+	//
+	// Takes a body of the `application/json` content type, and returns a wrapper object for the known response body format(s).
+	//
+	// Corresponds with POST /api/v1/notification-rules (the `CreateNotificationRule` operationId).
+	CreateNotificationRuleWithResponse(ctx context.Context, params *CreateNotificationRuleParams, body CreateNotificationRuleJSONRequestBody, reqEditors ...RequestEditorFn) (*CreateNotificationRuleResponse, error)
+
+	// DeleteNotificationRuleWithResponse Delete a notification matching rule
+	//
+	// Returns a wrapper object for the known response body format(s).
+	//
+	// Corresponds with DELETE /api/v1/notification-rules/{ruleId} (the `DeleteNotificationRule` operationId).
+	DeleteNotificationRuleWithResponse(ctx context.Context, ruleId RuleId, params *DeleteNotificationRuleParams, reqEditors ...RequestEditorFn) (*DeleteNotificationRuleResponse, error)
+
+	// UpdateNotificationRuleWithBodyWithResponse Replace a notification matching rule
+	//
+	// Takes any type of body and a specified content type, and returns a wrapper object for the known response body format(s).
+	//
+	// Corresponds with PUT /api/v1/notification-rules/{ruleId} (the `UpdateNotificationRule` operationId).
+	UpdateNotificationRuleWithBodyWithResponse(ctx context.Context, ruleId RuleId, params *UpdateNotificationRuleParams, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*UpdateNotificationRuleResponse, error)
+
+	// UpdateNotificationRuleWithResponse Replace a notification matching rule
+	//
+	// Takes a body of the `application/json` content type, and returns a wrapper object for the known response body format(s).
+	//
+	// Corresponds with PUT /api/v1/notification-rules/{ruleId} (the `UpdateNotificationRule` operationId).
+	UpdateNotificationRuleWithResponse(ctx context.Context, ruleId RuleId, params *UpdateNotificationRuleParams, body UpdateNotificationRuleJSONRequestBody, reqEditors ...RequestEditorFn) (*UpdateNotificationRuleResponse, error)
+
+	// ListNotificationSendersWithResponse List configured notification senders
+	//
+	// Returns a wrapper object for the known response body format(s).
+	//
+	// Corresponds with GET /api/v1/notification-senders (the `ListNotificationSenders` operationId).
+	ListNotificationSendersWithResponse(ctx context.Context, reqEditors ...RequestEditorFn) (*ListNotificationSendersResponse, error)
+
+	// CreateNotificationSenderWithBodyWithResponse Create a notification sender
+	//
+	// Takes any type of body and a specified content type, and returns a wrapper object for the known response body format(s).
+	//
+	// Corresponds with POST /api/v1/notification-senders (the `CreateNotificationSender` operationId).
+	CreateNotificationSenderWithBodyWithResponse(ctx context.Context, params *CreateNotificationSenderParams, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*CreateNotificationSenderResponse, error)
+
+	// CreateNotificationSenderWithResponse Create a notification sender
+	//
+	// Takes a body of the `application/json` content type, and returns a wrapper object for the known response body format(s).
+	//
+	// Corresponds with POST /api/v1/notification-senders (the `CreateNotificationSender` operationId).
+	CreateNotificationSenderWithResponse(ctx context.Context, params *CreateNotificationSenderParams, body CreateNotificationSenderJSONRequestBody, reqEditors ...RequestEditorFn) (*CreateNotificationSenderResponse, error)
+
+	// DeleteNotificationSenderWithResponse Delete an unreferenced sender without active deliveries
+	//
+	// Returns a wrapper object for the known response body format(s).
+	//
+	// Corresponds with DELETE /api/v1/notification-senders/{senderId} (the `DeleteNotificationSender` operationId).
+	DeleteNotificationSenderWithResponse(ctx context.Context, senderId SenderId, params *DeleteNotificationSenderParams, reqEditors ...RequestEditorFn) (*DeleteNotificationSenderResponse, error)
+
+	// UpdateNotificationSenderWithBodyWithResponse Replace a notification sender while optionally retaining hidden credentials
+	//
+	// Takes any type of body and a specified content type, and returns a wrapper object for the known response body format(s).
+	//
+	// Corresponds with PUT /api/v1/notification-senders/{senderId} (the `UpdateNotificationSender` operationId).
+	UpdateNotificationSenderWithBodyWithResponse(ctx context.Context, senderId SenderId, params *UpdateNotificationSenderParams, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*UpdateNotificationSenderResponse, error)
+
+	// UpdateNotificationSenderWithResponse Replace a notification sender while optionally retaining hidden credentials
+	//
+	// Takes a body of the `application/json` content type, and returns a wrapper object for the known response body format(s).
+	//
+	// Corresponds with PUT /api/v1/notification-senders/{senderId} (the `UpdateNotificationSender` operationId).
+	UpdateNotificationSenderWithResponse(ctx context.Context, senderId SenderId, params *UpdateNotificationSenderParams, body UpdateNotificationSenderJSONRequestBody, reqEditors ...RequestEditorFn) (*UpdateNotificationSenderResponse, error)
+
+	// CreateNotificationTestDeliveryWithResponse Queue a real-path test delivery for one sender
+	//
+	// Returns a wrapper object for the known response body format(s).
+	//
+	// Corresponds with POST /api/v1/notification-senders/{senderId}/test-deliveries (the `CreateNotificationTestDelivery` operationId).
+	CreateNotificationTestDeliveryWithResponse(ctx context.Context, senderId SenderId, params *CreateNotificationTestDeliveryParams, reqEditors ...RequestEditorFn) (*CreateNotificationTestDeliveryResponse, error)
 
 	// GetProbeRunWithResponse Read one complete-probe run and its frozen egress executions
 	//
@@ -9753,6 +11026,626 @@ func (r StartNodeSyncSessionResponse) ContentType() string {
 	return ""
 }
 
+type ListNotificationDeliveriesResponse struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	// JSON200 the response for an HTTP 200 `application/json` response
+	JSON200 *NotificationDeliveryPage
+	// JSON400 the response for an HTTP 400 `application/json` response
+	JSON400 *BadRequest
+	// JSON401 the response for an HTTP 401 `application/json` response
+	JSON401 *Unauthorized
+}
+
+// GetJSON200 returns the response for an HTTP 200 `application/json` response
+func (r ListNotificationDeliveriesResponse) GetJSON200() *NotificationDeliveryPage {
+	return r.JSON200
+}
+
+// GetJSON400 returns the response for an HTTP 400 `application/json` response
+func (r ListNotificationDeliveriesResponse) GetJSON400() *BadRequest {
+	return r.JSON400
+}
+
+// GetJSON401 returns the response for an HTTP 401 `application/json` response
+func (r ListNotificationDeliveriesResponse) GetJSON401() *Unauthorized {
+	return r.JSON401
+}
+
+// GetBody returns the raw response body bytes
+func (r ListNotificationDeliveriesResponse) GetBody() []byte {
+	return r.Body
+}
+
+// Status returns HTTPResponse.Status
+func (r ListNotificationDeliveriesResponse) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r ListNotificationDeliveriesResponse) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+// ContentType is a convenience method to retrieve the Content-Type value from the HTTP response headers
+func (r ListNotificationDeliveriesResponse) ContentType() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Header.Get("Content-Type")
+	}
+	return ""
+}
+
+type ListNotificationRulesResponse struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	// JSON200 the response for an HTTP 200 `application/json` response
+	JSON200 *NotificationRuleList
+	// JSON401 the response for an HTTP 401 `application/json` response
+	JSON401 *Unauthorized
+}
+
+// GetJSON200 returns the response for an HTTP 200 `application/json` response
+func (r ListNotificationRulesResponse) GetJSON200() *NotificationRuleList {
+	return r.JSON200
+}
+
+// GetJSON401 returns the response for an HTTP 401 `application/json` response
+func (r ListNotificationRulesResponse) GetJSON401() *Unauthorized {
+	return r.JSON401
+}
+
+// GetBody returns the raw response body bytes
+func (r ListNotificationRulesResponse) GetBody() []byte {
+	return r.Body
+}
+
+// Status returns HTTPResponse.Status
+func (r ListNotificationRulesResponse) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r ListNotificationRulesResponse) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+// ContentType is a convenience method to retrieve the Content-Type value from the HTTP response headers
+func (r ListNotificationRulesResponse) ContentType() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Header.Get("Content-Type")
+	}
+	return ""
+}
+
+type CreateNotificationRuleResponse struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	// JSON201 the response for an HTTP 201 `application/json` response
+	JSON201 *NotificationRule
+	// JSON400 the response for an HTTP 400 `application/json` response
+	JSON400 *BadRequest
+	// JSON401 the response for an HTTP 401 `application/json` response
+	JSON401 *Unauthorized
+	// JSON403 the response for an HTTP 403 `application/json` response
+	JSON403 *Forbidden
+	// JSON409 the response for an HTTP 409 `application/json` response
+	JSON409 *Conflict
+}
+
+// GetJSON201 returns the response for an HTTP 201 `application/json` response
+func (r CreateNotificationRuleResponse) GetJSON201() *NotificationRule {
+	return r.JSON201
+}
+
+// GetJSON400 returns the response for an HTTP 400 `application/json` response
+func (r CreateNotificationRuleResponse) GetJSON400() *BadRequest {
+	return r.JSON400
+}
+
+// GetJSON401 returns the response for an HTTP 401 `application/json` response
+func (r CreateNotificationRuleResponse) GetJSON401() *Unauthorized {
+	return r.JSON401
+}
+
+// GetJSON403 returns the response for an HTTP 403 `application/json` response
+func (r CreateNotificationRuleResponse) GetJSON403() *Forbidden {
+	return r.JSON403
+}
+
+// GetJSON409 returns the response for an HTTP 409 `application/json` response
+func (r CreateNotificationRuleResponse) GetJSON409() *Conflict {
+	return r.JSON409
+}
+
+// GetBody returns the raw response body bytes
+func (r CreateNotificationRuleResponse) GetBody() []byte {
+	return r.Body
+}
+
+// Status returns HTTPResponse.Status
+func (r CreateNotificationRuleResponse) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r CreateNotificationRuleResponse) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+// ContentType is a convenience method to retrieve the Content-Type value from the HTTP response headers
+func (r CreateNotificationRuleResponse) ContentType() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Header.Get("Content-Type")
+	}
+	return ""
+}
+
+type DeleteNotificationRuleResponse struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	// JSON401 the response for an HTTP 401 `application/json` response
+	JSON401 *Unauthorized
+	// JSON403 the response for an HTTP 403 `application/json` response
+	JSON403 *Forbidden
+	// JSON404 the response for an HTTP 404 `application/json` response
+	JSON404 *NotFound
+}
+
+// GetJSON401 returns the response for an HTTP 401 `application/json` response
+func (r DeleteNotificationRuleResponse) GetJSON401() *Unauthorized {
+	return r.JSON401
+}
+
+// GetJSON403 returns the response for an HTTP 403 `application/json` response
+func (r DeleteNotificationRuleResponse) GetJSON403() *Forbidden {
+	return r.JSON403
+}
+
+// GetJSON404 returns the response for an HTTP 404 `application/json` response
+func (r DeleteNotificationRuleResponse) GetJSON404() *NotFound {
+	return r.JSON404
+}
+
+// GetBody returns the raw response body bytes
+func (r DeleteNotificationRuleResponse) GetBody() []byte {
+	return r.Body
+}
+
+// Status returns HTTPResponse.Status
+func (r DeleteNotificationRuleResponse) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r DeleteNotificationRuleResponse) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+// ContentType is a convenience method to retrieve the Content-Type value from the HTTP response headers
+func (r DeleteNotificationRuleResponse) ContentType() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Header.Get("Content-Type")
+	}
+	return ""
+}
+
+type UpdateNotificationRuleResponse struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	// JSON200 the response for an HTTP 200 `application/json` response
+	JSON200 *NotificationRule
+	// JSON400 the response for an HTTP 400 `application/json` response
+	JSON400 *BadRequest
+	// JSON401 the response for an HTTP 401 `application/json` response
+	JSON401 *Unauthorized
+	// JSON403 the response for an HTTP 403 `application/json` response
+	JSON403 *Forbidden
+	// JSON404 the response for an HTTP 404 `application/json` response
+	JSON404 *NotFound
+	// JSON409 the response for an HTTP 409 `application/json` response
+	JSON409 *Conflict
+}
+
+// GetJSON200 returns the response for an HTTP 200 `application/json` response
+func (r UpdateNotificationRuleResponse) GetJSON200() *NotificationRule {
+	return r.JSON200
+}
+
+// GetJSON400 returns the response for an HTTP 400 `application/json` response
+func (r UpdateNotificationRuleResponse) GetJSON400() *BadRequest {
+	return r.JSON400
+}
+
+// GetJSON401 returns the response for an HTTP 401 `application/json` response
+func (r UpdateNotificationRuleResponse) GetJSON401() *Unauthorized {
+	return r.JSON401
+}
+
+// GetJSON403 returns the response for an HTTP 403 `application/json` response
+func (r UpdateNotificationRuleResponse) GetJSON403() *Forbidden {
+	return r.JSON403
+}
+
+// GetJSON404 returns the response for an HTTP 404 `application/json` response
+func (r UpdateNotificationRuleResponse) GetJSON404() *NotFound {
+	return r.JSON404
+}
+
+// GetJSON409 returns the response for an HTTP 409 `application/json` response
+func (r UpdateNotificationRuleResponse) GetJSON409() *Conflict {
+	return r.JSON409
+}
+
+// GetBody returns the raw response body bytes
+func (r UpdateNotificationRuleResponse) GetBody() []byte {
+	return r.Body
+}
+
+// Status returns HTTPResponse.Status
+func (r UpdateNotificationRuleResponse) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r UpdateNotificationRuleResponse) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+// ContentType is a convenience method to retrieve the Content-Type value from the HTTP response headers
+func (r UpdateNotificationRuleResponse) ContentType() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Header.Get("Content-Type")
+	}
+	return ""
+}
+
+type ListNotificationSendersResponse struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	// JSON200 the response for an HTTP 200 `application/json` response
+	JSON200 *NotificationSenderList
+	// JSON401 the response for an HTTP 401 `application/json` response
+	JSON401 *Unauthorized
+}
+
+// GetJSON200 returns the response for an HTTP 200 `application/json` response
+func (r ListNotificationSendersResponse) GetJSON200() *NotificationSenderList {
+	return r.JSON200
+}
+
+// GetJSON401 returns the response for an HTTP 401 `application/json` response
+func (r ListNotificationSendersResponse) GetJSON401() *Unauthorized {
+	return r.JSON401
+}
+
+// GetBody returns the raw response body bytes
+func (r ListNotificationSendersResponse) GetBody() []byte {
+	return r.Body
+}
+
+// Status returns HTTPResponse.Status
+func (r ListNotificationSendersResponse) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r ListNotificationSendersResponse) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+// ContentType is a convenience method to retrieve the Content-Type value from the HTTP response headers
+func (r ListNotificationSendersResponse) ContentType() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Header.Get("Content-Type")
+	}
+	return ""
+}
+
+type CreateNotificationSenderResponse struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	// JSON201 the response for an HTTP 201 `application/json` response
+	JSON201 *NotificationSender
+	// JSON400 the response for an HTTP 400 `application/json` response
+	JSON400 *BadRequest
+	// JSON401 the response for an HTTP 401 `application/json` response
+	JSON401 *Unauthorized
+	// JSON403 the response for an HTTP 403 `application/json` response
+	JSON403 *Forbidden
+	// JSON409 the response for an HTTP 409 `application/json` response
+	JSON409 *Conflict
+}
+
+// GetJSON201 returns the response for an HTTP 201 `application/json` response
+func (r CreateNotificationSenderResponse) GetJSON201() *NotificationSender {
+	return r.JSON201
+}
+
+// GetJSON400 returns the response for an HTTP 400 `application/json` response
+func (r CreateNotificationSenderResponse) GetJSON400() *BadRequest {
+	return r.JSON400
+}
+
+// GetJSON401 returns the response for an HTTP 401 `application/json` response
+func (r CreateNotificationSenderResponse) GetJSON401() *Unauthorized {
+	return r.JSON401
+}
+
+// GetJSON403 returns the response for an HTTP 403 `application/json` response
+func (r CreateNotificationSenderResponse) GetJSON403() *Forbidden {
+	return r.JSON403
+}
+
+// GetJSON409 returns the response for an HTTP 409 `application/json` response
+func (r CreateNotificationSenderResponse) GetJSON409() *Conflict {
+	return r.JSON409
+}
+
+// GetBody returns the raw response body bytes
+func (r CreateNotificationSenderResponse) GetBody() []byte {
+	return r.Body
+}
+
+// Status returns HTTPResponse.Status
+func (r CreateNotificationSenderResponse) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r CreateNotificationSenderResponse) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+// ContentType is a convenience method to retrieve the Content-Type value from the HTTP response headers
+func (r CreateNotificationSenderResponse) ContentType() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Header.Get("Content-Type")
+	}
+	return ""
+}
+
+type DeleteNotificationSenderResponse struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	// JSON401 the response for an HTTP 401 `application/json` response
+	JSON401 *Unauthorized
+	// JSON403 the response for an HTTP 403 `application/json` response
+	JSON403 *Forbidden
+	// JSON404 the response for an HTTP 404 `application/json` response
+	JSON404 *NotFound
+	// JSON409 the response for an HTTP 409 `application/json` response
+	JSON409 *Conflict
+}
+
+// GetJSON401 returns the response for an HTTP 401 `application/json` response
+func (r DeleteNotificationSenderResponse) GetJSON401() *Unauthorized {
+	return r.JSON401
+}
+
+// GetJSON403 returns the response for an HTTP 403 `application/json` response
+func (r DeleteNotificationSenderResponse) GetJSON403() *Forbidden {
+	return r.JSON403
+}
+
+// GetJSON404 returns the response for an HTTP 404 `application/json` response
+func (r DeleteNotificationSenderResponse) GetJSON404() *NotFound {
+	return r.JSON404
+}
+
+// GetJSON409 returns the response for an HTTP 409 `application/json` response
+func (r DeleteNotificationSenderResponse) GetJSON409() *Conflict {
+	return r.JSON409
+}
+
+// GetBody returns the raw response body bytes
+func (r DeleteNotificationSenderResponse) GetBody() []byte {
+	return r.Body
+}
+
+// Status returns HTTPResponse.Status
+func (r DeleteNotificationSenderResponse) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r DeleteNotificationSenderResponse) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+// ContentType is a convenience method to retrieve the Content-Type value from the HTTP response headers
+func (r DeleteNotificationSenderResponse) ContentType() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Header.Get("Content-Type")
+	}
+	return ""
+}
+
+type UpdateNotificationSenderResponse struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	// JSON200 the response for an HTTP 200 `application/json` response
+	JSON200 *NotificationSender
+	// JSON400 the response for an HTTP 400 `application/json` response
+	JSON400 *BadRequest
+	// JSON401 the response for an HTTP 401 `application/json` response
+	JSON401 *Unauthorized
+	// JSON403 the response for an HTTP 403 `application/json` response
+	JSON403 *Forbidden
+	// JSON404 the response for an HTTP 404 `application/json` response
+	JSON404 *NotFound
+	// JSON409 the response for an HTTP 409 `application/json` response
+	JSON409 *Conflict
+}
+
+// GetJSON200 returns the response for an HTTP 200 `application/json` response
+func (r UpdateNotificationSenderResponse) GetJSON200() *NotificationSender {
+	return r.JSON200
+}
+
+// GetJSON400 returns the response for an HTTP 400 `application/json` response
+func (r UpdateNotificationSenderResponse) GetJSON400() *BadRequest {
+	return r.JSON400
+}
+
+// GetJSON401 returns the response for an HTTP 401 `application/json` response
+func (r UpdateNotificationSenderResponse) GetJSON401() *Unauthorized {
+	return r.JSON401
+}
+
+// GetJSON403 returns the response for an HTTP 403 `application/json` response
+func (r UpdateNotificationSenderResponse) GetJSON403() *Forbidden {
+	return r.JSON403
+}
+
+// GetJSON404 returns the response for an HTTP 404 `application/json` response
+func (r UpdateNotificationSenderResponse) GetJSON404() *NotFound {
+	return r.JSON404
+}
+
+// GetJSON409 returns the response for an HTTP 409 `application/json` response
+func (r UpdateNotificationSenderResponse) GetJSON409() *Conflict {
+	return r.JSON409
+}
+
+// GetBody returns the raw response body bytes
+func (r UpdateNotificationSenderResponse) GetBody() []byte {
+	return r.Body
+}
+
+// Status returns HTTPResponse.Status
+func (r UpdateNotificationSenderResponse) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r UpdateNotificationSenderResponse) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+// ContentType is a convenience method to retrieve the Content-Type value from the HTTP response headers
+func (r UpdateNotificationSenderResponse) ContentType() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Header.Get("Content-Type")
+	}
+	return ""
+}
+
+type CreateNotificationTestDeliveryResponse struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	// JSON202 the response for an HTTP 202 `application/json` response
+	JSON202 *NotificationDelivery
+	// JSON401 the response for an HTTP 401 `application/json` response
+	JSON401 *Unauthorized
+	// JSON403 the response for an HTTP 403 `application/json` response
+	JSON403 *Forbidden
+	// JSON404 the response for an HTTP 404 `application/json` response
+	JSON404 *NotFound
+}
+
+// GetJSON202 returns the response for an HTTP 202 `application/json` response
+func (r CreateNotificationTestDeliveryResponse) GetJSON202() *NotificationDelivery {
+	return r.JSON202
+}
+
+// GetJSON401 returns the response for an HTTP 401 `application/json` response
+func (r CreateNotificationTestDeliveryResponse) GetJSON401() *Unauthorized {
+	return r.JSON401
+}
+
+// GetJSON403 returns the response for an HTTP 403 `application/json` response
+func (r CreateNotificationTestDeliveryResponse) GetJSON403() *Forbidden {
+	return r.JSON403
+}
+
+// GetJSON404 returns the response for an HTTP 404 `application/json` response
+func (r CreateNotificationTestDeliveryResponse) GetJSON404() *NotFound {
+	return r.JSON404
+}
+
+// GetBody returns the raw response body bytes
+func (r CreateNotificationTestDeliveryResponse) GetBody() []byte {
+	return r.Body
+}
+
+// Status returns HTTPResponse.Status
+func (r CreateNotificationTestDeliveryResponse) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r CreateNotificationTestDeliveryResponse) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+// ContentType is a convenience method to retrieve the Content-Type value from the HTTP response headers
+func (r CreateNotificationTestDeliveryResponse) ContentType() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Header.Get("Content-Type")
+	}
+	return ""
+}
+
 type GetProbeRunResponse struct {
 	Body         []byte
 	HTTPResponse *http.Response
@@ -10852,6 +12745,188 @@ func (c *ClientWithResponses) StartNodeSyncSessionWithResponse(ctx context.Conte
 		return nil, err
 	}
 	return ParseStartNodeSyncSessionResponse(rsp)
+}
+
+// ListNotificationDeliveriesWithResponse List durable notification delivery history and active work
+//
+// Returns a wrapper object for the known response body format(s).
+//
+// Corresponds with GET /api/v1/notification-deliveries (the `ListNotificationDeliveries` operationId).
+func (c *ClientWithResponses) ListNotificationDeliveriesWithResponse(ctx context.Context, params *ListNotificationDeliveriesParams, reqEditors ...RequestEditorFn) (*ListNotificationDeliveriesResponse, error) {
+	rsp, err := c.ListNotificationDeliveries(ctx, params, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseListNotificationDeliveriesResponse(rsp)
+}
+
+// ListNotificationRulesWithResponse List current notification matching rules
+//
+// Returns a wrapper object for the known response body format(s).
+//
+// Corresponds with GET /api/v1/notification-rules (the `ListNotificationRules` operationId).
+func (c *ClientWithResponses) ListNotificationRulesWithResponse(ctx context.Context, reqEditors ...RequestEditorFn) (*ListNotificationRulesResponse, error) {
+	rsp, err := c.ListNotificationRules(ctx, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseListNotificationRulesResponse(rsp)
+}
+
+// CreateNotificationRuleWithBodyWithResponse Create a notification matching rule
+//
+// Takes any type of body and a specified content type, and returns a wrapper object for the known response body format(s).
+//
+// Corresponds with POST /api/v1/notification-rules (the `CreateNotificationRule` operationId).
+func (c *ClientWithResponses) CreateNotificationRuleWithBodyWithResponse(ctx context.Context, params *CreateNotificationRuleParams, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*CreateNotificationRuleResponse, error) {
+	rsp, err := c.CreateNotificationRuleWithBody(ctx, params, contentType, body, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseCreateNotificationRuleResponse(rsp)
+}
+
+// CreateNotificationRuleWithResponse Create a notification matching rule
+//
+// Takes a body of the `application/json` content type, and returns a wrapper object for the known response body format(s).
+//
+// Corresponds with POST /api/v1/notification-rules (the `CreateNotificationRule` operationId).
+func (c *ClientWithResponses) CreateNotificationRuleWithResponse(ctx context.Context, params *CreateNotificationRuleParams, body CreateNotificationRuleJSONRequestBody, reqEditors ...RequestEditorFn) (*CreateNotificationRuleResponse, error) {
+	rsp, err := c.CreateNotificationRule(ctx, params, body, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseCreateNotificationRuleResponse(rsp)
+}
+
+// DeleteNotificationRuleWithResponse Delete a notification matching rule
+//
+// Returns a wrapper object for the known response body format(s).
+//
+// Corresponds with DELETE /api/v1/notification-rules/{ruleId} (the `DeleteNotificationRule` operationId).
+func (c *ClientWithResponses) DeleteNotificationRuleWithResponse(ctx context.Context, ruleId RuleId, params *DeleteNotificationRuleParams, reqEditors ...RequestEditorFn) (*DeleteNotificationRuleResponse, error) {
+	rsp, err := c.DeleteNotificationRule(ctx, ruleId, params, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseDeleteNotificationRuleResponse(rsp)
+}
+
+// UpdateNotificationRuleWithBodyWithResponse Replace a notification matching rule
+//
+// Takes any type of body and a specified content type, and returns a wrapper object for the known response body format(s).
+//
+// Corresponds with PUT /api/v1/notification-rules/{ruleId} (the `UpdateNotificationRule` operationId).
+func (c *ClientWithResponses) UpdateNotificationRuleWithBodyWithResponse(ctx context.Context, ruleId RuleId, params *UpdateNotificationRuleParams, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*UpdateNotificationRuleResponse, error) {
+	rsp, err := c.UpdateNotificationRuleWithBody(ctx, ruleId, params, contentType, body, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseUpdateNotificationRuleResponse(rsp)
+}
+
+// UpdateNotificationRuleWithResponse Replace a notification matching rule
+//
+// Takes a body of the `application/json` content type, and returns a wrapper object for the known response body format(s).
+//
+// Corresponds with PUT /api/v1/notification-rules/{ruleId} (the `UpdateNotificationRule` operationId).
+func (c *ClientWithResponses) UpdateNotificationRuleWithResponse(ctx context.Context, ruleId RuleId, params *UpdateNotificationRuleParams, body UpdateNotificationRuleJSONRequestBody, reqEditors ...RequestEditorFn) (*UpdateNotificationRuleResponse, error) {
+	rsp, err := c.UpdateNotificationRule(ctx, ruleId, params, body, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseUpdateNotificationRuleResponse(rsp)
+}
+
+// ListNotificationSendersWithResponse List configured notification senders
+//
+// Returns a wrapper object for the known response body format(s).
+//
+// Corresponds with GET /api/v1/notification-senders (the `ListNotificationSenders` operationId).
+func (c *ClientWithResponses) ListNotificationSendersWithResponse(ctx context.Context, reqEditors ...RequestEditorFn) (*ListNotificationSendersResponse, error) {
+	rsp, err := c.ListNotificationSenders(ctx, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseListNotificationSendersResponse(rsp)
+}
+
+// CreateNotificationSenderWithBodyWithResponse Create a notification sender
+//
+// Takes any type of body and a specified content type, and returns a wrapper object for the known response body format(s).
+//
+// Corresponds with POST /api/v1/notification-senders (the `CreateNotificationSender` operationId).
+func (c *ClientWithResponses) CreateNotificationSenderWithBodyWithResponse(ctx context.Context, params *CreateNotificationSenderParams, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*CreateNotificationSenderResponse, error) {
+	rsp, err := c.CreateNotificationSenderWithBody(ctx, params, contentType, body, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseCreateNotificationSenderResponse(rsp)
+}
+
+// CreateNotificationSenderWithResponse Create a notification sender
+//
+// Takes a body of the `application/json` content type, and returns a wrapper object for the known response body format(s).
+//
+// Corresponds with POST /api/v1/notification-senders (the `CreateNotificationSender` operationId).
+func (c *ClientWithResponses) CreateNotificationSenderWithResponse(ctx context.Context, params *CreateNotificationSenderParams, body CreateNotificationSenderJSONRequestBody, reqEditors ...RequestEditorFn) (*CreateNotificationSenderResponse, error) {
+	rsp, err := c.CreateNotificationSender(ctx, params, body, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseCreateNotificationSenderResponse(rsp)
+}
+
+// DeleteNotificationSenderWithResponse Delete an unreferenced sender without active deliveries
+//
+// Returns a wrapper object for the known response body format(s).
+//
+// Corresponds with DELETE /api/v1/notification-senders/{senderId} (the `DeleteNotificationSender` operationId).
+func (c *ClientWithResponses) DeleteNotificationSenderWithResponse(ctx context.Context, senderId SenderId, params *DeleteNotificationSenderParams, reqEditors ...RequestEditorFn) (*DeleteNotificationSenderResponse, error) {
+	rsp, err := c.DeleteNotificationSender(ctx, senderId, params, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseDeleteNotificationSenderResponse(rsp)
+}
+
+// UpdateNotificationSenderWithBodyWithResponse Replace a notification sender while optionally retaining hidden credentials
+//
+// Takes any type of body and a specified content type, and returns a wrapper object for the known response body format(s).
+//
+// Corresponds with PUT /api/v1/notification-senders/{senderId} (the `UpdateNotificationSender` operationId).
+func (c *ClientWithResponses) UpdateNotificationSenderWithBodyWithResponse(ctx context.Context, senderId SenderId, params *UpdateNotificationSenderParams, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*UpdateNotificationSenderResponse, error) {
+	rsp, err := c.UpdateNotificationSenderWithBody(ctx, senderId, params, contentType, body, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseUpdateNotificationSenderResponse(rsp)
+}
+
+// UpdateNotificationSenderWithResponse Replace a notification sender while optionally retaining hidden credentials
+//
+// Takes a body of the `application/json` content type, and returns a wrapper object for the known response body format(s).
+//
+// Corresponds with PUT /api/v1/notification-senders/{senderId} (the `UpdateNotificationSender` operationId).
+func (c *ClientWithResponses) UpdateNotificationSenderWithResponse(ctx context.Context, senderId SenderId, params *UpdateNotificationSenderParams, body UpdateNotificationSenderJSONRequestBody, reqEditors ...RequestEditorFn) (*UpdateNotificationSenderResponse, error) {
+	rsp, err := c.UpdateNotificationSender(ctx, senderId, params, body, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseUpdateNotificationSenderResponse(rsp)
+}
+
+// CreateNotificationTestDeliveryWithResponse Queue a real-path test delivery for one sender
+//
+// Returns a wrapper object for the known response body format(s).
+//
+// Corresponds with POST /api/v1/notification-senders/{senderId}/test-deliveries (the `CreateNotificationTestDelivery` operationId).
+func (c *ClientWithResponses) CreateNotificationTestDeliveryWithResponse(ctx context.Context, senderId SenderId, params *CreateNotificationTestDeliveryParams, reqEditors ...RequestEditorFn) (*CreateNotificationTestDeliveryResponse, error) {
+	rsp, err := c.CreateNotificationTestDelivery(ctx, senderId, params, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseCreateNotificationTestDeliveryResponse(rsp)
 }
 
 // GetProbeRunWithResponse Read one complete-probe run and its frozen egress executions
@@ -13014,6 +15089,482 @@ func ParseStartNodeSyncSessionResponse(rsp *http.Response) (*StartNodeSyncSessio
 			return nil, err
 		}
 		response.JSON409 = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseListNotificationDeliveriesResponse parses an HTTP response from a ListNotificationDeliveriesWithResponse call
+func ParseListNotificationDeliveriesResponse(rsp *http.Response) (*ListNotificationDeliveriesResponse, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &ListNotificationDeliveriesResponse{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest NotificationDeliveryPage
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 400:
+		var dest BadRequest
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON400 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 401:
+		var dest Unauthorized
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON401 = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseListNotificationRulesResponse parses an HTTP response from a ListNotificationRulesWithResponse call
+func ParseListNotificationRulesResponse(rsp *http.Response) (*ListNotificationRulesResponse, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &ListNotificationRulesResponse{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest NotificationRuleList
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 401:
+		var dest Unauthorized
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON401 = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseCreateNotificationRuleResponse parses an HTTP response from a CreateNotificationRuleWithResponse call
+func ParseCreateNotificationRuleResponse(rsp *http.Response) (*CreateNotificationRuleResponse, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &CreateNotificationRuleResponse{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 201:
+		var dest NotificationRule
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON201 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 400:
+		var dest BadRequest
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON400 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 401:
+		var dest Unauthorized
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON401 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 403:
+		var dest Forbidden
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON403 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 409:
+		var dest Conflict
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON409 = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseDeleteNotificationRuleResponse parses an HTTP response from a DeleteNotificationRuleWithResponse call
+func ParseDeleteNotificationRuleResponse(rsp *http.Response) (*DeleteNotificationRuleResponse, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &DeleteNotificationRuleResponse{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case rsp.StatusCode == 204:
+		break // No content-type
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 401:
+		var dest Unauthorized
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON401 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 403:
+		var dest Forbidden
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON403 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 404:
+		var dest NotFound
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON404 = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseUpdateNotificationRuleResponse parses an HTTP response from a UpdateNotificationRuleWithResponse call
+func ParseUpdateNotificationRuleResponse(rsp *http.Response) (*UpdateNotificationRuleResponse, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &UpdateNotificationRuleResponse{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest NotificationRule
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 400:
+		var dest BadRequest
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON400 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 401:
+		var dest Unauthorized
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON401 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 403:
+		var dest Forbidden
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON403 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 404:
+		var dest NotFound
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON404 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 409:
+		var dest Conflict
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON409 = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseListNotificationSendersResponse parses an HTTP response from a ListNotificationSendersWithResponse call
+func ParseListNotificationSendersResponse(rsp *http.Response) (*ListNotificationSendersResponse, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &ListNotificationSendersResponse{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest NotificationSenderList
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 401:
+		var dest Unauthorized
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON401 = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseCreateNotificationSenderResponse parses an HTTP response from a CreateNotificationSenderWithResponse call
+func ParseCreateNotificationSenderResponse(rsp *http.Response) (*CreateNotificationSenderResponse, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &CreateNotificationSenderResponse{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 201:
+		var dest NotificationSender
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON201 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 400:
+		var dest BadRequest
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON400 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 401:
+		var dest Unauthorized
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON401 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 403:
+		var dest Forbidden
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON403 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 409:
+		var dest Conflict
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON409 = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseDeleteNotificationSenderResponse parses an HTTP response from a DeleteNotificationSenderWithResponse call
+func ParseDeleteNotificationSenderResponse(rsp *http.Response) (*DeleteNotificationSenderResponse, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &DeleteNotificationSenderResponse{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case rsp.StatusCode == 204:
+		break // No content-type
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 401:
+		var dest Unauthorized
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON401 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 403:
+		var dest Forbidden
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON403 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 404:
+		var dest NotFound
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON404 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 409:
+		var dest Conflict
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON409 = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseUpdateNotificationSenderResponse parses an HTTP response from a UpdateNotificationSenderWithResponse call
+func ParseUpdateNotificationSenderResponse(rsp *http.Response) (*UpdateNotificationSenderResponse, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &UpdateNotificationSenderResponse{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest NotificationSender
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 400:
+		var dest BadRequest
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON400 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 401:
+		var dest Unauthorized
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON401 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 403:
+		var dest Forbidden
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON403 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 404:
+		var dest NotFound
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON404 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 409:
+		var dest Conflict
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON409 = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseCreateNotificationTestDeliveryResponse parses an HTTP response from a CreateNotificationTestDeliveryWithResponse call
+func ParseCreateNotificationTestDeliveryResponse(rsp *http.Response) (*CreateNotificationTestDeliveryResponse, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &CreateNotificationTestDeliveryResponse{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 202:
+		var dest NotificationDelivery
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON202 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 401:
+		var dest Unauthorized
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON401 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 403:
+		var dest Forbidden
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON403 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 404:
+		var dest NotFound
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON404 = &dest
 
 	}
 

@@ -280,52 +280,61 @@ func (e EgressDeletionStatus) Valid() bool {
 
 // Defines values for ErrorCode.
 const (
-	AgentRevoked                  ErrorCode = "agent_revoked"
-	AgentUnauthenticated          ErrorCode = "agent_unauthenticated"
-	CsrfFailed                    ErrorCode = "csrf_failed"
-	CurrentPasswordInvalid        ErrorCode = "current_password_invalid"
-	EgressAlreadyExists           ErrorCode = "egress_already_exists"
-	EgressDeletionPending         ErrorCode = "egress_deletion_pending"
-	EgressLimitReached            ErrorCode = "egress_limit_reached"
-	EgressNotFound                ErrorCode = "egress_not_found"
-	InternalError                 ErrorCode = "internal_error"
-	InvalidCredentials            ErrorCode = "invalid_credentials"
-	InvalidEgressCandidate        ErrorCode = "invalid_egress_candidate"
-	InvalidNetworkProxy           ErrorCode = "invalid_network_proxy"
-	InvalidObservationSettings    ErrorCode = "invalid_observation_settings"
-	InvalidProbeSettings          ErrorCode = "invalid_probe_settings"
-	InvalidRequest                ErrorCode = "invalid_request"
-	InvalidTotp                   ErrorCode = "invalid_totp"
-	NetworkInventoryUnavailable   ErrorCode = "network_inventory_unavailable"
-	NetworkProxyAlreadyExists     ErrorCode = "network_proxy_already_exists"
-	NetworkProxyInUse             ErrorCode = "network_proxy_in_use"
-	NetworkProxyLimitReached      ErrorCode = "network_proxy_limit_reached"
-	NetworkProxyNotFound          ErrorCode = "network_proxy_not_found"
-	NoAccountChange               ErrorCode = "no_account_change"
-	NoEnabledEgress               ErrorCode = "no_enabled_egress"
-	NodeDeletionPending           ErrorCode = "node_deletion_pending"
-	NodeDisabled                  ErrorCode = "node_disabled"
-	NodeNotFound                  ErrorCode = "node_not_found"
-	NodeOffline                   ErrorCode = "node_offline"
-	NodeRevoked                   ErrorCode = "node_revoked"
-	NodeSyncUnsupported           ErrorCode = "node_sync_unsupported"
-	OriginNotAllowed              ErrorCode = "origin_not_allowed"
-	ProbeAlreadyRunning           ErrorCode = "probe_already_running"
-	ProbePausedLowMemory          ErrorCode = "probe_paused_low_memory"
-	ProbeRunNotFound              ErrorCode = "probe_run_not_found"
-	ProbeSnapshotNotFound         ErrorCode = "probe_snapshot_not_found"
-	ProbeTaskSlotOccupied         ErrorCode = "probe_task_slot_occupied"
-	RateLimited                   ErrorCode = "rate_limited"
-	RegistrationDisabled          ErrorCode = "registration_disabled"
-	RegistrationKeyInvalid        ErrorCode = "registration_key_invalid"
-	RegistrationKeyNotInitialized ErrorCode = "registration_key_not_initialized"
-	SnapshotEgressMismatch        ErrorCode = "snapshot_egress_mismatch"
-	SyncSessionUnavailable        ErrorCode = "sync_session_unavailable"
-	TotpAlreadyEnabled            ErrorCode = "totp_already_enabled"
-	TotpEnrollmentNotStarted      ErrorCode = "totp_enrollment_not_started"
-	TotpNotEnabled                ErrorCode = "totp_not_enabled"
-	TotpRequired                  ErrorCode = "totp_required"
-	Unauthenticated               ErrorCode = "unauthenticated"
+	AgentRevoked                     ErrorCode = "agent_revoked"
+	AgentUnauthenticated             ErrorCode = "agent_unauthenticated"
+	CsrfFailed                       ErrorCode = "csrf_failed"
+	CurrentPasswordInvalid           ErrorCode = "current_password_invalid"
+	EgressAlreadyExists              ErrorCode = "egress_already_exists"
+	EgressDeletionPending            ErrorCode = "egress_deletion_pending"
+	EgressLimitReached               ErrorCode = "egress_limit_reached"
+	EgressNotFound                   ErrorCode = "egress_not_found"
+	InternalError                    ErrorCode = "internal_error"
+	InvalidCredentials               ErrorCode = "invalid_credentials"
+	InvalidEgressCandidate           ErrorCode = "invalid_egress_candidate"
+	InvalidNetworkProxy              ErrorCode = "invalid_network_proxy"
+	InvalidNotificationDeliveryQuery ErrorCode = "invalid_notification_delivery_query"
+	InvalidNotificationRule          ErrorCode = "invalid_notification_rule"
+	InvalidNotificationSender        ErrorCode = "invalid_notification_sender"
+	InvalidObservationSettings       ErrorCode = "invalid_observation_settings"
+	InvalidProbeSettings             ErrorCode = "invalid_probe_settings"
+	InvalidRequest                   ErrorCode = "invalid_request"
+	InvalidTotp                      ErrorCode = "invalid_totp"
+	NetworkInventoryUnavailable      ErrorCode = "network_inventory_unavailable"
+	NetworkProxyAlreadyExists        ErrorCode = "network_proxy_already_exists"
+	NetworkProxyInUse                ErrorCode = "network_proxy_in_use"
+	NetworkProxyLimitReached         ErrorCode = "network_proxy_limit_reached"
+	NetworkProxyNotFound             ErrorCode = "network_proxy_not_found"
+	NoAccountChange                  ErrorCode = "no_account_change"
+	NoEnabledEgress                  ErrorCode = "no_enabled_egress"
+	NodeDeletionPending              ErrorCode = "node_deletion_pending"
+	NodeDisabled                     ErrorCode = "node_disabled"
+	NodeNotFound                     ErrorCode = "node_not_found"
+	NodeOffline                      ErrorCode = "node_offline"
+	NodeRevoked                      ErrorCode = "node_revoked"
+	NodeSyncUnsupported              ErrorCode = "node_sync_unsupported"
+	NotificationRuleNameInUse        ErrorCode = "notification_rule_name_in_use"
+	NotificationRuleNotFound         ErrorCode = "notification_rule_not_found"
+	NotificationSenderActive         ErrorCode = "notification_sender_active"
+	NotificationSenderInUse          ErrorCode = "notification_sender_in_use"
+	NotificationSenderNameInUse      ErrorCode = "notification_sender_name_in_use"
+	NotificationSenderNotFound       ErrorCode = "notification_sender_not_found"
+	OriginNotAllowed                 ErrorCode = "origin_not_allowed"
+	ProbeAlreadyRunning              ErrorCode = "probe_already_running"
+	ProbePausedLowMemory             ErrorCode = "probe_paused_low_memory"
+	ProbeRunNotFound                 ErrorCode = "probe_run_not_found"
+	ProbeSnapshotNotFound            ErrorCode = "probe_snapshot_not_found"
+	ProbeTaskSlotOccupied            ErrorCode = "probe_task_slot_occupied"
+	RateLimited                      ErrorCode = "rate_limited"
+	RegistrationDisabled             ErrorCode = "registration_disabled"
+	RegistrationKeyInvalid           ErrorCode = "registration_key_invalid"
+	RegistrationKeyNotInitialized    ErrorCode = "registration_key_not_initialized"
+	SnapshotEgressMismatch           ErrorCode = "snapshot_egress_mismatch"
+	SyncSessionUnavailable           ErrorCode = "sync_session_unavailable"
+	TotpAlreadyEnabled               ErrorCode = "totp_already_enabled"
+	TotpEnrollmentNotStarted         ErrorCode = "totp_enrollment_not_started"
+	TotpNotEnabled                   ErrorCode = "totp_not_enabled"
+	TotpRequired                     ErrorCode = "totp_required"
+	Unauthenticated                  ErrorCode = "unauthenticated"
 )
 
 // Valid indicates whether the value is a known member of the ErrorCode enum.
@@ -354,6 +363,12 @@ func (e ErrorCode) Valid() bool {
 	case InvalidEgressCandidate:
 		return true
 	case InvalidNetworkProxy:
+		return true
+	case InvalidNotificationDeliveryQuery:
+		return true
+	case InvalidNotificationRule:
+		return true
+	case InvalidNotificationSender:
 		return true
 	case InvalidObservationSettings:
 		return true
@@ -388,6 +403,18 @@ func (e ErrorCode) Valid() bool {
 	case NodeRevoked:
 		return true
 	case NodeSyncUnsupported:
+		return true
+	case NotificationRuleNameInUse:
+		return true
+	case NotificationRuleNotFound:
+		return true
+	case NotificationSenderActive:
+		return true
+	case NotificationSenderInUse:
+		return true
+	case NotificationSenderNameInUse:
+		return true
+	case NotificationSenderNotFound:
 		return true
 	case OriginNotAllowed:
 		return true
@@ -716,6 +743,99 @@ func (e NodeSyncStatus) Valid() bool {
 	case NodeSyncStatusDegraded:
 		return true
 	case NodeSyncStatusPending:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for NotificationDeliveryStatus.
+const (
+	NotificationDeliveryStatusFailed    NotificationDeliveryStatus = "failed"
+	NotificationDeliveryStatusPending   NotificationDeliveryStatus = "pending"
+	NotificationDeliveryStatusRetrying  NotificationDeliveryStatus = "retrying"
+	NotificationDeliveryStatusRunning   NotificationDeliveryStatus = "running"
+	NotificationDeliveryStatusSucceeded NotificationDeliveryStatus = "succeeded"
+)
+
+// Valid indicates whether the value is a known member of the NotificationDeliveryStatus enum.
+func (e NotificationDeliveryStatus) Valid() bool {
+	switch e {
+	case NotificationDeliveryStatusFailed:
+		return true
+	case NotificationDeliveryStatusPending:
+		return true
+	case NotificationDeliveryStatusRetrying:
+		return true
+	case NotificationDeliveryStatusRunning:
+		return true
+	case NotificationDeliveryStatusSucceeded:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for NotificationEventType.
+const (
+	NotificationEventTypeAddressChange        NotificationEventType = "address-change"
+	NotificationEventTypeAddressCheckFailure  NotificationEventType = "address-check-failure"
+	NotificationEventTypeAddressCheckRecovery NotificationEventType = "address-check-recovery"
+	NotificationEventTypeAddressGap           NotificationEventType = "address-gap"
+	NotificationEventTypeFormatChanged        NotificationEventType = "format-changed"
+	NotificationEventTypeFormatMismatch       NotificationEventType = "format-mismatch"
+	NotificationEventTypeFormatRecovery       NotificationEventType = "format-recovery"
+	NotificationEventTypeProbeFailure         NotificationEventType = "probe-failure"
+	NotificationEventTypeProbeFieldChange     NotificationEventType = "probe-field-change"
+	NotificationEventTypeProbeGap             NotificationEventType = "probe-gap"
+	NotificationEventTypeProbeRecovery        NotificationEventType = "probe-recovery"
+)
+
+// Valid indicates whether the value is a known member of the NotificationEventType enum.
+func (e NotificationEventType) Valid() bool {
+	switch e {
+	case NotificationEventTypeAddressChange:
+		return true
+	case NotificationEventTypeAddressCheckFailure:
+		return true
+	case NotificationEventTypeAddressCheckRecovery:
+		return true
+	case NotificationEventTypeAddressGap:
+		return true
+	case NotificationEventTypeFormatChanged:
+		return true
+	case NotificationEventTypeFormatMismatch:
+		return true
+	case NotificationEventTypeFormatRecovery:
+		return true
+	case NotificationEventTypeProbeFailure:
+		return true
+	case NotificationEventTypeProbeFieldChange:
+		return true
+	case NotificationEventTypeProbeGap:
+		return true
+	case NotificationEventTypeProbeRecovery:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for NotificationSenderKind.
+const (
+	Javascript NotificationSenderKind = "javascript"
+	Telegram   NotificationSenderKind = "telegram"
+	Webhook    NotificationSenderKind = "webhook"
+)
+
+// Valid indicates whether the value is a known member of the NotificationSenderKind enum.
+func (e NotificationSenderKind) Valid() bool {
+	switch e {
+	case Javascript:
+		return true
+	case Telegram:
+		return true
+	case Webhook:
 		return true
 	default:
 		return false
@@ -1475,6 +1595,11 @@ type HistoryUsage struct {
 	WalBytes              int64 `json:"walBytes"`
 }
 
+// JavaScriptSenderConfiguration defines model for JavaScriptSenderConfiguration.
+type JavaScriptSenderConfiguration struct {
+	Source string `json:"source"`
+}
+
 // KnownProbeField defines model for KnownProbeField.
 type KnownProbeField struct {
 	ActualType    *ProbeJSONType        `json:"actualType,omitempty"`
@@ -1744,6 +1869,116 @@ type NodeUpdate struct {
 	Enabled bool `json:"enabled"`
 }
 
+// NotificationDelivery defines model for NotificationDelivery.
+type NotificationDelivery struct {
+	AttemptCount   int64                      `json:"attemptCount"`
+	Body           string                     `json:"body"`
+	CompletedAt    *time.Time                 `json:"completedAt,omitempty"`
+	CreatedAt      time.Time                  `json:"createdAt"`
+	EgressId       *openapi_types.UUID        `json:"egressId,omitempty"`
+	ErrorCode      *string                    `json:"errorCode,omitempty"`
+	Event          map[string]interface{}     `json:"event"`
+	EventId        openapi_types.UUID         `json:"eventId"`
+	EventType      string                     `json:"eventType"`
+	Id             openapi_types.UUID         `json:"id"`
+	LastAttemptAt  *time.Time                 `json:"lastAttemptAt,omitempty"`
+	MatchedRuleIds []openapi_types.UUID       `json:"matchedRuleIds"`
+	NextAttemptAt  *time.Time                 `json:"nextAttemptAt,omitempty"`
+	NodeId         *openapi_types.UUID        `json:"nodeId,omitempty"`
+	SenderId       openapi_types.UUID         `json:"senderId"`
+	SenderKind     NotificationSenderKind     `json:"senderKind"`
+	SenderName     string                     `json:"senderName"`
+	Status         NotificationDeliveryStatus `json:"status"`
+	Test           bool                       `json:"test"`
+	Title          string                     `json:"title"`
+	UpdatedAt      time.Time                  `json:"updatedAt"`
+}
+
+// NotificationDeliveryPage defines model for NotificationDeliveryPage.
+type NotificationDeliveryPage struct {
+	Items      []NotificationDelivery `json:"items"`
+	Page       int64                  `json:"page"`
+	PageSize   int64                  `json:"pageSize"`
+	TotalItems int64                  `json:"totalItems"`
+	TotalPages int64                  `json:"totalPages"`
+}
+
+// NotificationDeliveryStatus defines model for NotificationDeliveryStatus.
+type NotificationDeliveryStatus string
+
+// NotificationEventType defines model for NotificationEventType.
+type NotificationEventType string
+
+// NotificationRule defines model for NotificationRule.
+type NotificationRule struct {
+	CreatedAt time.Time             `json:"createdAt"`
+	EgressId  *openapi_types.UUID   `json:"egressId,omitempty"`
+	Enabled   bool                  `json:"enabled"`
+	EventType NotificationEventType `json:"eventType"`
+	FieldId   *string               `json:"fieldId,omitempty"`
+	Id        openapi_types.UUID    `json:"id"`
+	Name      string                `json:"name"`
+	NodeId    *openapi_types.UUID   `json:"nodeId,omitempty"`
+	SenderId  openapi_types.UUID    `json:"senderId"`
+	UpdatedAt time.Time             `json:"updatedAt"`
+}
+
+// NotificationRuleList defines model for NotificationRuleList.
+type NotificationRuleList struct {
+	Items []NotificationRule `json:"items"`
+}
+
+// NotificationRuleWrite defines model for NotificationRuleWrite.
+type NotificationRuleWrite struct {
+	EgressId  *openapi_types.UUID   `json:"egressId,omitempty"`
+	Enabled   bool                  `json:"enabled"`
+	EventType NotificationEventType `json:"eventType"`
+	FieldId   *string               `json:"fieldId,omitempty"`
+	Name      string                `json:"name"`
+	NodeId    *openapi_types.UUID   `json:"nodeId,omitempty"`
+	SenderId  openapi_types.UUID    `json:"senderId"`
+}
+
+// NotificationSender defines model for NotificationSender.
+type NotificationSender struct {
+	CreatedAt  time.Time                      `json:"createdAt"`
+	Enabled    bool                           `json:"enabled"`
+	Id         openapi_types.UUID             `json:"id"`
+	Javascript *JavaScriptSenderConfiguration `json:"javascript,omitempty"`
+	Kind       NotificationSenderKind         `json:"kind"`
+	Name       string                         `json:"name"`
+	Telegram   *TelegramSenderView            `json:"telegram,omitempty"`
+	UpdatedAt  time.Time                      `json:"updatedAt"`
+	Webhook    *WebhookSenderView             `json:"webhook,omitempty"`
+}
+
+// NotificationSenderCreate defines model for NotificationSenderCreate.
+type NotificationSenderCreate struct {
+	Enabled    bool                           `json:"enabled"`
+	Javascript *JavaScriptSenderConfiguration `json:"javascript,omitempty"`
+	Kind       NotificationSenderKind         `json:"kind"`
+	Name       string                         `json:"name"`
+	Telegram   *TelegramSenderCreate          `json:"telegram,omitempty"`
+	Webhook    *WebhookSenderCreate           `json:"webhook,omitempty"`
+}
+
+// NotificationSenderKind defines model for NotificationSenderKind.
+type NotificationSenderKind string
+
+// NotificationSenderList defines model for NotificationSenderList.
+type NotificationSenderList struct {
+	Items []NotificationSender `json:"items"`
+}
+
+// NotificationSenderUpdate defines model for NotificationSenderUpdate.
+type NotificationSenderUpdate struct {
+	Enabled    bool                           `json:"enabled"`
+	Javascript *JavaScriptSenderConfiguration `json:"javascript,omitempty"`
+	Name       string                         `json:"name"`
+	Telegram   *TelegramSenderUpdate          `json:"telegram,omitempty"`
+	Webhook    *WebhookSenderUpdate           `json:"webhook,omitempty"`
+}
+
 // ProbeExecution defines model for ProbeExecution.
 type ProbeExecution struct {
 	CompletedAt  *time.Time           `json:"completedAt,omitempty"`
@@ -1986,6 +2221,42 @@ type TOTPEnrollment struct {
 	Secret          string `json:"secret"`
 }
 
+// TelegramSenderCreate defines model for TelegramSenderCreate.
+type TelegramSenderCreate struct {
+	ChatId string `json:"chatId"`
+	Token  string `json:"token"`
+}
+
+// TelegramSenderUpdate defines model for TelegramSenderUpdate.
+type TelegramSenderUpdate struct {
+	ChatId string  `json:"chatId"`
+	Token  *string `json:"token,omitempty"`
+}
+
+// TelegramSenderView defines model for TelegramSenderView.
+type TelegramSenderView struct {
+	ChatId          string `json:"chatId"`
+	TokenConfigured bool   `json:"tokenConfigured"`
+}
+
+// WebhookSenderCreate defines model for WebhookSenderCreate.
+type WebhookSenderCreate struct {
+	Headers map[string]string `json:"headers"`
+	Url     string            `json:"url"`
+}
+
+// WebhookSenderUpdate defines model for WebhookSenderUpdate.
+type WebhookSenderUpdate struct {
+	Headers *map[string]string `json:"headers,omitempty"`
+	Url     string             `json:"url"`
+}
+
+// WebhookSenderView defines model for WebhookSenderView.
+type WebhookSenderView struct {
+	HeaderNames []string `json:"headerNames"`
+	Url         string   `json:"url"`
+}
+
 // CSRFToken defines model for CSRFToken.
 type CSRFToken = string
 
@@ -2034,11 +2305,23 @@ type HistoryTo = time.Time
 // NodeId defines model for NodeId.
 type NodeId = openapi_types.UUID
 
+// NotificationDeliveryStatusFilter defines model for NotificationDeliveryStatusFilter.
+type NotificationDeliveryStatusFilter = NotificationDeliveryStatus
+
+// NotificationSenderFilter defines model for NotificationSenderFilter.
+type NotificationSenderFilter = openapi_types.UUID
+
 // ProxyId defines model for ProxyId.
 type ProxyId = openapi_types.UUID
 
+// RuleId defines model for RuleId.
+type RuleId = openapi_types.UUID
+
 // RunId defines model for RunId.
 type RunId = openapi_types.UUID
+
+// SenderId defines model for SenderId.
+type SenderId = openapi_types.UUID
 
 // SnapshotId defines model for SnapshotId.
 type SnapshotId = openapi_types.UUID
@@ -2247,6 +2530,49 @@ type StartNodeSyncSessionParams struct {
 	XCSRFToken *CSRFToken `json:"X-CSRF-Token,omitempty"`
 }
 
+// ListNotificationDeliveriesParams defines parameters for ListNotificationDeliveries.
+type ListNotificationDeliveriesParams struct {
+	SenderId *NotificationSenderFilter         `form:"senderId,omitempty" json:"senderId,omitempty"`
+	Status   *NotificationDeliveryStatusFilter `form:"status,omitempty" json:"status,omitempty"`
+	Page     *HistoryPage                      `form:"page,omitempty" json:"page,omitempty"`
+	PageSize *HistoryPageSize                  `form:"pageSize,omitempty" json:"pageSize,omitempty"`
+}
+
+// CreateNotificationRuleParams defines parameters for CreateNotificationRule.
+type CreateNotificationRuleParams struct {
+	XCSRFToken *CSRFToken `json:"X-CSRF-Token,omitempty"`
+}
+
+// DeleteNotificationRuleParams defines parameters for DeleteNotificationRule.
+type DeleteNotificationRuleParams struct {
+	XCSRFToken *CSRFToken `json:"X-CSRF-Token,omitempty"`
+}
+
+// UpdateNotificationRuleParams defines parameters for UpdateNotificationRule.
+type UpdateNotificationRuleParams struct {
+	XCSRFToken *CSRFToken `json:"X-CSRF-Token,omitempty"`
+}
+
+// CreateNotificationSenderParams defines parameters for CreateNotificationSender.
+type CreateNotificationSenderParams struct {
+	XCSRFToken *CSRFToken `json:"X-CSRF-Token,omitempty"`
+}
+
+// DeleteNotificationSenderParams defines parameters for DeleteNotificationSender.
+type DeleteNotificationSenderParams struct {
+	XCSRFToken *CSRFToken `json:"X-CSRF-Token,omitempty"`
+}
+
+// UpdateNotificationSenderParams defines parameters for UpdateNotificationSender.
+type UpdateNotificationSenderParams struct {
+	XCSRFToken *CSRFToken `json:"X-CSRF-Token,omitempty"`
+}
+
+// CreateNotificationTestDeliveryParams defines parameters for CreateNotificationTestDelivery.
+type CreateNotificationTestDeliveryParams struct {
+	XCSRFToken *CSRFToken `json:"X-CSRF-Token,omitempty"`
+}
+
 // UnstarProbeSnapshotParams defines parameters for UnstarProbeSnapshot.
 type UnstarProbeSnapshotParams struct {
 	XCSRFToken *CSRFToken `json:"X-CSRF-Token,omitempty"`
@@ -2310,6 +2636,18 @@ type UpdateNodeEgressJSONRequestBody = NetworkEgressUpdate
 
 // UpdateNodeProbeSettingsJSONRequestBody defines body for UpdateNodeProbeSettings for application/json ContentType.
 type UpdateNodeProbeSettingsJSONRequestBody = NodeProbeSettingsUpdate
+
+// CreateNotificationRuleJSONRequestBody defines body for CreateNotificationRule for application/json ContentType.
+type CreateNotificationRuleJSONRequestBody = NotificationRuleWrite
+
+// UpdateNotificationRuleJSONRequestBody defines body for UpdateNotificationRule for application/json ContentType.
+type UpdateNotificationRuleJSONRequestBody = NotificationRuleWrite
+
+// CreateNotificationSenderJSONRequestBody defines body for CreateNotificationSender for application/json ContentType.
+type CreateNotificationSenderJSONRequestBody = NotificationSenderCreate
+
+// UpdateNotificationSenderJSONRequestBody defines body for UpdateNotificationSender for application/json ContentType.
+type UpdateNotificationSenderJSONRequestBody = NotificationSenderUpdate
 
 // ServerInterface represents all server handlers.
 type ServerInterface interface {
@@ -2448,6 +2786,36 @@ type ServerInterface interface {
 	// StartNodeSyncSession Start or replace a ten-minute temporary node sync session
 	// (POST /api/v1/nodes/{nodeId}/sync-session)
 	StartNodeSyncSession(w http.ResponseWriter, r *http.Request, nodeId NodeId, params StartNodeSyncSessionParams)
+	// ListNotificationDeliveries List durable notification delivery history and active work
+	// (GET /api/v1/notification-deliveries)
+	ListNotificationDeliveries(w http.ResponseWriter, r *http.Request, params ListNotificationDeliveriesParams)
+	// ListNotificationRules List current notification matching rules
+	// (GET /api/v1/notification-rules)
+	ListNotificationRules(w http.ResponseWriter, r *http.Request)
+	// CreateNotificationRule Create a notification matching rule
+	// (POST /api/v1/notification-rules)
+	CreateNotificationRule(w http.ResponseWriter, r *http.Request, params CreateNotificationRuleParams)
+	// DeleteNotificationRule Delete a notification matching rule
+	// (DELETE /api/v1/notification-rules/{ruleId})
+	DeleteNotificationRule(w http.ResponseWriter, r *http.Request, ruleId RuleId, params DeleteNotificationRuleParams)
+	// UpdateNotificationRule Replace a notification matching rule
+	// (PUT /api/v1/notification-rules/{ruleId})
+	UpdateNotificationRule(w http.ResponseWriter, r *http.Request, ruleId RuleId, params UpdateNotificationRuleParams)
+	// ListNotificationSenders List configured notification senders
+	// (GET /api/v1/notification-senders)
+	ListNotificationSenders(w http.ResponseWriter, r *http.Request)
+	// CreateNotificationSender Create a notification sender
+	// (POST /api/v1/notification-senders)
+	CreateNotificationSender(w http.ResponseWriter, r *http.Request, params CreateNotificationSenderParams)
+	// DeleteNotificationSender Delete an unreferenced sender without active deliveries
+	// (DELETE /api/v1/notification-senders/{senderId})
+	DeleteNotificationSender(w http.ResponseWriter, r *http.Request, senderId SenderId, params DeleteNotificationSenderParams)
+	// UpdateNotificationSender Replace a notification sender while optionally retaining hidden credentials
+	// (PUT /api/v1/notification-senders/{senderId})
+	UpdateNotificationSender(w http.ResponseWriter, r *http.Request, senderId SenderId, params UpdateNotificationSenderParams)
+	// CreateNotificationTestDelivery Queue a real-path test delivery for one sender
+	// (POST /api/v1/notification-senders/{senderId}/test-deliveries)
+	CreateNotificationTestDelivery(w http.ResponseWriter, r *http.Request, senderId SenderId, params CreateNotificationTestDeliveryParams)
 	// GetProbeRun Read one complete-probe run and its frozen egress executions
 	// (GET /api/v1/probe-runs/{runId})
 	GetProbeRun(w http.ResponseWriter, r *http.Request, runId RunId)
@@ -2736,6 +3104,66 @@ func (_ Unimplemented) StopNodeSyncSession(w http.ResponseWriter, r *http.Reques
 // StartNodeSyncSession Start or replace a ten-minute temporary node sync session
 // (POST /api/v1/nodes/{nodeId}/sync-session)
 func (_ Unimplemented) StartNodeSyncSession(w http.ResponseWriter, r *http.Request, nodeId NodeId, params StartNodeSyncSessionParams) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
+// ListNotificationDeliveries List durable notification delivery history and active work
+// (GET /api/v1/notification-deliveries)
+func (_ Unimplemented) ListNotificationDeliveries(w http.ResponseWriter, r *http.Request, params ListNotificationDeliveriesParams) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
+// ListNotificationRules List current notification matching rules
+// (GET /api/v1/notification-rules)
+func (_ Unimplemented) ListNotificationRules(w http.ResponseWriter, r *http.Request) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
+// CreateNotificationRule Create a notification matching rule
+// (POST /api/v1/notification-rules)
+func (_ Unimplemented) CreateNotificationRule(w http.ResponseWriter, r *http.Request, params CreateNotificationRuleParams) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
+// DeleteNotificationRule Delete a notification matching rule
+// (DELETE /api/v1/notification-rules/{ruleId})
+func (_ Unimplemented) DeleteNotificationRule(w http.ResponseWriter, r *http.Request, ruleId RuleId, params DeleteNotificationRuleParams) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
+// UpdateNotificationRule Replace a notification matching rule
+// (PUT /api/v1/notification-rules/{ruleId})
+func (_ Unimplemented) UpdateNotificationRule(w http.ResponseWriter, r *http.Request, ruleId RuleId, params UpdateNotificationRuleParams) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
+// ListNotificationSenders List configured notification senders
+// (GET /api/v1/notification-senders)
+func (_ Unimplemented) ListNotificationSenders(w http.ResponseWriter, r *http.Request) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
+// CreateNotificationSender Create a notification sender
+// (POST /api/v1/notification-senders)
+func (_ Unimplemented) CreateNotificationSender(w http.ResponseWriter, r *http.Request, params CreateNotificationSenderParams) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
+// DeleteNotificationSender Delete an unreferenced sender without active deliveries
+// (DELETE /api/v1/notification-senders/{senderId})
+func (_ Unimplemented) DeleteNotificationSender(w http.ResponseWriter, r *http.Request, senderId SenderId, params DeleteNotificationSenderParams) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
+// UpdateNotificationSender Replace a notification sender while optionally retaining hidden credentials
+// (PUT /api/v1/notification-senders/{senderId})
+func (_ Unimplemented) UpdateNotificationSender(w http.ResponseWriter, r *http.Request, senderId SenderId, params UpdateNotificationSenderParams) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
+// CreateNotificationTestDelivery Queue a real-path test delivery for one sender
+// (POST /api/v1/notification-senders/{senderId}/test-deliveries)
+func (_ Unimplemented) CreateNotificationTestDelivery(w http.ResponseWriter, r *http.Request, senderId SenderId, params CreateNotificationTestDeliveryParams) {
 	w.WriteHeader(http.StatusNotImplemented)
 }
 
@@ -4719,6 +5147,438 @@ func (siw *ServerInterfaceWrapper) StartNodeSyncSession(w http.ResponseWriter, r
 	handler.ServeHTTP(w, r)
 }
 
+// ListNotificationDeliveries operation middleware
+func (siw *ServerInterfaceWrapper) ListNotificationDeliveries(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	// Parameter object where we will unmarshal all parameters from the context
+	var params ListNotificationDeliveriesParams
+
+	// ------------- Optional query parameter "senderId" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "senderId", r.URL.Query(), &params.SenderId, runtime.BindQueryParameterOptions{Type: "string", Format: "uuid"})
+	if err != nil {
+		var requiredError *runtime.RequiredParameterError
+		if errors.As(err, &requiredError) {
+			siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "senderId"})
+		} else {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "senderId", Err: err})
+		}
+		return
+	}
+
+	// ------------- Optional query parameter "status" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "status", r.URL.Query(), &params.Status, runtime.BindQueryParameterOptions{Type: "string", Format: ""})
+	if err != nil {
+		var requiredError *runtime.RequiredParameterError
+		if errors.As(err, &requiredError) {
+			siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "status"})
+		} else {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "status", Err: err})
+		}
+		return
+	}
+
+	// ------------- Optional query parameter "page" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "page", r.URL.Query(), &params.Page, runtime.BindQueryParameterOptions{Type: "integer", Format: "int64"})
+	if err != nil {
+		var requiredError *runtime.RequiredParameterError
+		if errors.As(err, &requiredError) {
+			siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "page"})
+		} else {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "page", Err: err})
+		}
+		return
+	}
+
+	// ------------- Optional query parameter "pageSize" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "pageSize", r.URL.Query(), &params.PageSize, runtime.BindQueryParameterOptions{Type: "integer", Format: "int64"})
+	if err != nil {
+		var requiredError *runtime.RequiredParameterError
+		if errors.As(err, &requiredError) {
+			siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "pageSize"})
+		} else {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "pageSize", Err: err})
+		}
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.ListNotificationDeliveries(w, r, params)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// ListNotificationRules operation middleware
+func (siw *ServerInterfaceWrapper) ListNotificationRules(w http.ResponseWriter, r *http.Request) {
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.ListNotificationRules(w, r)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// CreateNotificationRule operation middleware
+func (siw *ServerInterfaceWrapper) CreateNotificationRule(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	// Parameter object where we will unmarshal all parameters from the context
+	var params CreateNotificationRuleParams
+
+	headers := r.Header
+
+	// ------------- Optional header parameter "X-CSRF-Token" -------------
+	if valueList, found := headers[http.CanonicalHeaderKey("X-CSRF-Token")]; found {
+		var XCSRFToken CSRFToken
+		n := len(valueList)
+		if n != 1 {
+			siw.ErrorHandlerFunc(w, r, &TooManyValuesForParamError{ParamName: "X-CSRF-Token", Count: n})
+			return
+		}
+
+		err = runtime.BindStyledParameterWithOptions("simple", "X-CSRF-Token", valueList[0], &XCSRFToken, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: false, Type: "string", Format: ""})
+		if err != nil {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "X-CSRF-Token", Err: err})
+			return
+		}
+
+		params.XCSRFToken = &XCSRFToken
+
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.CreateNotificationRule(w, r, params)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// DeleteNotificationRule operation middleware
+func (siw *ServerInterfaceWrapper) DeleteNotificationRule(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "ruleId" -------------
+	var ruleId RuleId
+
+	err = runtime.BindStyledParameterWithOptions("simple", "ruleId", chi.URLParam(r, "ruleId"), &ruleId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "uuid", ValueIsUnescaped: r.URL.RawPath == ""})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "ruleId", Err: err})
+		return
+	}
+
+	// Parameter object where we will unmarshal all parameters from the context
+	var params DeleteNotificationRuleParams
+
+	headers := r.Header
+
+	// ------------- Optional header parameter "X-CSRF-Token" -------------
+	if valueList, found := headers[http.CanonicalHeaderKey("X-CSRF-Token")]; found {
+		var XCSRFToken CSRFToken
+		n := len(valueList)
+		if n != 1 {
+			siw.ErrorHandlerFunc(w, r, &TooManyValuesForParamError{ParamName: "X-CSRF-Token", Count: n})
+			return
+		}
+
+		err = runtime.BindStyledParameterWithOptions("simple", "X-CSRF-Token", valueList[0], &XCSRFToken, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: false, Type: "string", Format: ""})
+		if err != nil {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "X-CSRF-Token", Err: err})
+			return
+		}
+
+		params.XCSRFToken = &XCSRFToken
+
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.DeleteNotificationRule(w, r, ruleId, params)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// UpdateNotificationRule operation middleware
+func (siw *ServerInterfaceWrapper) UpdateNotificationRule(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "ruleId" -------------
+	var ruleId RuleId
+
+	err = runtime.BindStyledParameterWithOptions("simple", "ruleId", chi.URLParam(r, "ruleId"), &ruleId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "uuid", ValueIsUnescaped: r.URL.RawPath == ""})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "ruleId", Err: err})
+		return
+	}
+
+	// Parameter object where we will unmarshal all parameters from the context
+	var params UpdateNotificationRuleParams
+
+	headers := r.Header
+
+	// ------------- Optional header parameter "X-CSRF-Token" -------------
+	if valueList, found := headers[http.CanonicalHeaderKey("X-CSRF-Token")]; found {
+		var XCSRFToken CSRFToken
+		n := len(valueList)
+		if n != 1 {
+			siw.ErrorHandlerFunc(w, r, &TooManyValuesForParamError{ParamName: "X-CSRF-Token", Count: n})
+			return
+		}
+
+		err = runtime.BindStyledParameterWithOptions("simple", "X-CSRF-Token", valueList[0], &XCSRFToken, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: false, Type: "string", Format: ""})
+		if err != nil {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "X-CSRF-Token", Err: err})
+			return
+		}
+
+		params.XCSRFToken = &XCSRFToken
+
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.UpdateNotificationRule(w, r, ruleId, params)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// ListNotificationSenders operation middleware
+func (siw *ServerInterfaceWrapper) ListNotificationSenders(w http.ResponseWriter, r *http.Request) {
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.ListNotificationSenders(w, r)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// CreateNotificationSender operation middleware
+func (siw *ServerInterfaceWrapper) CreateNotificationSender(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	// Parameter object where we will unmarshal all parameters from the context
+	var params CreateNotificationSenderParams
+
+	headers := r.Header
+
+	// ------------- Optional header parameter "X-CSRF-Token" -------------
+	if valueList, found := headers[http.CanonicalHeaderKey("X-CSRF-Token")]; found {
+		var XCSRFToken CSRFToken
+		n := len(valueList)
+		if n != 1 {
+			siw.ErrorHandlerFunc(w, r, &TooManyValuesForParamError{ParamName: "X-CSRF-Token", Count: n})
+			return
+		}
+
+		err = runtime.BindStyledParameterWithOptions("simple", "X-CSRF-Token", valueList[0], &XCSRFToken, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: false, Type: "string", Format: ""})
+		if err != nil {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "X-CSRF-Token", Err: err})
+			return
+		}
+
+		params.XCSRFToken = &XCSRFToken
+
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.CreateNotificationSender(w, r, params)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// DeleteNotificationSender operation middleware
+func (siw *ServerInterfaceWrapper) DeleteNotificationSender(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "senderId" -------------
+	var senderId SenderId
+
+	err = runtime.BindStyledParameterWithOptions("simple", "senderId", chi.URLParam(r, "senderId"), &senderId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "uuid", ValueIsUnescaped: r.URL.RawPath == ""})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "senderId", Err: err})
+		return
+	}
+
+	// Parameter object where we will unmarshal all parameters from the context
+	var params DeleteNotificationSenderParams
+
+	headers := r.Header
+
+	// ------------- Optional header parameter "X-CSRF-Token" -------------
+	if valueList, found := headers[http.CanonicalHeaderKey("X-CSRF-Token")]; found {
+		var XCSRFToken CSRFToken
+		n := len(valueList)
+		if n != 1 {
+			siw.ErrorHandlerFunc(w, r, &TooManyValuesForParamError{ParamName: "X-CSRF-Token", Count: n})
+			return
+		}
+
+		err = runtime.BindStyledParameterWithOptions("simple", "X-CSRF-Token", valueList[0], &XCSRFToken, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: false, Type: "string", Format: ""})
+		if err != nil {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "X-CSRF-Token", Err: err})
+			return
+		}
+
+		params.XCSRFToken = &XCSRFToken
+
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.DeleteNotificationSender(w, r, senderId, params)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// UpdateNotificationSender operation middleware
+func (siw *ServerInterfaceWrapper) UpdateNotificationSender(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "senderId" -------------
+	var senderId SenderId
+
+	err = runtime.BindStyledParameterWithOptions("simple", "senderId", chi.URLParam(r, "senderId"), &senderId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "uuid", ValueIsUnescaped: r.URL.RawPath == ""})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "senderId", Err: err})
+		return
+	}
+
+	// Parameter object where we will unmarshal all parameters from the context
+	var params UpdateNotificationSenderParams
+
+	headers := r.Header
+
+	// ------------- Optional header parameter "X-CSRF-Token" -------------
+	if valueList, found := headers[http.CanonicalHeaderKey("X-CSRF-Token")]; found {
+		var XCSRFToken CSRFToken
+		n := len(valueList)
+		if n != 1 {
+			siw.ErrorHandlerFunc(w, r, &TooManyValuesForParamError{ParamName: "X-CSRF-Token", Count: n})
+			return
+		}
+
+		err = runtime.BindStyledParameterWithOptions("simple", "X-CSRF-Token", valueList[0], &XCSRFToken, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: false, Type: "string", Format: ""})
+		if err != nil {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "X-CSRF-Token", Err: err})
+			return
+		}
+
+		params.XCSRFToken = &XCSRFToken
+
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.UpdateNotificationSender(w, r, senderId, params)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// CreateNotificationTestDelivery operation middleware
+func (siw *ServerInterfaceWrapper) CreateNotificationTestDelivery(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "senderId" -------------
+	var senderId SenderId
+
+	err = runtime.BindStyledParameterWithOptions("simple", "senderId", chi.URLParam(r, "senderId"), &senderId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "uuid", ValueIsUnescaped: r.URL.RawPath == ""})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "senderId", Err: err})
+		return
+	}
+
+	// Parameter object where we will unmarshal all parameters from the context
+	var params CreateNotificationTestDeliveryParams
+
+	headers := r.Header
+
+	// ------------- Optional header parameter "X-CSRF-Token" -------------
+	if valueList, found := headers[http.CanonicalHeaderKey("X-CSRF-Token")]; found {
+		var XCSRFToken CSRFToken
+		n := len(valueList)
+		if n != 1 {
+			siw.ErrorHandlerFunc(w, r, &TooManyValuesForParamError{ParamName: "X-CSRF-Token", Count: n})
+			return
+		}
+
+		err = runtime.BindStyledParameterWithOptions("simple", "X-CSRF-Token", valueList[0], &XCSRFToken, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: false, Type: "string", Format: ""})
+		if err != nil {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "X-CSRF-Token", Err: err})
+			return
+		}
+
+		params.XCSRFToken = &XCSRFToken
+
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.CreateNotificationTestDelivery(w, r, senderId, params)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
 // GetProbeRun operation middleware
 func (siw *ServerInterfaceWrapper) GetProbeRun(w http.ResponseWriter, r *http.Request) {
 
@@ -5096,6 +5956,36 @@ func HandlerWithOptions(si ServerInterface, options ChiServerOptions) http.Handl
 	})
 	r.Group(func(r chi.Router) {
 		r.Post(options.BaseURL+"/api/v1/history/cleanup", wrapper.CleanupHistory)
+	})
+	r.Group(func(r chi.Router) {
+		r.Get(options.BaseURL+"/api/v1/notification-senders", wrapper.ListNotificationSenders)
+	})
+	r.Group(func(r chi.Router) {
+		r.Post(options.BaseURL+"/api/v1/notification-senders", wrapper.CreateNotificationSender)
+	})
+	r.Group(func(r chi.Router) {
+		r.Delete(options.BaseURL+"/api/v1/notification-senders/{senderId}", wrapper.DeleteNotificationSender)
+	})
+	r.Group(func(r chi.Router) {
+		r.Put(options.BaseURL+"/api/v1/notification-senders/{senderId}", wrapper.UpdateNotificationSender)
+	})
+	r.Group(func(r chi.Router) {
+		r.Post(options.BaseURL+"/api/v1/notification-senders/{senderId}/test-deliveries", wrapper.CreateNotificationTestDelivery)
+	})
+	r.Group(func(r chi.Router) {
+		r.Get(options.BaseURL+"/api/v1/notification-rules", wrapper.ListNotificationRules)
+	})
+	r.Group(func(r chi.Router) {
+		r.Post(options.BaseURL+"/api/v1/notification-rules", wrapper.CreateNotificationRule)
+	})
+	r.Group(func(r chi.Router) {
+		r.Delete(options.BaseURL+"/api/v1/notification-rules/{ruleId}", wrapper.DeleteNotificationRule)
+	})
+	r.Group(func(r chi.Router) {
+		r.Put(options.BaseURL+"/api/v1/notification-rules/{ruleId}", wrapper.UpdateNotificationRule)
+	})
+	r.Group(func(r chi.Router) {
+		r.Get(options.BaseURL+"/api/v1/notification-deliveries", wrapper.ListNotificationDeliveries)
 	})
 	r.Group(func(r chi.Router) {
 		r.Get(options.BaseURL+"/api/v1/nodes/{nodeId}/network", wrapper.GetNodeNetwork)
@@ -7960,6 +8850,669 @@ func (response StartNodeSyncSession409JSONResponse) VisitStartNodeSyncSessionRes
 	return err
 }
 
+type ListNotificationDeliveriesRequestObject struct {
+	Params ListNotificationDeliveriesParams
+}
+
+type ListNotificationDeliveriesResponseObject interface {
+	VisitListNotificationDeliveriesResponse(w http.ResponseWriter) error
+}
+
+type ListNotificationDeliveries200JSONResponse NotificationDeliveryPage
+
+func (response ListNotificationDeliveries200JSONResponse) VisitListNotificationDeliveriesResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type ListNotificationDeliveries400JSONResponse struct{ BadRequestJSONResponse }
+
+func (response ListNotificationDeliveries400JSONResponse) VisitListNotificationDeliveriesResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(400)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type ListNotificationDeliveries401JSONResponse struct{ UnauthorizedJSONResponse }
+
+func (response ListNotificationDeliveries401JSONResponse) VisitListNotificationDeliveriesResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(401)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type ListNotificationRulesRequestObject struct {
+}
+
+type ListNotificationRulesResponseObject interface {
+	VisitListNotificationRulesResponse(w http.ResponseWriter) error
+}
+
+type ListNotificationRules200JSONResponse NotificationRuleList
+
+func (response ListNotificationRules200JSONResponse) VisitListNotificationRulesResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type ListNotificationRules401JSONResponse struct{ UnauthorizedJSONResponse }
+
+func (response ListNotificationRules401JSONResponse) VisitListNotificationRulesResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(401)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type CreateNotificationRuleRequestObject struct {
+	Params CreateNotificationRuleParams
+	Body   *CreateNotificationRuleJSONRequestBody
+}
+
+type CreateNotificationRuleResponseObject interface {
+	VisitCreateNotificationRuleResponse(w http.ResponseWriter) error
+}
+
+type CreateNotificationRule201JSONResponse NotificationRule
+
+func (response CreateNotificationRule201JSONResponse) VisitCreateNotificationRuleResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(201)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type CreateNotificationRule400JSONResponse struct{ BadRequestJSONResponse }
+
+func (response CreateNotificationRule400JSONResponse) VisitCreateNotificationRuleResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(400)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type CreateNotificationRule401JSONResponse struct{ UnauthorizedJSONResponse }
+
+func (response CreateNotificationRule401JSONResponse) VisitCreateNotificationRuleResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(401)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type CreateNotificationRule403JSONResponse struct{ ForbiddenJSONResponse }
+
+func (response CreateNotificationRule403JSONResponse) VisitCreateNotificationRuleResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(403)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type CreateNotificationRule409JSONResponse struct{ ConflictJSONResponse }
+
+func (response CreateNotificationRule409JSONResponse) VisitCreateNotificationRuleResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(409)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type DeleteNotificationRuleRequestObject struct {
+	RuleId RuleId `json:"ruleId"`
+	Params DeleteNotificationRuleParams
+}
+
+type DeleteNotificationRuleResponseObject interface {
+	VisitDeleteNotificationRuleResponse(w http.ResponseWriter) error
+}
+
+type DeleteNotificationRule204Response struct {
+}
+
+func (response DeleteNotificationRule204Response) VisitDeleteNotificationRuleResponse(w http.ResponseWriter) error {
+	w.WriteHeader(204)
+	return nil
+}
+
+type DeleteNotificationRule401JSONResponse struct{ UnauthorizedJSONResponse }
+
+func (response DeleteNotificationRule401JSONResponse) VisitDeleteNotificationRuleResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(401)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type DeleteNotificationRule403JSONResponse struct{ ForbiddenJSONResponse }
+
+func (response DeleteNotificationRule403JSONResponse) VisitDeleteNotificationRuleResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(403)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type DeleteNotificationRule404JSONResponse struct{ NotFoundJSONResponse }
+
+func (response DeleteNotificationRule404JSONResponse) VisitDeleteNotificationRuleResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(404)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type UpdateNotificationRuleRequestObject struct {
+	RuleId RuleId `json:"ruleId"`
+	Params UpdateNotificationRuleParams
+	Body   *UpdateNotificationRuleJSONRequestBody
+}
+
+type UpdateNotificationRuleResponseObject interface {
+	VisitUpdateNotificationRuleResponse(w http.ResponseWriter) error
+}
+
+type UpdateNotificationRule200JSONResponse NotificationRule
+
+func (response UpdateNotificationRule200JSONResponse) VisitUpdateNotificationRuleResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type UpdateNotificationRule400JSONResponse struct{ BadRequestJSONResponse }
+
+func (response UpdateNotificationRule400JSONResponse) VisitUpdateNotificationRuleResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(400)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type UpdateNotificationRule401JSONResponse struct{ UnauthorizedJSONResponse }
+
+func (response UpdateNotificationRule401JSONResponse) VisitUpdateNotificationRuleResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(401)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type UpdateNotificationRule403JSONResponse struct{ ForbiddenJSONResponse }
+
+func (response UpdateNotificationRule403JSONResponse) VisitUpdateNotificationRuleResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(403)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type UpdateNotificationRule404JSONResponse struct{ NotFoundJSONResponse }
+
+func (response UpdateNotificationRule404JSONResponse) VisitUpdateNotificationRuleResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(404)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type UpdateNotificationRule409JSONResponse struct{ ConflictJSONResponse }
+
+func (response UpdateNotificationRule409JSONResponse) VisitUpdateNotificationRuleResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(409)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type ListNotificationSendersRequestObject struct {
+}
+
+type ListNotificationSendersResponseObject interface {
+	VisitListNotificationSendersResponse(w http.ResponseWriter) error
+}
+
+type ListNotificationSenders200JSONResponse NotificationSenderList
+
+func (response ListNotificationSenders200JSONResponse) VisitListNotificationSendersResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type ListNotificationSenders401JSONResponse struct{ UnauthorizedJSONResponse }
+
+func (response ListNotificationSenders401JSONResponse) VisitListNotificationSendersResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(401)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type CreateNotificationSenderRequestObject struct {
+	Params CreateNotificationSenderParams
+	Body   *CreateNotificationSenderJSONRequestBody
+}
+
+type CreateNotificationSenderResponseObject interface {
+	VisitCreateNotificationSenderResponse(w http.ResponseWriter) error
+}
+
+type CreateNotificationSender201JSONResponse NotificationSender
+
+func (response CreateNotificationSender201JSONResponse) VisitCreateNotificationSenderResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(201)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type CreateNotificationSender400JSONResponse struct{ BadRequestJSONResponse }
+
+func (response CreateNotificationSender400JSONResponse) VisitCreateNotificationSenderResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(400)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type CreateNotificationSender401JSONResponse struct{ UnauthorizedJSONResponse }
+
+func (response CreateNotificationSender401JSONResponse) VisitCreateNotificationSenderResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(401)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type CreateNotificationSender403JSONResponse struct{ ForbiddenJSONResponse }
+
+func (response CreateNotificationSender403JSONResponse) VisitCreateNotificationSenderResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(403)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type CreateNotificationSender409JSONResponse struct{ ConflictJSONResponse }
+
+func (response CreateNotificationSender409JSONResponse) VisitCreateNotificationSenderResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(409)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type DeleteNotificationSenderRequestObject struct {
+	SenderId SenderId `json:"senderId"`
+	Params   DeleteNotificationSenderParams
+}
+
+type DeleteNotificationSenderResponseObject interface {
+	VisitDeleteNotificationSenderResponse(w http.ResponseWriter) error
+}
+
+type DeleteNotificationSender204Response struct {
+}
+
+func (response DeleteNotificationSender204Response) VisitDeleteNotificationSenderResponse(w http.ResponseWriter) error {
+	w.WriteHeader(204)
+	return nil
+}
+
+type DeleteNotificationSender401JSONResponse struct{ UnauthorizedJSONResponse }
+
+func (response DeleteNotificationSender401JSONResponse) VisitDeleteNotificationSenderResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(401)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type DeleteNotificationSender403JSONResponse struct{ ForbiddenJSONResponse }
+
+func (response DeleteNotificationSender403JSONResponse) VisitDeleteNotificationSenderResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(403)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type DeleteNotificationSender404JSONResponse struct{ NotFoundJSONResponse }
+
+func (response DeleteNotificationSender404JSONResponse) VisitDeleteNotificationSenderResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(404)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type DeleteNotificationSender409JSONResponse struct{ ConflictJSONResponse }
+
+func (response DeleteNotificationSender409JSONResponse) VisitDeleteNotificationSenderResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(409)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type UpdateNotificationSenderRequestObject struct {
+	SenderId SenderId `json:"senderId"`
+	Params   UpdateNotificationSenderParams
+	Body     *UpdateNotificationSenderJSONRequestBody
+}
+
+type UpdateNotificationSenderResponseObject interface {
+	VisitUpdateNotificationSenderResponse(w http.ResponseWriter) error
+}
+
+type UpdateNotificationSender200JSONResponse NotificationSender
+
+func (response UpdateNotificationSender200JSONResponse) VisitUpdateNotificationSenderResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type UpdateNotificationSender400JSONResponse struct{ BadRequestJSONResponse }
+
+func (response UpdateNotificationSender400JSONResponse) VisitUpdateNotificationSenderResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(400)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type UpdateNotificationSender401JSONResponse struct{ UnauthorizedJSONResponse }
+
+func (response UpdateNotificationSender401JSONResponse) VisitUpdateNotificationSenderResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(401)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type UpdateNotificationSender403JSONResponse struct{ ForbiddenJSONResponse }
+
+func (response UpdateNotificationSender403JSONResponse) VisitUpdateNotificationSenderResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(403)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type UpdateNotificationSender404JSONResponse struct{ NotFoundJSONResponse }
+
+func (response UpdateNotificationSender404JSONResponse) VisitUpdateNotificationSenderResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(404)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type UpdateNotificationSender409JSONResponse struct{ ConflictJSONResponse }
+
+func (response UpdateNotificationSender409JSONResponse) VisitUpdateNotificationSenderResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(409)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type CreateNotificationTestDeliveryRequestObject struct {
+	SenderId SenderId `json:"senderId"`
+	Params   CreateNotificationTestDeliveryParams
+}
+
+type CreateNotificationTestDeliveryResponseObject interface {
+	VisitCreateNotificationTestDeliveryResponse(w http.ResponseWriter) error
+}
+
+type CreateNotificationTestDelivery202JSONResponse NotificationDelivery
+
+func (response CreateNotificationTestDelivery202JSONResponse) VisitCreateNotificationTestDeliveryResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(202)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type CreateNotificationTestDelivery401JSONResponse struct{ UnauthorizedJSONResponse }
+
+func (response CreateNotificationTestDelivery401JSONResponse) VisitCreateNotificationTestDeliveryResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(401)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type CreateNotificationTestDelivery403JSONResponse struct{ ForbiddenJSONResponse }
+
+func (response CreateNotificationTestDelivery403JSONResponse) VisitCreateNotificationTestDeliveryResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(403)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type CreateNotificationTestDelivery404JSONResponse struct{ NotFoundJSONResponse }
+
+func (response CreateNotificationTestDelivery404JSONResponse) VisitCreateNotificationTestDeliveryResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(404)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
 type GetProbeRunRequestObject struct {
 	RunId RunId `json:"runId"`
 }
@@ -8362,6 +9915,36 @@ type StrictServerInterface interface {
 	// StartNodeSyncSession Start or replace a ten-minute temporary node sync session
 	// (POST /api/v1/nodes/{nodeId}/sync-session)
 	StartNodeSyncSession(ctx context.Context, request StartNodeSyncSessionRequestObject) (StartNodeSyncSessionResponseObject, error)
+	// ListNotificationDeliveries List durable notification delivery history and active work
+	// (GET /api/v1/notification-deliveries)
+	ListNotificationDeliveries(ctx context.Context, request ListNotificationDeliveriesRequestObject) (ListNotificationDeliveriesResponseObject, error)
+	// ListNotificationRules List current notification matching rules
+	// (GET /api/v1/notification-rules)
+	ListNotificationRules(ctx context.Context, request ListNotificationRulesRequestObject) (ListNotificationRulesResponseObject, error)
+	// CreateNotificationRule Create a notification matching rule
+	// (POST /api/v1/notification-rules)
+	CreateNotificationRule(ctx context.Context, request CreateNotificationRuleRequestObject) (CreateNotificationRuleResponseObject, error)
+	// DeleteNotificationRule Delete a notification matching rule
+	// (DELETE /api/v1/notification-rules/{ruleId})
+	DeleteNotificationRule(ctx context.Context, request DeleteNotificationRuleRequestObject) (DeleteNotificationRuleResponseObject, error)
+	// UpdateNotificationRule Replace a notification matching rule
+	// (PUT /api/v1/notification-rules/{ruleId})
+	UpdateNotificationRule(ctx context.Context, request UpdateNotificationRuleRequestObject) (UpdateNotificationRuleResponseObject, error)
+	// ListNotificationSenders List configured notification senders
+	// (GET /api/v1/notification-senders)
+	ListNotificationSenders(ctx context.Context, request ListNotificationSendersRequestObject) (ListNotificationSendersResponseObject, error)
+	// CreateNotificationSender Create a notification sender
+	// (POST /api/v1/notification-senders)
+	CreateNotificationSender(ctx context.Context, request CreateNotificationSenderRequestObject) (CreateNotificationSenderResponseObject, error)
+	// DeleteNotificationSender Delete an unreferenced sender without active deliveries
+	// (DELETE /api/v1/notification-senders/{senderId})
+	DeleteNotificationSender(ctx context.Context, request DeleteNotificationSenderRequestObject) (DeleteNotificationSenderResponseObject, error)
+	// UpdateNotificationSender Replace a notification sender while optionally retaining hidden credentials
+	// (PUT /api/v1/notification-senders/{senderId})
+	UpdateNotificationSender(ctx context.Context, request UpdateNotificationSenderRequestObject) (UpdateNotificationSenderResponseObject, error)
+	// CreateNotificationTestDelivery Queue a real-path test delivery for one sender
+	// (POST /api/v1/notification-senders/{senderId}/test-deliveries)
+	CreateNotificationTestDelivery(ctx context.Context, request CreateNotificationTestDeliveryRequestObject) (CreateNotificationTestDeliveryResponseObject, error)
 	// GetProbeRun Read one complete-probe run and its frozen egress executions
 	// (GET /api/v1/probe-runs/{runId})
 	GetProbeRun(ctx context.Context, request GetProbeRunRequestObject) (GetProbeRunResponseObject, error)
@@ -9697,6 +11280,295 @@ func (sh *strictHandler) StartNodeSyncSession(w http.ResponseWriter, r *http.Req
 		sh.options.ResponseErrorHandlerFunc(w, r, err)
 	} else if validResponse, ok := response.(StartNodeSyncSessionResponseObject); ok {
 		if err := validResponse.VisitStartNodeSyncSessionResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// ListNotificationDeliveries operation middleware
+func (sh *strictHandler) ListNotificationDeliveries(w http.ResponseWriter, r *http.Request, params ListNotificationDeliveriesParams) {
+	var request ListNotificationDeliveriesRequestObject
+
+	request.Params = params
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.ListNotificationDeliveries(ctx, request.(ListNotificationDeliveriesRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "ListNotificationDeliveries")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(ListNotificationDeliveriesResponseObject); ok {
+		if err := validResponse.VisitListNotificationDeliveriesResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// ListNotificationRules operation middleware
+func (sh *strictHandler) ListNotificationRules(w http.ResponseWriter, r *http.Request) {
+	var request ListNotificationRulesRequestObject
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.ListNotificationRules(ctx, request.(ListNotificationRulesRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "ListNotificationRules")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(ListNotificationRulesResponseObject); ok {
+		if err := validResponse.VisitListNotificationRulesResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// CreateNotificationRule operation middleware
+func (sh *strictHandler) CreateNotificationRule(w http.ResponseWriter, r *http.Request, params CreateNotificationRuleParams) {
+	var request CreateNotificationRuleRequestObject
+
+	request.Params = params
+
+	var body CreateNotificationRuleJSONRequestBody
+	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+		sh.options.RequestErrorHandlerFunc(w, r, fmt.Errorf("can't decode JSON body: %w", err))
+		return
+	}
+	request.Body = &body
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.CreateNotificationRule(ctx, request.(CreateNotificationRuleRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "CreateNotificationRule")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(CreateNotificationRuleResponseObject); ok {
+		if err := validResponse.VisitCreateNotificationRuleResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// DeleteNotificationRule operation middleware
+func (sh *strictHandler) DeleteNotificationRule(w http.ResponseWriter, r *http.Request, ruleId RuleId, params DeleteNotificationRuleParams) {
+	var request DeleteNotificationRuleRequestObject
+
+	request.RuleId = ruleId
+	request.Params = params
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.DeleteNotificationRule(ctx, request.(DeleteNotificationRuleRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "DeleteNotificationRule")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(DeleteNotificationRuleResponseObject); ok {
+		if err := validResponse.VisitDeleteNotificationRuleResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// UpdateNotificationRule operation middleware
+func (sh *strictHandler) UpdateNotificationRule(w http.ResponseWriter, r *http.Request, ruleId RuleId, params UpdateNotificationRuleParams) {
+	var request UpdateNotificationRuleRequestObject
+
+	request.RuleId = ruleId
+	request.Params = params
+
+	var body UpdateNotificationRuleJSONRequestBody
+	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+		sh.options.RequestErrorHandlerFunc(w, r, fmt.Errorf("can't decode JSON body: %w", err))
+		return
+	}
+	request.Body = &body
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.UpdateNotificationRule(ctx, request.(UpdateNotificationRuleRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "UpdateNotificationRule")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(UpdateNotificationRuleResponseObject); ok {
+		if err := validResponse.VisitUpdateNotificationRuleResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// ListNotificationSenders operation middleware
+func (sh *strictHandler) ListNotificationSenders(w http.ResponseWriter, r *http.Request) {
+	var request ListNotificationSendersRequestObject
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.ListNotificationSenders(ctx, request.(ListNotificationSendersRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "ListNotificationSenders")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(ListNotificationSendersResponseObject); ok {
+		if err := validResponse.VisitListNotificationSendersResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// CreateNotificationSender operation middleware
+func (sh *strictHandler) CreateNotificationSender(w http.ResponseWriter, r *http.Request, params CreateNotificationSenderParams) {
+	var request CreateNotificationSenderRequestObject
+
+	request.Params = params
+
+	var body CreateNotificationSenderJSONRequestBody
+	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+		sh.options.RequestErrorHandlerFunc(w, r, fmt.Errorf("can't decode JSON body: %w", err))
+		return
+	}
+	request.Body = &body
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.CreateNotificationSender(ctx, request.(CreateNotificationSenderRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "CreateNotificationSender")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(CreateNotificationSenderResponseObject); ok {
+		if err := validResponse.VisitCreateNotificationSenderResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// DeleteNotificationSender operation middleware
+func (sh *strictHandler) DeleteNotificationSender(w http.ResponseWriter, r *http.Request, senderId SenderId, params DeleteNotificationSenderParams) {
+	var request DeleteNotificationSenderRequestObject
+
+	request.SenderId = senderId
+	request.Params = params
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.DeleteNotificationSender(ctx, request.(DeleteNotificationSenderRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "DeleteNotificationSender")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(DeleteNotificationSenderResponseObject); ok {
+		if err := validResponse.VisitDeleteNotificationSenderResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// UpdateNotificationSender operation middleware
+func (sh *strictHandler) UpdateNotificationSender(w http.ResponseWriter, r *http.Request, senderId SenderId, params UpdateNotificationSenderParams) {
+	var request UpdateNotificationSenderRequestObject
+
+	request.SenderId = senderId
+	request.Params = params
+
+	var body UpdateNotificationSenderJSONRequestBody
+	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+		sh.options.RequestErrorHandlerFunc(w, r, fmt.Errorf("can't decode JSON body: %w", err))
+		return
+	}
+	request.Body = &body
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.UpdateNotificationSender(ctx, request.(UpdateNotificationSenderRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "UpdateNotificationSender")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(UpdateNotificationSenderResponseObject); ok {
+		if err := validResponse.VisitUpdateNotificationSenderResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// CreateNotificationTestDelivery operation middleware
+func (sh *strictHandler) CreateNotificationTestDelivery(w http.ResponseWriter, r *http.Request, senderId SenderId, params CreateNotificationTestDeliveryParams) {
+	var request CreateNotificationTestDeliveryRequestObject
+
+	request.SenderId = senderId
+	request.Params = params
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.CreateNotificationTestDelivery(ctx, request.(CreateNotificationTestDeliveryRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "CreateNotificationTestDelivery")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(CreateNotificationTestDeliveryResponseObject); ok {
+		if err := validResponse.VisitCreateNotificationTestDeliveryResponse(w); err != nil {
 			sh.options.ResponseErrorHandlerFunc(w, r, err)
 		}
 	} else if response != nil {

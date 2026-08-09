@@ -106,6 +106,10 @@ docker compose -f deploy/compose.yaml exec -T center \
   /usr/local/bin/ipchronicle-center admin disable-totp
 ```
 
+## Operator Guides
+
+- [Notification senders, rules, delivery limits, and JavaScript API](docs/notifications.md)
+
 ## Development
 
 Prerequisites:

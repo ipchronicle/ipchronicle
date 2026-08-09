@@ -9,6 +9,56 @@ import (
 	"context"
 )
 
+const claimNotificationDelivery = `-- name: ClaimNotificationDelivery :execrows
+UPDATE notification_deliveries
+SET status = 'running', attempt_count = attempt_count + 1,
+    next_attempt_at = NULL, last_attempt_at = ?, updated_at = ?
+WHERE id = ?
+  AND status IN ('pending', 'retrying')
+  AND next_attempt_at <= ?
+  AND attempt_count < 4
+`
+
+type ClaimNotificationDeliveryParams struct {
+	LastAttemptAt *int64
+	UpdatedAt     int64
+	ID            string
+	NextAttemptAt *int64
+}
+
+func (q *Queries) ClaimNotificationDelivery(ctx context.Context, arg ClaimNotificationDeliveryParams) (int64, error) {
+	result, err := q.db.ExecContext(ctx, claimNotificationDelivery,
+		arg.LastAttemptAt,
+		arg.UpdatedAt,
+		arg.ID,
+		arg.NextAttemptAt,
+	)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected()
+}
+
+const completeNotificationDelivery = `-- name: CompleteNotificationDelivery :execrows
+UPDATE notification_deliveries
+SET status = 'succeeded', completed_at = ?, error_code = NULL, updated_at = ?
+WHERE id = ? AND status = 'running'
+`
+
+type CompleteNotificationDeliveryParams struct {
+	CompletedAt *int64
+	UpdatedAt   int64
+	ID          string
+}
+
+func (q *Queries) CompleteNotificationDelivery(ctx context.Context, arg CompleteNotificationDeliveryParams) (int64, error) {
+	result, err := q.db.ExecContext(ctx, completeNotificationDelivery, arg.CompletedAt, arg.UpdatedAt, arg.ID)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected()
+}
+
 const completeProbeRun = `-- name: CompleteProbeRun :execrows
 UPDATE probe_runs
 SET status = ?, completed_at = ?, received_at = ?
@@ -33,6 +83,19 @@ func (q *Queries) CompleteProbeRun(ctx context.Context, arg CompleteProbeRunPara
 		return 0, err
 	}
 	return result.RowsAffected()
+}
+
+const countActiveNotificationDeliveriesForSender = `-- name: CountActiveNotificationDeliveriesForSender :one
+SELECT COUNT(*)
+FROM notification_deliveries
+WHERE sender_id = ? AND status IN ('pending', 'running', 'retrying')
+`
+
+func (q *Queries) CountActiveNotificationDeliveriesForSender(ctx context.Context, senderID string) (int64, error) {
+	row := q.db.QueryRowContext(ctx, countActiveNotificationDeliveriesForSender, senderID)
+	var count int64
+	err := row.Scan(&count)
+	return count, err
 }
 
 const countGlobalAddressEvents = `-- name: CountGlobalAddressEvents :one
@@ -147,6 +210,25 @@ func (q *Queries) CountGlobalProbeGaps(ctx context.Context, arg CountGlobalProbe
 		arg.FromObservedAt,
 		arg.ToObservedAt,
 	)
+	var count int64
+	err := row.Scan(&count)
+	return count, err
+}
+
+const countNotificationDeliveries = `-- name: CountNotificationDeliveries :one
+SELECT COUNT(*)
+FROM notification_deliveries
+WHERE (?1 = '' OR sender_id = ?1)
+  AND (?2 = '' OR status = ?2)
+`
+
+type CountNotificationDeliveriesParams struct {
+	SenderID       interface{}
+	DeliveryStatus interface{}
+}
+
+func (q *Queries) CountNotificationDeliveries(ctx context.Context, arg CountNotificationDeliveriesParams) (int64, error) {
+	row := q.db.QueryRowContext(ctx, countNotificationDeliveries, arg.SenderID, arg.DeliveryStatus)
 	var count int64
 	err := row.Scan(&count)
 	return count, err
@@ -270,6 +352,110 @@ type CreateHistoryMetadataParams struct {
 func (q *Queries) CreateHistoryMetadata(ctx context.Context, arg CreateHistoryMetadataParams) error {
 	_, err := q.db.ExecContext(ctx, createHistoryMetadata, arg.Generation, arg.CreatedAt)
 	return err
+}
+
+const createNotificationDelivery = `-- name: CreateNotificationDelivery :execrows
+INSERT INTO notification_deliveries (
+    id, event_id, sender_id, sender_name, sender_kind, event_type,
+    node_id, egress_id, is_test, status, attempt_count, next_attempt_at,
+    last_attempt_at, completed_at, error_code, matched_rule_ids_json,
+    event_json, title, body, created_at, updated_at
+) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+ON CONFLICT (event_id, sender_id) DO NOTHING
+`
+
+type CreateNotificationDeliveryParams struct {
+	ID                 string
+	EventID            string
+	SenderID           string
+	SenderName         string
+	SenderKind         string
+	EventType          string
+	NodeID             *string
+	EgressID           *string
+	IsTest             int64
+	Status             string
+	AttemptCount       int64
+	NextAttemptAt      *int64
+	LastAttemptAt      *int64
+	CompletedAt        *int64
+	ErrorCode          *string
+	MatchedRuleIdsJson []byte
+	EventJson          []byte
+	Title              string
+	Body               string
+	CreatedAt          int64
+	UpdatedAt          int64
+}
+
+func (q *Queries) CreateNotificationDelivery(ctx context.Context, arg CreateNotificationDeliveryParams) (int64, error) {
+	result, err := q.db.ExecContext(ctx, createNotificationDelivery,
+		arg.ID,
+		arg.EventID,
+		arg.SenderID,
+		arg.SenderName,
+		arg.SenderKind,
+		arg.EventType,
+		arg.NodeID,
+		arg.EgressID,
+		arg.IsTest,
+		arg.Status,
+		arg.AttemptCount,
+		arg.NextAttemptAt,
+		arg.LastAttemptAt,
+		arg.CompletedAt,
+		arg.ErrorCode,
+		arg.MatchedRuleIdsJson,
+		arg.EventJson,
+		arg.Title,
+		arg.Body,
+		arg.CreatedAt,
+		arg.UpdatedAt,
+	)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected()
+}
+
+const createNotificationEvent = `-- name: CreateNotificationEvent :execrows
+INSERT INTO notification_events (
+    id, event_type, source_kind, source_id, node_id, egress_id,
+    payload_json, observed_at, recorded_at, processed_at
+) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+ON CONFLICT (source_kind, source_id, event_type) DO NOTHING
+`
+
+type CreateNotificationEventParams struct {
+	ID          string
+	EventType   string
+	SourceKind  string
+	SourceID    string
+	NodeID      *string
+	EgressID    *string
+	PayloadJson []byte
+	ObservedAt  int64
+	RecordedAt  int64
+	ProcessedAt *int64
+}
+
+func (q *Queries) CreateNotificationEvent(ctx context.Context, arg CreateNotificationEventParams) (int64, error) {
+	result, err := q.db.ExecContext(ctx, createNotificationEvent,
+		arg.ID,
+		arg.EventType,
+		arg.SourceKind,
+		arg.SourceID,
+		arg.NodeID,
+		arg.EgressID,
+		arg.PayloadJson,
+		arg.ObservedAt,
+		arg.RecordedAt,
+		arg.ProcessedAt,
+	)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected()
 }
 
 const createProbeChangeSet = `-- name: CreateProbeChangeSet :execrows
@@ -570,6 +756,15 @@ func (q *Queries) DeleteEgressAddressStates(ctx context.Context, egressID string
 	return err
 }
 
+const deleteEgressNotificationHistory = `-- name: DeleteEgressNotificationHistory :exec
+DELETE FROM notification_events WHERE egress_id = ?
+`
+
+func (q *Queries) DeleteEgressNotificationHistory(ctx context.Context, egressID *string) error {
+	_, err := q.db.ExecContext(ctx, deleteEgressNotificationHistory, egressID)
+	return err
+}
+
 const deleteEgressProbeComparisonProgress = `-- name: DeleteEgressProbeComparisonProgress :exec
 DELETE FROM probe_comparison_progress WHERE egress_id = ?
 `
@@ -645,6 +840,15 @@ func (q *Queries) DeleteNodeAddressStates(ctx context.Context, nodeID string) er
 	return err
 }
 
+const deleteNodeNotificationHistory = `-- name: DeleteNodeNotificationHistory :exec
+DELETE FROM notification_events WHERE node_id = ?
+`
+
+func (q *Queries) DeleteNodeNotificationHistory(ctx context.Context, nodeID *string) error {
+	_, err := q.db.ExecContext(ctx, deleteNodeNotificationHistory, nodeID)
+	return err
+}
+
 const deleteNodeProbeComparisonProgress = `-- name: DeleteNodeProbeComparisonProgress :exec
 DELETE FROM probe_comparison_progress WHERE node_id = ?
 `
@@ -669,6 +873,24 @@ DELETE FROM probe_runs WHERE node_id = ?
 
 func (q *Queries) DeleteNodeProbeHistory(ctx context.Context, nodeID string) error {
 	_, err := q.db.ExecContext(ctx, deleteNodeProbeHistory, nodeID)
+	return err
+}
+
+const deleteNodeProbeOutcomeStates = `-- name: DeleteNodeProbeOutcomeStates :exec
+DELETE FROM probe_outcome_states WHERE node_id = ?
+`
+
+func (q *Queries) DeleteNodeProbeOutcomeStates(ctx context.Context, nodeID string) error {
+	_, err := q.db.ExecContext(ctx, deleteNodeProbeOutcomeStates, nodeID)
+	return err
+}
+
+const deleteProbeOutcomeState = `-- name: DeleteProbeOutcomeState :exec
+DELETE FROM probe_outcome_states WHERE egress_id = ?
+`
+
+func (q *Queries) DeleteProbeOutcomeState(ctx context.Context, egressID string) error {
+	_, err := q.db.ExecContext(ctx, deleteProbeOutcomeState, egressID)
 	return err
 }
 
@@ -723,10 +945,32 @@ WHERE probe_executions.id = ? AND probe_executions.status NOT IN ('pending', 'ru
       JOIN probe_comparison_progress progress ON progress.last_success_snapshot_id = s.id
       WHERE s.execution_id = probe_executions.id
   )
+  AND NOT EXISTS(
+      SELECT 1 FROM probe_outcome_states outcome
+      WHERE outcome.execution_id = probe_executions.id
+  )
 `
 
 func (q *Queries) DeleteRetentionExecution(ctx context.Context, id string) (int64, error) {
 	result, err := q.db.ExecContext(ctx, deleteRetentionExecution, id)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected()
+}
+
+const deleteRetentionNotificationEvent = `-- name: DeleteRetentionNotificationEvent :execrows
+DELETE FROM notification_events
+WHERE notification_events.id = ? AND processed_at IS NOT NULL
+  AND NOT EXISTS(
+      SELECT 1 FROM notification_deliveries delivery
+      WHERE delivery.event_id = notification_events.id
+        AND delivery.status IN ('pending', 'running', 'retrying')
+  )
+`
+
+func (q *Queries) DeleteRetentionNotificationEvent(ctx context.Context, id string) (int64, error) {
+	result, err := q.db.ExecContext(ctx, deleteRetentionNotificationEvent, id)
 	if err != nil {
 		return 0, err
 	}
@@ -739,6 +983,33 @@ DELETE FROM probe_gaps WHERE id = ?
 
 func (q *Queries) DeleteRetentionProbeGap(ctx context.Context, id string) (int64, error) {
 	result, err := q.db.ExecContext(ctx, deleteRetentionProbeGap, id)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected()
+}
+
+const failNotificationDelivery = `-- name: FailNotificationDelivery :execrows
+UPDATE notification_deliveries
+SET status = 'failed', next_attempt_at = NULL, completed_at = ?,
+    error_code = ?, updated_at = ?
+WHERE id = ? AND status = 'running'
+`
+
+type FailNotificationDeliveryParams struct {
+	CompletedAt *int64
+	ErrorCode   *string
+	UpdatedAt   int64
+	ID          string
+}
+
+func (q *Queries) FailNotificationDelivery(ctx context.Context, arg FailNotificationDeliveryParams) (int64, error) {
+	result, err := q.db.ExecContext(ctx, failNotificationDelivery,
+		arg.CompletedAt,
+		arg.ErrorCode,
+		arg.UpdatedAt,
+		arg.ID,
+	)
 	if err != nil {
 		return 0, err
 	}
@@ -853,6 +1124,17 @@ FROM (
     UNION ALL SELECT COUNT(*) * 96, COUNT(*) FROM probe_snapshot_stars
     UNION ALL SELECT COUNT(*) * 192, COUNT(*) FROM probe_comparison_progress
     UNION ALL SELECT COUNT(*) * 160, COUNT(*) FROM current_probe_snapshots
+    UNION ALL SELECT COUNT(*) * 224, COUNT(*) FROM probe_outcome_states
+    UNION ALL SELECT SUM(
+        256 + length(id) + length(event_type) + length(source_kind) + length(source_id) +
+        COALESCE(length(node_id), 0) + COALESCE(length(egress_id), 0) + length(payload_json)
+    ), COUNT(*) FROM notification_events
+    UNION ALL SELECT SUM(
+        512 + length(id) + length(event_id) + length(sender_id) + length(sender_name) +
+        length(sender_kind) + length(event_type) + length(matched_rule_ids_json) +
+        length(event_json) + length(CAST(title AS BLOB)) + length(CAST(body AS BLOB)) +
+        COALESCE(length(error_code), 0)
+    ), COUNT(*) FROM notification_deliveries
     UNION ALL SELECT SUM(
         256 + COALESCE(length(public_address), 0) + COALESCE(length(local_interface), 0) +
         COALESCE(length(local_address), 0) + COALESCE(length(proxy_path), 0) +
@@ -883,6 +1165,69 @@ func (q *Queries) GetHistoryMetadata(ctx context.Context) (HistoryMetadatum, err
 	row := q.db.QueryRowContext(ctx, getHistoryMetadata)
 	var i HistoryMetadatum
 	err := row.Scan(&i.ID, &i.Generation, &i.CreatedAt)
+	return i, err
+}
+
+const getNotificationDelivery = `-- name: GetNotificationDelivery :one
+SELECT id, event_id, sender_id, sender_name, sender_kind, event_type,
+       node_id, egress_id, is_test, status, attempt_count, next_attempt_at,
+       last_attempt_at, completed_at, error_code, matched_rule_ids_json,
+       event_json, title, body, created_at, updated_at
+FROM notification_deliveries
+WHERE id = ?
+`
+
+func (q *Queries) GetNotificationDelivery(ctx context.Context, id string) (NotificationDelivery, error) {
+	row := q.db.QueryRowContext(ctx, getNotificationDelivery, id)
+	var i NotificationDelivery
+	err := row.Scan(
+		&i.ID,
+		&i.EventID,
+		&i.SenderID,
+		&i.SenderName,
+		&i.SenderKind,
+		&i.EventType,
+		&i.NodeID,
+		&i.EgressID,
+		&i.IsTest,
+		&i.Status,
+		&i.AttemptCount,
+		&i.NextAttemptAt,
+		&i.LastAttemptAt,
+		&i.CompletedAt,
+		&i.ErrorCode,
+		&i.MatchedRuleIdsJson,
+		&i.EventJson,
+		&i.Title,
+		&i.Body,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+	)
+	return i, err
+}
+
+const getNotificationEvent = `-- name: GetNotificationEvent :one
+SELECT id, event_type, source_kind, source_id, node_id, egress_id,
+       payload_json, observed_at, recorded_at, processed_at
+FROM notification_events
+WHERE id = ?
+`
+
+func (q *Queries) GetNotificationEvent(ctx context.Context, id string) (NotificationEvent, error) {
+	row := q.db.QueryRowContext(ctx, getNotificationEvent, id)
+	var i NotificationEvent
+	err := row.Scan(
+		&i.ID,
+		&i.EventType,
+		&i.SourceKind,
+		&i.SourceID,
+		&i.NodeID,
+		&i.EgressID,
+		&i.PayloadJson,
+		&i.ObservedAt,
+		&i.RecordedAt,
+		&i.ProcessedAt,
+	)
 	return i, err
 }
 
@@ -1075,6 +1420,30 @@ func (q *Queries) GetProbeGapCoveringSequence(ctx context.Context, arg GetProbeG
 	return i, err
 }
 
+const getProbeOutcomeState = `-- name: GetProbeOutcomeState :one
+SELECT egress_id, node_id, history_generation, execution_id, sequence,
+       status, first_observed_at, last_observed_at, updated_at
+FROM probe_outcome_states
+WHERE egress_id = ?
+`
+
+func (q *Queries) GetProbeOutcomeState(ctx context.Context, egressID string) (ProbeOutcomeState, error) {
+	row := q.db.QueryRowContext(ctx, getProbeOutcomeState, egressID)
+	var i ProbeOutcomeState
+	err := row.Scan(
+		&i.EgressID,
+		&i.NodeID,
+		&i.HistoryGeneration,
+		&i.ExecutionID,
+		&i.Sequence,
+		&i.Status,
+		&i.FirstObservedAt,
+		&i.LastObservedAt,
+		&i.UpdatedAt,
+	)
+	return i, err
+}
+
 const getProbeRun = `-- name: GetProbeRun :one
 SELECT id, node_id, history_generation, configuration_revision, trigger,
        task_id, triggering_egress_id, status, expected_executions,
@@ -1190,6 +1559,7 @@ WITH protected_snapshots AS (
     WHERE r.status = 'running'
        OR e.status IN ('pending', 'running')
        OR EXISTS(SELECT 1 FROM protected_snapshots snapshot WHERE snapshot.execution_id = e.id)
+       OR EXISTS(SELECT 1 FROM probe_outcome_states outcome WHERE outcome.execution_id = e.id)
 ), protected_runs AS (
     SELECT r.id, r.node_id, r.history_generation, r.trigger,
            r.task_id, r.triggering_egress_id
@@ -1245,6 +1615,29 @@ FROM (
     ) FROM address_states
     UNION ALL
     SELECT COUNT(*) * 192 FROM probe_comparison_progress
+    UNION ALL
+    SELECT COUNT(*) * 224 FROM probe_outcome_states
+    UNION ALL
+    SELECT SUM(
+        256 + length(event.id) + length(event.event_type) + length(event.source_kind) +
+        length(event.source_id) + COALESCE(length(event.node_id), 0) +
+        COALESCE(length(event.egress_id), 0) + length(event.payload_json)
+    )
+    FROM notification_events event
+    WHERE event.processed_at IS NULL OR EXISTS(
+        SELECT 1 FROM notification_deliveries delivery
+        WHERE delivery.event_id = event.id
+          AND delivery.status IN ('pending', 'running', 'retrying')
+    )
+    UNION ALL
+    SELECT SUM(
+        512 + length(id) + length(event_id) + length(sender_id) + length(sender_name) +
+        length(sender_kind) + length(event_type) + length(matched_rule_ids_json) +
+        length(event_json) + length(CAST(title AS BLOB)) + length(CAST(body AS BLOB)) +
+        COALESCE(length(error_code), 0)
+    )
+    FROM notification_deliveries
+    WHERE status IN ('pending', 'running', 'retrying')
 )
 `
 
@@ -1765,6 +2158,118 @@ func (q *Queries) ListNodeProbeRuns(ctx context.Context, arg ListNodeProbeRunsPa
 	return items, nil
 }
 
+const listNotificationDeliveries = `-- name: ListNotificationDeliveries :many
+SELECT id, event_id, sender_id, sender_name, sender_kind, event_type,
+       node_id, egress_id, is_test, status, attempt_count, next_attempt_at,
+       last_attempt_at, completed_at, error_code, matched_rule_ids_json,
+       event_json, title, body, created_at, updated_at
+FROM notification_deliveries
+WHERE (?1 = '' OR sender_id = ?1)
+  AND (?2 = '' OR status = ?2)
+ORDER BY created_at DESC, id DESC
+LIMIT ?4 OFFSET ?3
+`
+
+type ListNotificationDeliveriesParams struct {
+	SenderID       interface{}
+	DeliveryStatus interface{}
+	PageOffset     int64
+	PageSize       int64
+}
+
+func (q *Queries) ListNotificationDeliveries(ctx context.Context, arg ListNotificationDeliveriesParams) ([]NotificationDelivery, error) {
+	rows, err := q.db.QueryContext(ctx, listNotificationDeliveries,
+		arg.SenderID,
+		arg.DeliveryStatus,
+		arg.PageOffset,
+		arg.PageSize,
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []NotificationDelivery{}
+	for rows.Next() {
+		var i NotificationDelivery
+		if err := rows.Scan(
+			&i.ID,
+			&i.EventID,
+			&i.SenderID,
+			&i.SenderName,
+			&i.SenderKind,
+			&i.EventType,
+			&i.NodeID,
+			&i.EgressID,
+			&i.IsTest,
+			&i.Status,
+			&i.AttemptCount,
+			&i.NextAttemptAt,
+			&i.LastAttemptAt,
+			&i.CompletedAt,
+			&i.ErrorCode,
+			&i.MatchedRuleIdsJson,
+			&i.EventJson,
+			&i.Title,
+			&i.Body,
+			&i.CreatedAt,
+			&i.UpdatedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listPendingNotificationEvents = `-- name: ListPendingNotificationEvents :many
+SELECT id, event_type, source_kind, source_id, node_id, egress_id,
+       payload_json, observed_at, recorded_at, processed_at
+FROM notification_events
+WHERE processed_at IS NULL
+ORDER BY recorded_at, id
+LIMIT ?
+`
+
+func (q *Queries) ListPendingNotificationEvents(ctx context.Context, limit int64) ([]NotificationEvent, error) {
+	rows, err := q.db.QueryContext(ctx, listPendingNotificationEvents, limit)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []NotificationEvent{}
+	for rows.Next() {
+		var i NotificationEvent
+		if err := rows.Scan(
+			&i.ID,
+			&i.EventType,
+			&i.SourceKind,
+			&i.SourceID,
+			&i.NodeID,
+			&i.EgressID,
+			&i.PayloadJson,
+			&i.ObservedAt,
+			&i.RecordedAt,
+			&i.ProcessedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const listProbeFieldChanges = `-- name: ListProbeFieldChanges :many
 SELECT change_set_id, field_id, group_name, json_path, value_type,
        before_value, after_value
@@ -1979,6 +2484,127 @@ func (q *Queries) ListProbeSnapshots(ctx context.Context, arg ListProbeSnapshots
 	return items, nil
 }
 
+const listReadyFixedNotificationDeliveries = `-- name: ListReadyFixedNotificationDeliveries :many
+SELECT id, event_id, sender_id, sender_name, sender_kind, event_type,
+       node_id, egress_id, is_test, status, attempt_count, next_attempt_at,
+       last_attempt_at, completed_at, error_code, matched_rule_ids_json,
+       event_json, title, body, created_at, updated_at
+FROM notification_deliveries
+WHERE sender_kind IN ('telegram', 'webhook')
+  AND status IN ('pending', 'retrying')
+  AND next_attempt_at <= ?
+ORDER BY next_attempt_at, created_at, id
+LIMIT ?
+`
+
+type ListReadyFixedNotificationDeliveriesParams struct {
+	NextAttemptAt *int64
+	Limit         int64
+}
+
+func (q *Queries) ListReadyFixedNotificationDeliveries(ctx context.Context, arg ListReadyFixedNotificationDeliveriesParams) ([]NotificationDelivery, error) {
+	rows, err := q.db.QueryContext(ctx, listReadyFixedNotificationDeliveries, arg.NextAttemptAt, arg.Limit)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []NotificationDelivery{}
+	for rows.Next() {
+		var i NotificationDelivery
+		if err := rows.Scan(
+			&i.ID,
+			&i.EventID,
+			&i.SenderID,
+			&i.SenderName,
+			&i.SenderKind,
+			&i.EventType,
+			&i.NodeID,
+			&i.EgressID,
+			&i.IsTest,
+			&i.Status,
+			&i.AttemptCount,
+			&i.NextAttemptAt,
+			&i.LastAttemptAt,
+			&i.CompletedAt,
+			&i.ErrorCode,
+			&i.MatchedRuleIdsJson,
+			&i.EventJson,
+			&i.Title,
+			&i.Body,
+			&i.CreatedAt,
+			&i.UpdatedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listReadyJavaScriptNotificationDeliveries = `-- name: ListReadyJavaScriptNotificationDeliveries :many
+SELECT id, event_id, sender_id, sender_name, sender_kind, event_type,
+       node_id, egress_id, is_test, status, attempt_count, next_attempt_at,
+       last_attempt_at, completed_at, error_code, matched_rule_ids_json,
+       event_json, title, body, created_at, updated_at
+FROM notification_deliveries
+WHERE sender_kind = 'javascript'
+  AND status IN ('pending', 'retrying')
+  AND next_attempt_at <= ?
+ORDER BY next_attempt_at, created_at, id
+LIMIT 1
+`
+
+func (q *Queries) ListReadyJavaScriptNotificationDeliveries(ctx context.Context, nextAttemptAt *int64) ([]NotificationDelivery, error) {
+	rows, err := q.db.QueryContext(ctx, listReadyJavaScriptNotificationDeliveries, nextAttemptAt)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []NotificationDelivery{}
+	for rows.Next() {
+		var i NotificationDelivery
+		if err := rows.Scan(
+			&i.ID,
+			&i.EventID,
+			&i.SenderID,
+			&i.SenderName,
+			&i.SenderKind,
+			&i.EventType,
+			&i.NodeID,
+			&i.EgressID,
+			&i.IsTest,
+			&i.Status,
+			&i.AttemptCount,
+			&i.NextAttemptAt,
+			&i.LastAttemptAt,
+			&i.CompletedAt,
+			&i.ErrorCode,
+			&i.MatchedRuleIdsJson,
+			&i.EventJson,
+			&i.Title,
+			&i.Body,
+			&i.CreatedAt,
+			&i.UpdatedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const listRetentionCandidates = `-- name: ListRetentionCandidates :many
 SELECT category, id, observed_at, logical_bytes
 FROM (
@@ -1998,6 +2624,10 @@ FROM (
           SELECT 1 FROM probe_comparison_progress progress
           WHERE progress.last_success_snapshot_id = s.id
       )
+      AND NOT EXISTS(
+          SELECT 1 FROM probe_outcome_states outcome
+          WHERE outcome.execution_id = e.id
+      )
     UNION ALL
     SELECT 'address-event', id, observed_at,
            256 + length(id) + length(egress_id) + length(node_id) +
@@ -2007,6 +2637,30 @@ FROM (
     FROM address_events
     UNION ALL SELECT 'address-gap', id, last_observed_at, 224 FROM history_gaps
     UNION ALL SELECT 'probe-gap', id, last_observed_at, 224 FROM probe_gaps
+    UNION ALL
+    SELECT 'notification-event', event.id, event.observed_at,
+           256 + length(event.id) + length(event.event_type) + length(event.source_kind) +
+           length(event.source_id) + COALESCE(length(event.node_id), 0) +
+           COALESCE(length(event.egress_id), 0) + length(event.payload_json) +
+           COALESCE((
+               SELECT SUM(
+                   512 + length(delivery.id) + length(delivery.event_id) +
+                   length(delivery.sender_id) + length(delivery.sender_name) +
+                   length(delivery.sender_kind) + length(delivery.event_type) +
+                   length(delivery.matched_rule_ids_json) + length(delivery.event_json) +
+                   length(CAST(delivery.title AS BLOB)) + length(CAST(delivery.body AS BLOB)) +
+                   COALESCE(length(delivery.error_code), 0)
+               )
+               FROM notification_deliveries delivery
+               WHERE delivery.event_id = event.id
+           ), 0)
+    FROM notification_events event
+    WHERE event.processed_at IS NOT NULL
+      AND NOT EXISTS(
+          SELECT 1 FROM notification_deliveries delivery
+          WHERE delivery.event_id = event.id
+            AND delivery.status IN ('pending', 'running', 'retrying')
+      )
 )
 WHERE (?1 IS NULL OR observed_at < ?1)
 ORDER BY observed_at, category, id
@@ -2053,6 +2707,46 @@ func (q *Queries) ListRetentionCandidates(ctx context.Context, arg ListRetention
 	return items, nil
 }
 
+const markNotificationEventProcessed = `-- name: MarkNotificationEventProcessed :execrows
+UPDATE notification_events
+SET processed_at = ?
+WHERE id = ? AND processed_at IS NULL
+`
+
+type MarkNotificationEventProcessedParams struct {
+	ProcessedAt *int64
+	ID          string
+}
+
+func (q *Queries) MarkNotificationEventProcessed(ctx context.Context, arg MarkNotificationEventProcessedParams) (int64, error) {
+	result, err := q.db.ExecContext(ctx, markNotificationEventProcessed, arg.ProcessedAt, arg.ID)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected()
+}
+
+const recoverRunningNotificationDeliveries = `-- name: RecoverRunningNotificationDeliveries :exec
+UPDATE notification_deliveries
+SET status = CASE WHEN attempt_count >= 4 THEN 'failed' ELSE 'retrying' END,
+    next_attempt_at = CASE WHEN attempt_count >= 4 THEN NULL ELSE ? END,
+    completed_at = CASE WHEN attempt_count >= 4 THEN ? ELSE NULL END,
+    error_code = CASE WHEN attempt_count >= 4 THEN 'center-restarted' ELSE NULL END,
+    updated_at = ?
+WHERE status = 'running'
+`
+
+type RecoverRunningNotificationDeliveriesParams struct {
+	NextAttemptAt *int64
+	CompletedAt   *int64
+	UpdatedAt     int64
+}
+
+func (q *Queries) RecoverRunningNotificationDeliveries(ctx context.Context, arg RecoverRunningNotificationDeliveriesParams) error {
+	_, err := q.db.ExecContext(ctx, recoverRunningNotificationDeliveries, arg.NextAttemptAt, arg.CompletedAt, arg.UpdatedAt)
+	return err
+}
+
 const resetAddressGaps = `-- name: ResetAddressGaps :exec
 DELETE FROM history_gaps
 `
@@ -2077,6 +2771,15 @@ DELETE FROM address_states
 
 func (q *Queries) ResetAddressStates(ctx context.Context) error {
 	_, err := q.db.ExecContext(ctx, resetAddressStates)
+	return err
+}
+
+const resetNotificationHistory = `-- name: ResetNotificationHistory :exec
+DELETE FROM notification_events
+`
+
+func (q *Queries) ResetNotificationHistory(ctx context.Context) error {
+	_, err := q.db.ExecContext(ctx, resetNotificationHistory)
 	return err
 }
 
@@ -2105,6 +2808,26 @@ DELETE FROM probe_runs
 func (q *Queries) ResetProbeHistory(ctx context.Context) error {
 	_, err := q.db.ExecContext(ctx, resetProbeHistory)
 	return err
+}
+
+const retryNotificationDelivery = `-- name: RetryNotificationDelivery :execrows
+UPDATE notification_deliveries
+SET status = 'retrying', next_attempt_at = ?, error_code = NULL, updated_at = ?
+WHERE id = ? AND status = 'running' AND attempt_count < 4
+`
+
+type RetryNotificationDeliveryParams struct {
+	NextAttemptAt *int64
+	UpdatedAt     int64
+	ID            string
+}
+
+func (q *Queries) RetryNotificationDelivery(ctx context.Context, arg RetryNotificationDeliveryParams) (int64, error) {
+	result, err := q.db.ExecContext(ctx, retryNotificationDelivery, arg.NextAttemptAt, arg.UpdatedAt, arg.ID)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected()
 }
 
 const starProbeSnapshot = `-- name: StarProbeSnapshot :execrows
@@ -2478,4 +3201,49 @@ func (q *Queries) UpsertProbeGap(ctx context.Context, arg UpsertProbeGapParams) 
 		return 0, err
 	}
 	return result.RowsAffected()
+}
+
+const upsertProbeOutcomeState = `-- name: UpsertProbeOutcomeState :exec
+INSERT INTO probe_outcome_states (
+    egress_id, node_id, history_generation, execution_id, sequence,
+    status, first_observed_at, last_observed_at, updated_at
+) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+ON CONFLICT (egress_id) DO UPDATE SET
+    node_id = excluded.node_id,
+    history_generation = excluded.history_generation,
+    execution_id = excluded.execution_id,
+    sequence = excluded.sequence,
+    status = excluded.status,
+    first_observed_at = excluded.first_observed_at,
+    last_observed_at = excluded.last_observed_at,
+    updated_at = excluded.updated_at
+WHERE excluded.history_generation != probe_outcome_states.history_generation
+   OR excluded.sequence > probe_outcome_states.sequence
+`
+
+type UpsertProbeOutcomeStateParams struct {
+	EgressID          string
+	NodeID            string
+	HistoryGeneration string
+	ExecutionID       string
+	Sequence          int64
+	Status            string
+	FirstObservedAt   int64
+	LastObservedAt    int64
+	UpdatedAt         int64
+}
+
+func (q *Queries) UpsertProbeOutcomeState(ctx context.Context, arg UpsertProbeOutcomeStateParams) error {
+	_, err := q.db.ExecContext(ctx, upsertProbeOutcomeState,
+		arg.EgressID,
+		arg.NodeID,
+		arg.HistoryGeneration,
+		arg.ExecutionID,
+		arg.Sequence,
+		arg.Status,
+		arg.FirstObservedAt,
+		arg.LastObservedAt,
+		arg.UpdatedAt,
+	)
+	return err
 }

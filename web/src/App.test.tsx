@@ -46,6 +46,18 @@ import {
   updateNetworkProxy,
 } from "@/api/proxies";
 import {
+  createNotificationRule,
+  createNotificationSender,
+  createNotificationTestDelivery,
+  deleteNotificationRule,
+  deleteNotificationSender,
+  listNotificationDeliveries,
+  listNotificationRules,
+  listNotificationSenders,
+  updateNotificationRule,
+  updateNotificationSender,
+} from "@/api/notifications";
+import {
   createCompleteProbeTask,
   getHistoryState,
   getNodeProbe,
@@ -113,6 +125,19 @@ vi.mock("@/api/proxies", () => ({
   updateNetworkProxy: vi.fn(),
 }));
 
+vi.mock("@/api/notifications", () => ({
+  createNotificationRule: vi.fn(),
+  createNotificationSender: vi.fn(),
+  createNotificationTestDelivery: vi.fn(),
+  deleteNotificationRule: vi.fn(),
+  deleteNotificationSender: vi.fn(),
+  listNotificationDeliveries: vi.fn(),
+  listNotificationRules: vi.fn(),
+  listNotificationSenders: vi.fn(),
+  updateNotificationRule: vi.fn(),
+  updateNotificationSender: vi.fn(),
+}));
+
 vi.mock("@/api/probes", () => ({
   createCompleteProbeTask: vi.fn(),
   getHistoryState: vi.fn(),
@@ -157,6 +182,18 @@ const createProxyMock = vi.mocked(createNetworkProxy);
 const deleteProxyMock = vi.mocked(deleteNetworkProxy);
 const listProxiesMock = vi.mocked(listNetworkProxies);
 const updateProxyMock = vi.mocked(updateNetworkProxy);
+const createNotificationRuleMock = vi.mocked(createNotificationRule);
+const createNotificationSenderMock = vi.mocked(createNotificationSender);
+const createNotificationTestDeliveryMock = vi.mocked(
+  createNotificationTestDelivery,
+);
+const deleteNotificationRuleMock = vi.mocked(deleteNotificationRule);
+const deleteNotificationSenderMock = vi.mocked(deleteNotificationSender);
+const listNotificationDeliveriesMock = vi.mocked(listNotificationDeliveries);
+const listNotificationRulesMock = vi.mocked(listNotificationRules);
+const listNotificationSendersMock = vi.mocked(listNotificationSenders);
+const updateNotificationRuleMock = vi.mocked(updateNotificationRule);
+const updateNotificationSenderMock = vi.mocked(updateNotificationSender);
 const createProbeTaskMock = vi.mocked(createCompleteProbeTask);
 const getHistoryStateMock = vi.mocked(getHistoryState);
 const getNodeProbeMock = vi.mocked(getNodeProbe);
@@ -243,6 +280,25 @@ describe("administrator application", () => {
     listProxiesMock.mockReset();
     listProxiesMock.mockResolvedValue([]);
     updateProxyMock.mockReset();
+    createNotificationRuleMock.mockReset();
+    createNotificationSenderMock.mockReset();
+    createNotificationTestDeliveryMock.mockReset();
+    deleteNotificationRuleMock.mockReset();
+    deleteNotificationSenderMock.mockReset();
+    listNotificationDeliveriesMock.mockReset();
+    listNotificationDeliveriesMock.mockResolvedValue({
+      items: [],
+      page: 1,
+      pageSize: 25,
+      totalItems: 0,
+      totalPages: 0,
+    });
+    listNotificationRulesMock.mockReset();
+    listNotificationRulesMock.mockResolvedValue([]);
+    listNotificationSendersMock.mockReset();
+    listNotificationSendersMock.mockResolvedValue([]);
+    updateNotificationRuleMock.mockReset();
+    updateNotificationSenderMock.mockReset();
     createProbeTaskMock.mockReset();
     getHistoryStateMock.mockReset();
     getNodeProbeMock.mockReset();
@@ -306,6 +362,127 @@ describe("administrator application", () => {
 
     fireEvent.click(await screen.findByRole("button", { name: "Retry" }));
     expect(await screen.findByText("Operational")).toBeInTheDocument();
+  });
+
+  it("opens notification rules and follows test delivery status", async () => {
+    getSessionMock.mockResolvedValue(session);
+    const sender = {
+      id: "5fca3887-f7ef-4988-a3d0-75e8682e7775",
+      name: "Local webhook",
+      kind: "webhook" as const,
+      enabled: true,
+      webhook: {
+        url: "http://127.0.0.1:19090/notify",
+        headerNames: ["Authorization"],
+      },
+      createdAt: "2026-08-09T12:00:00Z",
+      updatedAt: "2026-08-09T12:00:00Z",
+    };
+    const delivery = {
+      id: "ee9a2ab0-c091-45a0-89d1-ac06bc1979ec",
+      eventId: "98efe8ab-b72a-47ef-8907-15383adb3589",
+      senderId: sender.id,
+      senderName: sender.name,
+      senderKind: sender.kind,
+      eventType: "test",
+      test: true,
+      status: "pending" as const,
+      attemptCount: 0,
+      matchedRuleIds: [],
+      event: { type: "test" },
+      title: "IPChronicle test notification",
+      body: "Test",
+      createdAt: "2026-08-09T12:01:00Z",
+      updatedAt: "2026-08-09T12:01:00Z",
+    };
+    listNotificationSendersMock.mockResolvedValue([sender]);
+    listNodesMock.mockResolvedValue([probeTestNode]);
+    createNotificationTestDeliveryMock.mockResolvedValue(delivery);
+    listNotificationDeliveriesMock.mockResolvedValue({
+      items: [delivery],
+      page: 1,
+      pageSize: 25,
+      totalItems: 1,
+      totalPages: 1,
+    });
+
+    renderApplication("/notifications");
+
+    expect(
+      await screen.findByRole("heading", { name: "Notifications" }),
+    ).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "Notifications" })).toHaveAttribute(
+      "aria-current",
+      "page",
+    );
+    fireEvent.click(screen.getByRole("button", { name: "Send test" }));
+    await waitFor(() =>
+      expect(createNotificationTestDeliveryMock).toHaveBeenCalledWith(
+        sender.id,
+        session.csrfToken,
+      ),
+    );
+    expect(await screen.findByText("Pending")).toBeInTheDocument();
+    fireEvent.mouseDown(screen.getByRole("tab", { name: "Rules" }), {
+      button: 0,
+      ctrlKey: false,
+    });
+    fireEvent.click(await screen.findByRole("button", { name: "Add rule" }));
+    expect(screen.getByLabelText("Event")).toBeInTheDocument();
+    expect(screen.getByLabelText("Node")).toBeInTheDocument();
+    expect(screen.getByLabelText("Network egress")).toBeDisabled();
+  });
+
+  it("creates a webhook sender without rendering its secret header", async () => {
+    getSessionMock.mockResolvedValue(session);
+    listNodesMock.mockResolvedValue([]);
+    createNotificationSenderMock.mockResolvedValue({
+      id: "5fca3887-f7ef-4988-a3d0-75e8682e7775",
+      name: "Local webhook",
+      kind: "webhook",
+      enabled: true,
+      webhook: {
+        url: "http://127.0.0.1:19090/notify",
+        headerNames: ["Authorization"],
+      },
+      createdAt: "2026-08-09T12:00:00Z",
+      updatedAt: "2026-08-09T12:00:00Z",
+    });
+
+    renderApplication("/notifications");
+
+    fireEvent.click(await screen.findByRole("button", { name: "Add sender" }));
+    fireEvent.click(screen.getByLabelText("Sender type"));
+    fireEvent.click(await screen.findByRole("option", { name: "Webhook" }));
+    fireEvent.change(screen.getByLabelText("Name"), {
+      target: { value: "Local webhook" },
+    });
+    fireEvent.change(screen.getByLabelText("Webhook URL"), {
+      target: { value: "http://127.0.0.1:19090/notify" },
+    });
+    fireEvent.change(screen.getByLabelText("HTTP headers"), {
+      target: { value: "Authorization: Bearer local-secret" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Save" }));
+
+    await waitFor(() =>
+      expect(createNotificationSenderMock).toHaveBeenCalledWith(
+        {
+          name: "Local webhook",
+          kind: "webhook",
+          enabled: true,
+          webhook: {
+            url: "http://127.0.0.1:19090/notify",
+            headers: { Authorization: "Bearer local-secret" },
+          },
+        },
+        session.csrfToken,
+      ),
+    );
+    expect(
+      screen.queryByDisplayValue("Authorization: Bearer local-secret"),
+    ).not.toBeInTheDocument();
+    expect(screen.getByText("Local webhook")).toBeInTheDocument();
   });
 
   it("persists locale and changes theme without a reload", async () => {

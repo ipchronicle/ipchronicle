@@ -18,6 +18,7 @@ import (
 	"github.com/ipchronicle/ipchronicle/internal/center/database/configdb"
 	"github.com/ipchronicle/ipchronicle/internal/center/database/historydb"
 	centerhistory "github.com/ipchronicle/ipchronicle/internal/center/history"
+	"github.com/ipchronicle/ipchronicle/internal/center/notifications"
 	sharedschedule "github.com/ipchronicle/ipchronicle/internal/schedule"
 )
 
@@ -513,6 +514,21 @@ func (s *Service) UploadProbeArtifact(ctx context.Context, credential string, ar
 		if changed != 1 {
 			return ProbeArtifactReceipt{}, ErrInvalidProbeArtifact
 		}
+		nodeID := node.ID
+		egressID := artifact.Gap.EgressID.String()
+		if err := notifications.CreateEvent(ctx, queries, notifications.EventInput{
+			Type: notifications.EventProbeGap, SourceKind: "probe-gap", SourceID: artifact.Gap.ID.String(),
+			NodeID: &nodeID, EgressID: &egressID,
+			Payload: notifications.GapData{
+				Kind: "probe", DroppedCount: artifact.Gap.DroppedCount,
+				FirstSequence: artifact.Gap.FirstSequence, LastSequence: artifact.Gap.LastSequence,
+				FirstObservedAt: artifact.Gap.FirstObservedAt.UTC().Unix(),
+				LastObservedAt:  artifact.Gap.LastObservedAt.UTC().Unix(),
+			},
+			ObservedAt: artifact.Gap.LastObservedAt.UTC().Unix(), RecordedAt: s.now().UTC().Unix(),
+		}); err != nil {
+			return ProbeArtifactReceipt{}, err
+		}
 		if err := centerhistory.Advance(
 			ctx, queries, node.ID, artifact.Gap.EgressID.String(),
 			artifact.Gap.HistoryGeneration, s.now().UTC().Unix(),
@@ -724,7 +740,7 @@ func (s *Service) ResetHistory(ctx context.Context) (HistoryState, error) {
 	for _, reset := range []func(context.Context) error{
 		historyQueries.ResetProbeHistory, historyQueries.ResetProbeGaps,
 		historyQueries.ResetAddressHistory, historyQueries.ResetAddressStates, historyQueries.ResetAddressGaps,
-		historyQueries.ResetProbeComparisonProgress,
+		historyQueries.ResetProbeComparisonProgress, historyQueries.ResetNotificationHistory,
 	} {
 		if err := reset(ctx); err != nil {
 			_ = historyTransaction.Rollback()

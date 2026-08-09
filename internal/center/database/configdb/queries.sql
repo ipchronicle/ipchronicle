@@ -420,6 +420,13 @@ SELECT id, node_id, name, kind, family, interface_name, source_address, proxy_id
 FROM network_egresses
 WHERE node_id = ? AND id = ?;
 
+-- name: GetNetworkEgressByID :one
+SELECT id, node_id, name, kind, family, interface_name, source_address, proxy_id,
+       enabled, available, automatic, lightweight_interval_seconds,
+       probe_on_address_change, created_at, updated_at
+FROM network_egresses
+WHERE id = ?;
+
 -- name: GetDefaultNodeEgress :one
 SELECT id, node_id, name, kind, family, interface_name, source_address, proxy_id,
        enabled, available, automatic, lightweight_interval_seconds,
@@ -645,3 +652,65 @@ WHERE id = ? AND node_id = ?
 DELETE FROM probe_tasks
 WHERE completed_at IS NOT NULL AND completed_at < ?
   AND status IN ('succeeded', 'partial', 'failed', 'rejected', 'expired');
+
+-- name: CreateNotificationSender :exec
+INSERT INTO notification_senders (
+    id, name, kind, enabled, configuration_encrypted, created_at, updated_at
+) VALUES (?, ?, ?, ?, ?, ?, ?);
+
+-- name: GetNotificationSender :one
+SELECT id, name, kind, enabled, configuration_encrypted, created_at, updated_at
+FROM notification_senders
+WHERE id = ?;
+
+-- name: ListNotificationSenders :many
+SELECT id, name, kind, enabled, configuration_encrypted, created_at, updated_at
+FROM notification_senders
+ORDER BY name COLLATE NOCASE, id;
+
+-- name: UpdateNotificationSender :execrows
+UPDATE notification_senders
+SET name = ?, enabled = ?, configuration_encrypted = ?, updated_at = ?
+WHERE id = ? AND kind = ?;
+
+-- name: DeleteNotificationSender :execrows
+DELETE FROM notification_senders
+WHERE notification_senders.id = ?
+  AND NOT EXISTS (
+      SELECT 1 FROM notification_rules WHERE sender_id = notification_senders.id
+  );
+
+-- name: CreateNotificationRule :exec
+INSERT INTO notification_rules (
+    id, name, enabled, sender_id, event_type, field_id,
+    node_id, egress_id, created_at, updated_at
+) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?);
+
+-- name: GetNotificationRule :one
+SELECT id, name, enabled, sender_id, event_type, field_id,
+       node_id, egress_id, created_at, updated_at
+FROM notification_rules
+WHERE id = ?;
+
+-- name: ListNotificationRules :many
+SELECT id, name, enabled, sender_id, event_type, field_id,
+       node_id, egress_id, created_at, updated_at
+FROM notification_rules
+ORDER BY name COLLATE NOCASE, id;
+
+-- name: ListEnabledNotificationRules :many
+SELECT r.id, r.name, r.sender_id, r.event_type, r.field_id,
+       r.node_id, r.egress_id, s.name AS sender_name, s.kind AS sender_kind
+FROM notification_rules r
+JOIN notification_senders s ON s.id = r.sender_id
+WHERE r.enabled = 1 AND s.enabled = 1
+ORDER BY r.sender_id, r.id;
+
+-- name: UpdateNotificationRule :execrows
+UPDATE notification_rules
+SET name = ?, enabled = ?, sender_id = ?, event_type = ?, field_id = ?,
+    node_id = ?, egress_id = ?, updated_at = ?
+WHERE id = ?;
+
+-- name: DeleteNotificationRule :execrows
+DELETE FROM notification_rules WHERE id = ?;

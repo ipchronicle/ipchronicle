@@ -14,6 +14,7 @@ import { NodeNetworkPage } from "@/pages/node-network-page";
 import { NodeProbePage } from "@/pages/node-probe-page";
 import { NetworkSettingsPage } from "@/pages/network-settings-page";
 import { NodesPage } from "@/pages/nodes-page";
+import { NotificationsPage } from "@/pages/notifications-page";
 import { ProbeRunPage } from "@/pages/probe-run-page";
 import { ProbeComparisonPage } from "@/pages/probe-comparison-page";
 import { ProbeSnapshotPage } from "@/pages/probe-snapshot-page";
@@ -55,6 +56,7 @@ function App() {
           <Route path="/nodes/:nodeId/probe" element={<NodeProbePage />} />
           <Route path="/probe-runs/:runId" element={<ProbeRunPage />} />
           <Route path="/history" element={<HistoryPage />} />
+          <Route path="/notifications" element={<NotificationsPage />} />
           <Route path="/history/compare" element={<ProbeComparisonPage />} />
           <Route
             path="/probe-snapshots/:snapshotId"

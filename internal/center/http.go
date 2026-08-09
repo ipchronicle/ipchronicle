@@ -18,6 +18,7 @@ import (
 	"github.com/ipchronicle/ipchronicle/internal/center/admin"
 	"github.com/ipchronicle/ipchronicle/internal/center/database"
 	"github.com/ipchronicle/ipchronicle/internal/center/nodes"
+	"github.com/ipchronicle/ipchronicle/internal/center/notifications"
 	"github.com/ipchronicle/ipchronicle/internal/center/syncws"
 	"github.com/ipchronicle/ipchronicle/internal/generated/api"
 )
@@ -26,6 +27,7 @@ const (
 	maxAgentControlRequestBodySize  = 128 * 1024
 	maxProbeArtifactRequestBodySize = 1536 * 1024
 	maxProxyRequestBodySize         = 16 * 1024
+	maxNotificationRequestBodySize  = 320 * 1024
 )
 
 type HTTPOptions struct {
@@ -33,6 +35,7 @@ type HTTPOptions struct {
 	Web            http.Handler
 	Administrator  *admin.Service
 	Nodes          *nodes.Service
+	Notifications  *notifications.Service
 	SyncHub        *syncws.Hub
 	Store          *database.Store
 	ExternalOrigin *url.URL
@@ -43,7 +46,7 @@ func NewHTTPHandler(options HTTPOptions) http.Handler {
 	if strings.TrimSpace(options.Version) == "" {
 		panic("center version must not be empty")
 	}
-	if options.Web == nil || options.Administrator == nil || options.Nodes == nil || options.SyncHub == nil || options.Store == nil {
+	if options.Web == nil || options.Administrator == nil || options.Nodes == nil || options.Notifications == nil || options.SyncHub == nil || options.Store == nil {
 		panic("center HTTP dependencies must not be nil")
 	}
 
@@ -52,6 +55,7 @@ func NewHTTPHandler(options HTTPOptions) http.Handler {
 		version:                  options.Version,
 		administrator:            options.Administrator,
 		nodes:                    options.Nodes,
+		notifications:            options.Notifications,
 		configSchemaVersion:      options.Store.ConfigSchemaVersion,
 		historySchemaVersion:     options.Store.HistorySchemaVersion,
 		externalOriginConfigured: options.ExternalOrigin != nil,
@@ -148,6 +152,8 @@ func limitAPIRequestBody(next http.Handler) http.Handler {
 				limit = maxProbeArtifactRequestBodySize
 			} else if strings.HasPrefix(r.URL.Path, "/api/v1/network-proxies") {
 				limit = maxProxyRequestBodySize
+			} else if strings.HasPrefix(r.URL.Path, "/api/v1/notification-senders") {
+				limit = maxNotificationRequestBodySize
 			}
 			r.Body = http.MaxBytesReader(w, r.Body, limit)
 		}

@@ -737,6 +737,227 @@ paths:
           $ref: "#/components/responses/Unauthorized"
         "403":
           $ref: "#/components/responses/Forbidden"
+  /api/v1/notification-senders:
+    get:
+      operationId: listNotificationSenders
+      summary: List configured notification senders
+      tags: [notifications]
+      responses:
+        "200":
+          description: Current Telegram, Webhook, and JavaScript senders.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/NotificationSenderList"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+    post:
+      operationId: createNotificationSender
+      summary: Create a notification sender
+      tags: [notifications]
+      parameters:
+        - $ref: "#/components/parameters/CSRFToken"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/NotificationSenderCreate"
+      responses:
+        "201":
+          description: The sender was created.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/NotificationSender"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "409":
+          $ref: "#/components/responses/Conflict"
+  /api/v1/notification-senders/{senderId}:
+    parameters:
+      - $ref: "#/components/parameters/SenderId"
+    put:
+      operationId: updateNotificationSender
+      summary: Replace a notification sender while optionally retaining hidden credentials
+      tags: [notifications]
+      parameters:
+        - $ref: "#/components/parameters/CSRFToken"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/NotificationSenderUpdate"
+      responses:
+        "200":
+          description: The sender was updated.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/NotificationSender"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "409":
+          $ref: "#/components/responses/Conflict"
+    delete:
+      operationId: deleteNotificationSender
+      summary: Delete an unreferenced sender without active deliveries
+      tags: [notifications]
+      parameters:
+        - $ref: "#/components/parameters/CSRFToken"
+      responses:
+        "204":
+          description: The sender was deleted.
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "409":
+          $ref: "#/components/responses/Conflict"
+  /api/v1/notification-senders/{senderId}/test-deliveries:
+    parameters:
+      - $ref: "#/components/parameters/SenderId"
+    post:
+      operationId: createNotificationTestDelivery
+      summary: Queue a real-path test delivery for one sender
+      tags: [notifications]
+      parameters:
+        - $ref: "#/components/parameters/CSRFToken"
+      responses:
+        "202":
+          description: The test delivery was durably queued.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/NotificationDelivery"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+  /api/v1/notification-rules:
+    get:
+      operationId: listNotificationRules
+      summary: List current notification matching rules
+      tags: [notifications]
+      responses:
+        "200":
+          description: Current notification rules.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/NotificationRuleList"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+    post:
+      operationId: createNotificationRule
+      summary: Create a notification matching rule
+      tags: [notifications]
+      parameters:
+        - $ref: "#/components/parameters/CSRFToken"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/NotificationRuleWrite"
+      responses:
+        "201":
+          description: The rule was created.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/NotificationRule"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "409":
+          $ref: "#/components/responses/Conflict"
+  /api/v1/notification-rules/{ruleId}:
+    parameters:
+      - $ref: "#/components/parameters/RuleId"
+    put:
+      operationId: updateNotificationRule
+      summary: Replace a notification matching rule
+      tags: [notifications]
+      parameters:
+        - $ref: "#/components/parameters/CSRFToken"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/NotificationRuleWrite"
+      responses:
+        "200":
+          description: The rule was updated.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/NotificationRule"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "409":
+          $ref: "#/components/responses/Conflict"
+    delete:
+      operationId: deleteNotificationRule
+      summary: Delete a notification matching rule
+      tags: [notifications]
+      parameters:
+        - $ref: "#/components/parameters/CSRFToken"
+      responses:
+        "204":
+          description: The rule was deleted.
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+  /api/v1/notification-deliveries:
+    get:
+      operationId: listNotificationDeliveries
+      summary: List durable notification delivery history and active work
+      tags: [notifications]
+      parameters:
+        - $ref: "#/components/parameters/NotificationSenderFilter"
+        - $ref: "#/components/parameters/NotificationDeliveryStatusFilter"
+        - $ref: "#/components/parameters/HistoryPage"
+        - $ref: "#/components/parameters/HistoryPageSize"
+      responses:
+        "200":
+          description: Filtered delivery history.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/NotificationDeliveryPage"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
   /api/v1/nodes/{nodeId}/network:
     parameters:
       - $ref: "#/components/parameters/NodeId"
@@ -1177,6 +1398,33 @@ components:
       schema:
         type: string
         format: uuid
+    SenderId:
+      name: senderId
+      in: path
+      required: true
+      schema:
+        type: string
+        format: uuid
+    RuleId:
+      name: ruleId
+      in: path
+      required: true
+      schema:
+        type: string
+        format: uuid
+    NotificationSenderFilter:
+      name: senderId
+      in: query
+      required: false
+      schema:
+        type: string
+        format: uuid
+    NotificationDeliveryStatusFilter:
+      name: status
+      in: query
+      required: false
+      schema:
+        $ref: "#/components/schemas/NotificationDeliveryStatus"
     HistoryNodeFilter:
       name: nodeId
       in: query
@@ -1481,6 +1729,15 @@ components:
         - probe_run_not_found
         - probe_snapshot_not_found
         - snapshot_egress_mismatch
+        - invalid_notification_sender
+        - notification_sender_not_found
+        - notification_sender_name_in_use
+        - notification_sender_in_use
+        - notification_sender_active
+        - invalid_notification_rule
+        - notification_rule_not_found
+        - notification_rule_name_in_use
+        - invalid_notification_delivery_query
         - internal_error
     ErrorResponse:
       type: object
@@ -3369,6 +3626,336 @@ components:
           $ref: "#/components/schemas/HistoryRetentionSettings"
         usage:
           $ref: "#/components/schemas/HistoryUsage"
+    NotificationSenderKind:
+      type: string
+      enum: [telegram, webhook, javascript]
+    TelegramSenderCreate:
+      type: object
+      additionalProperties: false
+      required: [chatId, token]
+      properties:
+        chatId:
+          type: string
+          minLength: 1
+          maxLength: 128
+        token:
+          type: string
+          minLength: 1
+          maxLength: 512
+    TelegramSenderUpdate:
+      type: object
+      additionalProperties: false
+      required: [chatId]
+      properties:
+        chatId:
+          type: string
+          minLength: 1
+          maxLength: 128
+        token:
+          type: string
+          minLength: 1
+          maxLength: 512
+    TelegramSenderView:
+      type: object
+      additionalProperties: false
+      required: [chatId, tokenConfigured]
+      properties:
+        chatId:
+          type: string
+        tokenConfigured:
+          type: boolean
+    WebhookSenderCreate:
+      type: object
+      additionalProperties: false
+      required: [url, headers]
+      properties:
+        url:
+          type: string
+          format: uri
+          minLength: 1
+          maxLength: 4096
+        headers:
+          type: object
+          additionalProperties:
+            type: string
+    WebhookSenderUpdate:
+      type: object
+      additionalProperties: false
+      required: [url]
+      properties:
+        url:
+          type: string
+          format: uri
+          minLength: 1
+          maxLength: 4096
+        headers:
+          type: object
+          additionalProperties:
+            type: string
+    WebhookSenderView:
+      type: object
+      additionalProperties: false
+      required: [url, headerNames]
+      properties:
+        url:
+          type: string
+          format: uri
+        headerNames:
+          type: array
+          items:
+            type: string
+    JavaScriptSenderConfiguration:
+      type: object
+      additionalProperties: false
+      required: [source]
+      properties:
+        source:
+          type: string
+          minLength: 1
+          maxLength: 262144
+    NotificationSenderCreate:
+      type: object
+      additionalProperties: false
+      required: [name, kind, enabled]
+      properties:
+        name:
+          type: string
+          minLength: 1
+          maxLength: 128
+        kind:
+          $ref: "#/components/schemas/NotificationSenderKind"
+        enabled:
+          type: boolean
+        telegram:
+          $ref: "#/components/schemas/TelegramSenderCreate"
+        webhook:
+          $ref: "#/components/schemas/WebhookSenderCreate"
+        javascript:
+          $ref: "#/components/schemas/JavaScriptSenderConfiguration"
+    NotificationSenderUpdate:
+      type: object
+      additionalProperties: false
+      required: [name, enabled]
+      properties:
+        name:
+          type: string
+          minLength: 1
+          maxLength: 128
+        enabled:
+          type: boolean
+        telegram:
+          $ref: "#/components/schemas/TelegramSenderUpdate"
+        webhook:
+          $ref: "#/components/schemas/WebhookSenderUpdate"
+        javascript:
+          $ref: "#/components/schemas/JavaScriptSenderConfiguration"
+    NotificationSender:
+      type: object
+      additionalProperties: false
+      required: [id, name, kind, enabled, createdAt, updatedAt]
+      properties:
+        id:
+          type: string
+          format: uuid
+        name:
+          type: string
+        kind:
+          $ref: "#/components/schemas/NotificationSenderKind"
+        enabled:
+          type: boolean
+        telegram:
+          $ref: "#/components/schemas/TelegramSenderView"
+        webhook:
+          $ref: "#/components/schemas/WebhookSenderView"
+        javascript:
+          $ref: "#/components/schemas/JavaScriptSenderConfiguration"
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+    NotificationSenderList:
+      type: object
+      additionalProperties: false
+      required: [items]
+      properties:
+        items:
+          type: array
+          items:
+            $ref: "#/components/schemas/NotificationSender"
+    NotificationEventType:
+      type: string
+      enum:
+        - probe-field-change
+        - address-change
+        - address-check-failure
+        - address-check-recovery
+        - probe-failure
+        - probe-recovery
+        - address-gap
+        - probe-gap
+        - format-mismatch
+        - format-changed
+        - format-recovery
+    NotificationRuleWrite:
+      type: object
+      additionalProperties: false
+      required: [name, enabled, senderId, eventType]
+      properties:
+        name:
+          type: string
+          minLength: 1
+          maxLength: 128
+        enabled:
+          type: boolean
+        senderId:
+          type: string
+          format: uuid
+        eventType:
+          $ref: "#/components/schemas/NotificationEventType"
+        fieldId:
+          type: string
+          minLength: 1
+          maxLength: 256
+        nodeId:
+          type: string
+          format: uuid
+        egressId:
+          type: string
+          format: uuid
+    NotificationRule:
+      allOf:
+        - $ref: "#/components/schemas/NotificationRuleWrite"
+        - type: object
+          additionalProperties: false
+          required: [id, createdAt, updatedAt]
+          properties:
+            id:
+              type: string
+              format: uuid
+            createdAt:
+              type: string
+              format: date-time
+            updatedAt:
+              type: string
+              format: date-time
+    NotificationRuleList:
+      type: object
+      additionalProperties: false
+      required: [items]
+      properties:
+        items:
+          type: array
+          items:
+            $ref: "#/components/schemas/NotificationRule"
+    NotificationDeliveryStatus:
+      type: string
+      enum: [pending, running, retrying, succeeded, failed]
+    NotificationDelivery:
+      type: object
+      additionalProperties: false
+      required:
+        - id
+        - eventId
+        - senderId
+        - senderName
+        - senderKind
+        - eventType
+        - test
+        - status
+        - attemptCount
+        - matchedRuleIds
+        - event
+        - title
+        - body
+        - createdAt
+        - updatedAt
+      properties:
+        id:
+          type: string
+          format: uuid
+        eventId:
+          type: string
+          format: uuid
+        senderId:
+          type: string
+          format: uuid
+        senderName:
+          type: string
+        senderKind:
+          $ref: "#/components/schemas/NotificationSenderKind"
+        eventType:
+          type: string
+        nodeId:
+          type: string
+          format: uuid
+        egressId:
+          type: string
+          format: uuid
+        test:
+          type: boolean
+        status:
+          $ref: "#/components/schemas/NotificationDeliveryStatus"
+        attemptCount:
+          type: integer
+          format: int64
+          minimum: 0
+          maximum: 4
+        nextAttemptAt:
+          type: string
+          format: date-time
+        lastAttemptAt:
+          type: string
+          format: date-time
+        completedAt:
+          type: string
+          format: date-time
+        errorCode:
+          type: string
+        matchedRuleIds:
+          type: array
+          items:
+            type: string
+            format: uuid
+        event:
+          type: object
+          additionalProperties: true
+        title:
+          type: string
+        body:
+          type: string
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+    NotificationDeliveryPage:
+      type: object
+      additionalProperties: false
+      required: [items, page, pageSize, totalItems, totalPages]
+      properties:
+        items:
+          type: array
+          items:
+            $ref: "#/components/schemas/NotificationDelivery"
+        page:
+          type: integer
+          format: int64
+          minimum: 1
+        pageSize:
+          type: integer
+          format: int64
+          minimum: 1
+        totalItems:
+          type: integer
+          format: int64
+          minimum: 0
+        totalPages:
+          type: integer
+          format: int64
+          minimum: 0
     NodeStatus:
       type: string
       enum: [online, offline, disabled, revoked]

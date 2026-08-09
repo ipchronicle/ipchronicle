@@ -23,8 +23,8 @@ import (
 
 const (
 	MasterKeySize        = 32
-	configSchemaVersion  = 10
-	historySchemaVersion = 4
+	configSchemaVersion  = 11
+	historySchemaVersion = 5
 )
 
 //go:embed migrations/config/*.sql migrations/history/*.sql

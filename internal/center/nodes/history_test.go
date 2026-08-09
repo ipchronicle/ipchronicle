@@ -145,6 +145,56 @@ func TestRetentionProtectsPendingComparisonBaseline(t *testing.T) {
 	}
 }
 
+func TestAgeRetentionProtectsCurrentProbeOutcomeState(t *testing.T) {
+	fixture := newProbeServiceFixture(t, 512*1024*1024)
+	egressID := fixture.egresses[0].ID.String()
+	observedAt := fixture.now.Add(-72 * time.Hour)
+	runID := uuid.NewString()
+	executionID := uuid.NewString()
+	if _, err := fixture.store.History.ExecContext(fixture.ctx, `
+		INSERT INTO probe_runs (
+			id, node_id, history_generation, configuration_revision, trigger,
+			status, expected_executions, started_at, completed_at, received_at
+		) VALUES (?, ?, ?, 1, 'schedule', 'failed', 1, ?, ?, ?)
+	`, runID, fixture.registration.NodeID.String(), fixture.configuration.HistoryGeneration,
+		observedAt.Add(-time.Second).Unix(), observedAt.Unix(), observedAt.Add(time.Second).Unix()); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := fixture.store.History.ExecContext(fixture.ctx, `
+		INSERT INTO probe_executions (
+			id, run_id, egress_id, ordinal, sequence, status,
+			started_at, completed_at, failure_stage, received_at
+		) VALUES (?, ?, ?, 0, 1, 'failed', ?, ?, 'download', ?)
+	`, executionID, runID, egressID, observedAt.Add(-time.Second).Unix(),
+		observedAt.Unix(), observedAt.Add(time.Second).Unix()); err != nil {
+		t.Fatal(err)
+	}
+	if err := centerhistory.Advance(
+		fixture.ctx, fixture.store.HistoryQueries, fixture.registration.NodeID.String(),
+		egressID, fixture.configuration.HistoryGeneration, fixture.now.Unix(),
+	); err != nil {
+		t.Fatal(err)
+	}
+
+	ageDays := int64(1)
+	state, err := fixture.service.UpdateHistoryRetention(fixture.ctx, HistoryRetentionUpdate{
+		Mode: "age", MaxAgeDays: &ageDays,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := fixture.store.HistoryQueries.GetProbeExecution(fixture.ctx, executionID); err != nil {
+		t.Fatalf("current probe outcome execution was deleted: %v", err)
+	}
+	outcome, err := fixture.store.HistoryQueries.GetProbeOutcomeState(fixture.ctx, egressID)
+	if err != nil || outcome.ExecutionID != executionID || outcome.Status != "failed" {
+		t.Fatalf("current probe outcome state = %#v, %v", outcome, err)
+	}
+	if state.Usage.ProtectedLogicalBytes <= 224 {
+		t.Fatalf("protected usage excludes current probe outcome dependencies: %#v", state.Usage)
+	}
+}
+
 func TestHistoryRetentionValidation(t *testing.T) {
 	age := int64(0)
 	size := int64(1024)

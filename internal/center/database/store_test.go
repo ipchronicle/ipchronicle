@@ -21,7 +21,7 @@ func TestFreshOpenAndRestart(t *testing.T) {
 		t.Fatal(err)
 	}
 	firstGeneration := store.HistoryGeneration
-	if store.ConfigSchemaVersion != 10 || store.HistorySchemaVersion != 4 {
+	if store.ConfigSchemaVersion != 11 || store.HistorySchemaVersion != 5 {
 		t.Fatalf("unexpected schema versions: %d/%d", store.ConfigSchemaVersion, store.HistorySchemaVersion)
 	}
 	if err := store.Close(); err != nil {
@@ -115,8 +115,8 @@ func TestVersionFiveNetworkEgressesMigrateToCurrentVersion(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer store.Close()
-	if store.ConfigSchemaVersion != 10 {
-		t.Fatalf("configuration schema = %d, want 10", store.ConfigSchemaVersion)
+	if store.ConfigSchemaVersion != 11 {
+		t.Fatalf("configuration schema = %d, want 11", store.ConfigSchemaVersion)
 	}
 	egress, err := store.ConfigQueries.GetNodeEgress(ctx, configdb.GetNodeEgressParams{NodeID: nodeID, ID: egressID})
 	if err != nil {

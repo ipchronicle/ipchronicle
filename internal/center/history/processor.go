@@ -11,6 +11,7 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/ipchronicle/ipchronicle/internal/center/database/historydb"
+	"github.com/ipchronicle/ipchronicle/internal/center/notifications"
 )
 
 func Advance(
@@ -47,10 +48,19 @@ func Advance(
 				if err != nil {
 					return fmt.Errorf("load successful probe snapshot: %w", err)
 				}
-				if err := processSuccessfulSnapshot(ctx, queries, progress.LastSuccessSnapshotID, execution, snapshot, recordedAt); err != nil {
+				if err := processProbeOutcome(
+					ctx, queries, nodeID, historyGeneration, execution, snapshot.ObservedAt, recordedAt,
+				); err != nil {
+					return err
+				}
+				if err := processSuccessfulSnapshot(ctx, queries, nodeID, progress.LastSuccessSnapshotID, execution, snapshot, recordedAt); err != nil {
 					return err
 				}
 				progress.LastSuccessSnapshotID = &snapshot.ID
+			} else if err := processProbeOutcome(
+				ctx, queries, nodeID, historyGeneration, execution, executionObservedAt(execution), recordedAt,
+			); err != nil {
+				return err
 			}
 			progress.NextSequence++
 			progress.UpdatedAt = recordedAt
@@ -92,6 +102,7 @@ func persistProgress(ctx context.Context, queries *historydb.Queries, progress h
 func processSuccessfulSnapshot(
 	ctx context.Context,
 	queries *historydb.Queries,
+	nodeID string,
 	previousSnapshotID *string,
 	execution historydb.ProbeExecution,
 	snapshot historydb.ProbeSnapshot,
@@ -136,12 +147,34 @@ func processSuccessfulSnapshot(
 			}
 		}
 	}
-	return processFormat(ctx, queries, execution, snapshot, current.Issues, recordedAt)
+	if len(changes) > 0 {
+		egressID := execution.EgressID
+		data := notifications.ProbeChangeData{
+			ExecutionID: execution.ID, SnapshotID: snapshot.ID,
+			PreviousSnapshotID: previousSnapshotID, Sequence: execution.Sequence,
+			Changes: make([]notifications.FieldChange, 0, len(changes)),
+		}
+		for _, change := range changes {
+			data.Changes = append(data.Changes, notifications.FieldChange{
+				FieldID: change.FieldID, Group: change.Group, Path: change.Path,
+				ValueType: string(change.ValueType), Before: change.Before, After: change.After,
+			})
+		}
+		if err := notifications.CreateEvent(ctx, queries, notifications.EventInput{
+			Type: notifications.EventProbeFieldChange, SourceKind: "probe-change-set",
+			SourceID: changeSetID, NodeID: &nodeID, EgressID: &egressID,
+			Payload: data, ObservedAt: snapshot.ObservedAt, RecordedAt: recordedAt,
+		}); err != nil {
+			return err
+		}
+	}
+	return processFormat(ctx, queries, nodeID, execution, snapshot, current.Issues, recordedAt)
 }
 
 func processFormat(
 	ctx context.Context,
 	queries *historydb.Queries,
+	nodeID string,
 	execution historydb.ProbeExecution,
 	snapshot historydb.ProbeSnapshot,
 	issues []FormatIssue,
@@ -188,11 +221,29 @@ func processFormat(
 		}
 	}
 	if eventKind != "" {
+		eventID := stableID("probe-format-event", execution.ID)
 		if _, err := queries.CreateProbeFormatEvent(ctx, historydb.CreateProbeFormatEventParams{
-			ID: stableID("probe-format-event", execution.ID), ExecutionID: execution.ID,
+			ID: eventID, ExecutionID: execution.ID,
 			SnapshotID: snapshot.ID, EgressID: execution.EgressID, Sequence: execution.Sequence,
 			Kind: eventKind, PreviousSignature: previousSignature, CurrentSignature: signature,
 			IssueCount: int64(len(issues)), IssuesJson: issuesJSON,
+			ObservedAt: snapshot.ObservedAt, RecordedAt: recordedAt,
+		}); err != nil {
+			return err
+		}
+		eventType := map[string]string{
+			"mismatch":  notifications.EventFormatMismatch,
+			"changed":   notifications.EventFormatChanged,
+			"recovered": notifications.EventFormatRecovery,
+		}[eventKind]
+		egressID := execution.EgressID
+		if err := notifications.CreateEvent(ctx, queries, notifications.EventInput{
+			Type: eventType, SourceKind: "format-event", SourceID: eventID,
+			NodeID: &nodeID, EgressID: &egressID,
+			Payload: notifications.FormatData{
+				ExecutionID: execution.ID, SnapshotID: snapshot.ID,
+				Sequence: execution.Sequence, Kind: eventKind, IssueCount: int64(len(issues)),
+			},
 			ObservedAt: snapshot.ObservedAt, RecordedAt: recordedAt,
 		}); err != nil {
 			return err
@@ -203,6 +254,73 @@ func processFormat(
 		Status: status, Signature: signature, IssueCount: int64(len(issues)), IssuesJson: issuesJSON,
 		FirstObservedAt: firstObservedAt, LastObservedAt: snapshot.ObservedAt, UpdatedAt: recordedAt,
 	})
+}
+
+func processProbeOutcome(
+	ctx context.Context,
+	queries *historydb.Queries,
+	nodeID string,
+	historyGeneration string,
+	execution historydb.ProbeExecution,
+	observedAt int64,
+	recordedAt int64,
+) error {
+	status := ""
+	switch execution.Status {
+	case "succeeded":
+		status = "healthy"
+	case "failed", "interrupted":
+		status = "failed"
+	default:
+		return nil
+	}
+	previous, err := queries.GetProbeOutcomeState(ctx, execution.EgressID)
+	missing := errors.Is(err, sql.ErrNoRows) || err == nil && previous.HistoryGeneration != historyGeneration
+	if err != nil && !errors.Is(err, sql.ErrNoRows) {
+		return err
+	}
+	firstObservedAt := observedAt
+	eventType := ""
+	if missing {
+		if status == "failed" {
+			eventType = notifications.EventProbeFailure
+		}
+	} else if previous.Status == status {
+		firstObservedAt = previous.FirstObservedAt
+	} else if status == "failed" {
+		eventType = notifications.EventProbeFailure
+	} else {
+		eventType = notifications.EventProbeRecovery
+	}
+	if eventType != "" {
+		egressID := execution.EgressID
+		if err := notifications.CreateEvent(ctx, queries, notifications.EventInput{
+			Type: eventType, SourceKind: "probe-execution", SourceID: execution.ID,
+			NodeID: &nodeID, EgressID: &egressID,
+			Payload: notifications.ProbeOutcomeData{
+				ExecutionID: execution.ID, Sequence: execution.Sequence,
+				Status: execution.Status, FailureStage: execution.FailureStage,
+			},
+			ObservedAt: observedAt, RecordedAt: recordedAt,
+		}); err != nil {
+			return err
+		}
+	}
+	return queries.UpsertProbeOutcomeState(ctx, historydb.UpsertProbeOutcomeStateParams{
+		EgressID: execution.EgressID, NodeID: nodeID, HistoryGeneration: historyGeneration,
+		ExecutionID: execution.ID, Sequence: execution.Sequence, Status: status,
+		FirstObservedAt: firstObservedAt, LastObservedAt: observedAt, UpdatedAt: recordedAt,
+	})
+}
+
+func executionObservedAt(execution historydb.ProbeExecution) int64 {
+	if execution.CompletedAt != nil {
+		return *execution.CompletedAt
+	}
+	if execution.StartedAt != nil {
+		return *execution.StartedAt
+	}
+	return execution.ReceivedAt
 }
 
 func stableID(kind, source string) string {

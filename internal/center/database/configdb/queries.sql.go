@@ -304,6 +304,71 @@ func (q *Queries) CreateNodeEgress(ctx context.Context, arg CreateNodeEgressPara
 	return err
 }
 
+const createNotificationRule = `-- name: CreateNotificationRule :exec
+INSERT INTO notification_rules (
+    id, name, enabled, sender_id, event_type, field_id,
+    node_id, egress_id, created_at, updated_at
+) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+`
+
+type CreateNotificationRuleParams struct {
+	ID        string
+	Name      string
+	Enabled   int64
+	SenderID  string
+	EventType string
+	FieldID   *string
+	NodeID    *string
+	EgressID  *string
+	CreatedAt int64
+	UpdatedAt int64
+}
+
+func (q *Queries) CreateNotificationRule(ctx context.Context, arg CreateNotificationRuleParams) error {
+	_, err := q.db.ExecContext(ctx, createNotificationRule,
+		arg.ID,
+		arg.Name,
+		arg.Enabled,
+		arg.SenderID,
+		arg.EventType,
+		arg.FieldID,
+		arg.NodeID,
+		arg.EgressID,
+		arg.CreatedAt,
+		arg.UpdatedAt,
+	)
+	return err
+}
+
+const createNotificationSender = `-- name: CreateNotificationSender :exec
+INSERT INTO notification_senders (
+    id, name, kind, enabled, configuration_encrypted, created_at, updated_at
+) VALUES (?, ?, ?, ?, ?, ?, ?)
+`
+
+type CreateNotificationSenderParams struct {
+	ID                     string
+	Name                   string
+	Kind                   string
+	Enabled                int64
+	ConfigurationEncrypted []byte
+	CreatedAt              int64
+	UpdatedAt              int64
+}
+
+func (q *Queries) CreateNotificationSender(ctx context.Context, arg CreateNotificationSenderParams) error {
+	_, err := q.db.ExecContext(ctx, createNotificationSender,
+		arg.ID,
+		arg.Name,
+		arg.Kind,
+		arg.Enabled,
+		arg.ConfigurationEncrypted,
+		arg.CreatedAt,
+		arg.UpdatedAt,
+	)
+	return err
+}
+
 const createProbeTask = `-- name: CreateProbeTask :exec
 INSERT INTO probe_tasks (
     id, node_id, kind, status, created_at, expires_at
@@ -434,6 +499,34 @@ WHERE node_id = ?
 func (q *Queries) DeleteNodeSyncSession(ctx context.Context, nodeID string) error {
 	_, err := q.db.ExecContext(ctx, deleteNodeSyncSession, nodeID)
 	return err
+}
+
+const deleteNotificationRule = `-- name: DeleteNotificationRule :execrows
+DELETE FROM notification_rules WHERE id = ?
+`
+
+func (q *Queries) DeleteNotificationRule(ctx context.Context, id string) (int64, error) {
+	result, err := q.db.ExecContext(ctx, deleteNotificationRule, id)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected()
+}
+
+const deleteNotificationSender = `-- name: DeleteNotificationSender :execrows
+DELETE FROM notification_senders
+WHERE notification_senders.id = ?
+  AND NOT EXISTS (
+      SELECT 1 FROM notification_rules WHERE sender_id = notification_senders.id
+  )
+`
+
+func (q *Queries) DeleteNotificationSender(ctx context.Context, id string) (int64, error) {
+	result, err := q.db.ExecContext(ctx, deleteNotificationSender, id)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected()
 }
 
 const deleteTerminalProbeTasksBefore = `-- name: DeleteTerminalProbeTasksBefore :exec
@@ -821,6 +914,37 @@ func (q *Queries) GetLatestProbeTask(ctx context.Context, nodeID string) (ProbeT
 		&i.RunID,
 		&i.RejectionReason,
 		&i.TerminalConfirmedAt,
+	)
+	return i, err
+}
+
+const getNetworkEgressByID = `-- name: GetNetworkEgressByID :one
+SELECT id, node_id, name, kind, family, interface_name, source_address, proxy_id,
+       enabled, available, automatic, lightweight_interval_seconds,
+       probe_on_address_change, created_at, updated_at
+FROM network_egresses
+WHERE id = ?
+`
+
+func (q *Queries) GetNetworkEgressByID(ctx context.Context, id string) (NetworkEgress, error) {
+	row := q.db.QueryRowContext(ctx, getNetworkEgressByID, id)
+	var i NetworkEgress
+	err := row.Scan(
+		&i.ID,
+		&i.NodeID,
+		&i.Name,
+		&i.Kind,
+		&i.Family,
+		&i.InterfaceName,
+		&i.SourceAddress,
+		&i.ProxyID,
+		&i.Enabled,
+		&i.Available,
+		&i.Automatic,
+		&i.LightweightIntervalSeconds,
+		&i.ProbeOnAddressChange,
+		&i.CreatedAt,
+		&i.UpdatedAt,
 	)
 	return i, err
 }
@@ -1217,6 +1341,52 @@ func (q *Queries) GetNodeProbeStatus(ctx context.Context, nodeID string) (NodePr
 	return i, err
 }
 
+const getNotificationRule = `-- name: GetNotificationRule :one
+SELECT id, name, enabled, sender_id, event_type, field_id,
+       node_id, egress_id, created_at, updated_at
+FROM notification_rules
+WHERE id = ?
+`
+
+func (q *Queries) GetNotificationRule(ctx context.Context, id string) (NotificationRule, error) {
+	row := q.db.QueryRowContext(ctx, getNotificationRule, id)
+	var i NotificationRule
+	err := row.Scan(
+		&i.ID,
+		&i.Name,
+		&i.Enabled,
+		&i.SenderID,
+		&i.EventType,
+		&i.FieldID,
+		&i.NodeID,
+		&i.EgressID,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+	)
+	return i, err
+}
+
+const getNotificationSender = `-- name: GetNotificationSender :one
+SELECT id, name, kind, enabled, configuration_encrypted, created_at, updated_at
+FROM notification_senders
+WHERE id = ?
+`
+
+func (q *Queries) GetNotificationSender(ctx context.Context, id string) (NotificationSender, error) {
+	row := q.db.QueryRowContext(ctx, getNotificationSender, id)
+	var i NotificationSender
+	err := row.Scan(
+		&i.ID,
+		&i.Name,
+		&i.Kind,
+		&i.Enabled,
+		&i.ConfigurationEncrypted,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+	)
+	return i, err
+}
+
 const getProbeTask = `-- name: GetProbeTask :one
 SELECT id, node_id, kind, status, created_at, expires_at, acknowledged_at,
        started_at, completed_at, run_id, rejection_reason,
@@ -1463,6 +1633,60 @@ func (q *Queries) ListActiveNodeEgresses(ctx context.Context, nodeID string) ([]
 			&i.ProbeOnAddressChange,
 			&i.CreatedAt,
 			&i.UpdatedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listEnabledNotificationRules = `-- name: ListEnabledNotificationRules :many
+SELECT r.id, r.name, r.sender_id, r.event_type, r.field_id,
+       r.node_id, r.egress_id, s.name AS sender_name, s.kind AS sender_kind
+FROM notification_rules r
+JOIN notification_senders s ON s.id = r.sender_id
+WHERE r.enabled = 1 AND s.enabled = 1
+ORDER BY r.sender_id, r.id
+`
+
+type ListEnabledNotificationRulesRow struct {
+	ID         string
+	Name       string
+	SenderID   string
+	EventType  string
+	FieldID    *string
+	NodeID     *string
+	EgressID   *string
+	SenderName string
+	SenderKind string
+}
+
+func (q *Queries) ListEnabledNotificationRules(ctx context.Context) ([]ListEnabledNotificationRulesRow, error) {
+	rows, err := q.db.QueryContext(ctx, listEnabledNotificationRules)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []ListEnabledNotificationRulesRow{}
+	for rows.Next() {
+		var i ListEnabledNotificationRulesRow
+		if err := rows.Scan(
+			&i.ID,
+			&i.Name,
+			&i.SenderID,
+			&i.EventType,
+			&i.FieldID,
+			&i.NodeID,
+			&i.EgressID,
+			&i.SenderName,
+			&i.SenderKind,
 		); err != nil {
 			return nil, err
 		}
@@ -1748,6 +1972,84 @@ func (q *Queries) ListNodes(ctx context.Context) ([]Node, error) {
 			&i.ProbeScheduleCron,
 			&i.ProbeScheduleTimezone,
 			&i.ProbeLowMemoryOverride,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listNotificationRules = `-- name: ListNotificationRules :many
+SELECT id, name, enabled, sender_id, event_type, field_id,
+       node_id, egress_id, created_at, updated_at
+FROM notification_rules
+ORDER BY name COLLATE NOCASE, id
+`
+
+func (q *Queries) ListNotificationRules(ctx context.Context) ([]NotificationRule, error) {
+	rows, err := q.db.QueryContext(ctx, listNotificationRules)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []NotificationRule{}
+	for rows.Next() {
+		var i NotificationRule
+		if err := rows.Scan(
+			&i.ID,
+			&i.Name,
+			&i.Enabled,
+			&i.SenderID,
+			&i.EventType,
+			&i.FieldID,
+			&i.NodeID,
+			&i.EgressID,
+			&i.CreatedAt,
+			&i.UpdatedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listNotificationSenders = `-- name: ListNotificationSenders :many
+SELECT id, name, kind, enabled, configuration_encrypted, created_at, updated_at
+FROM notification_senders
+ORDER BY name COLLATE NOCASE, id
+`
+
+func (q *Queries) ListNotificationSenders(ctx context.Context) ([]NotificationSender, error) {
+	rows, err := q.db.QueryContext(ctx, listNotificationSenders)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []NotificationSender{}
+	for rows.Next() {
+		var i NotificationSender
+		if err := rows.Scan(
+			&i.ID,
+			&i.Name,
+			&i.Kind,
+			&i.Enabled,
+			&i.ConfigurationEncrypted,
+			&i.CreatedAt,
+			&i.UpdatedAt,
 		); err != nil {
 			return nil, err
 		}
@@ -2281,6 +2583,73 @@ func (q *Queries) UpdateNodeProbeSettings(ctx context.Context, arg UpdateNodePro
 		arg.ProbeScheduleTimezone,
 		arg.ProbeLowMemoryOverride,
 		arg.ID,
+	)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected()
+}
+
+const updateNotificationRule = `-- name: UpdateNotificationRule :execrows
+UPDATE notification_rules
+SET name = ?, enabled = ?, sender_id = ?, event_type = ?, field_id = ?,
+    node_id = ?, egress_id = ?, updated_at = ?
+WHERE id = ?
+`
+
+type UpdateNotificationRuleParams struct {
+	Name      string
+	Enabled   int64
+	SenderID  string
+	EventType string
+	FieldID   *string
+	NodeID    *string
+	EgressID  *string
+	UpdatedAt int64
+	ID        string
+}
+
+func (q *Queries) UpdateNotificationRule(ctx context.Context, arg UpdateNotificationRuleParams) (int64, error) {
+	result, err := q.db.ExecContext(ctx, updateNotificationRule,
+		arg.Name,
+		arg.Enabled,
+		arg.SenderID,
+		arg.EventType,
+		arg.FieldID,
+		arg.NodeID,
+		arg.EgressID,
+		arg.UpdatedAt,
+		arg.ID,
+	)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected()
+}
+
+const updateNotificationSender = `-- name: UpdateNotificationSender :execrows
+UPDATE notification_senders
+SET name = ?, enabled = ?, configuration_encrypted = ?, updated_at = ?
+WHERE id = ? AND kind = ?
+`
+
+type UpdateNotificationSenderParams struct {
+	Name                   string
+	Enabled                int64
+	ConfigurationEncrypted []byte
+	UpdatedAt              int64
+	ID                     string
+	Kind                   string
+}
+
+func (q *Queries) UpdateNotificationSender(ctx context.Context, arg UpdateNotificationSenderParams) (int64, error) {
+	result, err := q.db.ExecContext(ctx, updateNotificationSender,
+		arg.Name,
+		arg.Enabled,
+		arg.ConfigurationEncrypted,
+		arg.UpdatedAt,
+		arg.ID,
+		arg.Kind,
 	)
 	if err != nil {
 		return 0, err

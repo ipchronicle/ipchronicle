@@ -507,6 +507,17 @@ FROM (
     UNION ALL SELECT COUNT(*) * 96, COUNT(*) FROM probe_snapshot_stars
     UNION ALL SELECT COUNT(*) * 192, COUNT(*) FROM probe_comparison_progress
     UNION ALL SELECT COUNT(*) * 160, COUNT(*) FROM current_probe_snapshots
+    UNION ALL SELECT COUNT(*) * 224, COUNT(*) FROM probe_outcome_states
+    UNION ALL SELECT SUM(
+        256 + length(id) + length(event_type) + length(source_kind) + length(source_id) +
+        COALESCE(length(node_id), 0) + COALESCE(length(egress_id), 0) + length(payload_json)
+    ), COUNT(*) FROM notification_events
+    UNION ALL SELECT SUM(
+        512 + length(id) + length(event_id) + length(sender_id) + length(sender_name) +
+        length(sender_kind) + length(event_type) + length(matched_rule_ids_json) +
+        length(event_json) + length(CAST(title AS BLOB)) + length(CAST(body AS BLOB)) +
+        COALESCE(length(error_code), 0)
+    ), COUNT(*) FROM notification_deliveries
     UNION ALL SELECT SUM(
         256 + COALESCE(length(public_address), 0) + COALESCE(length(local_interface), 0) +
         COALESCE(length(local_address), 0) + COALESCE(length(proxy_path), 0) +
@@ -536,6 +547,7 @@ WITH protected_snapshots AS (
     WHERE r.status = 'running'
        OR e.status IN ('pending', 'running')
        OR EXISTS(SELECT 1 FROM protected_snapshots snapshot WHERE snapshot.execution_id = e.id)
+       OR EXISTS(SELECT 1 FROM probe_outcome_states outcome WHERE outcome.execution_id = e.id)
 ), protected_runs AS (
     SELECT r.id, r.node_id, r.history_generation, r.trigger,
            r.task_id, r.triggering_egress_id
@@ -591,6 +603,29 @@ FROM (
     ) FROM address_states
     UNION ALL
     SELECT COUNT(*) * 192 FROM probe_comparison_progress
+    UNION ALL
+    SELECT COUNT(*) * 224 FROM probe_outcome_states
+    UNION ALL
+    SELECT SUM(
+        256 + length(event.id) + length(event.event_type) + length(event.source_kind) +
+        length(event.source_id) + COALESCE(length(event.node_id), 0) +
+        COALESCE(length(event.egress_id), 0) + length(event.payload_json)
+    )
+    FROM notification_events event
+    WHERE event.processed_at IS NULL OR EXISTS(
+        SELECT 1 FROM notification_deliveries delivery
+        WHERE delivery.event_id = event.id
+          AND delivery.status IN ('pending', 'running', 'retrying')
+    )
+    UNION ALL
+    SELECT SUM(
+        512 + length(id) + length(event_id) + length(sender_id) + length(sender_name) +
+        length(sender_kind) + length(event_type) + length(matched_rule_ids_json) +
+        length(event_json) + length(CAST(title AS BLOB)) + length(CAST(body AS BLOB)) +
+        COALESCE(length(error_code), 0)
+    )
+    FROM notification_deliveries
+    WHERE status IN ('pending', 'running', 'retrying')
 );
 
 -- name: ListRetentionCandidates :many
@@ -612,6 +647,10 @@ FROM (
           SELECT 1 FROM probe_comparison_progress progress
           WHERE progress.last_success_snapshot_id = s.id
       )
+      AND NOT EXISTS(
+          SELECT 1 FROM probe_outcome_states outcome
+          WHERE outcome.execution_id = e.id
+      )
     UNION ALL
     SELECT 'address-event', id, observed_at,
            256 + length(id) + length(egress_id) + length(node_id) +
@@ -621,6 +660,30 @@ FROM (
     FROM address_events
     UNION ALL SELECT 'address-gap', id, last_observed_at, 224 FROM history_gaps
     UNION ALL SELECT 'probe-gap', id, last_observed_at, 224 FROM probe_gaps
+    UNION ALL
+    SELECT 'notification-event', event.id, event.observed_at,
+           256 + length(event.id) + length(event.event_type) + length(event.source_kind) +
+           length(event.source_id) + COALESCE(length(event.node_id), 0) +
+           COALESCE(length(event.egress_id), 0) + length(event.payload_json) +
+           COALESCE((
+               SELECT SUM(
+                   512 + length(delivery.id) + length(delivery.event_id) +
+                   length(delivery.sender_id) + length(delivery.sender_name) +
+                   length(delivery.sender_kind) + length(delivery.event_type) +
+                   length(delivery.matched_rule_ids_json) + length(delivery.event_json) +
+                   length(CAST(delivery.title AS BLOB)) + length(CAST(delivery.body AS BLOB)) +
+                   COALESCE(length(delivery.error_code), 0)
+               )
+               FROM notification_deliveries delivery
+               WHERE delivery.event_id = event.id
+           ), 0)
+    FROM notification_events event
+    WHERE event.processed_at IS NOT NULL
+      AND NOT EXISTS(
+          SELECT 1 FROM notification_deliveries delivery
+          WHERE delivery.event_id = event.id
+            AND delivery.status IN ('pending', 'running', 'retrying')
+      )
 )
 WHERE (sqlc.narg(older_than) IS NULL OR observed_at < sqlc.narg(older_than))
 ORDER BY observed_at, category, id
@@ -652,6 +715,10 @@ WHERE probe_executions.id = ? AND probe_executions.status NOT IN ('pending', 'ru
       SELECT 1 FROM probe_snapshots s
       JOIN probe_comparison_progress progress ON progress.last_success_snapshot_id = s.id
       WHERE s.execution_id = probe_executions.id
+  )
+  AND NOT EXISTS(
+      SELECT 1 FROM probe_outcome_states outcome
+      WHERE outcome.execution_id = probe_executions.id
   );
 
 -- name: DeleteRetentionAddressEvent :execrows
@@ -662,6 +729,15 @@ DELETE FROM history_gaps WHERE id = ?;
 
 -- name: DeleteRetentionProbeGap :execrows
 DELETE FROM probe_gaps WHERE id = ?;
+
+-- name: DeleteRetentionNotificationEvent :execrows
+DELETE FROM notification_events
+WHERE notification_events.id = ? AND processed_at IS NOT NULL
+  AND NOT EXISTS(
+      SELECT 1 FROM notification_deliveries delivery
+      WHERE delivery.event_id = notification_events.id
+        AND delivery.status IN ('pending', 'running', 'retrying')
+  );
 
 -- name: DeleteNodeProbeComparisonProgress :exec
 DELETE FROM probe_comparison_progress WHERE node_id = ?;
@@ -740,3 +816,164 @@ DELETE FROM address_states;
 
 -- name: ResetAddressGaps :exec
 DELETE FROM history_gaps;
+
+-- name: ResetNotificationHistory :exec
+DELETE FROM notification_events;
+
+-- name: GetProbeOutcomeState :one
+SELECT egress_id, node_id, history_generation, execution_id, sequence,
+       status, first_observed_at, last_observed_at, updated_at
+FROM probe_outcome_states
+WHERE egress_id = ?;
+
+-- name: UpsertProbeOutcomeState :exec
+INSERT INTO probe_outcome_states (
+    egress_id, node_id, history_generation, execution_id, sequence,
+    status, first_observed_at, last_observed_at, updated_at
+) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+ON CONFLICT (egress_id) DO UPDATE SET
+    node_id = excluded.node_id,
+    history_generation = excluded.history_generation,
+    execution_id = excluded.execution_id,
+    sequence = excluded.sequence,
+    status = excluded.status,
+    first_observed_at = excluded.first_observed_at,
+    last_observed_at = excluded.last_observed_at,
+    updated_at = excluded.updated_at
+WHERE excluded.history_generation != probe_outcome_states.history_generation
+   OR excluded.sequence > probe_outcome_states.sequence;
+
+-- name: CreateNotificationEvent :execrows
+INSERT INTO notification_events (
+    id, event_type, source_kind, source_id, node_id, egress_id,
+    payload_json, observed_at, recorded_at, processed_at
+) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+ON CONFLICT (source_kind, source_id, event_type) DO NOTHING;
+
+-- name: GetNotificationEvent :one
+SELECT id, event_type, source_kind, source_id, node_id, egress_id,
+       payload_json, observed_at, recorded_at, processed_at
+FROM notification_events
+WHERE id = ?;
+
+-- name: ListPendingNotificationEvents :many
+SELECT id, event_type, source_kind, source_id, node_id, egress_id,
+       payload_json, observed_at, recorded_at, processed_at
+FROM notification_events
+WHERE processed_at IS NULL
+ORDER BY recorded_at, id
+LIMIT ?;
+
+-- name: MarkNotificationEventProcessed :execrows
+UPDATE notification_events
+SET processed_at = ?
+WHERE id = ? AND processed_at IS NULL;
+
+-- name: CreateNotificationDelivery :execrows
+INSERT INTO notification_deliveries (
+    id, event_id, sender_id, sender_name, sender_kind, event_type,
+    node_id, egress_id, is_test, status, attempt_count, next_attempt_at,
+    last_attempt_at, completed_at, error_code, matched_rule_ids_json,
+    event_json, title, body, created_at, updated_at
+) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+ON CONFLICT (event_id, sender_id) DO NOTHING;
+
+-- name: CountActiveNotificationDeliveriesForSender :one
+SELECT COUNT(*)
+FROM notification_deliveries
+WHERE sender_id = ? AND status IN ('pending', 'running', 'retrying');
+
+-- name: RecoverRunningNotificationDeliveries :exec
+UPDATE notification_deliveries
+SET status = CASE WHEN attempt_count >= 4 THEN 'failed' ELSE 'retrying' END,
+    next_attempt_at = CASE WHEN attempt_count >= 4 THEN NULL ELSE ? END,
+    completed_at = CASE WHEN attempt_count >= 4 THEN ? ELSE NULL END,
+    error_code = CASE WHEN attempt_count >= 4 THEN 'center-restarted' ELSE NULL END,
+    updated_at = ?
+WHERE status = 'running';
+
+-- name: ClaimNotificationDelivery :execrows
+UPDATE notification_deliveries
+SET status = 'running', attempt_count = attempt_count + 1,
+    next_attempt_at = NULL, last_attempt_at = ?, updated_at = ?
+WHERE id = ?
+  AND status IN ('pending', 'retrying')
+  AND next_attempt_at <= ?
+  AND attempt_count < 4;
+
+-- name: GetNotificationDelivery :one
+SELECT id, event_id, sender_id, sender_name, sender_kind, event_type,
+       node_id, egress_id, is_test, status, attempt_count, next_attempt_at,
+       last_attempt_at, completed_at, error_code, matched_rule_ids_json,
+       event_json, title, body, created_at, updated_at
+FROM notification_deliveries
+WHERE id = ?;
+
+-- name: ListReadyFixedNotificationDeliveries :many
+SELECT id, event_id, sender_id, sender_name, sender_kind, event_type,
+       node_id, egress_id, is_test, status, attempt_count, next_attempt_at,
+       last_attempt_at, completed_at, error_code, matched_rule_ids_json,
+       event_json, title, body, created_at, updated_at
+FROM notification_deliveries
+WHERE sender_kind IN ('telegram', 'webhook')
+  AND status IN ('pending', 'retrying')
+  AND next_attempt_at <= ?
+ORDER BY next_attempt_at, created_at, id
+LIMIT ?;
+
+-- name: ListReadyJavaScriptNotificationDeliveries :many
+SELECT id, event_id, sender_id, sender_name, sender_kind, event_type,
+       node_id, egress_id, is_test, status, attempt_count, next_attempt_at,
+       last_attempt_at, completed_at, error_code, matched_rule_ids_json,
+       event_json, title, body, created_at, updated_at
+FROM notification_deliveries
+WHERE sender_kind = 'javascript'
+  AND status IN ('pending', 'retrying')
+  AND next_attempt_at <= ?
+ORDER BY next_attempt_at, created_at, id
+LIMIT 1;
+
+-- name: CompleteNotificationDelivery :execrows
+UPDATE notification_deliveries
+SET status = 'succeeded', completed_at = ?, error_code = NULL, updated_at = ?
+WHERE id = ? AND status = 'running';
+
+-- name: RetryNotificationDelivery :execrows
+UPDATE notification_deliveries
+SET status = 'retrying', next_attempt_at = ?, error_code = NULL, updated_at = ?
+WHERE id = ? AND status = 'running' AND attempt_count < 4;
+
+-- name: FailNotificationDelivery :execrows
+UPDATE notification_deliveries
+SET status = 'failed', next_attempt_at = NULL, completed_at = ?,
+    error_code = ?, updated_at = ?
+WHERE id = ? AND status = 'running';
+
+-- name: ListNotificationDeliveries :many
+SELECT id, event_id, sender_id, sender_name, sender_kind, event_type,
+       node_id, egress_id, is_test, status, attempt_count, next_attempt_at,
+       last_attempt_at, completed_at, error_code, matched_rule_ids_json,
+       event_json, title, body, created_at, updated_at
+FROM notification_deliveries
+WHERE (sqlc.arg(sender_id) = '' OR sender_id = sqlc.arg(sender_id))
+  AND (sqlc.arg(delivery_status) = '' OR status = sqlc.arg(delivery_status))
+ORDER BY created_at DESC, id DESC
+LIMIT sqlc.arg(page_size) OFFSET sqlc.arg(page_offset);
+
+-- name: CountNotificationDeliveries :one
+SELECT COUNT(*)
+FROM notification_deliveries
+WHERE (sqlc.arg(sender_id) = '' OR sender_id = sqlc.arg(sender_id))
+  AND (sqlc.arg(delivery_status) = '' OR status = sqlc.arg(delivery_status));
+
+-- name: DeleteNodeNotificationHistory :exec
+DELETE FROM notification_events WHERE node_id = ?;
+
+-- name: DeleteEgressNotificationHistory :exec
+DELETE FROM notification_events WHERE egress_id = ?;
+
+-- name: DeleteProbeOutcomeState :exec
+DELETE FROM probe_outcome_states WHERE egress_id = ?;
+
+-- name: DeleteNodeProbeOutcomeStates :exec
+DELETE FROM probe_outcome_states WHERE node_id = ?;

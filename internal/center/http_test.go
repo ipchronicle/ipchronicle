@@ -5,6 +5,7 @@ import (
 	"context"
 	"encoding/json"
 	"io"
+	"log"
 	"net/http"
 	"net/http/httptest"
 	"net/netip"
@@ -18,6 +19,7 @@ import (
 	"github.com/ipchronicle/ipchronicle/internal/center/admin"
 	"github.com/ipchronicle/ipchronicle/internal/center/database"
 	"github.com/ipchronicle/ipchronicle/internal/center/nodes"
+	"github.com/ipchronicle/ipchronicle/internal/center/notifications"
 	"github.com/ipchronicle/ipchronicle/internal/center/syncws"
 	"github.com/ipchronicle/ipchronicle/internal/generated/api"
 )
@@ -66,7 +68,7 @@ func TestAdministratorLoginStatusAndLogout(t *testing.T) {
 	if err := json.NewDecoder(statusResponse.Body).Decode(&status); err != nil {
 		t.Fatal(err)
 	}
-	if status.Service != api.IpchronicleCenter || status.Status != api.Ok || !status.TransportWarning || status.ConfigSchemaVersion != 10 || status.HistorySchemaVersion != 4 {
+	if status.Service != api.IpchronicleCenter || status.Status != api.Ok || !status.TransportWarning || status.ConfigSchemaVersion != 11 || status.HistorySchemaVersion != 5 {
 		t.Fatalf("unexpected status response: %#v", status)
 	}
 
@@ -86,6 +88,190 @@ func TestMalformedJSONUsesStructuredError(t *testing.T) {
 	handler := newTestHTTPHandler(t, nil)
 	response := performRequest(handler, http.MethodPost, "/api/v1/auth/login", []byte("{"), "http://example.test", nil)
 	assertErrorCode(t, response, http.StatusBadRequest, api.InvalidRequest)
+}
+
+func TestNotificationAPIConfigurationRulesAndDeliveryHistory(t *testing.T) {
+	received := make(chan string, 1)
+	receiver := httptest.NewServer(http.HandlerFunc(func(response http.ResponseWriter, request *http.Request) {
+		if request.Method != http.MethodPost || request.Header.Get("X-Test-Token") != "local-secret" {
+			t.Errorf("unexpected notification request method or retained header")
+		}
+		body, err := io.ReadAll(request.Body)
+		if err != nil {
+			t.Error(err)
+		}
+		received <- string(body)
+		response.WriteHeader(http.StatusNoContent)
+	}))
+	t.Cleanup(receiver.Close)
+
+	handler, _, notificationService, _ := newTestHTTPHandlerWithNotifications(t, nil)
+	workerContext, stopWorkers := context.WithCancel(context.Background())
+	workersDone := make(chan struct{})
+	go func() {
+		defer close(workersDone)
+		notificationService.Run(workerContext, log.New(io.Discard, "", 0))
+	}()
+	t.Cleanup(func() {
+		stopWorkers()
+		<-workersDone
+	})
+
+	unauthenticated := performRequest(handler, http.MethodGet, "/api/v1/notification-senders", nil, "", nil)
+	assertErrorCode(t, unauthenticated, http.StatusUnauthorized, api.Unauthenticated)
+	cookie, session := loginTestAdministrator(t, handler)
+	createSenderBody, err := json.Marshal(map[string]any{
+		"name": "local webhook", "kind": "webhook", "enabled": true,
+		"webhook": map[string]any{
+			"url": receiver.URL, "headers": map[string]string{"X-Test-Token": "local-secret"},
+		},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	missingCSRF := performRequest(
+		handler, http.MethodPost, "/api/v1/notification-senders", createSenderBody,
+		"http://example.test", cookie,
+	)
+	assertErrorCode(t, missingCSRF, http.StatusForbidden, api.CsrfFailed)
+	createdSender := performRequestWithCSRF(
+		handler, http.MethodPost, "/api/v1/notification-senders", createSenderBody,
+		"http://example.test", cookie, session.CsrfToken,
+	)
+	if createdSender.Code != http.StatusCreated {
+		t.Fatalf("create notification sender status = %d, body = %s", createdSender.Code, createdSender.Body.String())
+	}
+	var sender api.NotificationSender
+	if err := json.NewDecoder(createdSender.Body).Decode(&sender); err != nil {
+		t.Fatal(err)
+	}
+	if sender.Webhook == nil || len(sender.Webhook.HeaderNames) != 1 || sender.Webhook.HeaderNames[0] != "X-Test-Token" ||
+		strings.Contains(createdSender.Body.String(), "local-secret") {
+		t.Fatalf("sender response disclosed or lost hidden headers: %#v", sender)
+	}
+
+	updateSenderBody, err := json.Marshal(map[string]any{
+		"name": "renamed webhook", "enabled": true,
+		"webhook": map[string]any{"url": receiver.URL},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	senderPath := "/api/v1/notification-senders/" + sender.Id.String()
+	updatedSender := performRequestWithCSRF(
+		handler, http.MethodPut, senderPath, updateSenderBody,
+		"http://example.test", cookie, session.CsrfToken,
+	)
+	if updatedSender.Code != http.StatusOK {
+		t.Fatalf("update notification sender status = %d, body = %s", updatedSender.Code, updatedSender.Body.String())
+	}
+
+	createRuleBody, err := json.Marshal(map[string]any{
+		"name": "address changes", "enabled": true, "senderId": sender.Id,
+		"eventType": "address-change",
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	createdRule := performRequestWithCSRF(
+		handler, http.MethodPost, "/api/v1/notification-rules", createRuleBody,
+		"http://example.test", cookie, session.CsrfToken,
+	)
+	if createdRule.Code != http.StatusCreated {
+		t.Fatalf("create notification rule status = %d, body = %s", createdRule.Code, createdRule.Body.String())
+	}
+	var rule api.NotificationRule
+	if err := json.NewDecoder(createdRule.Body).Decode(&rule); err != nil {
+		t.Fatal(err)
+	}
+	updateRuleBody, err := json.Marshal(map[string]any{
+		"name": "all address changes", "enabled": true, "senderId": sender.Id,
+		"eventType": "address-change",
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	rulePath := "/api/v1/notification-rules/" + rule.Id.String()
+	updatedRule := performRequestWithCSRF(
+		handler, http.MethodPut, rulePath, updateRuleBody,
+		"http://example.test", cookie, session.CsrfToken,
+	)
+	if updatedRule.Code != http.StatusOK {
+		t.Fatalf("update notification rule status = %d, body = %s", updatedRule.Code, updatedRule.Body.String())
+	}
+	rules := performRequest(handler, http.MethodGet, "/api/v1/notification-rules", nil, "", cookie)
+	if rules.Code != http.StatusOK {
+		t.Fatalf("list notification rules status = %d, body = %s", rules.Code, rules.Body.String())
+	}
+	var ruleList api.NotificationRuleList
+	if err := json.NewDecoder(rules.Body).Decode(&ruleList); err != nil || len(ruleList.Items) != 1 || ruleList.Items[0].Name != "all address changes" {
+		t.Fatalf("notification rule list = %#v, %v", ruleList, err)
+	}
+
+	testDelivery := performRequestWithCSRF(
+		handler, http.MethodPost, senderPath+"/test-deliveries", nil,
+		"http://example.test", cookie, session.CsrfToken,
+	)
+	if testDelivery.Code != http.StatusAccepted {
+		t.Fatalf("create test delivery status = %d, body = %s", testDelivery.Code, testDelivery.Body.String())
+	}
+	var delivery api.NotificationDelivery
+	if err := json.NewDecoder(testDelivery.Body).Decode(&delivery); err != nil || !delivery.Test {
+		t.Fatalf("queued notification delivery = %#v, %v", delivery, err)
+	}
+	switch delivery.Status {
+	case "pending", "running", "succeeded":
+	default:
+		t.Fatalf("initial notification delivery state = %#v", delivery)
+	}
+	select {
+	case body := <-received:
+		if !strings.Contains(body, `"type":"test"`) {
+			t.Fatalf("test delivery body = %s", body)
+		}
+	case <-time.After(2 * time.Second):
+		t.Fatal("local notification test delivery was not received")
+	}
+
+	query := url.Values{"senderId": []string{sender.Id.String()}, "status": []string{"succeeded"}}
+	var deliveryPage api.NotificationDeliveryPage
+	deadline := time.Now().Add(2 * time.Second)
+	for {
+		deliveries := performRequest(
+			handler, http.MethodGet, "/api/v1/notification-deliveries?"+query.Encode(), nil, "", cookie,
+		)
+		if deliveries.Code != http.StatusOK {
+			t.Fatalf("list notification deliveries status = %d, body = %s", deliveries.Code, deliveries.Body.String())
+		}
+		if err := json.NewDecoder(deliveries.Body).Decode(&deliveryPage); err != nil {
+			t.Fatal(err)
+		}
+		if len(deliveryPage.Items) == 1 {
+			break
+		}
+		if time.Now().After(deadline) {
+			t.Fatalf("succeeded notification delivery page = %#v", deliveryPage)
+		}
+		time.Sleep(10 * time.Millisecond)
+	}
+	if deliveryPage.Items[0].Id != delivery.Id || deliveryPage.Items[0].AttemptCount != 1 {
+		t.Fatalf("completed notification delivery = %#v", deliveryPage.Items[0])
+	}
+
+	deletedRule := performRequestWithCSRF(
+		handler, http.MethodDelete, rulePath, nil,
+		"http://example.test", cookie, session.CsrfToken,
+	)
+	if deletedRule.Code != http.StatusNoContent {
+		t.Fatalf("delete notification rule status = %d, body = %s", deletedRule.Code, deletedRule.Body.String())
+	}
+	deletedSender := performRequestWithCSRF(
+		handler, http.MethodDelete, senderPath, nil,
+		"http://example.test", cookie, session.CsrfToken,
+	)
+	if deletedSender.Code != http.StatusNoContent {
+		t.Fatalf("delete notification sender status = %d, body = %s", deletedSender.Code, deletedSender.Body.String())
+	}
 }
 
 func TestHistoryAPIAuthorizationMutationAndRetention(t *testing.T) {
@@ -741,6 +927,11 @@ func newTestHTTPHandler(t *testing.T, trustedProxies []netip.Prefix) http.Handle
 }
 
 func newTestHTTPHandlerWithNodes(t *testing.T, trustedProxies []netip.Prefix) (http.Handler, *nodes.Service, *syncws.Hub) {
+	handler, nodeService, _, syncHub := newTestHTTPHandlerWithNotifications(t, trustedProxies)
+	return handler, nodeService, syncHub
+}
+
+func newTestHTTPHandlerWithNotifications(t *testing.T, trustedProxies []netip.Prefix) (http.Handler, *nodes.Service, *notifications.Service, *syncws.Hub) {
 	t.Helper()
 	store, err := database.Open(context.Background(), database.PathsFromDataDirectory(t.TempDir()))
 	if err != nil {
@@ -753,11 +944,16 @@ func newTestHTTPHandlerWithNodes(t *testing.T, trustedProxies []netip.Prefix) (h
 	}
 	syncHub := syncws.NewHub()
 	nodeService := nodes.NewService(store.Config, store.History, store.ConfigQueries, store.MasterKey, syncHub)
+	notificationService := notifications.NewService(notifications.ServiceOptions{
+		ConfigDatabase: store.Config, HistoryDatabase: store.History,
+		ConfigQueries: store.ConfigQueries, HistoryQueries: store.HistoryQueries,
+		MasterKey: store.MasterKey, Executable: "/proc/self/exe",
+	})
 	return NewHTTPHandler(HTTPOptions{
 		Version: "0.0.0-test", Web: http.NotFoundHandler(),
-		Administrator: administrator, Nodes: nodeService, SyncHub: syncHub,
+		Administrator: administrator, Nodes: nodeService, Notifications: notificationService, SyncHub: syncHub,
 		Store: store, TrustedProxies: trustedProxies,
-	}), nodeService, syncHub
+	}), nodeService, notificationService, syncHub
 }
 
 type httpHistoryFixture struct {

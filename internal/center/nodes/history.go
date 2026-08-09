@@ -589,6 +589,8 @@ func (s *Service) cleanupHistoryBatch(
 			changed, err = queries.DeleteRetentionAddressGap(ctx, candidate.ID)
 		case "probe-gap":
 			changed, err = queries.DeleteRetentionProbeGap(ctx, candidate.ID)
+		case "notification-event":
+			changed, err = queries.DeleteRetentionNotificationEvent(ctx, candidate.ID)
 		default:
 			return 0, 0, fmt.Errorf("unknown history retention category %q", candidate.Category)
 		}

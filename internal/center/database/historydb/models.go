@@ -73,6 +73,43 @@ type HistoryMetadatum struct {
 	CreatedAt  int64
 }
 
+type NotificationDelivery struct {
+	ID                 string
+	EventID            string
+	SenderID           string
+	SenderName         string
+	SenderKind         string
+	EventType          string
+	NodeID             *string
+	EgressID           *string
+	IsTest             int64
+	Status             string
+	AttemptCount       int64
+	NextAttemptAt      *int64
+	LastAttemptAt      *int64
+	CompletedAt        *int64
+	ErrorCode          *string
+	MatchedRuleIdsJson []byte
+	EventJson          []byte
+	Title              string
+	Body               string
+	CreatedAt          int64
+	UpdatedAt          int64
+}
+
+type NotificationEvent struct {
+	ID          string
+	EventType   string
+	SourceKind  string
+	SourceID    string
+	NodeID      *string
+	EgressID    *string
+	PayloadJson []byte
+	ObservedAt  int64
+	RecordedAt  int64
+	ProcessedAt *int64
+}
+
 type ProbeChangeSet struct {
 	ID                 string
 	ExecutionID        string
@@ -158,6 +195,18 @@ type ProbeGap struct {
 	FirstObservedAt   int64
 	LastObservedAt    int64
 	ReceivedAt        int64
+}
+
+type ProbeOutcomeState struct {
+	EgressID          string
+	NodeID            string
+	HistoryGeneration string
+	ExecutionID       string
+	Sequence          int64
+	Status            string
+	FirstObservedAt   int64
+	LastObservedAt    int64
+	UpdatedAt         int64
 }
 
 type ProbeRun struct {

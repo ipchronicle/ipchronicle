@@ -17,6 +17,7 @@ import (
 	"github.com/ipchronicle/ipchronicle/internal/center/admin"
 	"github.com/ipchronicle/ipchronicle/internal/center/database"
 	"github.com/ipchronicle/ipchronicle/internal/center/nodes"
+	"github.com/ipchronicle/ipchronicle/internal/center/notifications"
 	"github.com/ipchronicle/ipchronicle/internal/center/syncws"
 	"github.com/ipchronicle/ipchronicle/internal/version"
 	"github.com/ipchronicle/ipchronicle/internal/webui"
@@ -29,6 +30,9 @@ func main() {
 }
 
 func run(arguments []string) error {
+	if len(arguments) == 1 && arguments[0] == "notification-worker" {
+		return notifications.RunJavaScriptWorker(os.Stdin, os.Stdout)
+	}
 	if len(arguments) == 1 {
 		switch arguments[0] {
 		case "version", "--version":
@@ -63,6 +67,11 @@ func serve() error {
 	}
 	syncHub := syncws.NewHub()
 	nodeService := nodes.NewService(store.Config, store.History, store.ConfigQueries, store.MasterKey, syncHub)
+	notificationService := notifications.NewService(notifications.ServiceOptions{
+		ConfigDatabase: store.Config, HistoryDatabase: store.History,
+		ConfigQueries: store.ConfigQueries, HistoryQueries: store.HistoryQueries,
+		MasterKey: store.MasterKey, ExternalOrigin: configuration.ExternalOrigin,
+	})
 
 	server := &http.Server{
 		Addr: configuration.ListenAddress,
@@ -71,6 +80,7 @@ func serve() error {
 			Web:            webui.Handler(),
 			Administrator:  administrator,
 			Nodes:          nodeService,
+			Notifications:  notificationService,
 			SyncHub:        syncHub,
 			Store:          store,
 			ExternalOrigin: configuration.ExternalOrigin,
@@ -84,6 +94,7 @@ func serve() error {
 	defer stop()
 	go nodeService.RunDeletionWorker(shutdownContext, log.Default())
 	go nodeService.RunRetentionWorker(shutdownContext, log.Default())
+	go notificationService.Run(shutdownContext, log.Default())
 	go func() {
 		<-shutdownContext.Done()
 		syncHub.CloseAll()

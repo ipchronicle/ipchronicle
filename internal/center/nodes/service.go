@@ -927,6 +927,9 @@ func (s *Service) deleteNodeHistory(ctx context.Context, nodeID string) error {
 	}
 	defer transaction.Rollback()
 	queries := s.historyQueries.WithTx(transaction)
+	if err := queries.DeleteNodeNotificationHistory(ctx, &nodeID); err != nil {
+		return err
+	}
 	if err := queries.DeleteNodeProbeHistory(ctx, nodeID); err != nil {
 		return err
 	}
@@ -957,6 +960,9 @@ func (s *Service) deleteNetworkEgressHistory(ctx context.Context, egressID strin
 	}
 	defer transaction.Rollback()
 	queries := s.historyQueries.WithTx(transaction)
+	if err := queries.DeleteEgressNotificationHistory(ctx, &egressID); err != nil {
+		return err
+	}
 	if err := queries.DeleteEgressProbeSnapshots(ctx, egressID); err != nil {
 		return err
 	}
