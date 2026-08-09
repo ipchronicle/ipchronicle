@@ -35,7 +35,7 @@ curl --fail --silent --show-error \
 csrf_token="$(jq -er '.csrfToken' "$login_file")"
 curl --fail --silent --show-error --cookie "$cookie_file" \
   "$base_url/api/v1/system/status" >"$status_file"
-jq -e '.service == "ipchronicle-center" and .status == "ok" and .configSchemaVersion == 4 and .historySchemaVersion == 1 and (.version | length > 0)' "$status_file" >/dev/null
+jq -e '.service == "ipchronicle-center" and .status == "ok" and .configSchemaVersion == 5 and .historySchemaVersion == 1 and (.version | length > 0)' "$status_file" >/dev/null
 curl --fail --silent --show-error "$base_url/system/status" | grep -Fq '<div id="root"></div>'
 
 curl --fail --silent --show-error \
@@ -65,7 +65,7 @@ jq -n '{appliedConfigurationRevision:0,metadata:{hostname:"smoke-node",agentVers
 curl --fail --silent --show-error \
   --header "Authorization: Bearer $agent_credential" \
   "$base_url/api/v1/agent/configuration" | \
-  jq -e '.schemaVersion == 1 and .revision == 1 and .enabled == true and (.historyGeneration | length == 64)' >/dev/null
+  jq -e '.schemaVersion == 2 and .revision == 1 and .enabled == true and (.historyGeneration | length == 64) and .egresses == []' >/dev/null
 jq -n '{appliedConfigurationRevision:1,metadata:{hostname:"smoke-node",agentVersion:"dev",operatingSystem:"linux",architecture:"amd64",capabilities:["control-v1","configuration-v1"]}}' | \
   curl --fail --silent --show-error \
     --header 'Content-Type: application/json' \
