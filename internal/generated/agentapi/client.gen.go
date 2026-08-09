@@ -80,11 +80,13 @@ const (
 	NodeDeletionPending           ErrorCode = "node_deletion_pending"
 	NodeNotFound                  ErrorCode = "node_not_found"
 	NodeRevoked                   ErrorCode = "node_revoked"
+	NodeSyncUnsupported           ErrorCode = "node_sync_unsupported"
 	OriginNotAllowed              ErrorCode = "origin_not_allowed"
 	RateLimited                   ErrorCode = "rate_limited"
 	RegistrationDisabled          ErrorCode = "registration_disabled"
 	RegistrationKeyInvalid        ErrorCode = "registration_key_invalid"
 	RegistrationKeyNotInitialized ErrorCode = "registration_key_not_initialized"
+	SyncSessionUnavailable        ErrorCode = "sync_session_unavailable"
 	TotpAlreadyEnabled            ErrorCode = "totp_already_enabled"
 	TotpEnrollmentNotStarted      ErrorCode = "totp_enrollment_not_started"
 	TotpNotEnabled                ErrorCode = "totp_not_enabled"
@@ -119,6 +121,8 @@ func (e ErrorCode) Valid() bool {
 		return true
 	case NodeRevoked:
 		return true
+	case NodeSyncUnsupported:
+		return true
 	case OriginNotAllowed:
 		return true
 	case RateLimited:
@@ -128,6 +132,8 @@ func (e ErrorCode) Valid() bool {
 	case RegistrationKeyInvalid:
 		return true
 	case RegistrationKeyNotInitialized:
+		return true
+	case SyncSessionUnavailable:
 		return true
 	case TotpAlreadyEnabled:
 		return true
@@ -201,6 +207,27 @@ func (e NodeStatus) Valid() bool {
 	case Online:
 		return true
 	case Revoked:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for NodeSyncStatus.
+const (
+	NodeSyncStatusConnected NodeSyncStatus = "connected"
+	NodeSyncStatusDegraded  NodeSyncStatus = "degraded"
+	NodeSyncStatusPending   NodeSyncStatus = "pending"
+)
+
+// Valid indicates whether the value is a known member of the NodeSyncStatus enum.
+func (e NodeSyncStatus) Valid() bool {
+	switch e {
+	case NodeSyncStatusConnected:
+		return true
+	case NodeSyncStatusDegraded:
+		return true
+	case NodeSyncStatusPending:
 		return true
 	default:
 		return false
@@ -343,10 +370,11 @@ type AgentPollRequest struct {
 
 // AgentPollResult defines model for AgentPollResult.
 type AgentPollResult struct {
-	CenterVersion                string `json:"centerVersion"`
-	DesiredConfigurationRevision int64  `json:"desiredConfigurationRevision"`
-	Enabled                      bool   `json:"enabled"`
-	PollIntervalSeconds          int    `json:"pollIntervalSeconds"`
+	CenterVersion                string            `json:"centerVersion"`
+	DesiredConfigurationRevision int64             `json:"desiredConfigurationRevision"`
+	Enabled                      bool              `json:"enabled"`
+	PollIntervalSeconds          int               `json:"pollIntervalSeconds"`
+	SyncSession                  *AgentSyncSession `json:"syncSession,omitempty"`
 }
 
 // AgentRegistrationRequest defines model for AgentRegistrationRequest.
@@ -360,6 +388,13 @@ type AgentRegistrationResult struct {
 	Credential          string             `json:"credential"`
 	NodeId              openapi_types.UUID `json:"nodeId"`
 	PollIntervalSeconds int                `json:"pollIntervalSeconds"`
+}
+
+// AgentSyncSession defines model for AgentSyncSession.
+type AgentSyncSession struct {
+	ExpiresAt     time.Time          `json:"expiresAt"`
+	Id            openapi_types.UUID `json:"id"`
+	WebsocketPath string             `json:"websocketPath"`
 }
 
 // AuthenticatedSession defines model for AuthenticatedSession.
@@ -420,6 +455,8 @@ type Node struct {
 	OperatingSystem              AgentPlatform           `json:"operatingSystem"`
 	RegisteredAt                 time.Time               `json:"registeredAt"`
 	Status                       NodeStatus              `json:"status"`
+	SyncExpiresAt                *time.Time              `json:"syncExpiresAt,omitempty"`
+	SyncStatus                   *NodeSyncStatus         `json:"syncStatus,omitempty"`
 }
 
 // NodeConfigurationStatus defines model for NodeConfigurationStatus.
@@ -443,6 +480,9 @@ type NodeList struct {
 
 // NodeStatus defines model for NodeStatus.
 type NodeStatus string
+
+// NodeSyncStatus defines model for NodeSyncStatus.
+type NodeSyncStatus string
 
 // NodeUpdate defines model for NodeUpdate.
 type NodeUpdate struct {
@@ -569,6 +609,16 @@ type UpdateNodeParams struct {
 
 // RevokeNodeParams defines parameters for RevokeNode.
 type RevokeNodeParams struct {
+	XCSRFToken *CSRFToken `json:"X-CSRF-Token,omitempty"`
+}
+
+// StopNodeSyncSessionParams defines parameters for StopNodeSyncSession.
+type StopNodeSyncSessionParams struct {
+	XCSRFToken *CSRFToken `json:"X-CSRF-Token,omitempty"`
+}
+
+// StartNodeSyncSessionParams defines parameters for StartNodeSyncSession.
+type StartNodeSyncSessionParams struct {
 	XCSRFToken *CSRFToken `json:"X-CSRF-Token,omitempty"`
 }
 
@@ -865,6 +915,16 @@ type ClientInterface interface {
 	//
 	// Corresponds with POST /api/v1/nodes/{nodeId}/revoke (the `RevokeNode` operationId).
 	RevokeNode(ctx context.Context, nodeId NodeId, params *RevokeNodeParams, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// StopNodeSyncSession Stop the current temporary node sync session
+	//
+	// Corresponds with DELETE /api/v1/nodes/{nodeId}/sync-session (the `StopNodeSyncSession` operationId).
+	StopNodeSyncSession(ctx context.Context, nodeId NodeId, params *StopNodeSyncSessionParams, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// StartNodeSyncSession Start or replace a ten-minute temporary node sync session
+	//
+	// Corresponds with POST /api/v1/nodes/{nodeId}/sync-session (the `StartNodeSyncSession` operationId).
+	StartNodeSyncSession(ctx context.Context, nodeId NodeId, params *StartNodeSyncSessionParams, reqEditors ...RequestEditorFn) (*http.Response, error)
 
 	// GetSystemStatus Read center status
 	//
@@ -1352,6 +1412,36 @@ func (c *Client) UpdateNode(ctx context.Context, nodeId NodeId, params *UpdateNo
 // Corresponds with POST /api/v1/nodes/{nodeId}/revoke (the `RevokeNode` operationId).
 func (c *Client) RevokeNode(ctx context.Context, nodeId NodeId, params *RevokeNodeParams, reqEditors ...RequestEditorFn) (*http.Response, error) {
 	req, err := NewRevokeNodeRequest(c.Server, nodeId, params)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+// StopNodeSyncSession Stop the current temporary node sync session
+//
+// Corresponds with DELETE /api/v1/nodes/{nodeId}/sync-session (the `StopNodeSyncSession` operationId).
+func (c *Client) StopNodeSyncSession(ctx context.Context, nodeId NodeId, params *StopNodeSyncSessionParams, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewStopNodeSyncSessionRequest(c.Server, nodeId, params)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+// StartNodeSyncSession Start or replace a ten-minute temporary node sync session
+//
+// Corresponds with POST /api/v1/nodes/{nodeId}/sync-session (the `StartNodeSyncSession` operationId).
+func (c *Client) StartNodeSyncSession(ctx context.Context, nodeId NodeId, params *StartNodeSyncSessionParams, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewStartNodeSyncSessionRequest(c.Server, nodeId, params)
 	if err != nil {
 		return nil, err
 	}
@@ -2248,6 +2338,104 @@ func NewRevokeNodeRequest(server string, nodeId NodeId, params *RevokeNodeParams
 	return req, nil
 }
 
+// NewStopNodeSyncSessionRequest constructs an http.Request for the StopNodeSyncSession method
+func NewStopNodeSyncSessionRequest(server string, nodeId NodeId, params *StopNodeSyncSessionParams) (*http.Request, error) {
+	var err error
+
+	var pathParam0 string
+
+	pathParam0, err = runtime.StyleParamWithOptions("simple", false, "nodeId", nodeId, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationPath, Type: "string", Format: "uuid"})
+	if err != nil {
+		return nil, err
+	}
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/api/v1/nodes/%s/sync-session", pathParam0)
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest(http.MethodDelete, queryURL.String(), nil)
+	if err != nil {
+		return nil, err
+	}
+
+	if params != nil {
+
+		if params.XCSRFToken != nil {
+			var headerParam0 string
+
+			headerParam0, err = runtime.StyleParamWithOptions("simple", false, "X-CSRF-Token", *params.XCSRFToken, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationHeader, Type: "string", Format: ""})
+			if err != nil {
+				return nil, err
+			}
+
+			req.Header.Set("X-CSRF-Token", headerParam0)
+		}
+
+	}
+
+	return req, nil
+}
+
+// NewStartNodeSyncSessionRequest constructs an http.Request for the StartNodeSyncSession method
+func NewStartNodeSyncSessionRequest(server string, nodeId NodeId, params *StartNodeSyncSessionParams) (*http.Request, error) {
+	var err error
+
+	var pathParam0 string
+
+	pathParam0, err = runtime.StyleParamWithOptions("simple", false, "nodeId", nodeId, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationPath, Type: "string", Format: "uuid"})
+	if err != nil {
+		return nil, err
+	}
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/api/v1/nodes/%s/sync-session", pathParam0)
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest(http.MethodPost, queryURL.String(), nil)
+	if err != nil {
+		return nil, err
+	}
+
+	if params != nil {
+
+		if params.XCSRFToken != nil {
+			var headerParam0 string
+
+			headerParam0, err = runtime.StyleParamWithOptions("simple", false, "X-CSRF-Token", *params.XCSRFToken, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationHeader, Type: "string", Format: ""})
+			if err != nil {
+				return nil, err
+			}
+
+			req.Header.Set("X-CSRF-Token", headerParam0)
+		}
+
+	}
+
+	return req, nil
+}
+
 // NewGetSystemStatusRequest constructs an http.Request for the GetSystemStatus method
 func NewGetSystemStatusRequest(server string) (*http.Request, error) {
 	var err error
@@ -2528,6 +2716,20 @@ type ClientWithResponsesInterface interface {
 	//
 	// Corresponds with POST /api/v1/nodes/{nodeId}/revoke (the `RevokeNode` operationId).
 	RevokeNodeWithResponse(ctx context.Context, nodeId NodeId, params *RevokeNodeParams, reqEditors ...RequestEditorFn) (*RevokeNodeResponse, error)
+
+	// StopNodeSyncSessionWithResponse Stop the current temporary node sync session
+	//
+	// Returns a wrapper object for the known response body format(s).
+	//
+	// Corresponds with DELETE /api/v1/nodes/{nodeId}/sync-session (the `StopNodeSyncSession` operationId).
+	StopNodeSyncSessionWithResponse(ctx context.Context, nodeId NodeId, params *StopNodeSyncSessionParams, reqEditors ...RequestEditorFn) (*StopNodeSyncSessionResponse, error)
+
+	// StartNodeSyncSessionWithResponse Start or replace a ten-minute temporary node sync session
+	//
+	// Returns a wrapper object for the known response body format(s).
+	//
+	// Corresponds with POST /api/v1/nodes/{nodeId}/sync-session (the `StartNodeSyncSession` operationId).
+	StartNodeSyncSessionWithResponse(ctx context.Context, nodeId NodeId, params *StartNodeSyncSessionParams, reqEditors ...RequestEditorFn) (*StartNodeSyncSessionResponse, error)
 
 	// GetSystemStatusWithResponse Read center status
 	//
@@ -3763,6 +3965,137 @@ func (r RevokeNodeResponse) ContentType() string {
 	return ""
 }
 
+type StopNodeSyncSessionResponse struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	// JSON200 the response for an HTTP 200 `application/json` response
+	JSON200 *Node
+	// JSON401 the response for an HTTP 401 `application/json` response
+	JSON401 *Unauthorized
+	// JSON403 the response for an HTTP 403 `application/json` response
+	JSON403 *Forbidden
+	// JSON404 the response for an HTTP 404 `application/json` response
+	JSON404 *NotFound
+}
+
+// GetJSON200 returns the response for an HTTP 200 `application/json` response
+func (r StopNodeSyncSessionResponse) GetJSON200() *Node {
+	return r.JSON200
+}
+
+// GetJSON401 returns the response for an HTTP 401 `application/json` response
+func (r StopNodeSyncSessionResponse) GetJSON401() *Unauthorized {
+	return r.JSON401
+}
+
+// GetJSON403 returns the response for an HTTP 403 `application/json` response
+func (r StopNodeSyncSessionResponse) GetJSON403() *Forbidden {
+	return r.JSON403
+}
+
+// GetJSON404 returns the response for an HTTP 404 `application/json` response
+func (r StopNodeSyncSessionResponse) GetJSON404() *NotFound {
+	return r.JSON404
+}
+
+// GetBody returns the raw response body bytes
+func (r StopNodeSyncSessionResponse) GetBody() []byte {
+	return r.Body
+}
+
+// Status returns HTTPResponse.Status
+func (r StopNodeSyncSessionResponse) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r StopNodeSyncSessionResponse) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+// ContentType is a convenience method to retrieve the Content-Type value from the HTTP response headers
+func (r StopNodeSyncSessionResponse) ContentType() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Header.Get("Content-Type")
+	}
+	return ""
+}
+
+type StartNodeSyncSessionResponse struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	// JSON200 the response for an HTTP 200 `application/json` response
+	JSON200 *Node
+	// JSON401 the response for an HTTP 401 `application/json` response
+	JSON401 *Unauthorized
+	// JSON403 the response for an HTTP 403 `application/json` response
+	JSON403 *Forbidden
+	// JSON404 the response for an HTTP 404 `application/json` response
+	JSON404 *NotFound
+	// JSON409 the response for an HTTP 409 `application/json` response
+	JSON409 *Conflict
+}
+
+// GetJSON200 returns the response for an HTTP 200 `application/json` response
+func (r StartNodeSyncSessionResponse) GetJSON200() *Node {
+	return r.JSON200
+}
+
+// GetJSON401 returns the response for an HTTP 401 `application/json` response
+func (r StartNodeSyncSessionResponse) GetJSON401() *Unauthorized {
+	return r.JSON401
+}
+
+// GetJSON403 returns the response for an HTTP 403 `application/json` response
+func (r StartNodeSyncSessionResponse) GetJSON403() *Forbidden {
+	return r.JSON403
+}
+
+// GetJSON404 returns the response for an HTTP 404 `application/json` response
+func (r StartNodeSyncSessionResponse) GetJSON404() *NotFound {
+	return r.JSON404
+}
+
+// GetJSON409 returns the response for an HTTP 409 `application/json` response
+func (r StartNodeSyncSessionResponse) GetJSON409() *Conflict {
+	return r.JSON409
+}
+
+// GetBody returns the raw response body bytes
+func (r StartNodeSyncSessionResponse) GetBody() []byte {
+	return r.Body
+}
+
+// Status returns HTTPResponse.Status
+func (r StartNodeSyncSessionResponse) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r StartNodeSyncSessionResponse) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+// ContentType is a convenience method to retrieve the Content-Type value from the HTTP response headers
+func (r StartNodeSyncSessionResponse) ContentType() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Header.Get("Content-Type")
+	}
+	return ""
+}
+
 type GetSystemStatusResponse struct {
 	Body         []byte
 	HTTPResponse *http.Response
@@ -4199,6 +4532,32 @@ func (c *ClientWithResponses) RevokeNodeWithResponse(ctx context.Context, nodeId
 		return nil, err
 	}
 	return ParseRevokeNodeResponse(rsp)
+}
+
+// StopNodeSyncSessionWithResponse Stop the current temporary node sync session
+//
+// Returns a wrapper object for the known response body format(s).
+//
+// Corresponds with DELETE /api/v1/nodes/{nodeId}/sync-session (the `StopNodeSyncSession` operationId).
+func (c *ClientWithResponses) StopNodeSyncSessionWithResponse(ctx context.Context, nodeId NodeId, params *StopNodeSyncSessionParams, reqEditors ...RequestEditorFn) (*StopNodeSyncSessionResponse, error) {
+	rsp, err := c.StopNodeSyncSession(ctx, nodeId, params, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseStopNodeSyncSessionResponse(rsp)
+}
+
+// StartNodeSyncSessionWithResponse Start or replace a ten-minute temporary node sync session
+//
+// Returns a wrapper object for the known response body format(s).
+//
+// Corresponds with POST /api/v1/nodes/{nodeId}/sync-session (the `StartNodeSyncSession` operationId).
+func (c *ClientWithResponses) StartNodeSyncSessionWithResponse(ctx context.Context, nodeId NodeId, params *StartNodeSyncSessionParams, reqEditors ...RequestEditorFn) (*StartNodeSyncSessionResponse, error) {
+	rsp, err := c.StartNodeSyncSession(ctx, nodeId, params, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseStartNodeSyncSessionResponse(rsp)
 }
 
 // GetSystemStatusWithResponse Read center status
@@ -5134,6 +5493,107 @@ func ParseRevokeNodeResponse(rsp *http.Response) (*RevokeNodeResponse, error) {
 	}
 
 	response := &RevokeNodeResponse{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest Node
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 401:
+		var dest Unauthorized
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON401 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 403:
+		var dest Forbidden
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON403 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 404:
+		var dest NotFound
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON404 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 409:
+		var dest Conflict
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON409 = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseStopNodeSyncSessionResponse parses an HTTP response from a StopNodeSyncSessionWithResponse call
+func ParseStopNodeSyncSessionResponse(rsp *http.Response) (*StopNodeSyncSessionResponse, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &StopNodeSyncSessionResponse{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest Node
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 401:
+		var dest Unauthorized
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON401 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 403:
+		var dest Forbidden
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON403 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 404:
+		var dest NotFound
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON404 = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseStartNodeSyncSessionResponse parses an HTTP response from a StartNodeSyncSessionWithResponse call
+func ParseStartNodeSyncSessionResponse(rsp *http.Response) (*StartNodeSyncSessionResponse, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &StartNodeSyncSessionResponse{
 		Body:         bodyBytes,
 		HTTPResponse: rsp,
 	}

@@ -24,9 +24,11 @@ Phase 2 now provides automatic Agent enrollment, root-only encrypted bbolt
 identity storage, 30-second authenticated control polling, two-minute online
 state, complete desired-configuration snapshots with atomic revision
 convergence, node disable/revocation/permanent deletion, a systemd/OpenRC
-installer, and the bilingual node inventory. Temporary WebSocket
-synchronization, network egress discovery, and complete probes remain later
-slices; the current control API does not expose placeholder success for them.
+installer, the bilingual node inventory, and optional ten-minute WebSocket
+sessions that wake the ordinary HTTP synchronization path while an
+administrator is editing a node. Network egress discovery and complete probes
+remain later slices; the current control API does not expose placeholder
+success for them.
 
 ## Run The Center
 
@@ -83,7 +85,10 @@ browser-facing HTTP or HTTPS origin. Set `IPCHRONICLE_TRUSTED_PROXIES` to the
 comma-separated proxy CIDRs that may supply `X-Forwarded-For` and
 `X-Forwarded-Proto`. IPChronicle does not terminate TLS; HTTPS is recommended
 at the operator-managed reverse proxy, while intentional HTTP remains usable
-with a visible warning.
+with a visible warning. Configure the reverse proxy to forward WebSocket
+Upgrade requests under `/api/v1/agent/sync/` to use temporary sync sessions.
+Without WebSocket support, Agents continue normal 30-second HTTP polling and
+the node page reports the temporary session as degraded.
 
 ## Local Administrator Recovery
 

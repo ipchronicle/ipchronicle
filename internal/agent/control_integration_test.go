@@ -10,12 +10,14 @@ import (
 	"testing"
 	"time"
 
+	"github.com/google/uuid"
 	"github.com/ipchronicle/ipchronicle/internal/agent"
 	agentstate "github.com/ipchronicle/ipchronicle/internal/agent/state"
 	"github.com/ipchronicle/ipchronicle/internal/center"
 	"github.com/ipchronicle/ipchronicle/internal/center/admin"
 	"github.com/ipchronicle/ipchronicle/internal/center/database"
 	"github.com/ipchronicle/ipchronicle/internal/center/nodes"
+	"github.com/ipchronicle/ipchronicle/internal/center/syncws"
 )
 
 func TestAgentEnrollsOnceAndBecomesOnline(t *testing.T) {
@@ -29,14 +31,15 @@ func TestAgentEnrollsOnceAndBecomesOnline(t *testing.T) {
 	if err := administrator.Bootstrap(ctx, "admin", "admin"); err != nil {
 		t.Fatal(err)
 	}
-	nodeService := nodes.NewService(centerStore.Config, centerStore.History, centerStore.ConfigQueries, centerStore.MasterKey)
+	syncHub := syncws.NewHub()
+	nodeService := nodes.NewService(centerStore.Config, centerStore.History, centerStore.ConfigQueries, centerStore.MasterKey, syncHub)
 	enrollment, err := nodeService.RotateEnrollmentKey(ctx)
 	if err != nil {
 		t.Fatal(err)
 	}
 	handler := center.NewHTTPHandler(center.HTTPOptions{
 		Version: "0.1.0-test", Web: http.NotFoundHandler(), Administrator: administrator,
-		Nodes: nodeService, Store: centerStore,
+		Nodes: nodeService, SyncHub: syncHub, Store: centerStore,
 	})
 	server := httptest.NewServer(handler)
 	t.Cleanup(server.Close)
@@ -54,6 +57,10 @@ func TestAgentEnrollsOnceAndBecomesOnline(t *testing.T) {
 	if err != nil || second.NodeID != identity.NodeID {
 		t.Fatalf("repeat enrollment did not preserve identity: %#v, %v", second, err)
 	}
+	started, err := nodeService.StartSyncSession(ctx, registrationNodeID(t, identity.NodeID))
+	if err != nil || started.SyncStatus == nil || *started.SyncStatus != "pending" {
+		t.Fatalf("start temporary sync = %#v, %v", started, err)
+	}
 	listed, err := nodeService.List(ctx)
 	if err != nil || len(listed) != 1 {
 		t.Fatalf("registered nodes = %#v, %v", listed, err)
@@ -70,7 +77,8 @@ func TestAgentEnrollsOnceAndBecomesOnline(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		if len(listed) == 1 && listed[0].Status == "online" && listed[0].ConfigurationStatus == "current" && listed[0].AppliedConfigurationRevision == 1 {
+		if len(listed) == 1 && listed[0].Status == "online" && listed[0].ConfigurationStatus == "current" &&
+			listed[0].AppliedConfigurationRevision == 1 && listed[0].SyncStatus != nil && *listed[0].SyncStatus == "connected" {
 			break
 		}
 		if time.Now().After(deadline) {
@@ -82,6 +90,27 @@ func TestAgentEnrollsOnceAndBecomesOnline(t *testing.T) {
 	if err != nil || configuration.Revision != 1 || !configuration.Enabled || len(configuration.HistoryGeneration) != 64 {
 		t.Fatalf("applied local configuration = %#v, %v", configuration, err)
 	}
+	convergenceStarted := time.Now()
+	if _, err := nodeService.SetEnabled(ctx, registrationNodeID(t, identity.NodeID), false); err != nil {
+		t.Fatal(err)
+	}
+	deadline = time.Now().Add(3 * time.Second)
+	for {
+		configuration, err = localStore.Configuration()
+		if err != nil {
+			t.Fatal(err)
+		}
+		if configuration.Revision == 2 && !configuration.Enabled {
+			break
+		}
+		if time.Now().After(deadline) {
+			t.Fatalf("WebSocket wake did not converge configuration before normal polling: %#v", configuration)
+		}
+		time.Sleep(20 * time.Millisecond)
+	}
+	if time.Since(convergenceStarted) >= nodes.PollInterval {
+		t.Fatalf("configuration convergence took at least one normal poll interval: %s", time.Since(convergenceStarted))
+	}
 	cancel()
 	select {
 	case err := <-done:
@@ -91,4 +120,13 @@ func TestAgentEnrollsOnceAndBecomesOnline(t *testing.T) {
 	case <-time.After(time.Second):
 		t.Fatal("Agent did not stop after cancellation")
 	}
+}
+
+func registrationNodeID(t *testing.T, value string) uuid.UUID {
+	t.Helper()
+	id, err := uuid.Parse(value)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return id
 }

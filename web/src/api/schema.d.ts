@@ -215,6 +215,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/nodes/{nodeId}/sync-session": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                nodeId: components["parameters"]["NodeId"];
+            };
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Start or replace a ten-minute temporary node sync session */
+        post: operations["startNodeSyncSession"];
+        /** Stop the current temporary node sync session */
+        delete: operations["stopNodeSyncSession"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/agent-enrollment": {
         parameters: {
             query?: never;
@@ -352,7 +372,7 @@ export interface components {
             provisioningUri: string;
         };
         /** @enum {string} */
-        ErrorCode: "invalid_request" | "invalid_credentials" | "totp_required" | "rate_limited" | "unauthenticated" | "csrf_failed" | "origin_not_allowed" | "current_password_invalid" | "invalid_totp" | "totp_already_enabled" | "totp_not_enabled" | "totp_enrollment_not_started" | "no_account_change" | "registration_key_not_initialized" | "registration_key_invalid" | "registration_disabled" | "agent_unauthenticated" | "agent_revoked" | "node_not_found" | "node_revoked" | "node_deletion_pending" | "internal_error";
+        ErrorCode: "invalid_request" | "invalid_credentials" | "totp_required" | "rate_limited" | "unauthenticated" | "csrf_failed" | "origin_not_allowed" | "current_password_invalid" | "invalid_totp" | "totp_already_enabled" | "totp_not_enabled" | "totp_enrollment_not_started" | "no_account_change" | "registration_key_not_initialized" | "registration_key_invalid" | "registration_disabled" | "agent_unauthenticated" | "agent_revoked" | "node_not_found" | "node_revoked" | "node_deletion_pending" | "node_sync_unsupported" | "sync_session_unavailable" | "internal_error";
         ErrorResponse: {
             code: components["schemas"]["ErrorCode"];
             parameters?: {
@@ -420,6 +440,14 @@ export interface components {
             desiredConfigurationRevision: number;
             enabled: boolean;
             pollIntervalSeconds: number;
+            syncSession?: components["schemas"]["AgentSyncSession"];
+        };
+        AgentSyncSession: {
+            /** Format: uuid */
+            id: string;
+            /** Format: date-time */
+            expiresAt: string;
+            websocketPath: string;
         };
         AgentConfigurationSnapshot: {
             /** @enum {integer} */
@@ -435,6 +463,8 @@ export interface components {
         NodeConfigurationStatus: "current" | "pending" | "failed";
         /** @enum {string} */
         NodeDeletionStatus: "pending" | "failed";
+        /** @enum {string} */
+        NodeSyncStatus: "pending" | "connected" | "degraded";
         NodeUpdate: {
             enabled: boolean;
         };
@@ -465,6 +495,9 @@ export interface components {
             configurationError?: string;
             deletionStatus?: components["schemas"]["NodeDeletionStatus"];
             deletionError?: string;
+            syncStatus?: components["schemas"]["NodeSyncStatus"];
+            /** Format: date-time */
+            syncExpiresAt?: string;
             /** Format: date-time */
             registeredAt: string;
             /** Format: date-time */
@@ -950,6 +983,61 @@ export interface operations {
             403: components["responses"]["Forbidden"];
             404: components["responses"]["NotFound"];
             409: components["responses"]["Conflict"];
+        };
+    };
+    startNodeSyncSession: {
+        parameters: {
+            query?: never;
+            header?: {
+                "X-CSRF-Token"?: components["parameters"]["CSRFToken"];
+            };
+            path: {
+                nodeId: components["parameters"]["NodeId"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The temporary sync session was started. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Node"];
+                };
+            };
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+            409: components["responses"]["Conflict"];
+        };
+    };
+    stopNodeSyncSession: {
+        parameters: {
+            query?: never;
+            header?: {
+                "X-CSRF-Token"?: components["parameters"]["CSRFToken"];
+            };
+            path: {
+                nodeId: components["parameters"]["NodeId"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The temporary sync session is stopped. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Node"];
+                };
+            };
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
         };
     };
     getAgentEnrollment: {

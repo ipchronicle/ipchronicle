@@ -153,6 +153,16 @@ export const en = {
         pending: "Pending",
         failed: "Failed",
       },
+      sync: {
+        start: "Start temporary sync",
+        stop: "Stop temporary sync",
+        unsupported:
+          "The current Agent version does not support temporary sync",
+        pending: "Waiting for Agent",
+        connected: "Live sync active",
+        degraded: "Using normal polling",
+        until: "Ends",
+      },
       actions: {
         title: "Node actions",
         enable: "Enable node",
@@ -204,6 +214,10 @@ export const en = {
       node_revoked: "A node with a revoked Agent credential cannot be enabled.",
       node_deletion_pending:
         "The node is being permanently deleted and cannot accept other changes.",
+      node_sync_unsupported:
+        "The current Agent version does not support temporary sync.",
+      sync_session_unavailable:
+        "The temporary sync session has ended or is unavailable.",
       internal_error: "The center could not complete the request.",
     },
   },

@@ -74,6 +74,28 @@ export async function revokeNode(nodeId: string, csrfToken: string) {
   return result.data;
 }
 
+export async function startNodeSyncSession(nodeId: string, csrfToken: string) {
+  const result = await apiClient.POST("/api/v1/nodes/{nodeId}/sync-session", {
+    params: { path: { nodeId } },
+    headers: { "X-CSRF-Token": csrfToken },
+  });
+  if (!result.response.ok || result.data === undefined) {
+    throwAPIError(result.response, result.error);
+  }
+  return result.data;
+}
+
+export async function stopNodeSyncSession(nodeId: string, csrfToken: string) {
+  const result = await apiClient.DELETE("/api/v1/nodes/{nodeId}/sync-session", {
+    params: { path: { nodeId } },
+    headers: { "X-CSRF-Token": csrfToken },
+  });
+  if (!result.response.ok || result.data === undefined) {
+    throwAPIError(result.response, result.error);
+  }
+  return result.data;
+}
+
 export async function deleteNode(nodeId: string, csrfToken: string) {
   const result = await apiClient.DELETE("/api/v1/nodes/{nodeId}", {
     params: { path: { nodeId } },

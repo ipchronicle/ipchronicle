@@ -78,11 +78,13 @@ const (
 	NodeDeletionPending           ErrorCode = "node_deletion_pending"
 	NodeNotFound                  ErrorCode = "node_not_found"
 	NodeRevoked                   ErrorCode = "node_revoked"
+	NodeSyncUnsupported           ErrorCode = "node_sync_unsupported"
 	OriginNotAllowed              ErrorCode = "origin_not_allowed"
 	RateLimited                   ErrorCode = "rate_limited"
 	RegistrationDisabled          ErrorCode = "registration_disabled"
 	RegistrationKeyInvalid        ErrorCode = "registration_key_invalid"
 	RegistrationKeyNotInitialized ErrorCode = "registration_key_not_initialized"
+	SyncSessionUnavailable        ErrorCode = "sync_session_unavailable"
 	TotpAlreadyEnabled            ErrorCode = "totp_already_enabled"
 	TotpEnrollmentNotStarted      ErrorCode = "totp_enrollment_not_started"
 	TotpNotEnabled                ErrorCode = "totp_not_enabled"
@@ -117,6 +119,8 @@ func (e ErrorCode) Valid() bool {
 		return true
 	case NodeRevoked:
 		return true
+	case NodeSyncUnsupported:
+		return true
 	case OriginNotAllowed:
 		return true
 	case RateLimited:
@@ -126,6 +130,8 @@ func (e ErrorCode) Valid() bool {
 	case RegistrationKeyInvalid:
 		return true
 	case RegistrationKeyNotInitialized:
+		return true
+	case SyncSessionUnavailable:
 		return true
 	case TotpAlreadyEnabled:
 		return true
@@ -199,6 +205,27 @@ func (e NodeStatus) Valid() bool {
 	case Online:
 		return true
 	case Revoked:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for NodeSyncStatus.
+const (
+	NodeSyncStatusConnected NodeSyncStatus = "connected"
+	NodeSyncStatusDegraded  NodeSyncStatus = "degraded"
+	NodeSyncStatusPending   NodeSyncStatus = "pending"
+)
+
+// Valid indicates whether the value is a known member of the NodeSyncStatus enum.
+func (e NodeSyncStatus) Valid() bool {
+	switch e {
+	case NodeSyncStatusConnected:
+		return true
+	case NodeSyncStatusDegraded:
+		return true
+	case NodeSyncStatusPending:
 		return true
 	default:
 		return false
@@ -341,10 +368,11 @@ type AgentPollRequest struct {
 
 // AgentPollResult defines model for AgentPollResult.
 type AgentPollResult struct {
-	CenterVersion                string `json:"centerVersion"`
-	DesiredConfigurationRevision int64  `json:"desiredConfigurationRevision"`
-	Enabled                      bool   `json:"enabled"`
-	PollIntervalSeconds          int    `json:"pollIntervalSeconds"`
+	CenterVersion                string            `json:"centerVersion"`
+	DesiredConfigurationRevision int64             `json:"desiredConfigurationRevision"`
+	Enabled                      bool              `json:"enabled"`
+	PollIntervalSeconds          int               `json:"pollIntervalSeconds"`
+	SyncSession                  *AgentSyncSession `json:"syncSession,omitempty"`
 }
 
 // AgentRegistrationRequest defines model for AgentRegistrationRequest.
@@ -358,6 +386,13 @@ type AgentRegistrationResult struct {
 	Credential          string             `json:"credential"`
 	NodeId              openapi_types.UUID `json:"nodeId"`
 	PollIntervalSeconds int                `json:"pollIntervalSeconds"`
+}
+
+// AgentSyncSession defines model for AgentSyncSession.
+type AgentSyncSession struct {
+	ExpiresAt     time.Time          `json:"expiresAt"`
+	Id            openapi_types.UUID `json:"id"`
+	WebsocketPath string             `json:"websocketPath"`
 }
 
 // AuthenticatedSession defines model for AuthenticatedSession.
@@ -418,6 +453,8 @@ type Node struct {
 	OperatingSystem              AgentPlatform           `json:"operatingSystem"`
 	RegisteredAt                 time.Time               `json:"registeredAt"`
 	Status                       NodeStatus              `json:"status"`
+	SyncExpiresAt                *time.Time              `json:"syncExpiresAt,omitempty"`
+	SyncStatus                   *NodeSyncStatus         `json:"syncStatus,omitempty"`
 }
 
 // NodeConfigurationStatus defines model for NodeConfigurationStatus.
@@ -441,6 +478,9 @@ type NodeList struct {
 
 // NodeStatus defines model for NodeStatus.
 type NodeStatus string
+
+// NodeSyncStatus defines model for NodeSyncStatus.
+type NodeSyncStatus string
 
 // NodeUpdate defines model for NodeUpdate.
 type NodeUpdate struct {
@@ -570,6 +610,16 @@ type RevokeNodeParams struct {
 	XCSRFToken *CSRFToken `json:"X-CSRF-Token,omitempty"`
 }
 
+// StopNodeSyncSessionParams defines parameters for StopNodeSyncSession.
+type StopNodeSyncSessionParams struct {
+	XCSRFToken *CSRFToken `json:"X-CSRF-Token,omitempty"`
+}
+
+// StartNodeSyncSessionParams defines parameters for StartNodeSyncSession.
+type StartNodeSyncSessionParams struct {
+	XCSRFToken *CSRFToken `json:"X-CSRF-Token,omitempty"`
+}
+
 // UpdateAccountJSONRequestBody defines body for UpdateAccount for application/json ContentType.
 type UpdateAccountJSONRequestBody = AccountUpdateRequest
 
@@ -662,6 +712,12 @@ type ServerInterface interface {
 	// RevokeNode Permanently revoke a node Agent credential
 	// (POST /api/v1/nodes/{nodeId}/revoke)
 	RevokeNode(w http.ResponseWriter, r *http.Request, nodeId NodeId, params RevokeNodeParams)
+	// StopNodeSyncSession Stop the current temporary node sync session
+	// (DELETE /api/v1/nodes/{nodeId}/sync-session)
+	StopNodeSyncSession(w http.ResponseWriter, r *http.Request, nodeId NodeId, params StopNodeSyncSessionParams)
+	// StartNodeSyncSession Start or replace a ten-minute temporary node sync session
+	// (POST /api/v1/nodes/{nodeId}/sync-session)
+	StartNodeSyncSession(w http.ResponseWriter, r *http.Request, nodeId NodeId, params StartNodeSyncSessionParams)
 	// GetSystemStatus Read center status
 	// (GET /api/v1/system/status)
 	GetSystemStatus(w http.ResponseWriter, r *http.Request)
@@ -788,6 +844,18 @@ func (_ Unimplemented) UpdateNode(w http.ResponseWriter, r *http.Request, nodeId
 // RevokeNode Permanently revoke a node Agent credential
 // (POST /api/v1/nodes/{nodeId}/revoke)
 func (_ Unimplemented) RevokeNode(w http.ResponseWriter, r *http.Request, nodeId NodeId, params RevokeNodeParams) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
+// StopNodeSyncSession Stop the current temporary node sync session
+// (DELETE /api/v1/nodes/{nodeId}/sync-session)
+func (_ Unimplemented) StopNodeSyncSession(w http.ResponseWriter, r *http.Request, nodeId NodeId, params StopNodeSyncSessionParams) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
+// StartNodeSyncSession Start or replace a ten-minute temporary node sync session
+// (POST /api/v1/nodes/{nodeId}/sync-session)
+func (_ Unimplemented) StartNodeSyncSession(w http.ResponseWriter, r *http.Request, nodeId NodeId, params StartNodeSyncSessionParams) {
 	w.WriteHeader(http.StatusNotImplemented)
 }
 
@@ -1437,6 +1505,106 @@ func (siw *ServerInterfaceWrapper) RevokeNode(w http.ResponseWriter, r *http.Req
 	handler.ServeHTTP(w, r)
 }
 
+// StopNodeSyncSession operation middleware
+func (siw *ServerInterfaceWrapper) StopNodeSyncSession(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "nodeId" -------------
+	var nodeId NodeId
+
+	err = runtime.BindStyledParameterWithOptions("simple", "nodeId", chi.URLParam(r, "nodeId"), &nodeId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "uuid", ValueIsUnescaped: r.URL.RawPath == ""})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "nodeId", Err: err})
+		return
+	}
+
+	// Parameter object where we will unmarshal all parameters from the context
+	var params StopNodeSyncSessionParams
+
+	headers := r.Header
+
+	// ------------- Optional header parameter "X-CSRF-Token" -------------
+	if valueList, found := headers[http.CanonicalHeaderKey("X-CSRF-Token")]; found {
+		var XCSRFToken CSRFToken
+		n := len(valueList)
+		if n != 1 {
+			siw.ErrorHandlerFunc(w, r, &TooManyValuesForParamError{ParamName: "X-CSRF-Token", Count: n})
+			return
+		}
+
+		err = runtime.BindStyledParameterWithOptions("simple", "X-CSRF-Token", valueList[0], &XCSRFToken, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: false, Type: "string", Format: ""})
+		if err != nil {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "X-CSRF-Token", Err: err})
+			return
+		}
+
+		params.XCSRFToken = &XCSRFToken
+
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.StopNodeSyncSession(w, r, nodeId, params)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// StartNodeSyncSession operation middleware
+func (siw *ServerInterfaceWrapper) StartNodeSyncSession(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "nodeId" -------------
+	var nodeId NodeId
+
+	err = runtime.BindStyledParameterWithOptions("simple", "nodeId", chi.URLParam(r, "nodeId"), &nodeId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "uuid", ValueIsUnescaped: r.URL.RawPath == ""})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "nodeId", Err: err})
+		return
+	}
+
+	// Parameter object where we will unmarshal all parameters from the context
+	var params StartNodeSyncSessionParams
+
+	headers := r.Header
+
+	// ------------- Optional header parameter "X-CSRF-Token" -------------
+	if valueList, found := headers[http.CanonicalHeaderKey("X-CSRF-Token")]; found {
+		var XCSRFToken CSRFToken
+		n := len(valueList)
+		if n != 1 {
+			siw.ErrorHandlerFunc(w, r, &TooManyValuesForParamError{ParamName: "X-CSRF-Token", Count: n})
+			return
+		}
+
+		err = runtime.BindStyledParameterWithOptions("simple", "X-CSRF-Token", valueList[0], &XCSRFToken, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: false, Type: "string", Format: ""})
+		if err != nil {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "X-CSRF-Token", Err: err})
+			return
+		}
+
+		params.XCSRFToken = &XCSRFToken
+
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.StartNodeSyncSession(w, r, nodeId, params)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
 // GetSystemStatus operation middleware
 func (siw *ServerInterfaceWrapper) GetSystemStatus(w http.ResponseWriter, r *http.Request) {
 
@@ -1608,6 +1776,12 @@ func HandlerWithOptions(si ServerInterface, options ChiServerOptions) http.Handl
 	})
 	r.Group(func(r chi.Router) {
 		r.Post(options.BaseURL+"/api/v1/nodes/{nodeId}/revoke", wrapper.RevokeNode)
+	})
+	r.Group(func(r chi.Router) {
+		r.Delete(options.BaseURL+"/api/v1/nodes/{nodeId}/sync-session", wrapper.StopNodeSyncSession)
+	})
+	r.Group(func(r chi.Router) {
+		r.Post(options.BaseURL+"/api/v1/nodes/{nodeId}/sync-session", wrapper.StartNodeSyncSession)
 	})
 	r.Group(func(r chi.Router) {
 		r.Get(options.BaseURL+"/api/v1/agent-enrollment", wrapper.GetAgentEnrollment)
@@ -2900,6 +3074,150 @@ func (response RevokeNode409JSONResponse) VisitRevokeNodeResponse(w http.Respons
 	return err
 }
 
+type StopNodeSyncSessionRequestObject struct {
+	NodeId NodeId `json:"nodeId"`
+	Params StopNodeSyncSessionParams
+}
+
+type StopNodeSyncSessionResponseObject interface {
+	VisitStopNodeSyncSessionResponse(w http.ResponseWriter) error
+}
+
+type StopNodeSyncSession200JSONResponse Node
+
+func (response StopNodeSyncSession200JSONResponse) VisitStopNodeSyncSessionResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type StopNodeSyncSession401JSONResponse struct{ UnauthorizedJSONResponse }
+
+func (response StopNodeSyncSession401JSONResponse) VisitStopNodeSyncSessionResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(401)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type StopNodeSyncSession403JSONResponse struct{ ForbiddenJSONResponse }
+
+func (response StopNodeSyncSession403JSONResponse) VisitStopNodeSyncSessionResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(403)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type StopNodeSyncSession404JSONResponse struct{ NotFoundJSONResponse }
+
+func (response StopNodeSyncSession404JSONResponse) VisitStopNodeSyncSessionResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(404)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type StartNodeSyncSessionRequestObject struct {
+	NodeId NodeId `json:"nodeId"`
+	Params StartNodeSyncSessionParams
+}
+
+type StartNodeSyncSessionResponseObject interface {
+	VisitStartNodeSyncSessionResponse(w http.ResponseWriter) error
+}
+
+type StartNodeSyncSession200JSONResponse Node
+
+func (response StartNodeSyncSession200JSONResponse) VisitStartNodeSyncSessionResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type StartNodeSyncSession401JSONResponse struct{ UnauthorizedJSONResponse }
+
+func (response StartNodeSyncSession401JSONResponse) VisitStartNodeSyncSessionResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(401)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type StartNodeSyncSession403JSONResponse struct{ ForbiddenJSONResponse }
+
+func (response StartNodeSyncSession403JSONResponse) VisitStartNodeSyncSessionResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(403)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type StartNodeSyncSession404JSONResponse struct{ NotFoundJSONResponse }
+
+func (response StartNodeSyncSession404JSONResponse) VisitStartNodeSyncSessionResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(404)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type StartNodeSyncSession409JSONResponse struct{ ConflictJSONResponse }
+
+func (response StartNodeSyncSession409JSONResponse) VisitStartNodeSyncSessionResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(409)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
 type GetSystemStatusRequestObject struct {
 }
 
@@ -2997,6 +3315,12 @@ type StrictServerInterface interface {
 	// RevokeNode Permanently revoke a node Agent credential
 	// (POST /api/v1/nodes/{nodeId}/revoke)
 	RevokeNode(ctx context.Context, request RevokeNodeRequestObject) (RevokeNodeResponseObject, error)
+	// StopNodeSyncSession Stop the current temporary node sync session
+	// (DELETE /api/v1/nodes/{nodeId}/sync-session)
+	StopNodeSyncSession(ctx context.Context, request StopNodeSyncSessionRequestObject) (StopNodeSyncSessionResponseObject, error)
+	// StartNodeSyncSession Start or replace a ten-minute temporary node sync session
+	// (POST /api/v1/nodes/{nodeId}/sync-session)
+	StartNodeSyncSession(ctx context.Context, request StartNodeSyncSessionRequestObject) (StartNodeSyncSessionResponseObject, error)
 	// GetSystemStatus Read center status
 	// (GET /api/v1/system/status)
 	GetSystemStatus(ctx context.Context, request GetSystemStatusRequestObject) (GetSystemStatusResponseObject, error)
@@ -3611,6 +3935,60 @@ func (sh *strictHandler) RevokeNode(w http.ResponseWriter, r *http.Request, node
 		sh.options.ResponseErrorHandlerFunc(w, r, err)
 	} else if validResponse, ok := response.(RevokeNodeResponseObject); ok {
 		if err := validResponse.VisitRevokeNodeResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// StopNodeSyncSession operation middleware
+func (sh *strictHandler) StopNodeSyncSession(w http.ResponseWriter, r *http.Request, nodeId NodeId, params StopNodeSyncSessionParams) {
+	var request StopNodeSyncSessionRequestObject
+
+	request.NodeId = nodeId
+	request.Params = params
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.StopNodeSyncSession(ctx, request.(StopNodeSyncSessionRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "StopNodeSyncSession")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(StopNodeSyncSessionResponseObject); ok {
+		if err := validResponse.VisitStopNodeSyncSessionResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// StartNodeSyncSession operation middleware
+func (sh *strictHandler) StartNodeSyncSession(w http.ResponseWriter, r *http.Request, nodeId NodeId, params StartNodeSyncSessionParams) {
+	var request StartNodeSyncSessionRequestObject
+
+	request.NodeId = nodeId
+	request.Params = params
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.StartNodeSyncSession(ctx, request.(StartNodeSyncSessionRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "StartNodeSyncSession")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(StartNodeSyncSessionResponseObject); ok {
+		if err := validResponse.VisitStartNodeSyncSessionResponse(w); err != nil {
 			sh.options.ResponseErrorHandlerFunc(w, r, err)
 		}
 	} else if response != nil {

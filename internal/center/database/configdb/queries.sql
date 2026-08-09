@@ -256,3 +256,43 @@ VALUES (?, ?);
 SELECT node_id, capability
 FROM node_capabilities
 ORDER BY node_id, capability;
+
+-- name: GetNodeCapability :one
+SELECT capability
+FROM node_capabilities
+WHERE node_id = ? AND capability = ?;
+
+-- name: UpsertNodeSyncSession :exec
+INSERT INTO node_sync_sessions (
+    node_id, session_id, requested_at, expires_at
+) VALUES (?, ?, ?, ?)
+ON CONFLICT (node_id) DO UPDATE SET
+    session_id = excluded.session_id,
+    requested_at = excluded.requested_at,
+    expires_at = excluded.expires_at,
+    delivered_at = NULL;
+
+-- name: GetActiveNodeSyncSession :one
+SELECT node_id, session_id, requested_at, expires_at, delivered_at
+FROM node_sync_sessions
+WHERE node_id = ? AND expires_at > ?;
+
+-- name: GetActiveNodeSyncSessionByID :one
+SELECT node_id, session_id, requested_at, expires_at, delivered_at
+FROM node_sync_sessions
+WHERE node_id = ? AND session_id = ? AND expires_at > ?;
+
+-- name: ListNodeSyncSessions :many
+SELECT node_id, session_id, requested_at, expires_at, delivered_at
+FROM node_sync_sessions
+WHERE expires_at > ?
+ORDER BY node_id;
+
+-- name: MarkNodeSyncSessionDelivered :execrows
+UPDATE node_sync_sessions
+SET delivered_at = COALESCE(delivered_at, ?)
+WHERE node_id = ? AND session_id = ? AND expires_at > ?;
+
+-- name: DeleteNodeSyncSession :exec
+DELETE FROM node_sync_sessions
+WHERE node_id = ?;

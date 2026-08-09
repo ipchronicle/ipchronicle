@@ -7,11 +7,15 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"net/netip"
+	"strings"
 	"testing"
+	"time"
 
+	"github.com/coder/websocket"
 	"github.com/ipchronicle/ipchronicle/internal/center/admin"
 	"github.com/ipchronicle/ipchronicle/internal/center/database"
 	"github.com/ipchronicle/ipchronicle/internal/center/nodes"
+	"github.com/ipchronicle/ipchronicle/internal/center/syncws"
 	"github.com/ipchronicle/ipchronicle/internal/generated/api"
 )
 
@@ -59,7 +63,7 @@ func TestAdministratorLoginStatusAndLogout(t *testing.T) {
 	if err := json.NewDecoder(statusResponse.Body).Decode(&status); err != nil {
 		t.Fatal(err)
 	}
-	if status.Service != api.IpchronicleCenter || status.Status != api.Ok || !status.TransportWarning || status.ConfigSchemaVersion != 3 || status.HistorySchemaVersion != 1 {
+	if status.Service != api.IpchronicleCenter || status.Status != api.Ok || !status.TransportWarning || status.ConfigSchemaVersion != 4 || status.HistorySchemaVersion != 1 {
 		t.Fatalf("unexpected status response: %#v", status)
 	}
 
@@ -82,7 +86,7 @@ func TestMalformedJSONUsesStructuredError(t *testing.T) {
 }
 
 func TestAdministratorEnrollmentAndAgentCredentialBoundaries(t *testing.T) {
-	handler, nodeService := newTestHTTPHandlerWithNodes(t, nil)
+	handler, nodeService, _ := newTestHTTPHandlerWithNodes(t, nil)
 	unauthenticated := performRequest(handler, http.MethodGet, "/api/v1/agent-enrollment", nil, "", nil)
 	assertErrorCode(t, unauthenticated, http.StatusUnauthorized, api.Unauthenticated)
 
@@ -217,6 +221,92 @@ func TestAdministratorEnrollmentAndAgentCredentialBoundaries(t *testing.T) {
 	assertErrorCode(t, pollAfterRevoke, http.StatusForbidden, api.AgentRevoked)
 }
 
+func TestTemporarySyncWebSocketAuthenticationWakeAndStop(t *testing.T) {
+	ctx := context.Background()
+	handler, nodeService, syncHub := newTestHTTPHandlerWithNodes(t, nil)
+	enrollment, err := nodeService.RotateEnrollmentKey(ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
+	metadata := nodes.Metadata{
+		Hostname: "sync-edge", AgentVersion: "0.1.0", OperatingSystem: "linux", Architecture: "amd64",
+		Capabilities: []string{"control-v1", nodes.SyncWakeCapability},
+	}
+	registration, err := nodeService.Register(ctx, enrollment.Key, metadata)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := nodeService.StartSyncSession(ctx, registration.NodeID); err != nil {
+		t.Fatal(err)
+	}
+	poll, err := nodeService.Poll(ctx, registration.Credential, metadata, 0, nil, nil)
+	if err != nil || poll.SyncSession == nil {
+		t.Fatalf("sync poll = %#v, %v", poll, err)
+	}
+
+	server := httptest.NewServer(handler)
+	t.Cleanup(server.Close)
+	websocketURL := "ws" + strings.TrimPrefix(server.URL, "http") + "/api/v1/agent/sync/" + poll.SyncSession.ID.String()
+	_, response, err := websocket.Dial(ctx, websocketURL, nil)
+	if err == nil || response == nil || response.StatusCode != http.StatusUnauthorized {
+		t.Fatalf("unauthenticated WebSocket = HTTP %#v, %v", responseStatus(response), err)
+	}
+
+	connection, response, err := websocket.Dial(ctx, websocketURL, &websocket.DialOptions{
+		HTTPHeader: http.Header{"Authorization": []string{"Bearer " + registration.Credential}},
+	})
+	if err != nil {
+		t.Fatalf("authenticated WebSocket = HTTP %#v, %v", responseStatus(response), err)
+	}
+	t.Cleanup(func() { connection.CloseNow() })
+	readContext, cancel := context.WithTimeout(ctx, time.Second)
+	messageType, message, err := connection.Read(readContext)
+	cancel()
+	if err != nil || messageType != websocket.MessageText || string(message) != `{"type":"wake"}` {
+		t.Fatalf("initial WebSocket wake = %s %q, %v", messageType, message, err)
+	}
+	deadline := time.Now().Add(time.Second)
+	for !syncHub.Connected(registration.NodeID.String(), poll.SyncSession.ID.String()) {
+		if time.Now().After(deadline) {
+			t.Fatal("authenticated WebSocket was not registered")
+		}
+		time.Sleep(time.Millisecond)
+	}
+
+	if _, err := nodeService.SetEnabled(ctx, registration.NodeID, false); err != nil {
+		t.Fatal(err)
+	}
+	readContext, cancel = context.WithTimeout(ctx, time.Second)
+	messageType, message, err = connection.Read(readContext)
+	cancel()
+	if err != nil || messageType != websocket.MessageText || string(message) != `{"type":"wake"}` {
+		t.Fatalf("configuration WebSocket wake = %s %q, %v", messageType, message, err)
+	}
+	connectionClosed := make(chan error, 1)
+	go func() {
+		_, _, err := connection.Read(context.Background())
+		connectionClosed <- err
+	}()
+	if _, err := nodeService.StopSyncSession(ctx, registration.NodeID); err != nil {
+		t.Fatal(err)
+	}
+	select {
+	case err = <-connectionClosed:
+		if websocket.CloseStatus(err) != websocket.StatusNormalClosure {
+			t.Fatalf("stopped WebSocket close = %v", err)
+		}
+	case <-time.After(time.Second):
+		t.Fatal("stopped WebSocket remained open")
+	}
+}
+
+func responseStatus(response *http.Response) any {
+	if response == nil {
+		return nil
+	}
+	return response.StatusCode
+}
+
 func TestTrustedProxyControlsForwardedHTTPS(t *testing.T) {
 	prefix := netip.MustParsePrefix("10.0.0.0/8")
 	handler := newTestHTTPHandler(t, []netip.Prefix{prefix})
@@ -252,11 +342,11 @@ func TestUntrustedClientCannotSupplyForwardedHTTPS(t *testing.T) {
 
 func newTestHTTPHandler(t *testing.T, trustedProxies []netip.Prefix) http.Handler {
 	t.Helper()
-	handler, _ := newTestHTTPHandlerWithNodes(t, trustedProxies)
+	handler, _, _ := newTestHTTPHandlerWithNodes(t, trustedProxies)
 	return handler
 }
 
-func newTestHTTPHandlerWithNodes(t *testing.T, trustedProxies []netip.Prefix) (http.Handler, *nodes.Service) {
+func newTestHTTPHandlerWithNodes(t *testing.T, trustedProxies []netip.Prefix) (http.Handler, *nodes.Service, *syncws.Hub) {
 	t.Helper()
 	store, err := database.Open(context.Background(), database.PathsFromDataDirectory(t.TempDir()))
 	if err != nil {
@@ -267,11 +357,13 @@ func newTestHTTPHandlerWithNodes(t *testing.T, trustedProxies []netip.Prefix) (h
 	if err := administrator.Bootstrap(context.Background(), "admin", "admin"); err != nil {
 		t.Fatal(err)
 	}
-	nodeService := nodes.NewService(store.Config, store.History, store.ConfigQueries, store.MasterKey)
+	syncHub := syncws.NewHub()
+	nodeService := nodes.NewService(store.Config, store.History, store.ConfigQueries, store.MasterKey, syncHub)
 	return NewHTTPHandler(HTTPOptions{
 		Version: "0.0.0-test", Web: http.NotFoundHandler(),
-		Administrator: administrator, Nodes: nodeService, Store: store, TrustedProxies: trustedProxies,
-	}), nodeService
+		Administrator: administrator, Nodes: nodeService, SyncHub: syncHub,
+		Store: store, TrustedProxies: trustedProxies,
+	}), nodeService, syncHub
 }
 
 func loginBody() []byte {

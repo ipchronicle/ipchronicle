@@ -17,6 +17,7 @@ import (
 	"github.com/ipchronicle/ipchronicle/internal/center/admin"
 	"github.com/ipchronicle/ipchronicle/internal/center/database"
 	"github.com/ipchronicle/ipchronicle/internal/center/nodes"
+	"github.com/ipchronicle/ipchronicle/internal/center/syncws"
 	"github.com/ipchronicle/ipchronicle/internal/version"
 	"github.com/ipchronicle/ipchronicle/internal/webui"
 )
@@ -60,7 +61,8 @@ func serve() error {
 	if err := administrator.Bootstrap(context.Background(), configuration.AdminUsername, configuration.AdminPassword); err != nil {
 		return err
 	}
-	nodeService := nodes.NewService(store.Config, store.History, store.ConfigQueries, store.MasterKey)
+	syncHub := syncws.NewHub()
+	nodeService := nodes.NewService(store.Config, store.History, store.ConfigQueries, store.MasterKey, syncHub)
 
 	server := &http.Server{
 		Addr: configuration.ListenAddress,
@@ -69,6 +71,7 @@ func serve() error {
 			Web:            webui.Handler(),
 			Administrator:  administrator,
 			Nodes:          nodeService,
+			SyncHub:        syncHub,
 			Store:          store,
 			ExternalOrigin: configuration.ExternalOrigin,
 			TrustedProxies: configuration.TrustedProxies,
@@ -82,6 +85,7 @@ func serve() error {
 	go nodeService.RunDeletionWorker(shutdownContext, log.Default())
 	go func() {
 		<-shutdownContext.Done()
+		syncHub.CloseAll()
 		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 		defer cancel()
 		if err := server.Shutdown(ctx); err != nil {

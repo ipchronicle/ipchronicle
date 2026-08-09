@@ -35,7 +35,7 @@ curl --fail --silent --show-error \
 csrf_token="$(jq -er '.csrfToken' "$login_file")"
 curl --fail --silent --show-error --cookie "$cookie_file" \
   "$base_url/api/v1/system/status" >"$status_file"
-jq -e '.service == "ipchronicle-center" and .status == "ok" and .configSchemaVersion == 3 and .historySchemaVersion == 1 and (.version | length > 0)' "$status_file" >/dev/null
+jq -e '.service == "ipchronicle-center" and .status == "ok" and .configSchemaVersion == 4 and .historySchemaVersion == 1 and (.version | length > 0)' "$status_file" >/dev/null
 curl --fail --silent --show-error "$base_url/system/status" | grep -Fq '<div id="root"></div>'
 
 curl --fail --silent --show-error \

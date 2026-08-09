@@ -16,6 +16,8 @@ import {
   listNodes,
   revokeNode,
   rotateAgentEnrollmentKey,
+  startNodeSyncSession,
+  stopNodeSyncSession,
   updateNode,
   updateAgentEnrollment,
 } from "@/api/nodes";
@@ -45,6 +47,8 @@ vi.mock("@/api/nodes", () => ({
   listNodes: vi.fn(),
   revokeNode: vi.fn(),
   rotateAgentEnrollmentKey: vi.fn(),
+  startNodeSyncSession: vi.fn(),
+  stopNodeSyncSession: vi.fn(),
   updateNode: vi.fn(),
   updateAgentEnrollment: vi.fn(),
 }));
@@ -57,6 +61,8 @@ const getSystemStatusMock = vi.mocked(getSystemStatus);
 const getEnrollmentMock = vi.mocked(getAgentEnrollment);
 const listNodesMock = vi.mocked(listNodes);
 const rotateEnrollmentMock = vi.mocked(rotateAgentEnrollmentKey);
+const startSyncMock = vi.mocked(startNodeSyncSession);
+const stopSyncMock = vi.mocked(stopNodeSyncSession);
 const deleteNodeMock = vi.mocked(deleteNode);
 const revokeNodeMock = vi.mocked(revokeNode);
 const updateNodeMock = vi.mocked(updateNode);
@@ -77,7 +83,7 @@ const healthyStatus = {
   service: "ipchronicle-center" as const,
   status: "ok" as const,
   version: "0.0.0-test",
-  configSchemaVersion: 3,
+  configSchemaVersion: 4,
   historySchemaVersion: 1,
   transportSecurity: "http" as const,
   transportWarning: true,
@@ -98,6 +104,8 @@ describe("administrator application", () => {
     getEnrollmentMock.mockReset();
     listNodesMock.mockReset();
     rotateEnrollmentMock.mockReset();
+    startSyncMock.mockReset();
+    stopSyncMock.mockReset();
     deleteNodeMock.mockReset();
     revokeNodeMock.mockReset();
     updateNodeMock.mockReset();
@@ -199,7 +207,7 @@ describe("administrator application", () => {
         agentVersion: "0.1.0",
         operatingSystem: "linux",
         architecture: "amd64",
-        capabilities: ["control-v1"],
+        capabilities: ["control-v1", "sync-wakeup-v1"],
         desiredConfigurationRevision: 1,
         appliedConfigurationRevision: 1,
         configurationStatus: "current",
@@ -223,10 +231,44 @@ describe("administrator application", () => {
       agentVersion: "0.1.0",
       operatingSystem: "linux",
       architecture: "amd64",
-      capabilities: ["control-v1"],
+      capabilities: ["control-v1", "sync-wakeup-v1"],
       desiredConfigurationRevision: 2,
       appliedConfigurationRevision: 1,
       configurationStatus: "pending",
+      registeredAt: "2026-08-07T12:00:00Z",
+      lastSeenAt: "2026-08-07T12:01:00Z",
+    });
+    startSyncMock.mockResolvedValue({
+      id: "7289cfa3-a75d-4a3f-ac06-8f1074446a85",
+      name: "edge-1",
+      hostname: "edge-1",
+      status: "online",
+      enabled: true,
+      agentVersion: "0.1.0",
+      operatingSystem: "linux",
+      architecture: "amd64",
+      capabilities: ["control-v1", "sync-wakeup-v1"],
+      desiredConfigurationRevision: 1,
+      appliedConfigurationRevision: 1,
+      configurationStatus: "current",
+      syncStatus: "pending",
+      syncExpiresAt: "2026-08-07T12:11:00Z",
+      registeredAt: "2026-08-07T12:00:00Z",
+      lastSeenAt: "2026-08-07T12:01:00Z",
+    });
+    stopSyncMock.mockResolvedValue({
+      id: "7289cfa3-a75d-4a3f-ac06-8f1074446a85",
+      name: "edge-1",
+      hostname: "edge-1",
+      status: "online",
+      enabled: true,
+      agentVersion: "0.1.0",
+      operatingSystem: "linux",
+      architecture: "amd64",
+      capabilities: ["control-v1", "sync-wakeup-v1"],
+      desiredConfigurationRevision: 1,
+      appliedConfigurationRevision: 1,
+      configurationStatus: "current",
       registeredAt: "2026-08-07T12:00:00Z",
       lastSeenAt: "2026-08-07T12:01:00Z",
     });
@@ -247,6 +289,25 @@ describe("administrator application", () => {
     await waitFor(() =>
       expect(updateEnrollmentMock).toHaveBeenCalledWith(
         false,
+        session.csrfToken,
+      ),
+    );
+    fireEvent.click(
+      screen.getAllByRole("button", { name: "Start temporary sync" })[0],
+    );
+    await waitFor(() =>
+      expect(startSyncMock).toHaveBeenCalledWith(
+        "7289cfa3-a75d-4a3f-ac06-8f1074446a85",
+        session.csrfToken,
+      ),
+    );
+    expect(screen.getAllByText("Waiting for Agent").length).toBeGreaterThan(0);
+    fireEvent.click(
+      screen.getAllByRole("button", { name: "Stop temporary sync" })[0],
+    );
+    await waitFor(() =>
+      expect(stopSyncMock).toHaveBeenCalledWith(
+        "7289cfa3-a75d-4a3f-ac06-8f1074446a85",
         session.csrfToken,
       ),
     );

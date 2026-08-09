@@ -20,21 +20,31 @@ import (
 )
 
 const (
-	PollInterval = 30 * time.Second
-	OnlineWindow = 2 * time.Minute
+	PollInterval       = 30 * time.Second
+	OnlineWindow       = 2 * time.Minute
+	SyncSessionLease   = 10 * time.Minute
+	SyncWakeCapability = "sync-wakeup-v1"
 )
 
 var (
-	ErrEnrollmentKeyMissing = errors.New("Agent enrollment key has not been initialized")
-	ErrEnrollmentDisabled   = errors.New("Agent enrollment is disabled")
-	ErrEnrollmentKeyInvalid = errors.New("Agent enrollment key is invalid")
-	ErrAgentUnauthenticated = errors.New("Agent credential is invalid")
-	ErrAgentRevoked         = errors.New("Agent credential is revoked")
-	ErrInvalidMetadata      = errors.New("Agent metadata is invalid")
-	ErrNodeNotFound         = errors.New("node does not exist")
-	ErrNodeRevoked          = errors.New("node Agent credential is revoked")
-	ErrNodeDeletionPending  = errors.New("node deletion is pending")
+	ErrEnrollmentKeyMissing   = errors.New("Agent enrollment key has not been initialized")
+	ErrEnrollmentDisabled     = errors.New("Agent enrollment is disabled")
+	ErrEnrollmentKeyInvalid   = errors.New("Agent enrollment key is invalid")
+	ErrAgentUnauthenticated   = errors.New("Agent credential is invalid")
+	ErrAgentRevoked           = errors.New("Agent credential is revoked")
+	ErrInvalidMetadata        = errors.New("Agent metadata is invalid")
+	ErrNodeNotFound           = errors.New("node does not exist")
+	ErrNodeRevoked            = errors.New("node Agent credential is revoked")
+	ErrNodeDeletionPending    = errors.New("node deletion is pending")
+	ErrNodeSyncUnsupported    = errors.New("node Agent does not support temporary sync")
+	ErrSyncSessionUnavailable = errors.New("Agent sync session is unavailable")
 )
+
+type SyncConnections interface {
+	Connected(nodeID, sessionID string) bool
+	Wake(nodeID string)
+	Disconnect(nodeID string)
+}
 
 type Service struct {
 	database      *sql.DB
@@ -44,6 +54,7 @@ type Service struct {
 	now           func() time.Time
 	deletionWake  chan struct{}
 	deleteHistory func(context.Context, string) error
+	sync          SyncConnections
 }
 
 type Enrollment struct {
@@ -69,6 +80,18 @@ type Registration struct {
 type Poll struct {
 	DesiredConfigurationRevision int64
 	Enabled                      bool
+	SyncSession                  *SyncSession
+}
+
+type SyncSession struct {
+	ID        uuid.UUID
+	ExpiresAt time.Time
+}
+
+type SyncAuthorization struct {
+	NodeID    uuid.UUID
+	SessionID uuid.UUID
+	ExpiresAt time.Time
 }
 
 type Configuration struct {
@@ -102,17 +125,19 @@ type Node struct {
 	ConfigurationErrorRevision   *int64
 	DeletionStatus               *string
 	DeletionError                *string
+	SyncStatus                   *string
+	SyncExpiresAt                *time.Time
 	RegisteredAt                 time.Time
 	LastSeenAt                   *time.Time
 }
 
-func NewService(database, history *sql.DB, queries *configdb.Queries, masterKey [32]byte) *Service {
-	if database == nil || history == nil || queries == nil {
+func NewService(database, history *sql.DB, queries *configdb.Queries, masterKey [32]byte, syncConnections SyncConnections) *Service {
+	if database == nil || history == nil || queries == nil || syncConnections == nil {
 		panic("node service database dependencies must not be nil")
 	}
 	service := &Service{
 		database: database, history: history, queries: queries, masterKey: masterKey,
-		now: time.Now, deletionWake: make(chan struct{}, 1),
+		now: time.Now, deletionWake: make(chan struct{}, 1), sync: syncConnections,
 	}
 	service.deleteHistory = service.deleteNodeHistory
 	return service
@@ -256,12 +281,58 @@ func (s *Service) Poll(ctx context.Context, credential string, metadata Metadata
 	if err := replaceCapabilities(ctx, queries, node.ID, metadata.Capabilities); err != nil {
 		return Poll{}, err
 	}
+	var syncSession *SyncSession
+	session, err := queries.GetActiveNodeSyncSession(ctx, configdb.GetActiveNodeSyncSessionParams{
+		NodeID: node.ID, ExpiresAt: now,
+	})
+	if err == nil {
+		deliveredAt := now
+		changed, err := queries.MarkNodeSyncSessionDelivered(ctx, configdb.MarkNodeSyncSessionDeliveredParams{
+			DeliveredAt: &deliveredAt, NodeID: node.ID, SessionID: session.SessionID, ExpiresAt: now,
+		})
+		if err != nil {
+			return Poll{}, err
+		}
+		if changed != 1 {
+			return Poll{}, ErrSyncSessionUnavailable
+		}
+		sessionID, err := uuid.Parse(session.SessionID)
+		if err != nil {
+			return Poll{}, fmt.Errorf("parse stored sync session ID %q: %w", session.SessionID, err)
+		}
+		syncSession = &SyncSession{ID: sessionID, ExpiresAt: time.Unix(session.ExpiresAt, 0).UTC()}
+	} else if !errors.Is(err, sql.ErrNoRows) {
+		return Poll{}, err
+	}
 	if err := transaction.Commit(); err != nil {
 		return Poll{}, err
 	}
 	return Poll{
 		DesiredConfigurationRevision: node.DesiredConfigurationRevision,
-		Enabled:                      node.Enabled == 1,
+		Enabled:                      node.Enabled == 1, SyncSession: syncSession,
+	}, nil
+}
+
+func (s *Service) AuthorizeSync(ctx context.Context, credential string, sessionID uuid.UUID) (SyncAuthorization, error) {
+	node, err := s.authenticateAgent(ctx, credential)
+	if err != nil {
+		return SyncAuthorization{}, err
+	}
+	record, err := s.queries.GetActiveNodeSyncSessionByID(ctx, configdb.GetActiveNodeSyncSessionByIDParams{
+		NodeID: node.ID, SessionID: sessionID.String(), ExpiresAt: s.now().UTC().Unix(),
+	})
+	if errors.Is(err, sql.ErrNoRows) {
+		return SyncAuthorization{}, ErrSyncSessionUnavailable
+	}
+	if err != nil {
+		return SyncAuthorization{}, err
+	}
+	nodeID, err := uuid.Parse(record.NodeID)
+	if err != nil {
+		return SyncAuthorization{}, fmt.Errorf("parse stored node ID %q: %w", record.NodeID, err)
+	}
+	return SyncAuthorization{
+		NodeID: nodeID, SessionID: sessionID, ExpiresAt: time.Unix(record.ExpiresAt, 0).UTC(),
 	}, nil
 }
 
@@ -302,6 +373,14 @@ func (s *Service) List(ctx context.Context) ([]Node, error) {
 		deletions[deletion.NodeID] = deletion
 	}
 	now := s.now().UTC()
+	syncRecords, err := s.queries.ListNodeSyncSessions(ctx, now.Unix())
+	if err != nil {
+		return nil, err
+	}
+	syncSessions := make(map[string]configdb.NodeSyncSession, len(syncRecords))
+	for _, session := range syncRecords {
+		syncSessions[session.NodeID] = session
+	}
 	nodes := make([]Node, 0, len(records))
 	for _, record := range records {
 		id, err := uuid.Parse(record.ID)
@@ -344,6 +423,19 @@ func (s *Service) List(ctx context.Context) ([]Node, error) {
 			node.DeletionStatus = &status
 			node.DeletionError = deletion.LastError
 		}
+		if session, found := syncSessions[record.ID]; found {
+			syncStatus := "pending"
+			if session.DeliveredAt != nil {
+				if s.sync.Connected(record.ID, session.SessionID) {
+					syncStatus = "connected"
+				} else {
+					syncStatus = "degraded"
+				}
+			}
+			expiresAt := time.Unix(session.ExpiresAt, 0).UTC()
+			node.SyncStatus = &syncStatus
+			node.SyncExpiresAt = &expiresAt
+		}
 		nodes = append(nodes, node)
 	}
 	return nodes, nil
@@ -384,7 +476,8 @@ func (s *Service) SetEnabled(ctx context.Context, id uuid.UUID, enabled bool) (N
 	if record.RevokedAt != nil {
 		return Node{}, ErrNodeRevoked
 	}
-	if (record.Enabled == 1) != enabled {
+	changedConfiguration := (record.Enabled == 1) != enabled
+	if changedConfiguration {
 		value := boolInteger(enabled)
 		changed, err := queries.SetNodeEnabled(ctx, configdb.SetNodeEnabledParams{
 			Enabled: value, ID: id.String(), Enabled_2: value,
@@ -399,6 +492,75 @@ func (s *Service) SetEnabled(ctx context.Context, id uuid.UUID, enabled bool) (N
 	if err := transaction.Commit(); err != nil {
 		return Node{}, err
 	}
+	if changedConfiguration {
+		s.sync.Wake(id.String())
+	}
+	return s.Get(ctx, id)
+}
+
+func (s *Service) StartSyncSession(ctx context.Context, id uuid.UUID) (Node, error) {
+	now := s.now().UTC().Truncate(time.Second)
+	transaction, err := s.database.BeginTx(ctx, nil)
+	if err != nil {
+		return Node{}, err
+	}
+	defer transaction.Rollback()
+	queries := s.queries.WithTx(transaction)
+	record, err := queries.GetNodeByID(ctx, id.String())
+	if errors.Is(err, sql.ErrNoRows) {
+		return Node{}, ErrNodeNotFound
+	}
+	if err != nil {
+		return Node{}, err
+	}
+	if record.RevokedAt != nil {
+		return Node{}, ErrNodeRevoked
+	}
+	if deletion, deletionErr := queries.GetNodeDeletion(ctx, id.String()); deletionErr == nil && deletion.Status != "completed" {
+		return Node{}, ErrNodeDeletionPending
+	} else if deletionErr != nil && !errors.Is(deletionErr, sql.ErrNoRows) {
+		return Node{}, deletionErr
+	}
+	if _, err := queries.GetNodeCapability(ctx, configdb.GetNodeCapabilityParams{
+		NodeID: id.String(), Capability: SyncWakeCapability,
+	}); errors.Is(err, sql.ErrNoRows) {
+		return Node{}, ErrNodeSyncUnsupported
+	} else if err != nil {
+		return Node{}, err
+	}
+	sessionID := uuid.New()
+	if err := queries.UpsertNodeSyncSession(ctx, configdb.UpsertNodeSyncSessionParams{
+		NodeID: id.String(), SessionID: sessionID.String(), RequestedAt: now.Unix(),
+		ExpiresAt: now.Add(SyncSessionLease).Unix(),
+	}); err != nil {
+		return Node{}, err
+	}
+	if err := transaction.Commit(); err != nil {
+		return Node{}, err
+	}
+	s.sync.Disconnect(id.String())
+	return s.Get(ctx, id)
+}
+
+func (s *Service) StopSyncSession(ctx context.Context, id uuid.UUID) (Node, error) {
+	transaction, err := s.database.BeginTx(ctx, nil)
+	if err != nil {
+		return Node{}, err
+	}
+	defer transaction.Rollback()
+	queries := s.queries.WithTx(transaction)
+	if _, err := queries.GetNodeByID(ctx, id.String()); errors.Is(err, sql.ErrNoRows) {
+		return Node{}, ErrNodeNotFound
+	} else if err != nil {
+		return Node{}, err
+	}
+	if err := queries.DeleteNodeSyncSession(ctx, id.String()); err != nil {
+		return Node{}, err
+	}
+	if err := transaction.Commit(); err != nil {
+		return Node{}, err
+	}
+	s.sync.Disconnect(id.String())
 	return s.Get(ctx, id)
 }
 
@@ -436,9 +598,13 @@ func (s *Service) Revoke(ctx context.Context, id uuid.UUID) (Node, error) {
 	}); err != nil {
 		return Node{}, err
 	}
+	if err := queries.DeleteNodeSyncSession(ctx, id.String()); err != nil {
+		return Node{}, err
+	}
 	if err := transaction.Commit(); err != nil {
 		return Node{}, err
 	}
+	s.sync.Disconnect(id.String())
 	return s.Get(ctx, id)
 }
 
@@ -467,6 +633,9 @@ func (s *Service) Delete(ctx context.Context, id uuid.UUID) (Deletion, error) {
 	}); err != nil {
 		return Deletion{}, err
 	}
+	if err := queries.DeleteNodeSyncSession(ctx, id.String()); err != nil {
+		return Deletion{}, err
+	}
 	if err := queries.CreateNodeDeletion(ctx, configdb.CreateNodeDeletionParams{
 		NodeID: id.String(), CredentialDigest: record.CredentialDigest,
 		RequestedAt: now, UpdatedAt: now,
@@ -480,6 +649,7 @@ func (s *Service) Delete(ctx context.Context, id uuid.UUID) (Deletion, error) {
 	if err := transaction.Commit(); err != nil {
 		return Deletion{}, err
 	}
+	s.sync.Disconnect(id.String())
 	select {
 	case s.deletionWake <- struct{}{}:
 	default:

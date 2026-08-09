@@ -6,6 +6,7 @@ import {
   LoaderCircle,
   Pause,
   Play,
+  RadioTower,
   RefreshCw,
   RotateCw,
   Server,
@@ -13,6 +14,7 @@ import {
   Terminal,
   Trash2,
   TriangleAlert,
+  Unplug,
   Wifi,
   WifiOff,
 } from "lucide-react";
@@ -24,6 +26,8 @@ import {
   listNodes,
   revokeNode,
   rotateAgentEnrollmentKey,
+  startNodeSyncSession,
+  stopNodeSyncSession,
   updateNode,
   updateAgentEnrollment,
   type AgentEnrollmentSettings,
@@ -106,12 +110,21 @@ export function NodesPage() {
   useEffect(() => {
     const controller = new AbortController();
     void load(controller.signal, true);
-    const interval = window.setInterval(() => void load(), 30_000);
-    return () => {
-      controller.abort();
-      window.clearInterval(interval);
-    };
+    return () => controller.abort();
   }, [load]);
+
+  const hasActiveSync =
+    state.kind === "success" &&
+    state.nodes.some((node) => node.syncStatus !== undefined);
+
+  useEffect(() => {
+    if (state.kind !== "success") return;
+    const interval = window.setInterval(
+      () => void load(),
+      hasActiveSync ? 3_000 : 30_000,
+    );
+    return () => window.clearInterval(interval);
+  }, [hasActiveSync, load, state.kind]);
 
   const csrfToken =
     authState.status === "authenticated" ? authState.session.csrfToken : "";
@@ -464,7 +477,7 @@ function NodeListCard({
         </CardContent>
       ) : (
         <>
-          <div className="hidden md:block">
+          <div className="hidden lg:block">
             <Table>
               <TableHeader>
                 <TableRow>
@@ -475,7 +488,7 @@ function NodeListCard({
                   <TableHead className="text-right">
                     {t("nodes.inventory.lastSeen")}
                   </TableHead>
-                  <TableHead className="w-28 text-right">
+                  <TableHead className="w-36 text-right">
                     <span className="sr-only">{t("nodes.actions.title")}</span>
                   </TableHead>
                 </TableRow>
@@ -517,7 +530,7 @@ function NodeListCard({
               </TableBody>
             </Table>
           </div>
-          <CardContent className="divide-y p-0 md:hidden">
+          <CardContent className="divide-y p-0 lg:hidden">
             {nodes.map((node) => (
               <div className="space-y-4 p-4" key={node.id}>
                 <div className="flex items-start justify-between gap-3">
@@ -620,43 +633,62 @@ function NodeActions({
   onDeletionQueued: (deletion: NodeDeletion) => void;
 }) {
   const { t } = useTranslation();
-  const [working, setWorking] = useState(false);
+  const [working, setWorking] = useState<
+    "toggle" | "sync" | "revoke" | "delete"
+  >();
   const [error, setError] = useState<string>();
   const deletionPending = node.deletionStatus === "pending";
+  const supportsSync = node.capabilities.includes("sync-wakeup-v1");
 
   async function toggleEnabled() {
-    setWorking(true);
+    setWorking("toggle");
     setError(undefined);
     try {
       onNodeChange(await updateNode(node.id, !node.enabled, csrfToken));
     } catch (cause) {
       setError(formatAPIError(cause, t));
     } finally {
-      setWorking(false);
+      setWorking(undefined);
+    }
+  }
+
+  async function toggleSync() {
+    setWorking("sync");
+    setError(undefined);
+    try {
+      onNodeChange(
+        await (node.syncStatus === undefined
+          ? startNodeSyncSession(node.id, csrfToken)
+          : stopNodeSyncSession(node.id, csrfToken)),
+      );
+    } catch (cause) {
+      setError(formatAPIError(cause, t));
+    } finally {
+      setWorking(undefined);
     }
   }
 
   async function revoke() {
-    setWorking(true);
+    setWorking("revoke");
     setError(undefined);
     try {
       onNodeChange(await revokeNode(node.id, csrfToken));
     } catch (cause) {
       setError(formatAPIError(cause, t));
     } finally {
-      setWorking(false);
+      setWorking(undefined);
     }
   }
 
   async function remove() {
-    setWorking(true);
+    setWorking("delete");
     setError(undefined);
     try {
       onDeletionQueued(await deleteNode(node.id, csrfToken));
     } catch (cause) {
       setError(formatAPIError(cause, t));
     } finally {
-      setWorking(false);
+      setWorking(undefined);
     }
   }
 
@@ -668,7 +700,7 @@ function NodeActions({
             <Button
               variant="ghost"
               size="icon-sm"
-              disabled={working}
+              disabled={working !== undefined}
               aria-label={
                 node.enabled
                   ? t("nodes.actions.disable")
@@ -676,7 +708,7 @@ function NodeActions({
               }
               onClick={() => void toggleEnabled()}
             >
-              {working ? (
+              {working === "toggle" ? (
                 <LoaderCircle className="animate-spin" aria-hidden="true" />
               ) : node.enabled ? (
                 <Pause aria-hidden="true" />
@@ -694,6 +726,44 @@ function NodeActions({
       ) : null}
 
       {node.status !== "revoked" && node.deletionStatus === undefined ? (
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <span className="inline-flex">
+              <Button
+                variant="ghost"
+                size="icon-sm"
+                disabled={
+                  working !== undefined ||
+                  (node.syncStatus === undefined && !supportsSync)
+                }
+                aria-label={
+                  node.syncStatus === undefined
+                    ? t("nodes.sync.start")
+                    : t("nodes.sync.stop")
+                }
+                onClick={() => void toggleSync()}
+              >
+                {working === "sync" ? (
+                  <LoaderCircle className="animate-spin" aria-hidden="true" />
+                ) : node.syncStatus === undefined ? (
+                  <RadioTower aria-hidden="true" />
+                ) : (
+                  <Unplug aria-hidden="true" />
+                )}
+              </Button>
+            </span>
+          </TooltipTrigger>
+          <TooltipContent>
+            {node.syncStatus === undefined && !supportsSync
+              ? t("nodes.sync.unsupported")
+              : node.syncStatus === undefined
+                ? t("nodes.sync.start")
+                : t("nodes.sync.stop")}
+          </TooltipContent>
+        </Tooltip>
+      ) : null}
+
+      {node.status !== "revoked" && node.deletionStatus === undefined ? (
         <AlertDialog>
           <Tooltip>
             <TooltipTrigger asChild>
@@ -701,7 +771,7 @@ function NodeActions({
                 <Button
                   variant="ghost"
                   size="icon-sm"
-                  disabled={working}
+                  disabled={working !== undefined}
                   aria-label={t("nodes.actions.revoke")}
                 >
                   <ShieldX aria-hidden="true" />
@@ -742,7 +812,7 @@ function NodeActions({
               <Button
                 variant="ghost"
                 size="icon-sm"
-                disabled={working || deletionPending}
+                disabled={working !== undefined || deletionPending}
                 aria-label={
                   node.deletionStatus === "failed"
                     ? t("nodes.actions.retryDeletion")
@@ -807,10 +877,38 @@ function ConfigurationStatus({ node }: { node: Node }) {
     failed: t("nodes.configuration.failed"),
   };
   return (
-    <span title={node.configurationError}>
-      {labels[node.configurationStatus]} · {node.appliedConfigurationRevision}/
-      {node.desiredConfigurationRevision}
-    </span>
+    <div className="space-y-2">
+      <span title={node.configurationError}>
+        {labels[node.configurationStatus]} · {node.appliedConfigurationRevision}
+        /{node.desiredConfigurationRevision}
+      </span>
+      {node.syncStatus !== undefined ? <SyncStatus node={node} /> : null}
+    </div>
+  );
+}
+
+function SyncStatus({ node }: { node: Node }) {
+  const { t } = useTranslation();
+  const labels = {
+    pending: t("nodes.sync.pending"),
+    connected: t("nodes.sync.connected"),
+    degraded: t("nodes.sync.degraded"),
+  };
+  if (node.syncStatus === undefined) return null;
+  return (
+    <div className="flex flex-wrap items-center gap-2">
+      <Badge variant={node.syncStatus === "degraded" ? "secondary" : "outline"}>
+        {node.syncStatus === "degraded" ? (
+          <TriangleAlert aria-hidden="true" />
+        ) : (
+          <RadioTower aria-hidden="true" />
+        )}
+        {labels[node.syncStatus]}
+      </Badge>
+      <span className="text-xs text-muted-foreground">
+        {t("nodes.sync.until")} <NodeTime value={node.syncExpiresAt} />
+      </span>
+    </div>
   );
 }
 

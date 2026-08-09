@@ -373,6 +373,54 @@ func (s apiServer) RevokeNode(ctx context.Context, request api.RevokeNodeRequest
 	return api.RevokeNode200JSONResponse(nodeResponse(node)), nil
 }
 
+func (s apiServer) StartNodeSyncSession(ctx context.Context, request api.StartNodeSyncSessionRequestObject) (api.StartNodeSyncSessionResponseObject, error) {
+	_, failure, err := s.authorize(ctx, true, csrfValue(request.Params.XCSRFToken))
+	if err != nil {
+		return nil, err
+	}
+	if failure == api.Unauthenticated {
+		return api.StartNodeSyncSession401JSONResponse{UnauthorizedJSONResponse: unauthorized(failure)}, nil
+	}
+	if failure != "" {
+		return api.StartNodeSyncSession403JSONResponse{ForbiddenJSONResponse: forbidden(failure)}, nil
+	}
+	node, err := s.nodes.StartSyncSession(ctx, request.NodeId)
+	switch {
+	case errors.Is(err, nodes.ErrNodeNotFound):
+		return api.StartNodeSyncSession404JSONResponse{NotFoundJSONResponse: notFound(api.NodeNotFound)}, nil
+	case errors.Is(err, nodes.ErrNodeRevoked):
+		return api.StartNodeSyncSession409JSONResponse{ConflictJSONResponse: conflict(api.NodeRevoked)}, nil
+	case errors.Is(err, nodes.ErrNodeDeletionPending):
+		return api.StartNodeSyncSession409JSONResponse{ConflictJSONResponse: conflict(api.NodeDeletionPending)}, nil
+	case errors.Is(err, nodes.ErrNodeSyncUnsupported):
+		return api.StartNodeSyncSession409JSONResponse{ConflictJSONResponse: conflict(api.NodeSyncUnsupported)}, nil
+	case err != nil:
+		return nil, err
+	}
+	return api.StartNodeSyncSession200JSONResponse(nodeResponse(node)), nil
+}
+
+func (s apiServer) StopNodeSyncSession(ctx context.Context, request api.StopNodeSyncSessionRequestObject) (api.StopNodeSyncSessionResponseObject, error) {
+	_, failure, err := s.authorize(ctx, true, csrfValue(request.Params.XCSRFToken))
+	if err != nil {
+		return nil, err
+	}
+	if failure == api.Unauthenticated {
+		return api.StopNodeSyncSession401JSONResponse{UnauthorizedJSONResponse: unauthorized(failure)}, nil
+	}
+	if failure != "" {
+		return api.StopNodeSyncSession403JSONResponse{ForbiddenJSONResponse: forbidden(failure)}, nil
+	}
+	node, err := s.nodes.StopSyncSession(ctx, request.NodeId)
+	if errors.Is(err, nodes.ErrNodeNotFound) {
+		return api.StopNodeSyncSession404JSONResponse{NotFoundJSONResponse: notFound(api.NodeNotFound)}, nil
+	}
+	if err != nil {
+		return nil, err
+	}
+	return api.StopNodeSyncSession200JSONResponse(nodeResponse(node)), nil
+}
+
 func (s apiServer) DeleteNode(ctx context.Context, request api.DeleteNodeRequestObject) (api.DeleteNodeResponseObject, error) {
 	_, failure, err := s.authorize(ctx, true, csrfValue(request.Params.XCSRFToken))
 	if err != nil {
@@ -492,10 +540,17 @@ func (s apiServer) PollAgent(ctx context.Context, request api.PollAgentRequestOb
 	case err != nil:
 		return nil, err
 	}
-	return api.PollAgent200JSONResponse{
+	result := api.PollAgent200JSONResponse{
 		CenterVersion: s.version, DesiredConfigurationRevision: poll.DesiredConfigurationRevision,
 		Enabled: poll.Enabled, PollIntervalSeconds: int(nodes.PollInterval / time.Second),
-	}, nil
+	}
+	if poll.SyncSession != nil {
+		result.SyncSession = &api.AgentSyncSession{
+			Id: poll.SyncSession.ID, ExpiresAt: poll.SyncSession.ExpiresAt,
+			WebsocketPath: "/api/v1/agent/sync/" + poll.SyncSession.ID.String(),
+		}
+	}
+	return result, nil
 }
 
 func (s apiServer) GetAgentConfiguration(ctx context.Context, _ api.GetAgentConfigurationRequestObject) (api.GetAgentConfigurationResponseObject, error) {
@@ -627,6 +682,8 @@ func nodeResponse(node nodes.Node) api.Node {
 		ConfigurationError:           node.ConfigurationError,
 		DeletionStatus:               deletionStatus(node.DeletionStatus),
 		DeletionError:                node.DeletionError,
+		SyncStatus:                   syncStatus(node.SyncStatus),
+		SyncExpiresAt:                node.SyncExpiresAt,
 		RegisteredAt:                 node.RegisteredAt, LastSeenAt: node.LastSeenAt,
 	}
 }
@@ -643,6 +700,14 @@ func deletionStatus(status *string) *api.NodeDeletionStatus {
 		return nil
 	}
 	value := api.NodeDeletionStatus(*status)
+	return &value
+}
+
+func syncStatus(status *string) *api.NodeSyncStatus {
+	if status == nil {
+		return nil
+	}
+	value := api.NodeSyncStatus(*status)
 	return &value
 }
 

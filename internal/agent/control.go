@@ -29,6 +29,13 @@ type ControlClient struct {
 	client *agentapi.ClientWithResponses
 }
 
+type pollOutcome struct {
+	interval    time.Duration
+	applied     bool
+	received    bool
+	syncSession *agentapi.AgentSyncSession
+}
+
 func NewControlClient(centerURL string) (*ControlClient, error) {
 	normalized, err := NormalizeCenterURL(centerURL)
 	if err != nil {
@@ -107,6 +114,9 @@ func Enroll(ctx context.Context, store *state.Store, centerURL, registrationKey,
 }
 
 func Run(ctx context.Context, store *state.Store, version string, logger *log.Logger) error {
+	if logger == nil {
+		logger = log.Default()
+	}
 	identity, err := store.Identity()
 	if err != nil {
 		return err
@@ -120,6 +130,8 @@ func Run(ctx context.Context, store *state.Store, version string, logger *log.Lo
 		return err
 	}
 	interval := 30 * time.Second
+	syncManager := newSyncManager(ctx, identity.CenterURL, identity.Credential, logger)
+	defer syncManager.Close()
 	logger.Printf("Agent %s polling %s", identity.NodeID, identity.CenterURL)
 	for {
 		controlState, err := store.ControlState()
@@ -130,7 +142,7 @@ func Run(ctx context.Context, store *state.Store, version string, logger *log.Lo
 			logger.Printf("Agent %s is revoked; control polling has stopped", identity.NodeID)
 			return nil
 		}
-		pollInterval, applied, err := client.poll(ctx, store, identity, metadata, controlState)
+		outcome, err := client.poll(ctx, store, identity, metadata, controlState)
 		if errors.Is(err, ErrAgentRevoked) {
 			if markErr := store.MarkRevoked(); markErr != nil {
 				return errors.Join(err, markErr)
@@ -141,10 +153,13 @@ func Run(ctx context.Context, store *state.Store, version string, logger *log.Lo
 		if err != nil && !errors.Is(err, context.Canceled) {
 			logger.Printf("control poll failed: %v", err)
 		}
-		if pollInterval >= 5*time.Second && pollInterval <= time.Hour {
-			interval = pollInterval
+		if outcome.received {
+			syncManager.Update(outcome.syncSession)
 		}
-		if applied {
+		if outcome.interval >= 5*time.Second && outcome.interval <= time.Hour {
+			interval = outcome.interval
+		}
+		if outcome.applied {
 			continue
 		}
 		timer := time.NewTimer(interval)
@@ -155,11 +170,15 @@ func Run(ctx context.Context, store *state.Store, version string, logger *log.Lo
 			}
 			return nil
 		case <-timer.C:
+		case <-syncManager.Wake():
+			if !timer.Stop() {
+				<-timer.C
+			}
 		}
 	}
 }
 
-func (c *ControlClient) poll(ctx context.Context, store *state.Store, identity state.Identity, metadata agentapi.AgentMetadata, controlState state.ControlState) (time.Duration, bool, error) {
+func (c *ControlClient) poll(ctx context.Context, store *state.Store, identity state.Identity, metadata agentapi.AgentMetadata, controlState state.ControlState) (pollOutcome, error) {
 	response, err := c.client.PollAgentWithResponse(ctx, agentapi.AgentPollRequest{
 		AppliedConfigurationRevision: controlState.AppliedConfigurationRevision,
 		ConfigurationError:           controlState.ConfigurationError,
@@ -170,17 +189,20 @@ func (c *ControlClient) poll(ctx context.Context, store *state.Store, identity s
 		return nil
 	})
 	if err != nil {
-		return 0, false, err
+		return pollOutcome{}, err
 	}
 	if response.JSON200 == nil {
-		return 0, false, responseError("poll center", response.StatusCode(), response.JSON400, response.JSON401, response.JSON403)
+		return pollOutcome{}, responseError("poll center", response.StatusCode(), response.JSON400, response.JSON401, response.JSON403)
 	}
-	interval := time.Duration(response.JSON200.PollIntervalSeconds) * time.Second
+	outcome := pollOutcome{
+		interval: time.Duration(response.JSON200.PollIntervalSeconds) * time.Second,
+		received: true, syncSession: response.JSON200.SyncSession,
+	}
 	if response.JSON200.DesiredConfigurationRevision == controlState.AppliedConfigurationRevision {
-		return interval, false, nil
+		return outcome, nil
 	}
 	if response.JSON200.DesiredConfigurationRevision < controlState.AppliedConfigurationRevision {
-		return interval, false, errors.New("center desired configuration revision moved backwards")
+		return outcome, errors.New("center desired configuration revision moved backwards")
 	}
 	desiredRevision := response.JSON200.DesiredConfigurationRevision
 	configuration, err := c.configuration(ctx, identity.Credential, desiredRevision)
@@ -189,14 +211,15 @@ func (c *ControlClient) poll(ctx context.Context, store *state.Store, identity s
 	}
 	if err != nil {
 		if errors.Is(err, ErrAgentRevoked) {
-			return interval, false, err
+			return outcome, err
 		}
 		if recordErr := store.RecordConfigurationFailure(desiredRevision, err); recordErr != nil {
-			return interval, false, errors.Join(err, recordErr)
+			return outcome, errors.Join(err, recordErr)
 		}
-		return interval, false, fmt.Errorf("apply configuration revision %d: %w", desiredRevision, err)
+		return outcome, fmt.Errorf("apply configuration revision %d: %w", desiredRevision, err)
 	}
-	return interval, true, nil
+	outcome.applied = true
+	return outcome, nil
 }
 
 func (c *ControlClient) configuration(ctx context.Context, credential string, desiredRevision int64) (state.Configuration, error) {
@@ -272,7 +295,7 @@ func currentMetadata(version string) (agentapi.AgentMetadata, error) {
 	return agentapi.AgentMetadata{
 		Hostname: hostname, AgentVersion: version,
 		OperatingSystem: agentapi.Linux, Architecture: agentapi.AgentArchitecture(runtime.GOARCH),
-		Capabilities: []string{controlCapability, "configuration-v1"},
+		Capabilities: []string{controlCapability, "configuration-v1", syncWakeCapability},
 	}, nil
 }
 

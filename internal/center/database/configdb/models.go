@@ -66,6 +66,14 @@ type NodeDeletionOperation struct {
 	LastError        *string
 }
 
+type NodeSyncSession struct {
+	NodeID      string
+	SessionID   string
+	RequestedAt int64
+	ExpiresAt   int64
+	DeliveredAt *int64
+}
+
 type RevokedAgentCredential struct {
 	CredentialDigest []byte
 	RevokedAt        int64

@@ -349,6 +349,49 @@ paths:
           $ref: "#/components/responses/NotFound"
         "409":
           $ref: "#/components/responses/Conflict"
+  /api/v1/nodes/{nodeId}/sync-session:
+    parameters:
+      - $ref: "#/components/parameters/NodeId"
+    post:
+      operationId: startNodeSyncSession
+      summary: Start or replace a ten-minute temporary node sync session
+      tags: [nodes]
+      parameters:
+        - $ref: "#/components/parameters/CSRFToken"
+      responses:
+        "200":
+          description: The temporary sync session was started.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Node"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "409":
+          $ref: "#/components/responses/Conflict"
+    delete:
+      operationId: stopNodeSyncSession
+      summary: Stop the current temporary node sync session
+      tags: [nodes]
+      parameters:
+        - $ref: "#/components/parameters/CSRFToken"
+      responses:
+        "200":
+          description: The temporary sync session is stopped.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Node"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
   /api/v1/agent-enrollment:
     get:
       operationId: getAgentEnrollment
@@ -690,6 +733,8 @@ components:
         - node_not_found
         - node_revoked
         - node_deletion_pending
+        - node_sync_unsupported
+        - sync_session_unavailable
         - internal_error
     ErrorResponse:
       type: object
@@ -863,6 +908,22 @@ components:
           type: integer
           minimum: 1
           maximum: 3600
+        syncSession:
+          $ref: "#/components/schemas/AgentSyncSession"
+    AgentSyncSession:
+      type: object
+      additionalProperties: false
+      required: [id, expiresAt, websocketPath]
+      properties:
+        id:
+          type: string
+          format: uuid
+        expiresAt:
+          type: string
+          format: date-time
+        websocketPath:
+          type: string
+          pattern: "^/api/v1/agent/sync/[0-9a-f-]{36}$"
     AgentConfigurationSnapshot:
       type: object
       additionalProperties: false
@@ -889,6 +950,9 @@ components:
     NodeDeletionStatus:
       type: string
       enum: [pending, failed]
+    NodeSyncStatus:
+      type: string
+      enum: [pending, connected, degraded]
     NodeUpdate:
       type: object
       additionalProperties: false
@@ -972,6 +1036,11 @@ components:
           $ref: "#/components/schemas/NodeDeletionStatus"
         deletionError:
           type: string
+        syncStatus:
+          $ref: "#/components/schemas/NodeSyncStatus"
+        syncExpiresAt:
+          type: string
+          format: date-time
         registeredAt:
           type: string
           format: date-time

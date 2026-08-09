@@ -214,6 +214,16 @@ func (q *Queries) DeleteNodeCapabilities(ctx context.Context, nodeID string) err
 	return err
 }
 
+const deleteNodeSyncSession = `-- name: DeleteNodeSyncSession :exec
+DELETE FROM node_sync_sessions
+WHERE node_id = ?
+`
+
+func (q *Queries) DeleteNodeSyncSession(ctx context.Context, nodeID string) error {
+	_, err := q.db.ExecContext(ctx, deleteNodeSyncSession, nodeID)
+	return err
+}
+
 const disableTOTP = `-- name: DisableTOTP :exec
 UPDATE administrators
 SET totp_secret_encrypted = NULL, totp_enabled = 0,
@@ -252,6 +262,55 @@ type FailNodeDeletionParams struct {
 func (q *Queries) FailNodeDeletion(ctx context.Context, arg FailNodeDeletionParams) error {
 	_, err := q.db.ExecContext(ctx, failNodeDeletion, arg.UpdatedAt, arg.LastError, arg.NodeID)
 	return err
+}
+
+const getActiveNodeSyncSession = `-- name: GetActiveNodeSyncSession :one
+SELECT node_id, session_id, requested_at, expires_at, delivered_at
+FROM node_sync_sessions
+WHERE node_id = ? AND expires_at > ?
+`
+
+type GetActiveNodeSyncSessionParams struct {
+	NodeID    string
+	ExpiresAt int64
+}
+
+func (q *Queries) GetActiveNodeSyncSession(ctx context.Context, arg GetActiveNodeSyncSessionParams) (NodeSyncSession, error) {
+	row := q.db.QueryRowContext(ctx, getActiveNodeSyncSession, arg.NodeID, arg.ExpiresAt)
+	var i NodeSyncSession
+	err := row.Scan(
+		&i.NodeID,
+		&i.SessionID,
+		&i.RequestedAt,
+		&i.ExpiresAt,
+		&i.DeliveredAt,
+	)
+	return i, err
+}
+
+const getActiveNodeSyncSessionByID = `-- name: GetActiveNodeSyncSessionByID :one
+SELECT node_id, session_id, requested_at, expires_at, delivered_at
+FROM node_sync_sessions
+WHERE node_id = ? AND session_id = ? AND expires_at > ?
+`
+
+type GetActiveNodeSyncSessionByIDParams struct {
+	NodeID    string
+	SessionID string
+	ExpiresAt int64
+}
+
+func (q *Queries) GetActiveNodeSyncSessionByID(ctx context.Context, arg GetActiveNodeSyncSessionByIDParams) (NodeSyncSession, error) {
+	row := q.db.QueryRowContext(ctx, getActiveNodeSyncSessionByID, arg.NodeID, arg.SessionID, arg.ExpiresAt)
+	var i NodeSyncSession
+	err := row.Scan(
+		&i.NodeID,
+		&i.SessionID,
+		&i.RequestedAt,
+		&i.ExpiresAt,
+		&i.DeliveredAt,
+	)
+	return i, err
 }
 
 const getAdministrator = `-- name: GetAdministrator :one
@@ -416,6 +475,24 @@ func (q *Queries) GetNodeByID(ctx context.Context, id string) (Node, error) {
 	return i, err
 }
 
+const getNodeCapability = `-- name: GetNodeCapability :one
+SELECT capability
+FROM node_capabilities
+WHERE node_id = ? AND capability = ?
+`
+
+type GetNodeCapabilityParams struct {
+	NodeID     string
+	Capability string
+}
+
+func (q *Queries) GetNodeCapability(ctx context.Context, arg GetNodeCapabilityParams) (string, error) {
+	row := q.db.QueryRowContext(ctx, getNodeCapability, arg.NodeID, arg.Capability)
+	var capability string
+	err := row.Scan(&capability)
+	return capability, err
+}
+
 const getNodeDeletion = `-- name: GetNodeDeletion :one
 SELECT node_id, credential_digest, status, requested_at, updated_at, last_error
 FROM node_deletion_operations
@@ -547,6 +624,42 @@ func (q *Queries) ListNodeCapabilities(ctx context.Context) ([]NodeCapability, e
 	return items, nil
 }
 
+const listNodeSyncSessions = `-- name: ListNodeSyncSessions :many
+SELECT node_id, session_id, requested_at, expires_at, delivered_at
+FROM node_sync_sessions
+WHERE expires_at > ?
+ORDER BY node_id
+`
+
+func (q *Queries) ListNodeSyncSessions(ctx context.Context, expiresAt int64) ([]NodeSyncSession, error) {
+	rows, err := q.db.QueryContext(ctx, listNodeSyncSessions, expiresAt)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []NodeSyncSession{}
+	for rows.Next() {
+		var i NodeSyncSession
+		if err := rows.Scan(
+			&i.NodeID,
+			&i.SessionID,
+			&i.RequestedAt,
+			&i.ExpiresAt,
+			&i.DeliveredAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const listNodes = `-- name: ListNodes :many
 SELECT id, name, hostname, credential_digest, enabled, revoked_at,
        agent_version, operating_system, architecture,
@@ -594,6 +707,32 @@ func (q *Queries) ListNodes(ctx context.Context) ([]Node, error) {
 		return nil, err
 	}
 	return items, nil
+}
+
+const markNodeSyncSessionDelivered = `-- name: MarkNodeSyncSessionDelivered :execrows
+UPDATE node_sync_sessions
+SET delivered_at = COALESCE(delivered_at, ?)
+WHERE node_id = ? AND session_id = ? AND expires_at > ?
+`
+
+type MarkNodeSyncSessionDeliveredParams struct {
+	DeliveredAt *int64
+	NodeID      string
+	SessionID   string
+	ExpiresAt   int64
+}
+
+func (q *Queries) MarkNodeSyncSessionDelivered(ctx context.Context, arg MarkNodeSyncSessionDeliveredParams) (int64, error) {
+	result, err := q.db.ExecContext(ctx, markNodeSyncSessionDelivered,
+		arg.DeliveredAt,
+		arg.NodeID,
+		arg.SessionID,
+		arg.ExpiresAt,
+	)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected()
 }
 
 const promotePendingHistoryGeneration = `-- name: PromotePendingHistoryGeneration :execrows
@@ -837,6 +976,34 @@ func (q *Queries) UpsertAgentEnrollmentKey(ctx context.Context, arg UpsertAgentE
 		arg.KeyEncrypted,
 		arg.CreatedAt,
 		arg.RotatedAt,
+	)
+	return err
+}
+
+const upsertNodeSyncSession = `-- name: UpsertNodeSyncSession :exec
+INSERT INTO node_sync_sessions (
+    node_id, session_id, requested_at, expires_at
+) VALUES (?, ?, ?, ?)
+ON CONFLICT (node_id) DO UPDATE SET
+    session_id = excluded.session_id,
+    requested_at = excluded.requested_at,
+    expires_at = excluded.expires_at,
+    delivered_at = NULL
+`
+
+type UpsertNodeSyncSessionParams struct {
+	NodeID      string
+	SessionID   string
+	RequestedAt int64
+	ExpiresAt   int64
+}
+
+func (q *Queries) UpsertNodeSyncSession(ctx context.Context, arg UpsertNodeSyncSessionParams) error {
+	_, err := q.db.ExecContext(ctx, upsertNodeSyncSession,
+		arg.NodeID,
+		arg.SessionID,
+		arg.RequestedAt,
+		arg.ExpiresAt,
 	)
 	return err
 }

@@ -92,11 +92,15 @@ test("generates an Agent installation command from the nodes page", async ({
         agentVersion: "0.1.0-e2e",
         operatingSystem: "linux",
         architecture: "amd64",
-        capabilities: ["control-v1", "configuration-v1"],
+        capabilities: ["control-v1", "configuration-v1", "sync-wakeup-v1"],
       },
     },
   });
   expect(registration.status()).toBe(201);
+  const registered = (await registration.json()) as {
+    credential: string;
+    nodeId: string;
+  };
 
   await page.reload();
   const responsiveItem = (text: string) => {
@@ -106,6 +110,34 @@ test("generates an Agent installation command from the nodes page", async ({
       : items.first();
   };
   await expect(responsiveItem("edge-e2e")).toBeVisible();
+  await page.getByRole("button", { name: "Start temporary sync" }).click();
+  await expect(responsiveItem("Waiting for Agent")).toBeVisible();
+
+  const poll = await page.request.post("/api/v1/agent/control", {
+    headers: { Authorization: `Bearer ${registered.credential}` },
+    data: {
+      appliedConfigurationRevision: 0,
+      metadata: {
+        hostname: "edge-e2e",
+        agentVersion: "0.1.0-e2e",
+        operatingSystem: "linux",
+        architecture: "amd64",
+        capabilities: ["control-v1", "configuration-v1", "sync-wakeup-v1"],
+      },
+    },
+  });
+  expect(poll.status()).toBe(200);
+  await page.reload();
+  await expect(responsiveItem("Using normal polling")).toBeVisible();
+  await page.screenshot({
+    path: testInfo.outputPath("sync-degraded.png"),
+    fullPage: true,
+  });
+  await page.getByRole("button", { name: "Stop temporary sync" }).click();
+  await expect(
+    page.getByRole("button", { name: "Start temporary sync" }),
+  ).toBeVisible();
+
   await page.getByRole("button", { name: "Pause node" }).click();
   await expect(responsiveItem("Disabled")).toBeVisible();
   await expect(responsiveItem("Pending · 0/2")).toBeVisible();
