@@ -461,6 +461,164 @@ func (s apiServer) GetNodeNetwork(ctx context.Context, request api.GetNodeNetwor
 	return api.GetNodeNetwork200JSONResponse(networkStateResponse(state)), nil
 }
 
+func (s apiServer) GetNodeProbe(ctx context.Context, request api.GetNodeProbeRequestObject) (api.GetNodeProbeResponseObject, error) {
+	_, failure, err := s.authorize(ctx, false, "")
+	if err != nil {
+		return nil, err
+	}
+	if failure != "" {
+		return api.GetNodeProbe401JSONResponse{UnauthorizedJSONResponse: unauthorized(failure)}, nil
+	}
+	state, err := s.nodes.Probe(ctx, request.NodeId)
+	if errors.Is(err, nodes.ErrNodeNotFound) {
+		return api.GetNodeProbe404JSONResponse{NotFoundJSONResponse: notFound(api.NodeNotFound)}, nil
+	}
+	if err != nil {
+		return nil, err
+	}
+	return api.GetNodeProbe200JSONResponse(probeStateResponse(state)), nil
+}
+
+func (s apiServer) UpdateNodeProbeSettings(ctx context.Context, request api.UpdateNodeProbeSettingsRequestObject) (api.UpdateNodeProbeSettingsResponseObject, error) {
+	_, failure, err := s.authorize(ctx, true, csrfValue(request.Params.XCSRFToken))
+	if err != nil {
+		return nil, err
+	}
+	if failure == api.Unauthenticated {
+		return api.UpdateNodeProbeSettings401JSONResponse{UnauthorizedJSONResponse: unauthorized(failure)}, nil
+	}
+	if failure != "" {
+		return api.UpdateNodeProbeSettings403JSONResponse{ForbiddenJSONResponse: forbidden(failure)}, nil
+	}
+	if request.Body == nil {
+		return api.UpdateNodeProbeSettings400JSONResponse{BadRequestJSONResponse: badRequest(api.InvalidRequest)}, nil
+	}
+	state, err := s.nodes.UpdateProbeSettings(ctx, request.NodeId, nodes.ProbeSettingsUpdate{
+		Schedule: nodes.ProbeSchedule{
+			Enabled: request.Body.Schedule.Enabled,
+			Cron:    request.Body.Schedule.Cron, Timezone: request.Body.Schedule.Timezone,
+		},
+		LowMemoryOverride: request.Body.LowMemoryOverride,
+	})
+	switch {
+	case errors.Is(err, nodes.ErrInvalidProbeSettings):
+		return api.UpdateNodeProbeSettings400JSONResponse{BadRequestJSONResponse: badRequest(api.InvalidProbeSettings)}, nil
+	case errors.Is(err, nodes.ErrNodeNotFound):
+		return api.UpdateNodeProbeSettings404JSONResponse{NotFoundJSONResponse: notFound(api.NodeNotFound)}, nil
+	case errors.Is(err, nodes.ErrNodeRevoked):
+		return api.UpdateNodeProbeSettings409JSONResponse{ConflictJSONResponse: conflict(api.NodeRevoked)}, nil
+	case errors.Is(err, nodes.ErrNodeDeletionPending):
+		return api.UpdateNodeProbeSettings409JSONResponse{ConflictJSONResponse: conflict(api.NodeDeletionPending)}, nil
+	case err != nil:
+		return nil, err
+	}
+	return api.UpdateNodeProbeSettings200JSONResponse(probeStateResponse(state)), nil
+}
+
+func (s apiServer) CreateCompleteProbeTask(ctx context.Context, request api.CreateCompleteProbeTaskRequestObject) (api.CreateCompleteProbeTaskResponseObject, error) {
+	_, failure, err := s.authorize(ctx, true, csrfValue(request.Params.XCSRFToken))
+	if err != nil {
+		return nil, err
+	}
+	if failure == api.Unauthenticated {
+		return api.CreateCompleteProbeTask401JSONResponse{UnauthorizedJSONResponse: unauthorized(failure)}, nil
+	}
+	if failure != "" {
+		return api.CreateCompleteProbeTask403JSONResponse{ForbiddenJSONResponse: forbidden(failure)}, nil
+	}
+	task, err := s.nodes.CreateCompleteProbeTask(ctx, request.NodeId)
+	switch {
+	case errors.Is(err, nodes.ErrNodeNotFound):
+		return api.CreateCompleteProbeTask404JSONResponse{NotFoundJSONResponse: notFound(api.NodeNotFound)}, nil
+	case errors.Is(err, nodes.ErrNodeRevoked):
+		return api.CreateCompleteProbeTask409JSONResponse{ConflictJSONResponse: conflict(api.NodeRevoked)}, nil
+	case errors.Is(err, nodes.ErrNodeDisabled):
+		return api.CreateCompleteProbeTask409JSONResponse{ConflictJSONResponse: conflict(api.NodeDisabled)}, nil
+	case errors.Is(err, nodes.ErrNodeOffline):
+		return api.CreateCompleteProbeTask409JSONResponse{ConflictJSONResponse: conflict(api.NodeOffline)}, nil
+	case errors.Is(err, nodes.ErrProbeTaskSlotOccupied):
+		return api.CreateCompleteProbeTask409JSONResponse{ConflictJSONResponse: conflict(api.ProbeTaskSlotOccupied)}, nil
+	case errors.Is(err, nodes.ErrProbeAlreadyRunning):
+		return api.CreateCompleteProbeTask409JSONResponse{ConflictJSONResponse: conflict(api.ProbeAlreadyRunning)}, nil
+	case errors.Is(err, nodes.ErrProbePausedLowMemory):
+		return api.CreateCompleteProbeTask409JSONResponse{ConflictJSONResponse: conflict(api.ProbePausedLowMemory)}, nil
+	case errors.Is(err, nodes.ErrNoEnabledEgress):
+		return api.CreateCompleteProbeTask409JSONResponse{ConflictJSONResponse: conflict(api.NoEnabledEgress)}, nil
+	case err != nil:
+		return nil, err
+	}
+	return api.CreateCompleteProbeTask202JSONResponse(probeTaskResponse(task)), nil
+}
+
+func (s apiServer) GetProbeRun(ctx context.Context, request api.GetProbeRunRequestObject) (api.GetProbeRunResponseObject, error) {
+	_, failure, err := s.authorize(ctx, false, "")
+	if err != nil {
+		return nil, err
+	}
+	if failure != "" {
+		return api.GetProbeRun401JSONResponse{UnauthorizedJSONResponse: unauthorized(failure)}, nil
+	}
+	run, err := s.nodes.ProbeRun(ctx, request.RunId)
+	if errors.Is(err, nodes.ErrProbeRunNotFound) {
+		return api.GetProbeRun404JSONResponse{NotFoundJSONResponse: notFound(api.ProbeRunNotFound)}, nil
+	}
+	if err != nil {
+		return nil, err
+	}
+	return api.GetProbeRun200JSONResponse(probeRunResponse(run)), nil
+}
+
+func (s apiServer) GetProbeSnapshot(ctx context.Context, request api.GetProbeSnapshotRequestObject) (api.GetProbeSnapshotResponseObject, error) {
+	_, failure, err := s.authorize(ctx, false, "")
+	if err != nil {
+		return nil, err
+	}
+	if failure != "" {
+		return api.GetProbeSnapshot401JSONResponse{UnauthorizedJSONResponse: unauthorized(failure)}, nil
+	}
+	snapshot, err := s.nodes.ProbeSnapshot(ctx, request.SnapshotId)
+	if errors.Is(err, nodes.ErrProbeSnapshotNotFound) {
+		return api.GetProbeSnapshot404JSONResponse{NotFoundJSONResponse: notFound(api.ProbeSnapshotNotFound)}, nil
+	}
+	if err != nil {
+		return nil, err
+	}
+	return api.GetProbeSnapshot200JSONResponse(probeSnapshotResponse(snapshot)), nil
+}
+
+func (s apiServer) GetHistoryState(ctx context.Context, _ api.GetHistoryStateRequestObject) (api.GetHistoryStateResponseObject, error) {
+	_, failure, err := s.authorize(ctx, false, "")
+	if err != nil {
+		return nil, err
+	}
+	if failure != "" {
+		return api.GetHistoryState401JSONResponse{UnauthorizedJSONResponse: unauthorized(failure)}, nil
+	}
+	state, err := s.nodes.History(ctx)
+	if err != nil {
+		return nil, err
+	}
+	return api.GetHistoryState200JSONResponse(historyStateResponse(state)), nil
+}
+
+func (s apiServer) ResetHistory(ctx context.Context, request api.ResetHistoryRequestObject) (api.ResetHistoryResponseObject, error) {
+	_, failure, err := s.authorize(ctx, true, csrfValue(request.Params.XCSRFToken))
+	if err != nil {
+		return nil, err
+	}
+	if failure == api.Unauthenticated {
+		return api.ResetHistory401JSONResponse{UnauthorizedJSONResponse: unauthorized(failure)}, nil
+	}
+	if failure != "" {
+		return api.ResetHistory403JSONResponse{ForbiddenJSONResponse: forbidden(failure)}, nil
+	}
+	state, err := s.nodes.ResetHistory(ctx)
+	if err != nil {
+		return nil, err
+	}
+	return api.ResetHistory200JSONResponse(historyStateResponse(state)), nil
+}
+
 func (s apiServer) GetNetworkObservationSettings(ctx context.Context, _ api.GetNetworkObservationSettingsRequestObject) (api.GetNetworkObservationSettingsResponseObject, error) {
 	_, failure, err := s.authorize(ctx, false, "")
 	if err != nil {
@@ -795,12 +953,14 @@ func (s apiServer) PollAgent(ctx context.Context, request api.PollAgentRequestOb
 		return api.PollAgent400JSONResponse{BadRequestJSONResponse: badRequest(api.InvalidRequest)}, nil
 	}
 	credential := bearerToken(requestSecurityFromContext(ctx).Authorization)
+	upload := addressUploadFromAPI(request.Body.AddressStates, request.Body.AddressEvents, request.Body.AddressGaps)
+	upload.ProbeStatus = probeStatusFromAPI(request.Body.ProbeStatus)
+	upload.TaskReport = taskReportFromAPI(request.Body.TaskReport)
 	poll, err := s.nodes.Poll(
 		ctx, credential, metadataFromAPI(request.Body.Metadata),
 		request.Body.AppliedConfigurationRevision, request.Body.ConfigurationError,
 		request.Body.ConfigurationErrorRevision, networkInventoryFromAPI(request.Body.NetworkInventory),
-		request.Body.NetworkInventoryError,
-		addressUploadFromAPI(request.Body.AddressStates, request.Body.AddressEvents, request.Body.AddressGaps),
+		request.Body.NetworkInventoryError, upload,
 	)
 	switch {
 	case errors.Is(err, nodes.ErrInvalidMetadata):
@@ -823,6 +983,13 @@ func (s apiServer) PollAgent(ctx context.Context, request api.PollAgentRequestOb
 			WebsocketPath: "/api/v1/agent/sync/" + poll.SyncSession.ID.String(),
 		}
 	}
+	if poll.Task != nil {
+		result.Task = &api.AgentTask{
+			Id: poll.Task.ID, Kind: api.AgentTaskKind("complete-probe"),
+			CreatedAt: poll.Task.CreatedAt, ExpiresAt: poll.Task.ExpiresAt,
+		}
+	}
+	result.AcceptedTerminalTaskId = poll.AcceptedTerminalTaskID
 	return result, nil
 }
 
@@ -858,10 +1025,37 @@ func (s apiServer) GetAgentConfiguration(ctx context.Context, _ api.GetAgentConf
 		SchemaVersion: api.AgentConfigurationSnapshotSchemaVersion(configuration.SchemaVersion),
 		Revision:      configuration.Revision, Enabled: configuration.Enabled,
 		HistoryGeneration: configuration.HistoryGeneration, Egresses: egresses, Proxies: proxies,
+		ProbeSchedule: api.ProbeSchedule{
+			Enabled: configuration.ProbeSchedule.Enabled,
+			Cron:    configuration.ProbeSchedule.Cron, Timezone: configuration.ProbeSchedule.Timezone,
+		},
+		ProbeLowMemoryOverride: configuration.ProbeLowMemoryOverride,
 		DiscoveryServices: api.NetworkObservationSettingsUpdate{
 			Ipv4Services: configuration.DiscoveryServices.IPv4,
 			Ipv6Services: configuration.DiscoveryServices.IPv6,
 		},
+	}, nil
+}
+
+func (s apiServer) UploadProbeArtifact(ctx context.Context, request api.UploadProbeArtifactRequestObject) (api.UploadProbeArtifactResponseObject, error) {
+	if request.Body == nil {
+		return api.UploadProbeArtifact400JSONResponse{BadRequestJSONResponse: badRequest(api.InvalidRequest)}, nil
+	}
+	credential := bearerToken(requestSecurityFromContext(ctx).Authorization)
+	receipt, err := s.nodes.UploadProbeArtifact(ctx, credential, probeArtifactFromAPI(*request.Body))
+	switch {
+	case errors.Is(err, nodes.ErrInvalidProbeArtifact):
+		return api.UploadProbeArtifact400JSONResponse{BadRequestJSONResponse: badRequest(api.InvalidRequest)}, nil
+	case errors.Is(err, nodes.ErrAgentUnauthenticated):
+		return api.UploadProbeArtifact401JSONResponse{AgentUnauthorizedJSONResponse: agentUnauthorized(api.AgentUnauthenticated)}, nil
+	case errors.Is(err, nodes.ErrAgentRevoked):
+		return api.UploadProbeArtifact403JSONResponse{AgentForbiddenJSONResponse: agentForbidden(api.AgentRevoked)}, nil
+	case err != nil:
+		return nil, err
+	}
+	return api.UploadProbeArtifact200JSONResponse{
+		ArtifactId: receipt.ID, Revision: receipt.Revision,
+		Disposition: api.AgentProbeArtifactDisposition(receipt.Disposition),
 	}, nil
 }
 
@@ -939,7 +1133,7 @@ func metadataFromAPI(metadata api.AgentMetadata) nodes.Metadata {
 	return nodes.Metadata{
 		Hostname: metadata.Hostname, AgentVersion: metadata.AgentVersion,
 		OperatingSystem: string(metadata.OperatingSystem), Architecture: string(metadata.Architecture),
-		Capabilities: metadata.Capabilities,
+		Capabilities: metadata.Capabilities, PhysicalMemoryBytes: metadata.PhysicalMemoryBytes,
 	}
 }
 
@@ -1009,6 +1203,194 @@ func nodeResponse(node nodes.Node) api.Node {
 		SyncExpiresAt:                node.SyncExpiresAt,
 		RegisteredAt:                 node.RegisteredAt, LastSeenAt: node.LastSeenAt,
 	}
+}
+
+func probeStateResponse(state nodes.ProbeState) api.NodeProbeState {
+	response := api.NodeProbeState{
+		NodeId: state.NodeID,
+		Schedule: api.ProbeSchedule{
+			Enabled: state.Schedule.Enabled, Cron: state.Schedule.Cron, Timezone: state.Schedule.Timezone,
+		},
+		LowMemoryOverride: state.LowMemoryOverride, PhysicalMemoryBytes: state.PhysicalMemoryBytes,
+		PausedLowMemory: state.PausedLowMemory,
+		RecentRuns:      make([]api.ProbeRunSummary, 0, len(state.RecentRuns)),
+	}
+	if state.AgentStatus != nil {
+		response.AgentStatus = probeStatusResponse(*state.AgentStatus)
+	}
+	if state.Task != nil {
+		task := probeTaskResponse(*state.Task)
+		response.Task = &task
+	}
+	for _, run := range state.RecentRuns {
+		response.RecentRuns = append(response.RecentRuns, api.ProbeRunSummary{
+			Id: run.ID, NodeId: run.NodeID, Trigger: api.ProbeTrigger(run.Trigger),
+			StartedAt: run.StartedAt, CompletedAt: run.CompletedAt, Status: api.ProbeRunStatus(run.Status),
+			ExpectedExecutions: int(run.ExpectedExecutions), CompletedExecutions: int(run.CompletedExecutions),
+		})
+	}
+	return response
+}
+
+func probeStatusResponse(status nodes.ProbeStatus) *api.AgentProbeStatus {
+	response := &api.AgentProbeStatus{
+		ActiveRunId: status.ActiveRunID, NextScheduledAt: status.NextScheduledAt,
+		LastOccurrenceAt:       status.LastOccurrenceAt,
+		HistoryResetGeneration: status.HistoryResetGeneration, HistoryResetAt: status.HistoryResetAt,
+		HistoryResetDiscardedAddressItems: &status.HistoryResetDiscardedAddressItems,
+		HistoryResetDiscardedProbeItems:   &status.HistoryResetDiscardedProbeItems,
+	}
+	if status.LastOccurrenceTrigger != nil {
+		value := api.ProbeTrigger(*status.LastOccurrenceTrigger)
+		response.LastOccurrenceTrigger = &value
+	}
+	if status.LastOccurrenceStatus != nil {
+		value := api.AgentProbeOccurrenceStatus(*status.LastOccurrenceStatus)
+		response.LastOccurrenceStatus = &value
+	}
+	if status.LastSkipReason != nil {
+		value := api.AgentProbeSkipReason(*status.LastSkipReason)
+		response.LastSkipReason = &value
+	}
+	return response
+}
+
+func probeTaskResponse(task nodes.Task) api.ProbeTask {
+	response := api.ProbeTask{
+		Id: task.ID, NodeId: task.NodeID, Status: api.ProbeTaskStatus(task.Status),
+		CreatedAt: task.CreatedAt, ExpiresAt: task.ExpiresAt,
+		AcknowledgedAt: task.AcknowledgedAt, StartedAt: task.StartedAt, CompletedAt: task.CompletedAt,
+		RunId: task.RunID, Offline: task.Offline,
+	}
+	if task.RejectionReason != nil {
+		value := api.AgentProbeSkipReason(*task.RejectionReason)
+		response.RejectionReason = &value
+	}
+	return response
+}
+
+func probeRunResponse(run nodes.ProbeRun) api.ProbeRun {
+	response := api.ProbeRun{
+		Id: run.ID, NodeId: run.NodeID, ConfigurationRevision: run.ConfigurationRevision,
+		HistoryGeneration: run.HistoryGeneration, Trigger: api.ProbeTrigger(run.Trigger),
+		TaskId: run.TaskID, TriggeringEgressId: run.TriggeringEgressID,
+		StartedAt: run.StartedAt, CompletedAt: run.CompletedAt, Status: api.ProbeRunStatus(run.Status),
+		ExpectedExecutions: int(run.ExpectedExecutions), Executions: make([]api.ProbeExecution, 0, len(run.Executions)),
+	}
+	for _, execution := range run.Executions {
+		item := api.ProbeExecution{
+			Id: execution.ID, RunId: execution.RunID, EgressId: execution.EgressID,
+			Ordinal: int(execution.Ordinal), Sequence: execution.Sequence,
+			Status: api.ProbeExecutionStatus(execution.Status), StartedAt: execution.StartedAt,
+			CompletedAt: execution.CompletedAt, Diagnostic: execution.Diagnostic, SnapshotId: execution.SnapshotID,
+		}
+		if execution.FailureStage != nil {
+			value := api.ProbeFailureStage(*execution.FailureStage)
+			item.FailureStage = &value
+		}
+		response.Executions = append(response.Executions, item)
+	}
+	return response
+}
+
+func probeSnapshotResponse(snapshot nodes.ProbeSnapshot) api.ProbeSnapshot {
+	return api.ProbeSnapshot{
+		Id: snapshot.ID, ExecutionId: snapshot.ExecutionID, EgressId: snapshot.EgressID,
+		Sequence: snapshot.Sequence, ObservedAt: snapshot.ObservedAt, RawResult: snapshot.RawResult,
+	}
+}
+
+func historyStateResponse(state nodes.HistoryState) api.HistoryState {
+	return api.HistoryState{Generation: state.Generation, ResetAt: state.ResetAt}
+}
+
+func probeStatusFromAPI(status *api.AgentProbeStatus) *nodes.ProbeStatus {
+	if status == nil {
+		return nil
+	}
+	result := &nodes.ProbeStatus{
+		ActiveRunID: status.ActiveRunId, NextScheduledAt: status.NextScheduledAt,
+		LastOccurrenceAt:       status.LastOccurrenceAt,
+		HistoryResetGeneration: status.HistoryResetGeneration, HistoryResetAt: status.HistoryResetAt,
+	}
+	if status.HistoryResetDiscardedAddressItems != nil {
+		result.HistoryResetDiscardedAddressItems = *status.HistoryResetDiscardedAddressItems
+	}
+	if status.HistoryResetDiscardedProbeItems != nil {
+		result.HistoryResetDiscardedProbeItems = *status.HistoryResetDiscardedProbeItems
+	}
+	if status.LastOccurrenceTrigger != nil {
+		value := string(*status.LastOccurrenceTrigger)
+		result.LastOccurrenceTrigger = &value
+	}
+	if status.LastOccurrenceStatus != nil {
+		value := string(*status.LastOccurrenceStatus)
+		result.LastOccurrenceStatus = &value
+	}
+	if status.LastSkipReason != nil {
+		value := string(*status.LastSkipReason)
+		result.LastSkipReason = &value
+	}
+	return result
+}
+
+func taskReportFromAPI(report *api.AgentTaskReport) *nodes.TaskReport {
+	if report == nil {
+		return nil
+	}
+	result := &nodes.TaskReport{
+		ID: report.Id, Status: string(report.Status), AcknowledgedAt: report.AcknowledgedAt,
+		StartedAt: report.StartedAt, CompletedAt: report.CompletedAt, RunID: report.RunId,
+	}
+	if report.RejectionReason != nil {
+		value := string(*report.RejectionReason)
+		result.RejectionReason = &value
+	}
+	return result
+}
+
+func probeArtifactFromAPI(artifact api.AgentProbeArtifact) nodes.ProbeArtifact {
+	result := nodes.ProbeArtifact{ID: artifact.ArtifactId, Revision: artifact.Revision}
+	if artifact.Run != nil {
+		run := artifact.Run
+		result.Run = &nodes.ProbeRunArtifact{
+			ID: run.Id, ConfigurationRevision: run.NodeConfigurationRevision,
+			HistoryGeneration: run.HistoryGeneration, Trigger: string(run.Trigger),
+			TaskID: run.TaskId, TriggeringEgressID: run.TriggeringEgressId,
+			StartedAt: run.StartedAt, CompletedAt: run.CompletedAt, Status: string(run.Status),
+			Executions: make([]nodes.ProbeExecutionManifest, 0, len(run.Executions)),
+		}
+		for _, execution := range run.Executions {
+			result.Run.Executions = append(result.Run.Executions, nodes.ProbeExecutionManifest{
+				ID: execution.Id, EgressID: execution.EgressId,
+				Ordinal: int64(execution.Ordinal), Sequence: execution.Sequence,
+			})
+		}
+	}
+	if artifact.Execution != nil {
+		execution := artifact.Execution
+		result.Execution = &nodes.ProbeExecutionArtifact{
+			ID: execution.Id, EgressID: execution.EgressId, Ordinal: int64(execution.Ordinal),
+			Sequence: execution.Sequence, Status: string(execution.Status),
+			StartedAt: execution.StartedAt, CompletedAt: execution.CompletedAt, Diagnostic: execution.Diagnostic,
+		}
+		if execution.FailureStage != nil {
+			value := string(*execution.FailureStage)
+			result.Execution.FailureStage = &value
+		}
+		if execution.RawResult != nil {
+			result.Execution.RawResult = append([]byte(nil), (*execution.RawResult)...)
+		}
+	}
+	if artifact.Gap != nil {
+		gap := artifact.Gap
+		result.Gap = &nodes.ProbeGapArtifact{
+			ID: gap.Id, EgressID: gap.EgressId, HistoryGeneration: gap.HistoryGeneration,
+			DroppedCount: gap.DroppedCount, FirstSequence: gap.FirstSequence, LastSequence: gap.LastSequence,
+			FirstObservedAt: gap.FirstObservedAt, LastObservedAt: gap.LastObservedAt,
+		}
+	}
+	return result
 }
 
 func networkStateResponse(state nodes.NodeNetworkState) api.NodeNetworkState {

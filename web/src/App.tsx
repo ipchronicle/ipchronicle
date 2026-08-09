@@ -7,10 +7,14 @@ import { Card, CardContent } from "@/components/ui/card";
 import { SidebarInset, SidebarProvider } from "@/components/ui/sidebar";
 import { Skeleton } from "@/components/ui/skeleton";
 import { AccountPage } from "@/pages/account-page";
+import { HistorySettingsPage } from "@/pages/history-settings-page";
 import { LoginPage } from "@/pages/login-page";
 import { NodeNetworkPage } from "@/pages/node-network-page";
+import { NodeProbePage } from "@/pages/node-probe-page";
 import { NetworkSettingsPage } from "@/pages/network-settings-page";
 import { NodesPage } from "@/pages/nodes-page";
+import { ProbeRunPage } from "@/pages/probe-run-page";
+import { ProbeSnapshotPage } from "@/pages/probe-snapshot-page";
 import { SystemStatusPage } from "@/pages/system-status-page";
 
 function App() {
@@ -46,8 +50,15 @@ function App() {
           <Route path="/system/status" element={<SystemStatusPage />} />
           <Route path="/nodes" element={<NodesPage />} />
           <Route path="/nodes/:nodeId/network" element={<NodeNetworkPage />} />
+          <Route path="/nodes/:nodeId/probe" element={<NodeProbePage />} />
+          <Route path="/probe-runs/:runId" element={<ProbeRunPage />} />
+          <Route
+            path="/probe-snapshots/:snapshotId"
+            element={<ProbeSnapshotPage />}
+          />
           <Route path="/settings/account" element={<AccountPage />} />
           <Route path="/settings/network" element={<NetworkSettingsPage />} />
+          <Route path="/settings/history" element={<HistorySettingsPage />} />
           <Route path="/login" element={<Navigate to="/" replace />} />
           <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>

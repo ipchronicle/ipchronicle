@@ -20,22 +20,22 @@ import (
 
 // Defines values for AddressEventKind.
 const (
-	AddressChange    AddressEventKind = "address-change"
-	CheckFailure     AddressEventKind = "check-failure"
-	FirstObservation AddressEventKind = "first-observation"
-	Recovery         AddressEventKind = "recovery"
+	AddressEventKindAddressChange    AddressEventKind = "address-change"
+	AddressEventKindCheckFailure     AddressEventKind = "check-failure"
+	AddressEventKindFirstObservation AddressEventKind = "first-observation"
+	AddressEventKindRecovery         AddressEventKind = "recovery"
 )
 
 // Valid indicates whether the value is a known member of the AddressEventKind enum.
 func (e AddressEventKind) Valid() bool {
 	switch e {
-	case AddressChange:
+	case AddressEventKindAddressChange:
 		return true
-	case CheckFailure:
+	case AddressEventKindCheckFailure:
 		return true
-	case FirstObservation:
+	case AddressEventKindFirstObservation:
 		return true
-	case Recovery:
+	case AddressEventKindRecovery:
 		return true
 	default:
 		return false
@@ -122,13 +122,13 @@ func (e AgentArchitecture) Valid() bool {
 
 // Defines values for AgentConfigurationSnapshotSchemaVersion.
 const (
-	N4 AgentConfigurationSnapshotSchemaVersion = 4
+	N5 AgentConfigurationSnapshotSchemaVersion = 5
 )
 
 // Valid indicates whether the value is a known member of the AgentConfigurationSnapshotSchemaVersion enum.
 func (e AgentConfigurationSnapshotSchemaVersion) Valid() bool {
 	switch e {
-	case N4:
+	case N5:
 		return true
 	default:
 		return false
@@ -144,6 +144,117 @@ const (
 func (e AgentPlatform) Valid() bool {
 	switch e {
 	case Linux:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for AgentProbeArtifactDisposition.
+const (
+	Accepted           AgentProbeArtifactDisposition = "accepted"
+	EgressDeleted      AgentProbeArtifactDisposition = "egress-deleted"
+	ObsoleteGeneration AgentProbeArtifactDisposition = "obsolete-generation"
+)
+
+// Valid indicates whether the value is a known member of the AgentProbeArtifactDisposition enum.
+func (e AgentProbeArtifactDisposition) Valid() bool {
+	switch e {
+	case Accepted:
+		return true
+	case EgressDeleted:
+		return true
+	case ObsoleteGeneration:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for AgentProbeOccurrenceStatus.
+const (
+	AgentProbeOccurrenceStatusSkipped AgentProbeOccurrenceStatus = "skipped"
+	AgentProbeOccurrenceStatusStarted AgentProbeOccurrenceStatus = "started"
+)
+
+// Valid indicates whether the value is a known member of the AgentProbeOccurrenceStatus enum.
+func (e AgentProbeOccurrenceStatus) Valid() bool {
+	switch e {
+	case AgentProbeOccurrenceStatusSkipped:
+		return true
+	case AgentProbeOccurrenceStatusStarted:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for AgentProbeSkipReason.
+const (
+	AgentProbeSkipReasonBusy      AgentProbeSkipReason = "busy"
+	AgentProbeSkipReasonDisabled  AgentProbeSkipReason = "disabled"
+	AgentProbeSkipReasonLowMemory AgentProbeSkipReason = "low-memory"
+	AgentProbeSkipReasonMissed    AgentProbeSkipReason = "missed"
+	AgentProbeSkipReasonNoEgress  AgentProbeSkipReason = "no-egress"
+)
+
+// Valid indicates whether the value is a known member of the AgentProbeSkipReason enum.
+func (e AgentProbeSkipReason) Valid() bool {
+	switch e {
+	case AgentProbeSkipReasonBusy:
+		return true
+	case AgentProbeSkipReasonDisabled:
+		return true
+	case AgentProbeSkipReasonLowMemory:
+		return true
+	case AgentProbeSkipReasonMissed:
+		return true
+	case AgentProbeSkipReasonNoEgress:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for AgentTaskKind.
+const (
+	CompleteProbe AgentTaskKind = "complete-probe"
+)
+
+// Valid indicates whether the value is a known member of the AgentTaskKind enum.
+func (e AgentTaskKind) Valid() bool {
+	switch e {
+	case CompleteProbe:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for AgentTaskReportStatus.
+const (
+	AgentTaskReportStatusAcknowledged AgentTaskReportStatus = "acknowledged"
+	AgentTaskReportStatusFailed       AgentTaskReportStatus = "failed"
+	AgentTaskReportStatusPartial      AgentTaskReportStatus = "partial"
+	AgentTaskReportStatusRejected     AgentTaskReportStatus = "rejected"
+	AgentTaskReportStatusRunning      AgentTaskReportStatus = "running"
+	AgentTaskReportStatusSucceeded    AgentTaskReportStatus = "succeeded"
+)
+
+// Valid indicates whether the value is a known member of the AgentTaskReportStatus enum.
+func (e AgentTaskReportStatus) Valid() bool {
+	switch e {
+	case AgentTaskReportStatusAcknowledged:
+		return true
+	case AgentTaskReportStatusFailed:
+		return true
+	case AgentTaskReportStatusPartial:
+		return true
+	case AgentTaskReportStatusRejected:
+		return true
+	case AgentTaskReportStatusRunning:
+		return true
+	case AgentTaskReportStatusSucceeded:
 		return true
 	default:
 		return false
@@ -183,6 +294,7 @@ const (
 	InvalidEgressCandidate        ErrorCode = "invalid_egress_candidate"
 	InvalidNetworkProxy           ErrorCode = "invalid_network_proxy"
 	InvalidObservationSettings    ErrorCode = "invalid_observation_settings"
+	InvalidProbeSettings          ErrorCode = "invalid_probe_settings"
 	InvalidRequest                ErrorCode = "invalid_request"
 	InvalidTotp                   ErrorCode = "invalid_totp"
 	NetworkInventoryUnavailable   ErrorCode = "network_inventory_unavailable"
@@ -191,11 +303,19 @@ const (
 	NetworkProxyLimitReached      ErrorCode = "network_proxy_limit_reached"
 	NetworkProxyNotFound          ErrorCode = "network_proxy_not_found"
 	NoAccountChange               ErrorCode = "no_account_change"
+	NoEnabledEgress               ErrorCode = "no_enabled_egress"
 	NodeDeletionPending           ErrorCode = "node_deletion_pending"
+	NodeDisabled                  ErrorCode = "node_disabled"
 	NodeNotFound                  ErrorCode = "node_not_found"
+	NodeOffline                   ErrorCode = "node_offline"
 	NodeRevoked                   ErrorCode = "node_revoked"
 	NodeSyncUnsupported           ErrorCode = "node_sync_unsupported"
 	OriginNotAllowed              ErrorCode = "origin_not_allowed"
+	ProbeAlreadyRunning           ErrorCode = "probe_already_running"
+	ProbePausedLowMemory          ErrorCode = "probe_paused_low_memory"
+	ProbeRunNotFound              ErrorCode = "probe_run_not_found"
+	ProbeSnapshotNotFound         ErrorCode = "probe_snapshot_not_found"
+	ProbeTaskSlotOccupied         ErrorCode = "probe_task_slot_occupied"
 	RateLimited                   ErrorCode = "rate_limited"
 	RegistrationDisabled          ErrorCode = "registration_disabled"
 	RegistrationKeyInvalid        ErrorCode = "registration_key_invalid"
@@ -237,6 +357,8 @@ func (e ErrorCode) Valid() bool {
 		return true
 	case InvalidObservationSettings:
 		return true
+	case InvalidProbeSettings:
+		return true
 	case InvalidRequest:
 		return true
 	case InvalidTotp:
@@ -253,15 +375,31 @@ func (e ErrorCode) Valid() bool {
 		return true
 	case NoAccountChange:
 		return true
+	case NoEnabledEgress:
+		return true
 	case NodeDeletionPending:
 		return true
+	case NodeDisabled:
+		return true
 	case NodeNotFound:
+		return true
+	case NodeOffline:
 		return true
 	case NodeRevoked:
 		return true
 	case NodeSyncUnsupported:
 		return true
 	case OriginNotAllowed:
+		return true
+	case ProbeAlreadyRunning:
+		return true
+	case ProbePausedLowMemory:
+		return true
+	case ProbeRunNotFound:
+		return true
+	case ProbeSnapshotNotFound:
+		return true
+	case ProbeTaskSlotOccupied:
 		return true
 	case RateLimited:
 		return true
@@ -497,22 +635,22 @@ func (e NodeDeletionStatus) Valid() bool {
 
 // Defines values for NodeStatus.
 const (
-	Disabled NodeStatus = "disabled"
-	Offline  NodeStatus = "offline"
-	Online   NodeStatus = "online"
-	Revoked  NodeStatus = "revoked"
+	NodeStatusDisabled NodeStatus = "disabled"
+	NodeStatusOffline  NodeStatus = "offline"
+	NodeStatusOnline   NodeStatus = "online"
+	NodeStatusRevoked  NodeStatus = "revoked"
 )
 
 // Valid indicates whether the value is a known member of the NodeStatus enum.
 func (e NodeStatus) Valid() bool {
 	switch e {
-	case Disabled:
+	case NodeStatusDisabled:
 		return true
-	case Offline:
+	case NodeStatusOffline:
 		return true
-	case Online:
+	case NodeStatusOnline:
 		return true
-	case Revoked:
+	case NodeStatusRevoked:
 		return true
 	default:
 		return false
@@ -534,6 +672,150 @@ func (e NodeSyncStatus) Valid() bool {
 	case NodeSyncStatusDegraded:
 		return true
 	case NodeSyncStatusPending:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for ProbeExecutionStatus.
+const (
+	ProbeExecutionStatusFailed      ProbeExecutionStatus = "failed"
+	ProbeExecutionStatusInterrupted ProbeExecutionStatus = "interrupted"
+	ProbeExecutionStatusPending     ProbeExecutionStatus = "pending"
+	ProbeExecutionStatusRunning     ProbeExecutionStatus = "running"
+	ProbeExecutionStatusSkipped     ProbeExecutionStatus = "skipped"
+	ProbeExecutionStatusSucceeded   ProbeExecutionStatus = "succeeded"
+)
+
+// Valid indicates whether the value is a known member of the ProbeExecutionStatus enum.
+func (e ProbeExecutionStatus) Valid() bool {
+	switch e {
+	case ProbeExecutionStatusFailed:
+		return true
+	case ProbeExecutionStatusInterrupted:
+		return true
+	case ProbeExecutionStatusPending:
+		return true
+	case ProbeExecutionStatusRunning:
+		return true
+	case ProbeExecutionStatusSkipped:
+		return true
+	case ProbeExecutionStatusSucceeded:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for ProbeFailureStage.
+const (
+	Adapter  ProbeFailureStage = "adapter"
+	Download ProbeFailureStage = "download"
+	Output   ProbeFailureStage = "output"
+	Process  ProbeFailureStage = "process"
+	Restart  ProbeFailureStage = "restart"
+	Selector ProbeFailureStage = "selector"
+	Timeout  ProbeFailureStage = "timeout"
+)
+
+// Valid indicates whether the value is a known member of the ProbeFailureStage enum.
+func (e ProbeFailureStage) Valid() bool {
+	switch e {
+	case Adapter:
+		return true
+	case Download:
+		return true
+	case Output:
+		return true
+	case Process:
+		return true
+	case Restart:
+		return true
+	case Selector:
+		return true
+	case Timeout:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for ProbeRunStatus.
+const (
+	ProbeRunStatusFailed    ProbeRunStatus = "failed"
+	ProbeRunStatusPartial   ProbeRunStatus = "partial"
+	ProbeRunStatusRunning   ProbeRunStatus = "running"
+	ProbeRunStatusSucceeded ProbeRunStatus = "succeeded"
+)
+
+// Valid indicates whether the value is a known member of the ProbeRunStatus enum.
+func (e ProbeRunStatus) Valid() bool {
+	switch e {
+	case ProbeRunStatusFailed:
+		return true
+	case ProbeRunStatusPartial:
+		return true
+	case ProbeRunStatusRunning:
+		return true
+	case ProbeRunStatusSucceeded:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for ProbeTaskStatus.
+const (
+	ProbeTaskStatusAcknowledged ProbeTaskStatus = "acknowledged"
+	ProbeTaskStatusExpired      ProbeTaskStatus = "expired"
+	ProbeTaskStatusFailed       ProbeTaskStatus = "failed"
+	ProbeTaskStatusPartial      ProbeTaskStatus = "partial"
+	ProbeTaskStatusPending      ProbeTaskStatus = "pending"
+	ProbeTaskStatusRejected     ProbeTaskStatus = "rejected"
+	ProbeTaskStatusRunning      ProbeTaskStatus = "running"
+	ProbeTaskStatusSucceeded    ProbeTaskStatus = "succeeded"
+)
+
+// Valid indicates whether the value is a known member of the ProbeTaskStatus enum.
+func (e ProbeTaskStatus) Valid() bool {
+	switch e {
+	case ProbeTaskStatusAcknowledged:
+		return true
+	case ProbeTaskStatusExpired:
+		return true
+	case ProbeTaskStatusFailed:
+		return true
+	case ProbeTaskStatusPartial:
+		return true
+	case ProbeTaskStatusPending:
+		return true
+	case ProbeTaskStatusRejected:
+		return true
+	case ProbeTaskStatusRunning:
+		return true
+	case ProbeTaskStatusSucceeded:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for ProbeTrigger.
+const (
+	ProbeTriggerAddressChange ProbeTrigger = "address-change"
+	ProbeTriggerManual        ProbeTrigger = "manual"
+	ProbeTriggerSchedule      ProbeTrigger = "schedule"
+)
+
+// Valid indicates whether the value is a known member of the ProbeTrigger enum.
+func (e ProbeTrigger) Valid() bool {
+	switch e {
+	case ProbeTriggerAddressChange:
+		return true
+	case ProbeTriggerManual:
+		return true
+	case ProbeTriggerSchedule:
 		return true
 	default:
 		return false
@@ -708,13 +990,15 @@ type AgentArchitecture string
 
 // AgentConfigurationSnapshot defines model for AgentConfigurationSnapshot.
 type AgentConfigurationSnapshot struct {
-	DiscoveryServices NetworkObservationSettingsUpdate        `json:"discoveryServices"`
-	Egresses          []AgentEgressConfiguration              `json:"egresses"`
-	Enabled           bool                                    `json:"enabled"`
-	HistoryGeneration string                                  `json:"historyGeneration"`
-	Proxies           []AgentProxyConfiguration               `json:"proxies"`
-	Revision          int64                                   `json:"revision"`
-	SchemaVersion     AgentConfigurationSnapshotSchemaVersion `json:"schemaVersion"`
+	DiscoveryServices      NetworkObservationSettingsUpdate        `json:"discoveryServices"`
+	Egresses               []AgentEgressConfiguration              `json:"egresses"`
+	Enabled                bool                                    `json:"enabled"`
+	HistoryGeneration      string                                  `json:"historyGeneration"`
+	ProbeLowMemoryOverride bool                                    `json:"probeLowMemoryOverride"`
+	ProbeSchedule          ProbeSchedule                           `json:"probeSchedule"`
+	Proxies                []AgentProxyConfiguration               `json:"proxies"`
+	Revision               int64                                   `json:"revision"`
+	SchemaVersion          AgentConfigurationSnapshotSchemaVersion `json:"schemaVersion"`
 }
 
 // AgentConfigurationSnapshotSchemaVersion defines model for AgentConfigurationSnapshot.SchemaVersion.
@@ -748,11 +1032,12 @@ type AgentEnrollmentUpdate struct {
 
 // AgentMetadata defines model for AgentMetadata.
 type AgentMetadata struct {
-	AgentVersion    string            `json:"agentVersion"`
-	Architecture    AgentArchitecture `json:"architecture"`
-	Capabilities    []string          `json:"capabilities"`
-	Hostname        string            `json:"hostname"`
-	OperatingSystem AgentPlatform     `json:"operatingSystem"`
+	AgentVersion        string            `json:"agentVersion"`
+	Architecture        AgentArchitecture `json:"architecture"`
+	Capabilities        []string          `json:"capabilities"`
+	Hostname            string            `json:"hostname"`
+	OperatingSystem     AgentPlatform     `json:"operatingSystem"`
+	PhysicalMemoryBytes int64             `json:"physicalMemoryBytes"`
 }
 
 // AgentPlatform defines model for AgentPlatform.
@@ -769,16 +1054,107 @@ type AgentPollRequest struct {
 	Metadata                     AgentMetadata        `json:"metadata"`
 	NetworkInventory             *NetworkInventory    `json:"networkInventory,omitempty"`
 	NetworkInventoryError        *string              `json:"networkInventoryError,omitempty"`
+	ProbeStatus                  *AgentProbeStatus    `json:"probeStatus,omitempty"`
+	TaskReport                   *AgentTaskReport     `json:"taskReport,omitempty"`
 }
 
 // AgentPollResult defines model for AgentPollResult.
 type AgentPollResult struct {
+	AcceptedTerminalTaskId       *openapi_types.UUID       `json:"acceptedTerminalTaskId,omitempty"`
 	AddressUploadReceipt         AgentAddressUploadReceipt `json:"addressUploadReceipt"`
 	CenterVersion                string                    `json:"centerVersion"`
 	DesiredConfigurationRevision int64                     `json:"desiredConfigurationRevision"`
 	Enabled                      bool                      `json:"enabled"`
 	PollIntervalSeconds          int                       `json:"pollIntervalSeconds"`
 	SyncSession                  *AgentSyncSession         `json:"syncSession,omitempty"`
+	Task                         *AgentTask                `json:"task,omitempty"`
+}
+
+// AgentProbeArtifact defines model for AgentProbeArtifact.
+type AgentProbeArtifact struct {
+	ArtifactId openapi_types.UUID           `json:"artifactId"`
+	Execution  *AgentProbeExecutionArtifact `json:"execution,omitempty"`
+	Gap        *AgentProbeGapArtifact       `json:"gap,omitempty"`
+	Revision   int64                        `json:"revision"`
+	Run        *AgentProbeRunArtifact       `json:"run,omitempty"`
+}
+
+// AgentProbeArtifactDisposition defines model for AgentProbeArtifactDisposition.
+type AgentProbeArtifactDisposition string
+
+// AgentProbeArtifactReceipt defines model for AgentProbeArtifactReceipt.
+type AgentProbeArtifactReceipt struct {
+	ArtifactId  openapi_types.UUID            `json:"artifactId"`
+	Disposition AgentProbeArtifactDisposition `json:"disposition"`
+	Revision    int64                         `json:"revision"`
+}
+
+// AgentProbeExecutionArtifact defines model for AgentProbeExecutionArtifact.
+type AgentProbeExecutionArtifact struct {
+	CompletedAt  *time.Time           `json:"completedAt,omitempty"`
+	Diagnostic   *string              `json:"diagnostic,omitempty"`
+	EgressId     openapi_types.UUID   `json:"egressId"`
+	FailureStage *ProbeFailureStage   `json:"failureStage,omitempty"`
+	Id           openapi_types.UUID   `json:"id"`
+	Ordinal      int                  `json:"ordinal"`
+	RawResult    *[]byte              `json:"rawResult,omitempty"`
+	Sequence     int64                `json:"sequence"`
+	StartedAt    *time.Time           `json:"startedAt,omitempty"`
+	Status       ProbeExecutionStatus `json:"status"`
+}
+
+// AgentProbeExecutionManifest defines model for AgentProbeExecutionManifest.
+type AgentProbeExecutionManifest struct {
+	EgressId openapi_types.UUID `json:"egressId"`
+	Id       openapi_types.UUID `json:"id"`
+	Ordinal  int                `json:"ordinal"`
+	Sequence int64              `json:"sequence"`
+}
+
+// AgentProbeGapArtifact defines model for AgentProbeGapArtifact.
+type AgentProbeGapArtifact struct {
+	DroppedCount      int64              `json:"droppedCount"`
+	EgressId          openapi_types.UUID `json:"egressId"`
+	FirstObservedAt   time.Time          `json:"firstObservedAt"`
+	FirstSequence     int64              `json:"firstSequence"`
+	HistoryGeneration string             `json:"historyGeneration"`
+	Id                openapi_types.UUID `json:"id"`
+	LastObservedAt    time.Time          `json:"lastObservedAt"`
+	LastSequence      int64              `json:"lastSequence"`
+}
+
+// AgentProbeOccurrenceStatus defines model for AgentProbeOccurrenceStatus.
+type AgentProbeOccurrenceStatus string
+
+// AgentProbeRunArtifact defines model for AgentProbeRunArtifact.
+type AgentProbeRunArtifact struct {
+	CompletedAt               *time.Time                    `json:"completedAt,omitempty"`
+	Executions                []AgentProbeExecutionManifest `json:"executions"`
+	HistoryGeneration         string                        `json:"historyGeneration"`
+	Id                        openapi_types.UUID            `json:"id"`
+	NodeConfigurationRevision int64                         `json:"nodeConfigurationRevision"`
+	StartedAt                 time.Time                     `json:"startedAt"`
+	Status                    ProbeRunStatus                `json:"status"`
+	TaskId                    *openapi_types.UUID           `json:"taskId,omitempty"`
+	Trigger                   ProbeTrigger                  `json:"trigger"`
+	TriggeringEgressId        *openapi_types.UUID           `json:"triggeringEgressId,omitempty"`
+}
+
+// AgentProbeSkipReason defines model for AgentProbeSkipReason.
+type AgentProbeSkipReason string
+
+// AgentProbeStatus defines model for AgentProbeStatus.
+type AgentProbeStatus struct {
+	ActiveRunId                       *openapi_types.UUID         `json:"activeRunId,omitempty"`
+	HistoryResetAt                    *time.Time                  `json:"historyResetAt,omitempty"`
+	HistoryResetDiscardedAddressItems *int64                      `json:"historyResetDiscardedAddressItems,omitempty"`
+	HistoryResetDiscardedProbeItems   *int64                      `json:"historyResetDiscardedProbeItems,omitempty"`
+	HistoryResetGeneration            *string                     `json:"historyResetGeneration,omitempty"`
+	LastOccurrenceAt                  *time.Time                  `json:"lastOccurrenceAt,omitempty"`
+	LastOccurrenceStatus              *AgentProbeOccurrenceStatus `json:"lastOccurrenceStatus,omitempty"`
+	LastOccurrenceTrigger             *ProbeTrigger               `json:"lastOccurrenceTrigger,omitempty"`
+	LastSkipReason                    *AgentProbeSkipReason       `json:"lastSkipReason,omitempty"`
+	NextScheduledAt                   *time.Time                  `json:"nextScheduledAt,omitempty"`
 }
 
 // AgentProxyConfiguration defines model for AgentProxyConfiguration.
@@ -810,6 +1186,31 @@ type AgentSyncSession struct {
 	Id            openapi_types.UUID `json:"id"`
 	WebsocketPath string             `json:"websocketPath"`
 }
+
+// AgentTask defines model for AgentTask.
+type AgentTask struct {
+	CreatedAt time.Time          `json:"createdAt"`
+	ExpiresAt time.Time          `json:"expiresAt"`
+	Id        openapi_types.UUID `json:"id"`
+	Kind      AgentTaskKind      `json:"kind"`
+}
+
+// AgentTaskKind defines model for AgentTask.Kind.
+type AgentTaskKind string
+
+// AgentTaskReport defines model for AgentTaskReport.
+type AgentTaskReport struct {
+	AcknowledgedAt  time.Time             `json:"acknowledgedAt"`
+	CompletedAt     *time.Time            `json:"completedAt,omitempty"`
+	Id              openapi_types.UUID    `json:"id"`
+	RejectionReason *AgentProbeSkipReason `json:"rejectionReason,omitempty"`
+	RunId           *openapi_types.UUID   `json:"runId,omitempty"`
+	StartedAt       *time.Time            `json:"startedAt,omitempty"`
+	Status          AgentTaskReportStatus `json:"status"`
+}
+
+// AgentTaskReportStatus defines model for AgentTaskReport.Status.
+type AgentTaskReportStatus string
 
 // AuthenticatedSession defines model for AuthenticatedSession.
 type AuthenticatedSession struct {
@@ -851,6 +1252,12 @@ type ErrorCode string
 type ErrorResponse struct {
 	Code       ErrorCode          `json:"code"`
 	Parameters *map[string]string `json:"parameters,omitempty"`
+}
+
+// HistoryState defines model for HistoryState.
+type HistoryState struct {
+	Generation string     `json:"generation"`
+	ResetAt    *time.Time `json:"resetAt,omitempty"`
 }
 
 // LocaleUpdateRequest defines model for LocaleUpdateRequest.
@@ -1079,6 +1486,24 @@ type NodeNetworkState struct {
 	InventoryReceivedAt *time.Time               `json:"inventoryReceivedAt,omitempty"`
 }
 
+// NodeProbeSettingsUpdate defines model for NodeProbeSettingsUpdate.
+type NodeProbeSettingsUpdate struct {
+	LowMemoryOverride bool          `json:"lowMemoryOverride"`
+	Schedule          ProbeSchedule `json:"schedule"`
+}
+
+// NodeProbeState defines model for NodeProbeState.
+type NodeProbeState struct {
+	AgentStatus         *AgentProbeStatus  `json:"agentStatus,omitempty"`
+	LowMemoryOverride   bool               `json:"lowMemoryOverride"`
+	NodeId              openapi_types.UUID `json:"nodeId"`
+	PausedLowMemory     bool               `json:"pausedLowMemory"`
+	PhysicalMemoryBytes *int64             `json:"physicalMemoryBytes,omitempty"`
+	RecentRuns          []ProbeRunSummary  `json:"recentRuns"`
+	Schedule            ProbeSchedule      `json:"schedule"`
+	Task                *ProbeTask         `json:"task,omitempty"`
+}
+
 // NodeStatus defines model for NodeStatus.
 type NodeStatus string
 
@@ -1089,6 +1514,98 @@ type NodeSyncStatus string
 type NodeUpdate struct {
 	Enabled bool `json:"enabled"`
 }
+
+// ProbeExecution defines model for ProbeExecution.
+type ProbeExecution struct {
+	CompletedAt  *time.Time           `json:"completedAt,omitempty"`
+	Diagnostic   *string              `json:"diagnostic,omitempty"`
+	EgressId     openapi_types.UUID   `json:"egressId"`
+	FailureStage *ProbeFailureStage   `json:"failureStage,omitempty"`
+	Id           openapi_types.UUID   `json:"id"`
+	Ordinal      int                  `json:"ordinal"`
+	RunId        openapi_types.UUID   `json:"runId"`
+	Sequence     int64                `json:"sequence"`
+	SnapshotId   *openapi_types.UUID  `json:"snapshotId,omitempty"`
+	StartedAt    *time.Time           `json:"startedAt,omitempty"`
+	Status       ProbeExecutionStatus `json:"status"`
+}
+
+// ProbeExecutionStatus defines model for ProbeExecutionStatus.
+type ProbeExecutionStatus string
+
+// ProbeFailureStage defines model for ProbeFailureStage.
+type ProbeFailureStage string
+
+// ProbeRun defines model for ProbeRun.
+type ProbeRun struct {
+	CompletedAt           *time.Time          `json:"completedAt,omitempty"`
+	ConfigurationRevision int64               `json:"configurationRevision"`
+	Executions            []ProbeExecution    `json:"executions"`
+	ExpectedExecutions    int                 `json:"expectedExecutions"`
+	HistoryGeneration     string              `json:"historyGeneration"`
+	Id                    openapi_types.UUID  `json:"id"`
+	NodeId                openapi_types.UUID  `json:"nodeId"`
+	StartedAt             time.Time           `json:"startedAt"`
+	Status                ProbeRunStatus      `json:"status"`
+	TaskId                *openapi_types.UUID `json:"taskId,omitempty"`
+	Trigger               ProbeTrigger        `json:"trigger"`
+	TriggeringEgressId    *openapi_types.UUID `json:"triggeringEgressId,omitempty"`
+}
+
+// ProbeRunStatus defines model for ProbeRunStatus.
+type ProbeRunStatus string
+
+// ProbeRunSummary defines model for ProbeRunSummary.
+type ProbeRunSummary struct {
+	CompletedAt         *time.Time         `json:"completedAt,omitempty"`
+	CompletedExecutions int                `json:"completedExecutions"`
+	ExpectedExecutions  int                `json:"expectedExecutions"`
+	Id                  openapi_types.UUID `json:"id"`
+	NodeId              openapi_types.UUID `json:"nodeId"`
+	StartedAt           time.Time          `json:"startedAt"`
+	Status              ProbeRunStatus     `json:"status"`
+	Trigger             ProbeTrigger       `json:"trigger"`
+}
+
+// ProbeSchedule defines model for ProbeSchedule.
+type ProbeSchedule struct {
+	Cron    string `json:"cron"`
+	Enabled bool   `json:"enabled"`
+
+	// Timezone Use agent-local or an IANA time zone name.
+	Timezone string `json:"timezone"`
+}
+
+// ProbeSnapshot defines model for ProbeSnapshot.
+type ProbeSnapshot struct {
+	EgressId    openapi_types.UUID `json:"egressId"`
+	ExecutionId openapi_types.UUID `json:"executionId"`
+	Id          openapi_types.UUID `json:"id"`
+	ObservedAt  time.Time          `json:"observedAt"`
+	RawResult   []byte             `json:"rawResult"`
+	Sequence    int64              `json:"sequence"`
+}
+
+// ProbeTask defines model for ProbeTask.
+type ProbeTask struct {
+	AcknowledgedAt  *time.Time            `json:"acknowledgedAt,omitempty"`
+	CompletedAt     *time.Time            `json:"completedAt,omitempty"`
+	CreatedAt       time.Time             `json:"createdAt"`
+	ExpiresAt       time.Time             `json:"expiresAt"`
+	Id              openapi_types.UUID    `json:"id"`
+	NodeId          openapi_types.UUID    `json:"nodeId"`
+	Offline         bool                  `json:"offline"`
+	RejectionReason *AgentProbeSkipReason `json:"rejectionReason,omitempty"`
+	RunId           *openapi_types.UUID   `json:"runId,omitempty"`
+	StartedAt       *time.Time            `json:"startedAt,omitempty"`
+	Status          ProbeTaskStatus       `json:"status"`
+}
+
+// ProbeTaskStatus defines model for ProbeTaskStatus.
+type ProbeTaskStatus string
+
+// ProbeTrigger defines model for ProbeTrigger.
+type ProbeTrigger string
 
 // SupportedLocale defines model for SupportedLocale.
 type SupportedLocale string
@@ -1137,6 +1654,12 @@ type NodeId = openapi_types.UUID
 
 // ProxyId defines model for ProxyId.
 type ProxyId = openapi_types.UUID
+
+// RunId defines model for RunId.
+type RunId = openapi_types.UUID
+
+// SnapshotId defines model for SnapshotId.
+type SnapshotId = openapi_types.UUID
 
 // AgentForbidden defines model for AgentForbidden.
 type AgentForbidden = ErrorResponse
@@ -1204,6 +1727,11 @@ type LogoutParams struct {
 	XCSRFToken *CSRFToken `json:"X-CSRF-Token,omitempty"`
 }
 
+// ResetHistoryParams defines parameters for ResetHistory.
+type ResetHistoryParams struct {
+	XCSRFToken *CSRFToken `json:"X-CSRF-Token,omitempty"`
+}
+
 // UpdateNetworkObservationSettingsParams defines parameters for UpdateNetworkObservationSettings.
 type UpdateNetworkObservationSettingsParams struct {
 	XCSRFToken *CSRFToken `json:"X-CSRF-Token,omitempty"`
@@ -1249,6 +1777,16 @@ type UpdateNodeEgressParams struct {
 	XCSRFToken *CSRFToken `json:"X-CSRF-Token,omitempty"`
 }
 
+// UpdateNodeProbeSettingsParams defines parameters for UpdateNodeProbeSettings.
+type UpdateNodeProbeSettingsParams struct {
+	XCSRFToken *CSRFToken `json:"X-CSRF-Token,omitempty"`
+}
+
+// CreateCompleteProbeTaskParams defines parameters for CreateCompleteProbeTask.
+type CreateCompleteProbeTaskParams struct {
+	XCSRFToken *CSRFToken `json:"X-CSRF-Token,omitempty"`
+}
+
 // RevokeNodeParams defines parameters for RevokeNode.
 type RevokeNodeParams struct {
 	XCSRFToken *CSRFToken `json:"X-CSRF-Token,omitempty"`
@@ -1288,6 +1826,9 @@ type PollAgentJSONRequestBody = AgentPollRequest
 // RegisterAgentJSONRequestBody defines body for RegisterAgent for application/json ContentType.
 type RegisterAgentJSONRequestBody = AgentRegistrationRequest
 
+// UploadProbeArtifactJSONRequestBody defines body for UploadProbeArtifact for application/json ContentType.
+type UploadProbeArtifactJSONRequestBody = AgentProbeArtifact
+
 // LoginJSONRequestBody defines body for Login for application/json ContentType.
 type LoginJSONRequestBody = LoginRequest
 
@@ -1308,6 +1849,9 @@ type CreateNodeEgressJSONRequestBody = NetworkEgressCreate
 
 // UpdateNodeEgressJSONRequestBody defines body for UpdateNodeEgress for application/json ContentType.
 type UpdateNodeEgressJSONRequestBody = NetworkEgressUpdate
+
+// UpdateNodeProbeSettingsJSONRequestBody defines body for UpdateNodeProbeSettings for application/json ContentType.
+type UpdateNodeProbeSettingsJSONRequestBody = NodeProbeSettingsUpdate
 
 // RequestEditorFn is the function signature for the RequestEditor callback function
 type RequestEditorFn func(ctx context.Context, req *http.Request) error
@@ -1520,6 +2064,20 @@ type ClientInterface interface {
 	// Corresponds with POST /api/v1/agent/enroll (the `RegisterAgent` operationId).
 	RegisterAgent(ctx context.Context, body RegisterAgentJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
 
+	// UploadProbeArtifactWithBody Idempotently upload one complete-probe run or execution revision
+	//
+	// Takes any type of body and a specified content type.
+	//
+	// Corresponds with POST /api/v1/agent/probe-artifacts (the `UploadProbeArtifact` operationId).
+	UploadProbeArtifactWithBody(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// UploadProbeArtifact Idempotently upload one complete-probe run or execution revision
+	//
+	// Takes a body of the `application/json` content type.
+	//
+	// Corresponds with POST /api/v1/agent/probe-artifacts (the `UploadProbeArtifact` operationId).
+	UploadProbeArtifact(ctx context.Context, body UploadProbeArtifactJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
+
 	// LoginWithBody Start an administrator session
 	//
 	// Takes any type of body and a specified content type.
@@ -1543,6 +2101,16 @@ type ClientInterface interface {
 	//
 	// Corresponds with GET /api/v1/auth/session (the `GetAuthenticatedSession` operationId).
 	GetAuthenticatedSession(ctx context.Context, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// ResetHistory Delete all observed history and advance its generation
+	//
+	// Corresponds with DELETE /api/v1/history (the `ResetHistory` operationId).
+	ResetHistory(ctx context.Context, params *ResetHistoryParams, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// GetHistoryState Read the current history generation and reset state
+	//
+	// Corresponds with GET /api/v1/history (the `GetHistoryState` operationId).
+	GetHistoryState(ctx context.Context, reqEditors ...RequestEditorFn) (*http.Response, error)
 
 	// GetNetworkObservationSettings Read global lightweight address discovery services
 	//
@@ -1663,6 +2231,30 @@ type ClientInterface interface {
 	// Corresponds with GET /api/v1/nodes/{nodeId}/network (the `GetNodeNetwork` operationId).
 	GetNodeNetwork(ctx context.Context, nodeId NodeId, reqEditors ...RequestEditorFn) (*http.Response, error)
 
+	// GetNodeProbe Read complete-probe settings, current task, and recent runs
+	//
+	// Corresponds with GET /api/v1/nodes/{nodeId}/probe (the `GetNodeProbe` operationId).
+	GetNodeProbe(ctx context.Context, nodeId NodeId, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// UpdateNodeProbeSettingsWithBody Replace the node complete-probe schedule and resource override
+	//
+	// Takes any type of body and a specified content type.
+	//
+	// Corresponds with PUT /api/v1/nodes/{nodeId}/probe (the `UpdateNodeProbeSettings` operationId).
+	UpdateNodeProbeSettingsWithBody(ctx context.Context, nodeId NodeId, params *UpdateNodeProbeSettingsParams, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// UpdateNodeProbeSettings Replace the node complete-probe schedule and resource override
+	//
+	// Takes a body of the `application/json` content type.
+	//
+	// Corresponds with PUT /api/v1/nodes/{nodeId}/probe (the `UpdateNodeProbeSettings` operationId).
+	UpdateNodeProbeSettings(ctx context.Context, nodeId NodeId, params *UpdateNodeProbeSettingsParams, body UpdateNodeProbeSettingsJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// CreateCompleteProbeTask Create the node's single immediate complete-probe task
+	//
+	// Corresponds with POST /api/v1/nodes/{nodeId}/probe/tasks (the `CreateCompleteProbeTask` operationId).
+	CreateCompleteProbeTask(ctx context.Context, nodeId NodeId, params *CreateCompleteProbeTaskParams, reqEditors ...RequestEditorFn) (*http.Response, error)
+
 	// RevokeNode Permanently revoke a node Agent credential
 	//
 	// Corresponds with POST /api/v1/nodes/{nodeId}/revoke (the `RevokeNode` operationId).
@@ -1677,6 +2269,16 @@ type ClientInterface interface {
 	//
 	// Corresponds with POST /api/v1/nodes/{nodeId}/sync-session (the `StartNodeSyncSession` operationId).
 	StartNodeSyncSession(ctx context.Context, nodeId NodeId, params *StartNodeSyncSessionParams, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// GetProbeRun Read one complete-probe run and its frozen egress executions
+	//
+	// Corresponds with GET /api/v1/probe-runs/{runId} (the `GetProbeRun` operationId).
+	GetProbeRun(ctx context.Context, runId RunId, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// GetProbeSnapshot Read one retained complete-probe source snapshot
+	//
+	// Corresponds with GET /api/v1/probe-snapshots/{snapshotId} (the `GetProbeSnapshot` operationId).
+	GetProbeSnapshot(ctx context.Context, snapshotId SnapshotId, reqEditors ...RequestEditorFn) (*http.Response, error)
 
 	// GetSystemStatus Read center status
 	//
@@ -2031,6 +2633,40 @@ func (c *Client) RegisterAgent(ctx context.Context, body RegisterAgentJSONReques
 	return c.Client.Do(req)
 }
 
+// UploadProbeArtifactWithBody Idempotently upload one complete-probe run or execution revision
+//
+// Takes any type of body and a specified content type.
+//
+// Corresponds with POST /api/v1/agent/probe-artifacts (the `UploadProbeArtifact` operationId).
+func (c *Client) UploadProbeArtifactWithBody(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewUploadProbeArtifactRequestWithBody(c.Server, contentType, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+// UploadProbeArtifact Idempotently upload one complete-probe run or execution revision
+//
+// Takes a body of the `application/json` content type.
+//
+// Corresponds with POST /api/v1/agent/probe-artifacts (the `UploadProbeArtifact` operationId).
+func (c *Client) UploadProbeArtifact(ctx context.Context, body UploadProbeArtifactJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewUploadProbeArtifactRequest(c.Server, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
 // LoginWithBody Start an administrator session
 //
 // Takes any type of body and a specified content type.
@@ -2085,6 +2721,36 @@ func (c *Client) Logout(ctx context.Context, params *LogoutParams, reqEditors ..
 // Corresponds with GET /api/v1/auth/session (the `GetAuthenticatedSession` operationId).
 func (c *Client) GetAuthenticatedSession(ctx context.Context, reqEditors ...RequestEditorFn) (*http.Response, error) {
 	req, err := NewGetAuthenticatedSessionRequest(c.Server)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+// ResetHistory Delete all observed history and advance its generation
+//
+// Corresponds with DELETE /api/v1/history (the `ResetHistory` operationId).
+func (c *Client) ResetHistory(ctx context.Context, params *ResetHistoryParams, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewResetHistoryRequest(c.Server, params)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+// GetHistoryState Read the current history generation and reset state
+//
+// Corresponds with GET /api/v1/history (the `GetHistoryState` operationId).
+func (c *Client) GetHistoryState(ctx context.Context, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewGetHistoryStateRequest(c.Server)
 	if err != nil {
 		return nil, err
 	}
@@ -2404,6 +3070,70 @@ func (c *Client) GetNodeNetwork(ctx context.Context, nodeId NodeId, reqEditors .
 	return c.Client.Do(req)
 }
 
+// GetNodeProbe Read complete-probe settings, current task, and recent runs
+//
+// Corresponds with GET /api/v1/nodes/{nodeId}/probe (the `GetNodeProbe` operationId).
+func (c *Client) GetNodeProbe(ctx context.Context, nodeId NodeId, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewGetNodeProbeRequest(c.Server, nodeId)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+// UpdateNodeProbeSettingsWithBody Replace the node complete-probe schedule and resource override
+//
+// Takes any type of body and a specified content type.
+//
+// Corresponds with PUT /api/v1/nodes/{nodeId}/probe (the `UpdateNodeProbeSettings` operationId).
+func (c *Client) UpdateNodeProbeSettingsWithBody(ctx context.Context, nodeId NodeId, params *UpdateNodeProbeSettingsParams, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewUpdateNodeProbeSettingsRequestWithBody(c.Server, nodeId, params, contentType, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+// UpdateNodeProbeSettings Replace the node complete-probe schedule and resource override
+//
+// Takes a body of the `application/json` content type.
+//
+// Corresponds with PUT /api/v1/nodes/{nodeId}/probe (the `UpdateNodeProbeSettings` operationId).
+func (c *Client) UpdateNodeProbeSettings(ctx context.Context, nodeId NodeId, params *UpdateNodeProbeSettingsParams, body UpdateNodeProbeSettingsJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewUpdateNodeProbeSettingsRequest(c.Server, nodeId, params, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+// CreateCompleteProbeTask Create the node's single immediate complete-probe task
+//
+// Corresponds with POST /api/v1/nodes/{nodeId}/probe/tasks (the `CreateCompleteProbeTask` operationId).
+func (c *Client) CreateCompleteProbeTask(ctx context.Context, nodeId NodeId, params *CreateCompleteProbeTaskParams, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewCreateCompleteProbeTaskRequest(c.Server, nodeId, params)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
 // RevokeNode Permanently revoke a node Agent credential
 //
 // Corresponds with POST /api/v1/nodes/{nodeId}/revoke (the `RevokeNode` operationId).
@@ -2439,6 +3169,36 @@ func (c *Client) StopNodeSyncSession(ctx context.Context, nodeId NodeId, params 
 // Corresponds with POST /api/v1/nodes/{nodeId}/sync-session (the `StartNodeSyncSession` operationId).
 func (c *Client) StartNodeSyncSession(ctx context.Context, nodeId NodeId, params *StartNodeSyncSessionParams, reqEditors ...RequestEditorFn) (*http.Response, error) {
 	req, err := NewStartNodeSyncSessionRequest(c.Server, nodeId, params)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+// GetProbeRun Read one complete-probe run and its frozen egress executions
+//
+// Corresponds with GET /api/v1/probe-runs/{runId} (the `GetProbeRun` operationId).
+func (c *Client) GetProbeRun(ctx context.Context, runId RunId, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewGetProbeRunRequest(c.Server, runId)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+// GetProbeSnapshot Read one retained complete-probe source snapshot
+//
+// Corresponds with GET /api/v1/probe-snapshots/{snapshotId} (the `GetProbeSnapshot` operationId).
+func (c *Client) GetProbeSnapshot(ctx context.Context, snapshotId SnapshotId, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewGetProbeSnapshotRequest(c.Server, snapshotId)
 	if err != nil {
 		return nil, err
 	}
@@ -3039,6 +3799,46 @@ func NewRegisterAgentRequestWithBody(server string, contentType string, body io.
 	return req, nil
 }
 
+// NewUploadProbeArtifactRequest calls the generic UploadProbeArtifact builder with application/json body
+func NewUploadProbeArtifactRequest(server string, body UploadProbeArtifactJSONRequestBody) (*http.Request, error) {
+	var bodyReader io.Reader
+	buf, err := json.Marshal(body)
+	if err != nil {
+		return nil, err
+	}
+	bodyReader = bytes.NewReader(buf)
+	return NewUploadProbeArtifactRequestWithBody(server, "application/json", bodyReader)
+}
+
+// NewUploadProbeArtifactRequestWithBody constructs an http.Request for the UploadProbeArtifact method, with any body, and a specified content type
+func NewUploadProbeArtifactRequestWithBody(server string, contentType string, body io.Reader) (*http.Request, error) {
+	var err error
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/api/v1/agent/probe-artifacts")
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest(http.MethodPost, queryURL.String(), body)
+	if err != nil {
+		return nil, err
+	}
+
+	req.Header.Add("Content-Type", contentType)
+
+	return req, nil
+}
+
 // NewLoginRequest calls the generic Login builder with application/json body
 func NewLoginRequest(server string, body LoginJSONRequestBody) (*http.Request, error) {
 	var bodyReader io.Reader
@@ -3131,6 +3931,75 @@ func NewGetAuthenticatedSessionRequest(server string) (*http.Request, error) {
 	}
 
 	operationPath := fmt.Sprintf("/api/v1/auth/session")
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest(http.MethodGet, queryURL.String(), nil)
+	if err != nil {
+		return nil, err
+	}
+
+	return req, nil
+}
+
+// NewResetHistoryRequest constructs an http.Request for the ResetHistory method
+func NewResetHistoryRequest(server string, params *ResetHistoryParams) (*http.Request, error) {
+	var err error
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/api/v1/history")
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest(http.MethodDelete, queryURL.String(), nil)
+	if err != nil {
+		return nil, err
+	}
+
+	if params != nil {
+
+		if params.XCSRFToken != nil {
+			var headerParam0 string
+
+			headerParam0, err = runtime.StyleParamWithOptions("simple", false, "X-CSRF-Token", *params.XCSRFToken, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationHeader, Type: "string", Format: ""})
+			if err != nil {
+				return nil, err
+			}
+
+			req.Header.Set("X-CSRF-Token", headerParam0)
+		}
+
+	}
+
+	return req, nil
+}
+
+// NewGetHistoryStateRequest constructs an http.Request for the GetHistoryState method
+func NewGetHistoryStateRequest(server string) (*http.Request, error) {
+	var err error
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/api/v1/history")
 	if operationPath[0] == '/' {
 		operationPath = "." + operationPath
 	}
@@ -3782,6 +4651,151 @@ func NewGetNodeNetworkRequest(server string, nodeId NodeId) (*http.Request, erro
 	return req, nil
 }
 
+// NewGetNodeProbeRequest constructs an http.Request for the GetNodeProbe method
+func NewGetNodeProbeRequest(server string, nodeId NodeId) (*http.Request, error) {
+	var err error
+
+	var pathParam0 string
+
+	pathParam0, err = runtime.StyleParamWithOptions("simple", false, "nodeId", nodeId, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationPath, Type: "string", Format: "uuid"})
+	if err != nil {
+		return nil, err
+	}
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/api/v1/nodes/%s/probe", pathParam0)
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest(http.MethodGet, queryURL.String(), nil)
+	if err != nil {
+		return nil, err
+	}
+
+	return req, nil
+}
+
+// NewUpdateNodeProbeSettingsRequest calls the generic UpdateNodeProbeSettings builder with application/json body
+func NewUpdateNodeProbeSettingsRequest(server string, nodeId NodeId, params *UpdateNodeProbeSettingsParams, body UpdateNodeProbeSettingsJSONRequestBody) (*http.Request, error) {
+	var bodyReader io.Reader
+	buf, err := json.Marshal(body)
+	if err != nil {
+		return nil, err
+	}
+	bodyReader = bytes.NewReader(buf)
+	return NewUpdateNodeProbeSettingsRequestWithBody(server, nodeId, params, "application/json", bodyReader)
+}
+
+// NewUpdateNodeProbeSettingsRequestWithBody constructs an http.Request for the UpdateNodeProbeSettings method, with any body, and a specified content type
+func NewUpdateNodeProbeSettingsRequestWithBody(server string, nodeId NodeId, params *UpdateNodeProbeSettingsParams, contentType string, body io.Reader) (*http.Request, error) {
+	var err error
+
+	var pathParam0 string
+
+	pathParam0, err = runtime.StyleParamWithOptions("simple", false, "nodeId", nodeId, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationPath, Type: "string", Format: "uuid"})
+	if err != nil {
+		return nil, err
+	}
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/api/v1/nodes/%s/probe", pathParam0)
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest(http.MethodPut, queryURL.String(), body)
+	if err != nil {
+		return nil, err
+	}
+
+	req.Header.Add("Content-Type", contentType)
+
+	if params != nil {
+
+		if params.XCSRFToken != nil {
+			var headerParam0 string
+
+			headerParam0, err = runtime.StyleParamWithOptions("simple", false, "X-CSRF-Token", *params.XCSRFToken, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationHeader, Type: "string", Format: ""})
+			if err != nil {
+				return nil, err
+			}
+
+			req.Header.Set("X-CSRF-Token", headerParam0)
+		}
+
+	}
+
+	return req, nil
+}
+
+// NewCreateCompleteProbeTaskRequest constructs an http.Request for the CreateCompleteProbeTask method
+func NewCreateCompleteProbeTaskRequest(server string, nodeId NodeId, params *CreateCompleteProbeTaskParams) (*http.Request, error) {
+	var err error
+
+	var pathParam0 string
+
+	pathParam0, err = runtime.StyleParamWithOptions("simple", false, "nodeId", nodeId, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationPath, Type: "string", Format: "uuid"})
+	if err != nil {
+		return nil, err
+	}
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/api/v1/nodes/%s/probe/tasks", pathParam0)
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest(http.MethodPost, queryURL.String(), nil)
+	if err != nil {
+		return nil, err
+	}
+
+	if params != nil {
+
+		if params.XCSRFToken != nil {
+			var headerParam0 string
+
+			headerParam0, err = runtime.StyleParamWithOptions("simple", false, "X-CSRF-Token", *params.XCSRFToken, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationHeader, Type: "string", Format: ""})
+			if err != nil {
+				return nil, err
+			}
+
+			req.Header.Set("X-CSRF-Token", headerParam0)
+		}
+
+	}
+
+	return req, nil
+}
+
 // NewRevokeNodeRequest constructs an http.Request for the RevokeNode method
 func NewRevokeNodeRequest(server string, nodeId NodeId, params *RevokeNodeParams) (*http.Request, error) {
 	var err error
@@ -3924,6 +4938,74 @@ func NewStartNodeSyncSessionRequest(server string, nodeId NodeId, params *StartN
 			req.Header.Set("X-CSRF-Token", headerParam0)
 		}
 
+	}
+
+	return req, nil
+}
+
+// NewGetProbeRunRequest constructs an http.Request for the GetProbeRun method
+func NewGetProbeRunRequest(server string, runId RunId) (*http.Request, error) {
+	var err error
+
+	var pathParam0 string
+
+	pathParam0, err = runtime.StyleParamWithOptions("simple", false, "runId", runId, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationPath, Type: "string", Format: "uuid"})
+	if err != nil {
+		return nil, err
+	}
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/api/v1/probe-runs/%s", pathParam0)
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest(http.MethodGet, queryURL.String(), nil)
+	if err != nil {
+		return nil, err
+	}
+
+	return req, nil
+}
+
+// NewGetProbeSnapshotRequest constructs an http.Request for the GetProbeSnapshot method
+func NewGetProbeSnapshotRequest(server string, snapshotId SnapshotId) (*http.Request, error) {
+	var err error
+
+	var pathParam0 string
+
+	pathParam0, err = runtime.StyleParamWithOptions("simple", false, "snapshotId", snapshotId, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationPath, Type: "string", Format: "uuid"})
+	if err != nil {
+		return nil, err
+	}
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/api/v1/probe-snapshots/%s", pathParam0)
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest(http.MethodGet, queryURL.String(), nil)
+	if err != nil {
+		return nil, err
 	}
 
 	return req, nil
@@ -4147,6 +5229,20 @@ type ClientWithResponsesInterface interface {
 	// Corresponds with POST /api/v1/agent/enroll (the `RegisterAgent` operationId).
 	RegisterAgentWithResponse(ctx context.Context, body RegisterAgentJSONRequestBody, reqEditors ...RequestEditorFn) (*RegisterAgentResponse, error)
 
+	// UploadProbeArtifactWithBodyWithResponse Idempotently upload one complete-probe run or execution revision
+	//
+	// Takes any type of body and a specified content type, and returns a wrapper object for the known response body format(s).
+	//
+	// Corresponds with POST /api/v1/agent/probe-artifacts (the `UploadProbeArtifact` operationId).
+	UploadProbeArtifactWithBodyWithResponse(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*UploadProbeArtifactResponse, error)
+
+	// UploadProbeArtifactWithResponse Idempotently upload one complete-probe run or execution revision
+	//
+	// Takes a body of the `application/json` content type, and returns a wrapper object for the known response body format(s).
+	//
+	// Corresponds with POST /api/v1/agent/probe-artifacts (the `UploadProbeArtifact` operationId).
+	UploadProbeArtifactWithResponse(ctx context.Context, body UploadProbeArtifactJSONRequestBody, reqEditors ...RequestEditorFn) (*UploadProbeArtifactResponse, error)
+
 	// LoginWithBodyWithResponse Start an administrator session
 	//
 	// Takes any type of body and a specified content type, and returns a wrapper object for the known response body format(s).
@@ -4174,6 +5270,20 @@ type ClientWithResponsesInterface interface {
 	//
 	// Corresponds with GET /api/v1/auth/session (the `GetAuthenticatedSession` operationId).
 	GetAuthenticatedSessionWithResponse(ctx context.Context, reqEditors ...RequestEditorFn) (*GetAuthenticatedSessionResponse, error)
+
+	// ResetHistoryWithResponse Delete all observed history and advance its generation
+	//
+	// Returns a wrapper object for the known response body format(s).
+	//
+	// Corresponds with DELETE /api/v1/history (the `ResetHistory` operationId).
+	ResetHistoryWithResponse(ctx context.Context, params *ResetHistoryParams, reqEditors ...RequestEditorFn) (*ResetHistoryResponse, error)
+
+	// GetHistoryStateWithResponse Read the current history generation and reset state
+	//
+	// Returns a wrapper object for the known response body format(s).
+	//
+	// Corresponds with GET /api/v1/history (the `GetHistoryState` operationId).
+	GetHistoryStateWithResponse(ctx context.Context, reqEditors ...RequestEditorFn) (*GetHistoryStateResponse, error)
 
 	// GetNetworkObservationSettingsWithResponse Read global lightweight address discovery services
 	//
@@ -4308,6 +5418,34 @@ type ClientWithResponsesInterface interface {
 	// Corresponds with GET /api/v1/nodes/{nodeId}/network (the `GetNodeNetwork` operationId).
 	GetNodeNetworkWithResponse(ctx context.Context, nodeId NodeId, reqEditors ...RequestEditorFn) (*GetNodeNetworkResponse, error)
 
+	// GetNodeProbeWithResponse Read complete-probe settings, current task, and recent runs
+	//
+	// Returns a wrapper object for the known response body format(s).
+	//
+	// Corresponds with GET /api/v1/nodes/{nodeId}/probe (the `GetNodeProbe` operationId).
+	GetNodeProbeWithResponse(ctx context.Context, nodeId NodeId, reqEditors ...RequestEditorFn) (*GetNodeProbeResponse, error)
+
+	// UpdateNodeProbeSettingsWithBodyWithResponse Replace the node complete-probe schedule and resource override
+	//
+	// Takes any type of body and a specified content type, and returns a wrapper object for the known response body format(s).
+	//
+	// Corresponds with PUT /api/v1/nodes/{nodeId}/probe (the `UpdateNodeProbeSettings` operationId).
+	UpdateNodeProbeSettingsWithBodyWithResponse(ctx context.Context, nodeId NodeId, params *UpdateNodeProbeSettingsParams, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*UpdateNodeProbeSettingsResponse, error)
+
+	// UpdateNodeProbeSettingsWithResponse Replace the node complete-probe schedule and resource override
+	//
+	// Takes a body of the `application/json` content type, and returns a wrapper object for the known response body format(s).
+	//
+	// Corresponds with PUT /api/v1/nodes/{nodeId}/probe (the `UpdateNodeProbeSettings` operationId).
+	UpdateNodeProbeSettingsWithResponse(ctx context.Context, nodeId NodeId, params *UpdateNodeProbeSettingsParams, body UpdateNodeProbeSettingsJSONRequestBody, reqEditors ...RequestEditorFn) (*UpdateNodeProbeSettingsResponse, error)
+
+	// CreateCompleteProbeTaskWithResponse Create the node's single immediate complete-probe task
+	//
+	// Returns a wrapper object for the known response body format(s).
+	//
+	// Corresponds with POST /api/v1/nodes/{nodeId}/probe/tasks (the `CreateCompleteProbeTask` operationId).
+	CreateCompleteProbeTaskWithResponse(ctx context.Context, nodeId NodeId, params *CreateCompleteProbeTaskParams, reqEditors ...RequestEditorFn) (*CreateCompleteProbeTaskResponse, error)
+
 	// RevokeNodeWithResponse Permanently revoke a node Agent credential
 	//
 	// Returns a wrapper object for the known response body format(s).
@@ -4328,6 +5466,20 @@ type ClientWithResponsesInterface interface {
 	//
 	// Corresponds with POST /api/v1/nodes/{nodeId}/sync-session (the `StartNodeSyncSession` operationId).
 	StartNodeSyncSessionWithResponse(ctx context.Context, nodeId NodeId, params *StartNodeSyncSessionParams, reqEditors ...RequestEditorFn) (*StartNodeSyncSessionResponse, error)
+
+	// GetProbeRunWithResponse Read one complete-probe run and its frozen egress executions
+	//
+	// Returns a wrapper object for the known response body format(s).
+	//
+	// Corresponds with GET /api/v1/probe-runs/{runId} (the `GetProbeRun` operationId).
+	GetProbeRunWithResponse(ctx context.Context, runId RunId, reqEditors ...RequestEditorFn) (*GetProbeRunResponse, error)
+
+	// GetProbeSnapshotWithResponse Read one retained complete-probe source snapshot
+	//
+	// Returns a wrapper object for the known response body format(s).
+	//
+	// Corresponds with GET /api/v1/probe-snapshots/{snapshotId} (the `GetProbeSnapshot` operationId).
+	GetProbeSnapshotWithResponse(ctx context.Context, snapshotId SnapshotId, reqEditors ...RequestEditorFn) (*GetProbeSnapshotResponse, error)
 
 	// GetSystemStatusWithResponse Read center status
 	//
@@ -5129,6 +6281,68 @@ func (r RegisterAgentResponse) ContentType() string {
 	return ""
 }
 
+type UploadProbeArtifactResponse struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	// JSON200 the response for an HTTP 200 `application/json` response
+	JSON200 *AgentProbeArtifactReceipt
+	// JSON400 the response for an HTTP 400 `application/json` response
+	JSON400 *BadRequest
+	// JSON401 the response for an HTTP 401 `application/json` response
+	JSON401 *AgentUnauthorized
+	// JSON403 the response for an HTTP 403 `application/json` response
+	JSON403 *AgentForbidden
+}
+
+// GetJSON200 returns the response for an HTTP 200 `application/json` response
+func (r UploadProbeArtifactResponse) GetJSON200() *AgentProbeArtifactReceipt {
+	return r.JSON200
+}
+
+// GetJSON400 returns the response for an HTTP 400 `application/json` response
+func (r UploadProbeArtifactResponse) GetJSON400() *BadRequest {
+	return r.JSON400
+}
+
+// GetJSON401 returns the response for an HTTP 401 `application/json` response
+func (r UploadProbeArtifactResponse) GetJSON401() *AgentUnauthorized {
+	return r.JSON401
+}
+
+// GetJSON403 returns the response for an HTTP 403 `application/json` response
+func (r UploadProbeArtifactResponse) GetJSON403() *AgentForbidden {
+	return r.JSON403
+}
+
+// GetBody returns the raw response body bytes
+func (r UploadProbeArtifactResponse) GetBody() []byte {
+	return r.Body
+}
+
+// Status returns HTTPResponse.Status
+func (r UploadProbeArtifactResponse) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r UploadProbeArtifactResponse) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+// ContentType is a convenience method to retrieve the Content-Type value from the HTTP response headers
+func (r UploadProbeArtifactResponse) ContentType() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Header.Get("Content-Type")
+	}
+	return ""
+}
+
 // LoginResponse200Headers the declared response headers of an HTTP 200 response for Login
 type LoginResponse200Headers struct {
 	SetCookie *string
@@ -5302,6 +6516,109 @@ func (r GetAuthenticatedSessionResponse) StatusCode() int {
 
 // ContentType is a convenience method to retrieve the Content-Type value from the HTTP response headers
 func (r GetAuthenticatedSessionResponse) ContentType() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Header.Get("Content-Type")
+	}
+	return ""
+}
+
+type ResetHistoryResponse struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	// JSON200 the response for an HTTP 200 `application/json` response
+	JSON200 *HistoryState
+	// JSON401 the response for an HTTP 401 `application/json` response
+	JSON401 *Unauthorized
+	// JSON403 the response for an HTTP 403 `application/json` response
+	JSON403 *Forbidden
+}
+
+// GetJSON200 returns the response for an HTTP 200 `application/json` response
+func (r ResetHistoryResponse) GetJSON200() *HistoryState {
+	return r.JSON200
+}
+
+// GetJSON401 returns the response for an HTTP 401 `application/json` response
+func (r ResetHistoryResponse) GetJSON401() *Unauthorized {
+	return r.JSON401
+}
+
+// GetJSON403 returns the response for an HTTP 403 `application/json` response
+func (r ResetHistoryResponse) GetJSON403() *Forbidden {
+	return r.JSON403
+}
+
+// GetBody returns the raw response body bytes
+func (r ResetHistoryResponse) GetBody() []byte {
+	return r.Body
+}
+
+// Status returns HTTPResponse.Status
+func (r ResetHistoryResponse) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r ResetHistoryResponse) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+// ContentType is a convenience method to retrieve the Content-Type value from the HTTP response headers
+func (r ResetHistoryResponse) ContentType() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Header.Get("Content-Type")
+	}
+	return ""
+}
+
+type GetHistoryStateResponse struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	// JSON200 the response for an HTTP 200 `application/json` response
+	JSON200 *HistoryState
+	// JSON401 the response for an HTTP 401 `application/json` response
+	JSON401 *Unauthorized
+}
+
+// GetJSON200 returns the response for an HTTP 200 `application/json` response
+func (r GetHistoryStateResponse) GetJSON200() *HistoryState {
+	return r.JSON200
+}
+
+// GetJSON401 returns the response for an HTTP 401 `application/json` response
+func (r GetHistoryStateResponse) GetJSON401() *Unauthorized {
+	return r.JSON401
+}
+
+// GetBody returns the raw response body bytes
+func (r GetHistoryStateResponse) GetBody() []byte {
+	return r.Body
+}
+
+// Status returns HTTPResponse.Status
+func (r GetHistoryStateResponse) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r GetHistoryStateResponse) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+// ContentType is a convenience method to retrieve the Content-Type value from the HTTP response headers
+func (r GetHistoryStateResponse) ContentType() string {
 	if r.HTTPResponse != nil {
 		return r.HTTPResponse.Header.Get("Content-Type")
 	}
@@ -6135,6 +7452,206 @@ func (r GetNodeNetworkResponse) ContentType() string {
 	return ""
 }
 
+type GetNodeProbeResponse struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	// JSON200 the response for an HTTP 200 `application/json` response
+	JSON200 *NodeProbeState
+	// JSON401 the response for an HTTP 401 `application/json` response
+	JSON401 *Unauthorized
+	// JSON404 the response for an HTTP 404 `application/json` response
+	JSON404 *NotFound
+}
+
+// GetJSON200 returns the response for an HTTP 200 `application/json` response
+func (r GetNodeProbeResponse) GetJSON200() *NodeProbeState {
+	return r.JSON200
+}
+
+// GetJSON401 returns the response for an HTTP 401 `application/json` response
+func (r GetNodeProbeResponse) GetJSON401() *Unauthorized {
+	return r.JSON401
+}
+
+// GetJSON404 returns the response for an HTTP 404 `application/json` response
+func (r GetNodeProbeResponse) GetJSON404() *NotFound {
+	return r.JSON404
+}
+
+// GetBody returns the raw response body bytes
+func (r GetNodeProbeResponse) GetBody() []byte {
+	return r.Body
+}
+
+// Status returns HTTPResponse.Status
+func (r GetNodeProbeResponse) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r GetNodeProbeResponse) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+// ContentType is a convenience method to retrieve the Content-Type value from the HTTP response headers
+func (r GetNodeProbeResponse) ContentType() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Header.Get("Content-Type")
+	}
+	return ""
+}
+
+type UpdateNodeProbeSettingsResponse struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	// JSON200 the response for an HTTP 200 `application/json` response
+	JSON200 *NodeProbeState
+	// JSON400 the response for an HTTP 400 `application/json` response
+	JSON400 *BadRequest
+	// JSON401 the response for an HTTP 401 `application/json` response
+	JSON401 *Unauthorized
+	// JSON403 the response for an HTTP 403 `application/json` response
+	JSON403 *Forbidden
+	// JSON404 the response for an HTTP 404 `application/json` response
+	JSON404 *NotFound
+	// JSON409 the response for an HTTP 409 `application/json` response
+	JSON409 *Conflict
+}
+
+// GetJSON200 returns the response for an HTTP 200 `application/json` response
+func (r UpdateNodeProbeSettingsResponse) GetJSON200() *NodeProbeState {
+	return r.JSON200
+}
+
+// GetJSON400 returns the response for an HTTP 400 `application/json` response
+func (r UpdateNodeProbeSettingsResponse) GetJSON400() *BadRequest {
+	return r.JSON400
+}
+
+// GetJSON401 returns the response for an HTTP 401 `application/json` response
+func (r UpdateNodeProbeSettingsResponse) GetJSON401() *Unauthorized {
+	return r.JSON401
+}
+
+// GetJSON403 returns the response for an HTTP 403 `application/json` response
+func (r UpdateNodeProbeSettingsResponse) GetJSON403() *Forbidden {
+	return r.JSON403
+}
+
+// GetJSON404 returns the response for an HTTP 404 `application/json` response
+func (r UpdateNodeProbeSettingsResponse) GetJSON404() *NotFound {
+	return r.JSON404
+}
+
+// GetJSON409 returns the response for an HTTP 409 `application/json` response
+func (r UpdateNodeProbeSettingsResponse) GetJSON409() *Conflict {
+	return r.JSON409
+}
+
+// GetBody returns the raw response body bytes
+func (r UpdateNodeProbeSettingsResponse) GetBody() []byte {
+	return r.Body
+}
+
+// Status returns HTTPResponse.Status
+func (r UpdateNodeProbeSettingsResponse) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r UpdateNodeProbeSettingsResponse) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+// ContentType is a convenience method to retrieve the Content-Type value from the HTTP response headers
+func (r UpdateNodeProbeSettingsResponse) ContentType() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Header.Get("Content-Type")
+	}
+	return ""
+}
+
+type CreateCompleteProbeTaskResponse struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	// JSON202 the response for an HTTP 202 `application/json` response
+	JSON202 *ProbeTask
+	// JSON401 the response for an HTTP 401 `application/json` response
+	JSON401 *Unauthorized
+	// JSON403 the response for an HTTP 403 `application/json` response
+	JSON403 *Forbidden
+	// JSON404 the response for an HTTP 404 `application/json` response
+	JSON404 *NotFound
+	// JSON409 the response for an HTTP 409 `application/json` response
+	JSON409 *Conflict
+}
+
+// GetJSON202 returns the response for an HTTP 202 `application/json` response
+func (r CreateCompleteProbeTaskResponse) GetJSON202() *ProbeTask {
+	return r.JSON202
+}
+
+// GetJSON401 returns the response for an HTTP 401 `application/json` response
+func (r CreateCompleteProbeTaskResponse) GetJSON401() *Unauthorized {
+	return r.JSON401
+}
+
+// GetJSON403 returns the response for an HTTP 403 `application/json` response
+func (r CreateCompleteProbeTaskResponse) GetJSON403() *Forbidden {
+	return r.JSON403
+}
+
+// GetJSON404 returns the response for an HTTP 404 `application/json` response
+func (r CreateCompleteProbeTaskResponse) GetJSON404() *NotFound {
+	return r.JSON404
+}
+
+// GetJSON409 returns the response for an HTTP 409 `application/json` response
+func (r CreateCompleteProbeTaskResponse) GetJSON409() *Conflict {
+	return r.JSON409
+}
+
+// GetBody returns the raw response body bytes
+func (r CreateCompleteProbeTaskResponse) GetBody() []byte {
+	return r.Body
+}
+
+// Status returns HTTPResponse.Status
+func (r CreateCompleteProbeTaskResponse) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r CreateCompleteProbeTaskResponse) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+// ContentType is a convenience method to retrieve the Content-Type value from the HTTP response headers
+func (r CreateCompleteProbeTaskResponse) ContentType() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Header.Get("Content-Type")
+	}
+	return ""
+}
+
 type RevokeNodeResponse struct {
 	Body         []byte
 	HTTPResponse *http.Response
@@ -6329,6 +7846,116 @@ func (r StartNodeSyncSessionResponse) StatusCode() int {
 
 // ContentType is a convenience method to retrieve the Content-Type value from the HTTP response headers
 func (r StartNodeSyncSessionResponse) ContentType() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Header.Get("Content-Type")
+	}
+	return ""
+}
+
+type GetProbeRunResponse struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	// JSON200 the response for an HTTP 200 `application/json` response
+	JSON200 *ProbeRun
+	// JSON401 the response for an HTTP 401 `application/json` response
+	JSON401 *Unauthorized
+	// JSON404 the response for an HTTP 404 `application/json` response
+	JSON404 *NotFound
+}
+
+// GetJSON200 returns the response for an HTTP 200 `application/json` response
+func (r GetProbeRunResponse) GetJSON200() *ProbeRun {
+	return r.JSON200
+}
+
+// GetJSON401 returns the response for an HTTP 401 `application/json` response
+func (r GetProbeRunResponse) GetJSON401() *Unauthorized {
+	return r.JSON401
+}
+
+// GetJSON404 returns the response for an HTTP 404 `application/json` response
+func (r GetProbeRunResponse) GetJSON404() *NotFound {
+	return r.JSON404
+}
+
+// GetBody returns the raw response body bytes
+func (r GetProbeRunResponse) GetBody() []byte {
+	return r.Body
+}
+
+// Status returns HTTPResponse.Status
+func (r GetProbeRunResponse) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r GetProbeRunResponse) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+// ContentType is a convenience method to retrieve the Content-Type value from the HTTP response headers
+func (r GetProbeRunResponse) ContentType() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Header.Get("Content-Type")
+	}
+	return ""
+}
+
+type GetProbeSnapshotResponse struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	// JSON200 the response for an HTTP 200 `application/json` response
+	JSON200 *ProbeSnapshot
+	// JSON401 the response for an HTTP 401 `application/json` response
+	JSON401 *Unauthorized
+	// JSON404 the response for an HTTP 404 `application/json` response
+	JSON404 *NotFound
+}
+
+// GetJSON200 returns the response for an HTTP 200 `application/json` response
+func (r GetProbeSnapshotResponse) GetJSON200() *ProbeSnapshot {
+	return r.JSON200
+}
+
+// GetJSON401 returns the response for an HTTP 401 `application/json` response
+func (r GetProbeSnapshotResponse) GetJSON401() *Unauthorized {
+	return r.JSON401
+}
+
+// GetJSON404 returns the response for an HTTP 404 `application/json` response
+func (r GetProbeSnapshotResponse) GetJSON404() *NotFound {
+	return r.JSON404
+}
+
+// GetBody returns the raw response body bytes
+func (r GetProbeSnapshotResponse) GetBody() []byte {
+	return r.Body
+}
+
+// Status returns HTTPResponse.Status
+func (r GetProbeSnapshotResponse) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r GetProbeSnapshotResponse) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+// ContentType is a convenience method to retrieve the Content-Type value from the HTTP response headers
+func (r GetProbeSnapshotResponse) ContentType() string {
 	if r.HTTPResponse != nil {
 		return r.HTTPResponse.Header.Get("Content-Type")
 	}
@@ -6656,6 +8283,32 @@ func (c *ClientWithResponses) RegisterAgentWithResponse(ctx context.Context, bod
 	return ParseRegisterAgentResponse(rsp)
 }
 
+// UploadProbeArtifactWithBodyWithResponse Idempotently upload one complete-probe run or execution revision
+//
+// Takes any type of body and a specified content type, and returns a wrapper object for the known response body format(s).
+//
+// Corresponds with POST /api/v1/agent/probe-artifacts (the `UploadProbeArtifact` operationId).
+func (c *ClientWithResponses) UploadProbeArtifactWithBodyWithResponse(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*UploadProbeArtifactResponse, error) {
+	rsp, err := c.UploadProbeArtifactWithBody(ctx, contentType, body, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseUploadProbeArtifactResponse(rsp)
+}
+
+// UploadProbeArtifactWithResponse Idempotently upload one complete-probe run or execution revision
+//
+// Takes a body of the `application/json` content type, and returns a wrapper object for the known response body format(s).
+//
+// Corresponds with POST /api/v1/agent/probe-artifacts (the `UploadProbeArtifact` operationId).
+func (c *ClientWithResponses) UploadProbeArtifactWithResponse(ctx context.Context, body UploadProbeArtifactJSONRequestBody, reqEditors ...RequestEditorFn) (*UploadProbeArtifactResponse, error) {
+	rsp, err := c.UploadProbeArtifact(ctx, body, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseUploadProbeArtifactResponse(rsp)
+}
+
 // LoginWithBodyWithResponse Start an administrator session
 //
 // Takes any type of body and a specified content type, and returns a wrapper object for the known response body format(s).
@@ -6706,6 +8359,32 @@ func (c *ClientWithResponses) GetAuthenticatedSessionWithResponse(ctx context.Co
 		return nil, err
 	}
 	return ParseGetAuthenticatedSessionResponse(rsp)
+}
+
+// ResetHistoryWithResponse Delete all observed history and advance its generation
+//
+// Returns a wrapper object for the known response body format(s).
+//
+// Corresponds with DELETE /api/v1/history (the `ResetHistory` operationId).
+func (c *ClientWithResponses) ResetHistoryWithResponse(ctx context.Context, params *ResetHistoryParams, reqEditors ...RequestEditorFn) (*ResetHistoryResponse, error) {
+	rsp, err := c.ResetHistory(ctx, params, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseResetHistoryResponse(rsp)
+}
+
+// GetHistoryStateWithResponse Read the current history generation and reset state
+//
+// Returns a wrapper object for the known response body format(s).
+//
+// Corresponds with GET /api/v1/history (the `GetHistoryState` operationId).
+func (c *ClientWithResponses) GetHistoryStateWithResponse(ctx context.Context, reqEditors ...RequestEditorFn) (*GetHistoryStateResponse, error) {
+	rsp, err := c.GetHistoryState(ctx, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseGetHistoryStateResponse(rsp)
 }
 
 // GetNetworkObservationSettingsWithResponse Read global lightweight address discovery services
@@ -6955,6 +8634,58 @@ func (c *ClientWithResponses) GetNodeNetworkWithResponse(ctx context.Context, no
 	return ParseGetNodeNetworkResponse(rsp)
 }
 
+// GetNodeProbeWithResponse Read complete-probe settings, current task, and recent runs
+//
+// Returns a wrapper object for the known response body format(s).
+//
+// Corresponds with GET /api/v1/nodes/{nodeId}/probe (the `GetNodeProbe` operationId).
+func (c *ClientWithResponses) GetNodeProbeWithResponse(ctx context.Context, nodeId NodeId, reqEditors ...RequestEditorFn) (*GetNodeProbeResponse, error) {
+	rsp, err := c.GetNodeProbe(ctx, nodeId, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseGetNodeProbeResponse(rsp)
+}
+
+// UpdateNodeProbeSettingsWithBodyWithResponse Replace the node complete-probe schedule and resource override
+//
+// Takes any type of body and a specified content type, and returns a wrapper object for the known response body format(s).
+//
+// Corresponds with PUT /api/v1/nodes/{nodeId}/probe (the `UpdateNodeProbeSettings` operationId).
+func (c *ClientWithResponses) UpdateNodeProbeSettingsWithBodyWithResponse(ctx context.Context, nodeId NodeId, params *UpdateNodeProbeSettingsParams, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*UpdateNodeProbeSettingsResponse, error) {
+	rsp, err := c.UpdateNodeProbeSettingsWithBody(ctx, nodeId, params, contentType, body, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseUpdateNodeProbeSettingsResponse(rsp)
+}
+
+// UpdateNodeProbeSettingsWithResponse Replace the node complete-probe schedule and resource override
+//
+// Takes a body of the `application/json` content type, and returns a wrapper object for the known response body format(s).
+//
+// Corresponds with PUT /api/v1/nodes/{nodeId}/probe (the `UpdateNodeProbeSettings` operationId).
+func (c *ClientWithResponses) UpdateNodeProbeSettingsWithResponse(ctx context.Context, nodeId NodeId, params *UpdateNodeProbeSettingsParams, body UpdateNodeProbeSettingsJSONRequestBody, reqEditors ...RequestEditorFn) (*UpdateNodeProbeSettingsResponse, error) {
+	rsp, err := c.UpdateNodeProbeSettings(ctx, nodeId, params, body, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseUpdateNodeProbeSettingsResponse(rsp)
+}
+
+// CreateCompleteProbeTaskWithResponse Create the node's single immediate complete-probe task
+//
+// Returns a wrapper object for the known response body format(s).
+//
+// Corresponds with POST /api/v1/nodes/{nodeId}/probe/tasks (the `CreateCompleteProbeTask` operationId).
+func (c *ClientWithResponses) CreateCompleteProbeTaskWithResponse(ctx context.Context, nodeId NodeId, params *CreateCompleteProbeTaskParams, reqEditors ...RequestEditorFn) (*CreateCompleteProbeTaskResponse, error) {
+	rsp, err := c.CreateCompleteProbeTask(ctx, nodeId, params, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseCreateCompleteProbeTaskResponse(rsp)
+}
+
 // RevokeNodeWithResponse Permanently revoke a node Agent credential
 //
 // Returns a wrapper object for the known response body format(s).
@@ -6992,6 +8723,32 @@ func (c *ClientWithResponses) StartNodeSyncSessionWithResponse(ctx context.Conte
 		return nil, err
 	}
 	return ParseStartNodeSyncSessionResponse(rsp)
+}
+
+// GetProbeRunWithResponse Read one complete-probe run and its frozen egress executions
+//
+// Returns a wrapper object for the known response body format(s).
+//
+// Corresponds with GET /api/v1/probe-runs/{runId} (the `GetProbeRun` operationId).
+func (c *ClientWithResponses) GetProbeRunWithResponse(ctx context.Context, runId RunId, reqEditors ...RequestEditorFn) (*GetProbeRunResponse, error) {
+	rsp, err := c.GetProbeRun(ctx, runId, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseGetProbeRunResponse(rsp)
+}
+
+// GetProbeSnapshotWithResponse Read one retained complete-probe source snapshot
+//
+// Returns a wrapper object for the known response body format(s).
+//
+// Corresponds with GET /api/v1/probe-snapshots/{snapshotId} (the `GetProbeSnapshot` operationId).
+func (c *ClientWithResponses) GetProbeSnapshotWithResponse(ctx context.Context, snapshotId SnapshotId, reqEditors ...RequestEditorFn) (*GetProbeSnapshotResponse, error) {
+	rsp, err := c.GetProbeSnapshot(ctx, snapshotId, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseGetProbeSnapshotResponse(rsp)
 }
 
 // GetSystemStatusWithResponse Read center status
@@ -7628,6 +9385,53 @@ func ParseRegisterAgentResponse(rsp *http.Response) (*RegisterAgentResponse, err
 	return response, nil
 }
 
+// ParseUploadProbeArtifactResponse parses an HTTP response from a UploadProbeArtifactWithResponse call
+func ParseUploadProbeArtifactResponse(rsp *http.Response) (*UploadProbeArtifactResponse, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &UploadProbeArtifactResponse{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest AgentProbeArtifactReceipt
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 400:
+		var dest BadRequest
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON400 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 401:
+		var dest AgentUnauthorized
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON401 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 403:
+		var dest AgentForbidden
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON403 = &dest
+
+	}
+
+	return response, nil
+}
+
 // ParseLoginResponse parses an HTTP response from a LoginWithResponse call
 func ParseLoginResponse(rsp *http.Response) (*LoginResponse, error) {
 	bodyBytes, err := io.ReadAll(rsp.Body)
@@ -7760,6 +9564,79 @@ func ParseGetAuthenticatedSessionResponse(rsp *http.Response) (*GetAuthenticated
 	switch {
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
 		var dest AuthenticatedSession
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 401:
+		var dest Unauthorized
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON401 = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseResetHistoryResponse parses an HTTP response from a ResetHistoryWithResponse call
+func ParseResetHistoryResponse(rsp *http.Response) (*ResetHistoryResponse, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &ResetHistoryResponse{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest HistoryState
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 401:
+		var dest Unauthorized
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON401 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 403:
+		var dest Forbidden
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON403 = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseGetHistoryStateResponse parses an HTTP response from a GetHistoryStateWithResponse call
+func ParseGetHistoryStateResponse(rsp *http.Response) (*GetHistoryStateResponse, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &GetHistoryStateResponse{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest HistoryState
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
@@ -8412,6 +10289,161 @@ func ParseGetNodeNetworkResponse(rsp *http.Response) (*GetNodeNetworkResponse, e
 	return response, nil
 }
 
+// ParseGetNodeProbeResponse parses an HTTP response from a GetNodeProbeWithResponse call
+func ParseGetNodeProbeResponse(rsp *http.Response) (*GetNodeProbeResponse, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &GetNodeProbeResponse{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest NodeProbeState
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 401:
+		var dest Unauthorized
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON401 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 404:
+		var dest NotFound
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON404 = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseUpdateNodeProbeSettingsResponse parses an HTTP response from a UpdateNodeProbeSettingsWithResponse call
+func ParseUpdateNodeProbeSettingsResponse(rsp *http.Response) (*UpdateNodeProbeSettingsResponse, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &UpdateNodeProbeSettingsResponse{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest NodeProbeState
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 400:
+		var dest BadRequest
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON400 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 401:
+		var dest Unauthorized
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON401 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 403:
+		var dest Forbidden
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON403 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 404:
+		var dest NotFound
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON404 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 409:
+		var dest Conflict
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON409 = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseCreateCompleteProbeTaskResponse parses an HTTP response from a CreateCompleteProbeTaskWithResponse call
+func ParseCreateCompleteProbeTaskResponse(rsp *http.Response) (*CreateCompleteProbeTaskResponse, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &CreateCompleteProbeTaskResponse{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 202:
+		var dest ProbeTask
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON202 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 401:
+		var dest Unauthorized
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON401 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 403:
+		var dest Forbidden
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON403 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 404:
+		var dest NotFound
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON404 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 409:
+		var dest Conflict
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON409 = &dest
+
+	}
+
+	return response, nil
+}
+
 // ParseRevokeNodeResponse parses an HTTP response from a RevokeNodeWithResponse call
 func ParseRevokeNodeResponse(rsp *http.Response) (*RevokeNodeResponse, error) {
 	bodyBytes, err := io.ReadAll(rsp.Body)
@@ -8561,6 +10593,86 @@ func ParseStartNodeSyncSessionResponse(rsp *http.Response) (*StartNodeSyncSessio
 			return nil, err
 		}
 		response.JSON409 = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseGetProbeRunResponse parses an HTTP response from a GetProbeRunWithResponse call
+func ParseGetProbeRunResponse(rsp *http.Response) (*GetProbeRunResponse, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &GetProbeRunResponse{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest ProbeRun
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 401:
+		var dest Unauthorized
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON401 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 404:
+		var dest NotFound
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON404 = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseGetProbeSnapshotResponse parses an HTTP response from a GetProbeSnapshotWithResponse call
+func ParseGetProbeSnapshotResponse(rsp *http.Response) (*GetProbeSnapshotResponse, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &GetProbeSnapshotResponse{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest ProbeSnapshot
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 401:
+		var dest Unauthorized
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON401 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 404:
+		var dest NotFound
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON404 = &dest
 
 	}
 

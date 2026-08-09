@@ -304,6 +304,29 @@ func (q *Queries) CreateNodeEgress(ctx context.Context, arg CreateNodeEgressPara
 	return err
 }
 
+const createProbeTask = `-- name: CreateProbeTask :exec
+INSERT INTO probe_tasks (
+    id, node_id, kind, status, created_at, expires_at
+) VALUES (?, ?, 'complete-probe', 'pending', ?, ?)
+`
+
+type CreateProbeTaskParams struct {
+	ID        string
+	NodeID    string
+	CreatedAt int64
+	ExpiresAt int64
+}
+
+func (q *Queries) CreateProbeTask(ctx context.Context, arg CreateProbeTaskParams) error {
+	_, err := q.db.ExecContext(ctx, createProbeTask,
+		arg.ID,
+		arg.NodeID,
+		arg.CreatedAt,
+		arg.ExpiresAt,
+	)
+	return err
+}
+
 const createSystemState = `-- name: CreateSystemState :exec
 INSERT INTO system_state (id, history_generation)
 VALUES (1, ?)
@@ -413,6 +436,17 @@ func (q *Queries) DeleteNodeSyncSession(ctx context.Context, nodeID string) erro
 	return err
 }
 
+const deleteTerminalProbeTasksBefore = `-- name: DeleteTerminalProbeTasksBefore :exec
+DELETE FROM probe_tasks
+WHERE completed_at IS NOT NULL AND completed_at < ?
+  AND status IN ('succeeded', 'partial', 'failed', 'rejected', 'expired')
+`
+
+func (q *Queries) DeleteTerminalProbeTasksBefore(ctx context.Context, completedAt *int64) error {
+	_, err := q.db.ExecContext(ctx, deleteTerminalProbeTasksBefore, completedAt)
+	return err
+}
+
 const disableTOTP = `-- name: DisableTOTP :exec
 UPDATE administrators
 SET totp_secret_encrypted = NULL, totp_enabled = 0,
@@ -434,6 +468,32 @@ WHERE id = 1 AND totp_secret_encrypted IS NOT NULL
 func (q *Queries) EnableTOTP(ctx context.Context, totpLastUsedStep int64) error {
 	_, err := q.db.ExecContext(ctx, enableTOTP, totpLastUsedStep)
 	return err
+}
+
+const expireProbeTask = `-- name: ExpireProbeTask :execrows
+UPDATE probe_tasks
+SET status = 'expired', completed_at = ?
+WHERE id = ? AND node_id = ? AND status = 'pending' AND expires_at <= ?
+`
+
+type ExpireProbeTaskParams struct {
+	CompletedAt *int64
+	ID          string
+	NodeID      string
+	ExpiresAt   int64
+}
+
+func (q *Queries) ExpireProbeTask(ctx context.Context, arg ExpireProbeTaskParams) (int64, error) {
+	result, err := q.db.ExecContext(ctx, expireProbeTask,
+		arg.CompletedAt,
+		arg.ID,
+		arg.NodeID,
+		arg.ExpiresAt,
+	)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected()
 }
 
 const failEgressDeletion = `-- name: FailEgressDeletion :exec
@@ -521,6 +581,36 @@ func (q *Queries) GetActiveNodeSyncSessionByID(ctx context.Context, arg GetActiv
 		&i.RequestedAt,
 		&i.ExpiresAt,
 		&i.DeliveredAt,
+	)
+	return i, err
+}
+
+const getActiveProbeTask = `-- name: GetActiveProbeTask :one
+SELECT id, node_id, kind, status, created_at, expires_at, acknowledged_at,
+       started_at, completed_at, run_id, rejection_reason,
+       terminal_confirmed_at
+FROM probe_tasks
+WHERE node_id = ? AND status IN ('pending', 'acknowledged', 'running')
+ORDER BY created_at, id
+LIMIT 1
+`
+
+func (q *Queries) GetActiveProbeTask(ctx context.Context, nodeID string) (ProbeTask, error) {
+	row := q.db.QueryRowContext(ctx, getActiveProbeTask, nodeID)
+	var i ProbeTask
+	err := row.Scan(
+		&i.ID,
+		&i.NodeID,
+		&i.Kind,
+		&i.Status,
+		&i.CreatedAt,
+		&i.ExpiresAt,
+		&i.AcknowledgedAt,
+		&i.StartedAt,
+		&i.CompletedAt,
+		&i.RunID,
+		&i.RejectionReason,
+		&i.TerminalConfirmedAt,
 	)
 	return i, err
 }
@@ -682,6 +772,36 @@ func (q *Queries) GetEgressDeletion(ctx context.Context, arg GetEgressDeletionPa
 	return i, err
 }
 
+const getLatestProbeTask = `-- name: GetLatestProbeTask :one
+SELECT id, node_id, kind, status, created_at, expires_at, acknowledged_at,
+       started_at, completed_at, run_id, rejection_reason,
+       terminal_confirmed_at
+FROM probe_tasks
+WHERE node_id = ?
+ORDER BY created_at DESC, id DESC
+LIMIT 1
+`
+
+func (q *Queries) GetLatestProbeTask(ctx context.Context, nodeID string) (ProbeTask, error) {
+	row := q.db.QueryRowContext(ctx, getLatestProbeTask, nodeID)
+	var i ProbeTask
+	err := row.Scan(
+		&i.ID,
+		&i.NodeID,
+		&i.Kind,
+		&i.Status,
+		&i.CreatedAt,
+		&i.ExpiresAt,
+		&i.AcknowledgedAt,
+		&i.StartedAt,
+		&i.CompletedAt,
+		&i.RunID,
+		&i.RejectionReason,
+		&i.TerminalConfirmedAt,
+	)
+	return i, err
+}
+
 const getNetworkObservationSettings = `-- name: GetNetworkObservationSettings :one
 SELECT id, ipv4_services, ipv6_services, updated_at
 FROM network_observation_settings
@@ -751,7 +871,9 @@ SELECT id, name, hostname, credential_digest, enabled, revoked_at,
        agent_version, operating_system, architecture,
        desired_configuration_revision, applied_configuration_revision,
        configuration_error, registered_at, last_seen_at,
-       configuration_error_revision
+       configuration_error_revision, physical_memory_bytes,
+       probe_schedule_enabled, probe_schedule_cron, probe_schedule_timezone,
+       probe_low_memory_override
 FROM nodes
 WHERE credential_digest = ?
 `
@@ -775,6 +897,11 @@ func (q *Queries) GetNodeByCredentialDigest(ctx context.Context, credentialDiges
 		&i.RegisteredAt,
 		&i.LastSeenAt,
 		&i.ConfigurationErrorRevision,
+		&i.PhysicalMemoryBytes,
+		&i.ProbeScheduleEnabled,
+		&i.ProbeScheduleCron,
+		&i.ProbeScheduleTimezone,
+		&i.ProbeLowMemoryOverride,
 	)
 	return i, err
 }
@@ -784,7 +911,9 @@ SELECT id, name, hostname, credential_digest, enabled, revoked_at,
        agent_version, operating_system, architecture,
        desired_configuration_revision, applied_configuration_revision,
        configuration_error, registered_at, last_seen_at,
-       configuration_error_revision
+       configuration_error_revision, physical_memory_bytes,
+       probe_schedule_enabled, probe_schedule_cron, probe_schedule_timezone,
+       probe_low_memory_override
 FROM nodes
 WHERE id = ?
 `
@@ -808,6 +937,11 @@ func (q *Queries) GetNodeByID(ctx context.Context, id string) (Node, error) {
 		&i.RegisteredAt,
 		&i.LastSeenAt,
 		&i.ConfigurationErrorRevision,
+		&i.PhysicalMemoryBytes,
+		&i.ProbeScheduleEnabled,
+		&i.ProbeScheduleCron,
+		&i.ProbeScheduleTimezone,
+		&i.ProbeLowMemoryOverride,
 	)
 	return i, err
 }
@@ -984,6 +1118,111 @@ func (q *Queries) GetNodeNetworkInventory(ctx context.Context, nodeID string) (N
 		&i.CapturedAt,
 		&i.ReceivedAt,
 		&i.LastError,
+	)
+	return i, err
+}
+
+const getNodeProbeSettings = `-- name: GetNodeProbeSettings :one
+SELECT id, enabled, revoked_at, last_seen_at, applied_configuration_revision,
+       desired_configuration_revision, physical_memory_bytes,
+       probe_schedule_enabled, probe_schedule_cron, probe_schedule_timezone,
+       probe_low_memory_override
+FROM nodes
+WHERE id = ?
+`
+
+type GetNodeProbeSettingsRow struct {
+	ID                           string
+	Enabled                      int64
+	RevokedAt                    *int64
+	LastSeenAt                   *int64
+	AppliedConfigurationRevision int64
+	DesiredConfigurationRevision int64
+	PhysicalMemoryBytes          *int64
+	ProbeScheduleEnabled         int64
+	ProbeScheduleCron            string
+	ProbeScheduleTimezone        string
+	ProbeLowMemoryOverride       int64
+}
+
+func (q *Queries) GetNodeProbeSettings(ctx context.Context, id string) (GetNodeProbeSettingsRow, error) {
+	row := q.db.QueryRowContext(ctx, getNodeProbeSettings, id)
+	var i GetNodeProbeSettingsRow
+	err := row.Scan(
+		&i.ID,
+		&i.Enabled,
+		&i.RevokedAt,
+		&i.LastSeenAt,
+		&i.AppliedConfigurationRevision,
+		&i.DesiredConfigurationRevision,
+		&i.PhysicalMemoryBytes,
+		&i.ProbeScheduleEnabled,
+		&i.ProbeScheduleCron,
+		&i.ProbeScheduleTimezone,
+		&i.ProbeLowMemoryOverride,
+	)
+	return i, err
+}
+
+const getNodeProbeStatus = `-- name: GetNodeProbeStatus :one
+SELECT node_id, active_run_id, next_scheduled_at, last_occurrence_at,
+       last_occurrence_trigger, last_occurrence_status, last_skip_reason,
+       history_reset_generation, history_reset_at,
+       history_reset_discarded_address_items, history_reset_discarded_probe_items,
+       reported_at
+FROM node_probe_status
+WHERE node_id = ?
+`
+
+func (q *Queries) GetNodeProbeStatus(ctx context.Context, nodeID string) (NodeProbeStatus, error) {
+	row := q.db.QueryRowContext(ctx, getNodeProbeStatus, nodeID)
+	var i NodeProbeStatus
+	err := row.Scan(
+		&i.NodeID,
+		&i.ActiveRunID,
+		&i.NextScheduledAt,
+		&i.LastOccurrenceAt,
+		&i.LastOccurrenceTrigger,
+		&i.LastOccurrenceStatus,
+		&i.LastSkipReason,
+		&i.HistoryResetGeneration,
+		&i.HistoryResetAt,
+		&i.HistoryResetDiscardedAddressItems,
+		&i.HistoryResetDiscardedProbeItems,
+		&i.ReportedAt,
+	)
+	return i, err
+}
+
+const getProbeTask = `-- name: GetProbeTask :one
+SELECT id, node_id, kind, status, created_at, expires_at, acknowledged_at,
+       started_at, completed_at, run_id, rejection_reason,
+       terminal_confirmed_at
+FROM probe_tasks
+WHERE id = ? AND node_id = ?
+`
+
+type GetProbeTaskParams struct {
+	ID     string
+	NodeID string
+}
+
+func (q *Queries) GetProbeTask(ctx context.Context, arg GetProbeTaskParams) (ProbeTask, error) {
+	row := q.db.QueryRowContext(ctx, getProbeTask, arg.ID, arg.NodeID)
+	var i ProbeTask
+	err := row.Scan(
+		&i.ID,
+		&i.NodeID,
+		&i.Kind,
+		&i.Status,
+		&i.CreatedAt,
+		&i.ExpiresAt,
+		&i.AcknowledgedAt,
+		&i.StartedAt,
+		&i.CompletedAt,
+		&i.RunID,
+		&i.RejectionReason,
+		&i.TerminalConfirmedAt,
 	)
 	return i, err
 }
@@ -1449,7 +1688,9 @@ SELECT id, name, hostname, credential_digest, enabled, revoked_at,
        agent_version, operating_system, architecture,
        desired_configuration_revision, applied_configuration_revision,
        configuration_error, registered_at, last_seen_at,
-       configuration_error_revision
+       configuration_error_revision, physical_memory_bytes,
+       probe_schedule_enabled, probe_schedule_cron, probe_schedule_timezone,
+       probe_low_memory_override
 FROM nodes
 ORDER BY name COLLATE NOCASE, id
 `
@@ -1479,6 +1720,11 @@ func (q *Queries) ListNodes(ctx context.Context) ([]Node, error) {
 			&i.RegisteredAt,
 			&i.LastSeenAt,
 			&i.ConfigurationErrorRevision,
+			&i.PhysicalMemoryBytes,
+			&i.ProbeScheduleEnabled,
+			&i.ProbeScheduleCron,
+			&i.ProbeScheduleTimezone,
+			&i.ProbeLowMemoryOverride,
 		); err != nil {
 			return nil, err
 		}
@@ -1922,6 +2168,98 @@ func (q *Queries) UpdateNodeHeartbeat(ctx context.Context, arg UpdateNodeHeartbe
 	return result.RowsAffected()
 }
 
+const updateNodePhysicalMemory = `-- name: UpdateNodePhysicalMemory :execrows
+UPDATE nodes
+SET physical_memory_bytes = ?
+WHERE id = ? AND revoked_at IS NULL
+`
+
+type UpdateNodePhysicalMemoryParams struct {
+	PhysicalMemoryBytes *int64
+	ID                  string
+}
+
+func (q *Queries) UpdateNodePhysicalMemory(ctx context.Context, arg UpdateNodePhysicalMemoryParams) (int64, error) {
+	result, err := q.db.ExecContext(ctx, updateNodePhysicalMemory, arg.PhysicalMemoryBytes, arg.ID)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected()
+}
+
+const updateNodeProbeSettings = `-- name: UpdateNodeProbeSettings :execrows
+UPDATE nodes
+SET probe_schedule_enabled = ?, probe_schedule_cron = ?,
+    probe_schedule_timezone = ?, probe_low_memory_override = ?,
+    desired_configuration_revision = desired_configuration_revision + 1,
+    configuration_error = NULL, configuration_error_revision = NULL
+WHERE id = ? AND revoked_at IS NULL
+  AND NOT EXISTS (
+      SELECT 1 FROM node_deletion_operations
+      WHERE node_id = nodes.id AND status != 'completed'
+  )
+`
+
+type UpdateNodeProbeSettingsParams struct {
+	ProbeScheduleEnabled   int64
+	ProbeScheduleCron      string
+	ProbeScheduleTimezone  string
+	ProbeLowMemoryOverride int64
+	ID                     string
+}
+
+func (q *Queries) UpdateNodeProbeSettings(ctx context.Context, arg UpdateNodeProbeSettingsParams) (int64, error) {
+	result, err := q.db.ExecContext(ctx, updateNodeProbeSettings,
+		arg.ProbeScheduleEnabled,
+		arg.ProbeScheduleCron,
+		arg.ProbeScheduleTimezone,
+		arg.ProbeLowMemoryOverride,
+		arg.ID,
+	)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected()
+}
+
+const updateProbeTaskReport = `-- name: UpdateProbeTaskReport :execrows
+UPDATE probe_tasks
+SET status = ?, acknowledged_at = ?, started_at = ?, completed_at = ?,
+    run_id = ?, rejection_reason = ?, terminal_confirmed_at = ?
+WHERE id = ? AND node_id = ?
+  AND status IN ('pending', 'acknowledged', 'running')
+`
+
+type UpdateProbeTaskReportParams struct {
+	Status              string
+	AcknowledgedAt      *int64
+	StartedAt           *int64
+	CompletedAt         *int64
+	RunID               *string
+	RejectionReason     *string
+	TerminalConfirmedAt *int64
+	ID                  string
+	NodeID              string
+}
+
+func (q *Queries) UpdateProbeTaskReport(ctx context.Context, arg UpdateProbeTaskReportParams) (int64, error) {
+	result, err := q.db.ExecContext(ctx, updateProbeTaskReport,
+		arg.Status,
+		arg.AcknowledgedAt,
+		arg.StartedAt,
+		arg.CompletedAt,
+		arg.RunID,
+		arg.RejectionReason,
+		arg.TerminalConfirmedAt,
+		arg.ID,
+		arg.NodeID,
+	)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected()
+}
+
 const upsertAgentEnrollmentKey = `-- name: UpsertAgentEnrollmentKey :exec
 INSERT INTO agent_enrollment (
     id, enabled, key_digest, key_encrypted, created_at, rotated_at
@@ -1974,6 +2312,61 @@ func (q *Queries) UpsertNodeNetworkInventory(ctx context.Context, arg UpsertNode
 		arg.Payload,
 		arg.CapturedAt,
 		arg.ReceivedAt,
+	)
+	return err
+}
+
+const upsertNodeProbeStatus = `-- name: UpsertNodeProbeStatus :exec
+INSERT INTO node_probe_status (
+    node_id, active_run_id, next_scheduled_at, last_occurrence_at,
+    last_occurrence_trigger, last_occurrence_status, last_skip_reason,
+    history_reset_generation, history_reset_at,
+    history_reset_discarded_address_items, history_reset_discarded_probe_items,
+    reported_at
+) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+ON CONFLICT (node_id) DO UPDATE SET
+    active_run_id = excluded.active_run_id,
+    next_scheduled_at = excluded.next_scheduled_at,
+    last_occurrence_at = excluded.last_occurrence_at,
+    last_occurrence_trigger = excluded.last_occurrence_trigger,
+    last_occurrence_status = excluded.last_occurrence_status,
+    last_skip_reason = excluded.last_skip_reason,
+    history_reset_generation = excluded.history_reset_generation,
+    history_reset_at = excluded.history_reset_at,
+    history_reset_discarded_address_items = excluded.history_reset_discarded_address_items,
+    history_reset_discarded_probe_items = excluded.history_reset_discarded_probe_items,
+    reported_at = excluded.reported_at
+`
+
+type UpsertNodeProbeStatusParams struct {
+	NodeID                            string
+	ActiveRunID                       *string
+	NextScheduledAt                   *int64
+	LastOccurrenceAt                  *int64
+	LastOccurrenceTrigger             *string
+	LastOccurrenceStatus              *string
+	LastSkipReason                    *string
+	HistoryResetGeneration            *string
+	HistoryResetAt                    *int64
+	HistoryResetDiscardedAddressItems int64
+	HistoryResetDiscardedProbeItems   int64
+	ReportedAt                        int64
+}
+
+func (q *Queries) UpsertNodeProbeStatus(ctx context.Context, arg UpsertNodeProbeStatusParams) error {
+	_, err := q.db.ExecContext(ctx, upsertNodeProbeStatus,
+		arg.NodeID,
+		arg.ActiveRunID,
+		arg.NextScheduledAt,
+		arg.LastOccurrenceAt,
+		arg.LastOccurrenceTrigger,
+		arg.LastOccurrenceStatus,
+		arg.LastSkipReason,
+		arg.HistoryResetGeneration,
+		arg.HistoryResetAt,
+		arg.HistoryResetDiscardedAddressItems,
+		arg.HistoryResetDiscardedProbeItems,
+		arg.ReportedAt,
 	)
 	return err
 }

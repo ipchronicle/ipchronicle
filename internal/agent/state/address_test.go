@@ -139,7 +139,8 @@ func openAddressTestStore(t *testing.T, directory string) (*Store, string) {
 	}
 	egressID := "c7b5eeac-903d-4b99-961d-190a8a4e5d2e"
 	if err := store.ApplyConfiguration(Configuration{
-		SchemaVersion: 4, Revision: 1, Enabled: true, HistoryGeneration: testHistoryGeneration,
+		SchemaVersion: 5, Revision: 1, Enabled: true, HistoryGeneration: testHistoryGeneration,
+		ProbeSchedule:     ProbeSchedule{Enabled: true, Cron: "0 0 0 * * *", Timezone: "agent-local"},
 		DiscoveryServices: testDiscoveryServices(),
 		Egresses: []Egress{{
 			ID: egressID, Kind: "default", Family: "ipv4", Enabled: true,

@@ -235,6 +235,101 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/nodes/{nodeId}/probe": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                nodeId: components["parameters"]["NodeId"];
+            };
+            cookie?: never;
+        };
+        /** Read complete-probe settings, current task, and recent runs */
+        get: operations["getNodeProbe"];
+        /** Replace the node complete-probe schedule and resource override */
+        put: operations["updateNodeProbeSettings"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/nodes/{nodeId}/probe/tasks": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                nodeId: components["parameters"]["NodeId"];
+            };
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Create the node's single immediate complete-probe task */
+        post: operations["createCompleteProbeTask"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/probe-runs/{runId}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                runId: components["parameters"]["RunId"];
+            };
+            cookie?: never;
+        };
+        /** Read one complete-probe run and its frozen egress executions */
+        get: operations["getProbeRun"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/probe-snapshots/{snapshotId}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                snapshotId: components["parameters"]["SnapshotId"];
+            };
+            cookie?: never;
+        };
+        /** Read one retained complete-probe source snapshot */
+        get: operations["getProbeSnapshot"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/history": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Read the current history generation and reset state */
+        get: operations["getHistoryState"];
+        put?: never;
+        post?: never;
+        /** Delete all observed history and advance its generation */
+        delete: operations["resetHistory"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/nodes/{nodeId}/network": {
         parameters: {
             query?: never;
@@ -436,6 +531,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/agent/probe-artifacts": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Idempotently upload one complete-probe run or execution revision */
+        post: operations["uploadProbeArtifact"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
 }
 export type webhooks = Record<string, never>;
 export interface components {
@@ -487,7 +599,7 @@ export interface components {
             provisioningUri: string;
         };
         /** @enum {string} */
-        ErrorCode: "invalid_request" | "invalid_credentials" | "totp_required" | "rate_limited" | "unauthenticated" | "csrf_failed" | "origin_not_allowed" | "current_password_invalid" | "invalid_totp" | "totp_already_enabled" | "totp_not_enabled" | "totp_enrollment_not_started" | "no_account_change" | "registration_key_not_initialized" | "registration_key_invalid" | "registration_disabled" | "agent_unauthenticated" | "agent_revoked" | "node_not_found" | "node_revoked" | "node_deletion_pending" | "node_sync_unsupported" | "sync_session_unavailable" | "network_inventory_unavailable" | "invalid_egress_candidate" | "egress_already_exists" | "egress_limit_reached" | "egress_not_found" | "egress_deletion_pending" | "invalid_network_proxy" | "network_proxy_not_found" | "network_proxy_already_exists" | "network_proxy_limit_reached" | "network_proxy_in_use" | "invalid_observation_settings" | "internal_error";
+        ErrorCode: "invalid_request" | "invalid_credentials" | "totp_required" | "rate_limited" | "unauthenticated" | "csrf_failed" | "origin_not_allowed" | "current_password_invalid" | "invalid_totp" | "totp_already_enabled" | "totp_not_enabled" | "totp_enrollment_not_started" | "no_account_change" | "registration_key_not_initialized" | "registration_key_invalid" | "registration_disabled" | "agent_unauthenticated" | "agent_revoked" | "node_not_found" | "node_revoked" | "node_disabled" | "node_deletion_pending" | "node_sync_unsupported" | "sync_session_unavailable" | "network_inventory_unavailable" | "invalid_egress_candidate" | "egress_already_exists" | "egress_limit_reached" | "egress_not_found" | "egress_deletion_pending" | "invalid_network_proxy" | "network_proxy_not_found" | "network_proxy_already_exists" | "network_proxy_limit_reached" | "network_proxy_in_use" | "invalid_observation_settings" | "invalid_probe_settings" | "node_offline" | "probe_task_slot_occupied" | "probe_already_running" | "probe_paused_low_memory" | "no_enabled_egress" | "probe_run_not_found" | "probe_snapshot_not_found" | "internal_error";
         ErrorResponse: {
             code: components["schemas"]["ErrorCode"];
             parameters?: {
@@ -530,6 +642,8 @@ export interface components {
             operatingSystem: components["schemas"]["AgentPlatform"];
             architecture: components["schemas"]["AgentArchitecture"];
             capabilities: string[];
+            /** Format: int64 */
+            physicalMemoryBytes: number;
         };
         AgentRegistrationRequest: {
             registrationKey: string;
@@ -553,6 +667,8 @@ export interface components {
             addressStates?: components["schemas"]["AgentAddressState"][];
             addressEvents?: components["schemas"]["AgentAddressEvent"][];
             addressGaps?: components["schemas"]["AgentAddressGap"][];
+            probeStatus?: components["schemas"]["AgentProbeStatus"];
+            taskReport?: components["schemas"]["AgentTaskReport"];
         };
         AgentPollResult: {
             centerVersion: string;
@@ -562,6 +678,9 @@ export interface components {
             pollIntervalSeconds: number;
             syncSession?: components["schemas"]["AgentSyncSession"];
             addressUploadReceipt: components["schemas"]["AgentAddressUploadReceipt"];
+            task?: components["schemas"]["AgentTask"];
+            /** Format: uuid */
+            acceptedTerminalTaskId?: string;
         };
         AgentSyncSession: {
             /** Format: uuid */
@@ -572,12 +691,14 @@ export interface components {
         };
         AgentConfigurationSnapshot: {
             /** @enum {integer} */
-            schemaVersion: 4;
+            schemaVersion: 5;
             /** Format: int64 */
             revision: number;
             enabled: boolean;
             historyGeneration: string;
             discoveryServices: components["schemas"]["NetworkObservationSettingsUpdate"];
+            probeSchedule: components["schemas"]["ProbeSchedule"];
+            probeLowMemoryOverride: boolean;
             egresses: components["schemas"]["AgentEgressConfiguration"][];
             proxies: components["schemas"]["AgentProxyConfiguration"][];
         };
@@ -848,6 +969,260 @@ export interface components {
             discardedGaps: components["schemas"]["AgentAddressGapReceipt"][];
         };
         /** @enum {string} */
+        ProbeTrigger: "manual" | "schedule" | "address-change";
+        /** @enum {string} */
+        ProbeRunStatus: "running" | "succeeded" | "partial" | "failed";
+        /** @enum {string} */
+        ProbeExecutionStatus: "pending" | "running" | "succeeded" | "failed" | "interrupted" | "skipped";
+        /** @enum {string} */
+        ProbeFailureStage: "download" | "selector" | "adapter" | "process" | "timeout" | "output" | "restart";
+        /** @enum {string} */
+        ProbeTaskStatus: "pending" | "acknowledged" | "running" | "succeeded" | "partial" | "failed" | "rejected" | "expired";
+        ProbeSchedule: {
+            enabled: boolean;
+            cron: string;
+            /** @description Use agent-local or an IANA time zone name. */
+            timezone: string;
+        };
+        NodeProbeSettingsUpdate: {
+            schedule: components["schemas"]["ProbeSchedule"];
+            lowMemoryOverride: boolean;
+        };
+        /** @enum {string} */
+        AgentProbeOccurrenceStatus: "started" | "skipped";
+        /** @enum {string} */
+        AgentProbeSkipReason: "busy" | "disabled" | "low-memory" | "no-egress" | "missed";
+        AgentProbeStatus: {
+            /** Format: uuid */
+            activeRunId?: string;
+            /** Format: date-time */
+            nextScheduledAt?: string;
+            /** Format: date-time */
+            lastOccurrenceAt?: string;
+            lastOccurrenceTrigger?: components["schemas"]["ProbeTrigger"];
+            lastOccurrenceStatus?: components["schemas"]["AgentProbeOccurrenceStatus"];
+            lastSkipReason?: components["schemas"]["AgentProbeSkipReason"];
+            historyResetGeneration?: string;
+            /** Format: date-time */
+            historyResetAt?: string;
+            /** Format: int64 */
+            historyResetDiscardedAddressItems?: number;
+            /** Format: int64 */
+            historyResetDiscardedProbeItems?: number;
+        };
+        AgentTask: {
+            /** Format: uuid */
+            id: string;
+            /** @enum {string} */
+            kind: "complete-probe";
+            /** Format: date-time */
+            createdAt: string;
+            /** Format: date-time */
+            expiresAt: string;
+        };
+        AgentTaskReport: {
+            /** Format: uuid */
+            id: string;
+            /** @enum {string} */
+            status: "acknowledged" | "running" | "succeeded" | "partial" | "failed" | "rejected";
+            /** Format: date-time */
+            acknowledgedAt: string;
+            /** Format: date-time */
+            startedAt?: string;
+            /** Format: date-time */
+            completedAt?: string;
+            /** Format: uuid */
+            runId?: string;
+            rejectionReason?: components["schemas"]["AgentProbeSkipReason"];
+        };
+        AgentProbeExecutionManifest: {
+            /** Format: uuid */
+            id: string;
+            /** Format: uuid */
+            egressId: string;
+            ordinal: number;
+            /** Format: int64 */
+            sequence: number;
+        };
+        AgentProbeRunArtifact: {
+            /** Format: uuid */
+            id: string;
+            /** Format: int64 */
+            nodeConfigurationRevision: number;
+            historyGeneration: string;
+            trigger: components["schemas"]["ProbeTrigger"];
+            /** Format: uuid */
+            taskId?: string;
+            /** Format: uuid */
+            triggeringEgressId?: string;
+            /** Format: date-time */
+            startedAt: string;
+            /** Format: date-time */
+            completedAt?: string;
+            status: components["schemas"]["ProbeRunStatus"];
+            executions: components["schemas"]["AgentProbeExecutionManifest"][];
+        };
+        AgentProbeExecutionArtifact: {
+            /** Format: uuid */
+            id: string;
+            /** Format: uuid */
+            egressId: string;
+            ordinal: number;
+            /** Format: int64 */
+            sequence: number;
+            status: components["schemas"]["ProbeExecutionStatus"];
+            /** Format: date-time */
+            startedAt?: string;
+            /** Format: date-time */
+            completedAt?: string;
+            failureStage?: components["schemas"]["ProbeFailureStage"];
+            diagnostic?: string;
+            /** Format: byte */
+            rawResult?: string;
+        };
+        AgentProbeGapArtifact: {
+            /** Format: uuid */
+            id: string;
+            /** Format: uuid */
+            egressId: string;
+            historyGeneration: string;
+            /** Format: int64 */
+            droppedCount: number;
+            /** Format: int64 */
+            firstSequence: number;
+            /** Format: int64 */
+            lastSequence: number;
+            /** Format: date-time */
+            firstObservedAt: string;
+            /** Format: date-time */
+            lastObservedAt: string;
+        };
+        AgentProbeArtifact: {
+            /** Format: uuid */
+            artifactId: string;
+            /** Format: int64 */
+            revision: number;
+            run?: components["schemas"]["AgentProbeRunArtifact"];
+            execution?: components["schemas"]["AgentProbeExecutionArtifact"];
+            gap?: components["schemas"]["AgentProbeGapArtifact"];
+        };
+        /** @enum {string} */
+        AgentProbeArtifactDisposition: "accepted" | "obsolete-generation" | "egress-deleted";
+        AgentProbeArtifactReceipt: {
+            /** Format: uuid */
+            artifactId: string;
+            /** Format: int64 */
+            revision: number;
+            disposition: components["schemas"]["AgentProbeArtifactDisposition"];
+        };
+        ProbeTask: {
+            /** Format: uuid */
+            id: string;
+            /** Format: uuid */
+            nodeId: string;
+            status: components["schemas"]["ProbeTaskStatus"];
+            /** Format: date-time */
+            createdAt: string;
+            /** Format: date-time */
+            expiresAt: string;
+            /** Format: date-time */
+            acknowledgedAt?: string;
+            /** Format: date-time */
+            startedAt?: string;
+            /** Format: date-time */
+            completedAt?: string;
+            /** Format: uuid */
+            runId?: string;
+            rejectionReason?: components["schemas"]["AgentProbeSkipReason"];
+            offline: boolean;
+        };
+        ProbeExecution: {
+            /** Format: uuid */
+            id: string;
+            /** Format: uuid */
+            runId: string;
+            /** Format: uuid */
+            egressId: string;
+            ordinal: number;
+            /** Format: int64 */
+            sequence: number;
+            status: components["schemas"]["ProbeExecutionStatus"];
+            /** Format: date-time */
+            startedAt?: string;
+            /** Format: date-time */
+            completedAt?: string;
+            failureStage?: components["schemas"]["ProbeFailureStage"];
+            diagnostic?: string;
+            /** Format: uuid */
+            snapshotId?: string;
+        };
+        ProbeRun: {
+            /** Format: uuid */
+            id: string;
+            /** Format: uuid */
+            nodeId: string;
+            /** Format: int64 */
+            configurationRevision: number;
+            historyGeneration: string;
+            trigger: components["schemas"]["ProbeTrigger"];
+            /** Format: uuid */
+            taskId?: string;
+            /** Format: uuid */
+            triggeringEgressId?: string;
+            /** Format: date-time */
+            startedAt: string;
+            /** Format: date-time */
+            completedAt?: string;
+            status: components["schemas"]["ProbeRunStatus"];
+            expectedExecutions: number;
+            executions: components["schemas"]["ProbeExecution"][];
+        };
+        ProbeRunSummary: {
+            /** Format: uuid */
+            id: string;
+            /** Format: uuid */
+            nodeId: string;
+            trigger: components["schemas"]["ProbeTrigger"];
+            /** Format: date-time */
+            startedAt: string;
+            /** Format: date-time */
+            completedAt?: string;
+            status: components["schemas"]["ProbeRunStatus"];
+            expectedExecutions: number;
+            completedExecutions: number;
+        };
+        NodeProbeState: {
+            /** Format: uuid */
+            nodeId: string;
+            schedule: components["schemas"]["ProbeSchedule"];
+            lowMemoryOverride: boolean;
+            /** Format: int64 */
+            physicalMemoryBytes?: number;
+            pausedLowMemory: boolean;
+            agentStatus?: components["schemas"]["AgentProbeStatus"];
+            task?: components["schemas"]["ProbeTask"];
+            recentRuns: components["schemas"]["ProbeRunSummary"][];
+        };
+        ProbeSnapshot: {
+            /** Format: uuid */
+            id: string;
+            /** Format: uuid */
+            executionId: string;
+            /** Format: uuid */
+            egressId: string;
+            /** Format: int64 */
+            sequence: number;
+            /** Format: date-time */
+            observedAt: string;
+            /** Format: byte */
+            rawResult: string;
+        };
+        HistoryState: {
+            generation: string;
+            /** Format: date-time */
+            resetAt?: string;
+        };
+        /** @enum {string} */
         NodeStatus: "online" | "offline" | "disabled" | "revoked";
         /** @enum {string} */
         NodeConfigurationStatus: "current" | "pending" | "failed";
@@ -967,6 +1342,8 @@ export interface components {
         NodeId: string;
         EgressId: string;
         ProxyId: string;
+        RunId: string;
+        SnapshotId: string;
     };
     requestBodies: never;
     headers: never;
@@ -1432,6 +1809,184 @@ export interface operations {
             404: components["responses"]["NotFound"];
         };
     };
+    getNodeProbe: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                nodeId: components["parameters"]["NodeId"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Current complete-probe state for the node. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["NodeProbeState"];
+                };
+            };
+            401: components["responses"]["Unauthorized"];
+            404: components["responses"]["NotFound"];
+        };
+    };
+    updateNodeProbeSettings: {
+        parameters: {
+            query?: never;
+            header?: {
+                "X-CSRF-Token"?: components["parameters"]["CSRFToken"];
+            };
+            path: {
+                nodeId: components["parameters"]["NodeId"];
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["NodeProbeSettingsUpdate"];
+            };
+        };
+        responses: {
+            /** @description Complete-probe settings were updated. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["NodeProbeState"];
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+            409: components["responses"]["Conflict"];
+        };
+    };
+    createCompleteProbeTask: {
+        parameters: {
+            query?: never;
+            header?: {
+                "X-CSRF-Token"?: components["parameters"]["CSRFToken"];
+            };
+            path: {
+                nodeId: components["parameters"]["NodeId"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The immediate task was created for an online Agent. */
+            202: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProbeTask"];
+                };
+            };
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+            409: components["responses"]["Conflict"];
+        };
+    };
+    getProbeRun: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                runId: components["parameters"]["RunId"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Complete-probe run detail. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProbeRun"];
+                };
+            };
+            401: components["responses"]["Unauthorized"];
+            404: components["responses"]["NotFound"];
+        };
+    };
+    getProbeSnapshot: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                snapshotId: components["parameters"]["SnapshotId"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The exact JSON bytes captured by the Agent. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProbeSnapshot"];
+                };
+            };
+            401: components["responses"]["Unauthorized"];
+            404: components["responses"]["NotFound"];
+        };
+    };
+    getHistoryState: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Current history state. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HistoryState"];
+                };
+            };
+            401: components["responses"]["Unauthorized"];
+        };
+    };
+    resetHistory: {
+        parameters: {
+            query?: never;
+            header?: {
+                "X-CSRF-Token"?: components["parameters"]["CSRFToken"];
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description History was cleared and its generation advanced. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HistoryState"];
+                };
+            };
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+        };
+    };
     getNodeNetwork: {
         parameters: {
             query?: never;
@@ -1859,6 +2414,33 @@ export interface operations {
                     "application/json": components["schemas"]["AgentConfigurationSnapshot"];
                 };
             };
+            401: components["responses"]["AgentUnauthorized"];
+            403: components["responses"]["AgentForbidden"];
+        };
+    };
+    uploadProbeArtifact: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["AgentProbeArtifact"];
+            };
+        };
+        responses: {
+            /** @description The artifact was accepted or permanently discarded. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AgentProbeArtifactReceipt"];
+                };
+            };
+            400: components["responses"]["BadRequest"];
             401: components["responses"]["AgentUnauthorized"];
             403: components["responses"]["AgentForbidden"];
         };

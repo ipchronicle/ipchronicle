@@ -12,12 +12,14 @@ import (
 	"log"
 	"slices"
 	"strings"
+	"sync"
 	"time"
 	"unicode/utf8"
 
 	"github.com/google/uuid"
 	"github.com/ipchronicle/ipchronicle/internal/center/database/configdb"
 	"github.com/ipchronicle/ipchronicle/internal/center/database/historydb"
+	sharedschedule "github.com/ipchronicle/ipchronicle/internal/schedule"
 )
 
 const (
@@ -58,6 +60,7 @@ type Service struct {
 	deleteHistory       func(context.Context, string) error
 	deleteEgressHistory func(context.Context, string) error
 	sync                SyncConnections
+	historyMu           sync.Mutex
 }
 
 type Enrollment struct {
@@ -68,11 +71,12 @@ type Enrollment struct {
 }
 
 type Metadata struct {
-	Hostname        string
-	AgentVersion    string
-	OperatingSystem string
-	Architecture    string
-	Capabilities    []string
+	Hostname            string
+	AgentVersion        string
+	OperatingSystem     string
+	Architecture        string
+	Capabilities        []string
+	PhysicalMemoryBytes int64
 }
 
 type Registration struct {
@@ -85,6 +89,8 @@ type Poll struct {
 	Enabled                      bool
 	SyncSession                  *SyncSession
 	AddressUploadReceipt         AddressUploadReceipt
+	Task                         *Task
+	AcceptedTerminalTaskID       *uuid.UUID
 }
 
 type SyncSession struct {
@@ -99,13 +105,21 @@ type SyncAuthorization struct {
 }
 
 type Configuration struct {
-	SchemaVersion     int
-	Revision          int64
-	Enabled           bool
-	HistoryGeneration string
-	Egresses          []NetworkEgress
-	Proxies           []AgentProxyConfiguration
-	DiscoveryServices DiscoveryServices
+	SchemaVersion          int
+	Revision               int64
+	Enabled                bool
+	HistoryGeneration      string
+	Egresses               []NetworkEgress
+	Proxies                []AgentProxyConfiguration
+	DiscoveryServices      DiscoveryServices
+	ProbeSchedule          ProbeSchedule
+	ProbeLowMemoryOverride bool
+}
+
+type ProbeSchedule struct {
+	Enabled  bool
+	Cron     string
+	Timezone string
 }
 
 type Deletion struct {
@@ -316,6 +330,19 @@ func (s *Service) Poll(
 	if err := replaceCapabilities(ctx, queries, node.ID, metadata.Capabilities); err != nil {
 		return Poll{}, err
 	}
+	if changed, err := queries.UpdateNodePhysicalMemory(ctx, configdb.UpdateNodePhysicalMemoryParams{
+		PhysicalMemoryBytes: &metadata.PhysicalMemoryBytes, ID: node.ID,
+	}); err != nil {
+		return Poll{}, err
+	} else if changed != 1 {
+		return Poll{}, ErrAgentRevoked
+	}
+	acceptedTerminalTaskID, err := s.applyProbeControlReport(
+		ctx, queries, node.ID, addressUpload.ProbeStatus, addressUpload.TaskReport, now,
+	)
+	if err != nil {
+		return Poll{}, err
+	}
 	networkChanged, err := s.applyNetworkReport(ctx, queries, node.ID, inventory, inventoryError, now)
 	if err != nil {
 		return Poll{}, err
@@ -359,9 +386,14 @@ func (s *Service) Poll(
 	if err != nil {
 		return Poll{}, err
 	}
+	task, err := s.deliverProbeTask(ctx, node.ID, now)
+	if err != nil {
+		return Poll{}, err
+	}
 	return Poll{
 		DesiredConfigurationRevision: current.DesiredConfigurationRevision,
 		Enabled:                      current.Enabled == 1, SyncSession: syncSession, AddressUploadReceipt: receipt,
+		Task: task, AcceptedTerminalTaskID: acceptedTerminalTaskID,
 	}, nil
 }
 
@@ -425,10 +457,22 @@ func (s *Service) Configuration(ctx context.Context, credential string) (Configu
 	if err != nil {
 		return Configuration{}, err
 	}
+	settings, err := s.queries.GetNodeProbeSettings(ctx, node.ID)
+	if err != nil {
+		return Configuration{}, err
+	}
+	probeSchedule := ProbeSchedule{
+		Enabled: settings.ProbeScheduleEnabled == 1,
+		Cron:    settings.ProbeScheduleCron, Timezone: settings.ProbeScheduleTimezone,
+	}
+	if err := sharedschedule.ValidateProbe(probeSchedule.Cron, probeSchedule.Timezone); err != nil {
+		return Configuration{}, fmt.Errorf("read stored probe schedule: %w", err)
+	}
 	return Configuration{
-		SchemaVersion: 4, Revision: node.DesiredConfigurationRevision,
+		SchemaVersion: 5, Revision: node.DesiredConfigurationRevision,
 		Enabled: node.Enabled == 1, HistoryGeneration: state.HistoryGeneration,
 		Egresses: egresses, Proxies: proxies, DiscoveryServices: discoveryServices,
+		ProbeSchedule: probeSchedule, ProbeLowMemoryOverride: settings.ProbeLowMemoryOverride == 1,
 	}, nil
 }
 
@@ -758,6 +802,10 @@ func (s *Service) RunDeletionWorker(ctx context.Context, logger *log.Logger) {
 }
 
 func (s *Service) processDeletions(ctx context.Context, limit int64) error {
+	cutoff := s.now().UTC().Add(-30 * 24 * time.Hour).Unix()
+	if err := s.queries.DeleteTerminalProbeTasksBefore(ctx, &cutoff); err != nil {
+		return err
+	}
 	if err := s.processNodeDeletions(ctx, limit); err != nil {
 		return err
 	}
@@ -870,12 +918,20 @@ func (s *Service) processEgressDeletions(ctx context.Context, limit int64) error
 }
 
 func (s *Service) deleteNodeHistory(ctx context.Context, nodeID string) error {
+	s.historyMu.Lock()
+	defer s.historyMu.Unlock()
 	transaction, err := s.history.BeginTx(ctx, nil)
 	if err != nil {
 		return err
 	}
 	defer transaction.Rollback()
 	queries := s.historyQueries.WithTx(transaction)
+	if err := queries.DeleteNodeProbeHistory(ctx, nodeID); err != nil {
+		return err
+	}
+	if err := queries.DeleteNodeProbeGaps(ctx, nodeID); err != nil {
+		return err
+	}
 	if err := queries.DeleteNodeAddressStates(ctx, nodeID); err != nil {
 		return err
 	}
@@ -889,12 +945,26 @@ func (s *Service) deleteNodeHistory(ctx context.Context, nodeID string) error {
 }
 
 func (s *Service) deleteNetworkEgressHistory(ctx context.Context, egressID string) error {
+	s.historyMu.Lock()
+	defer s.historyMu.Unlock()
 	transaction, err := s.history.BeginTx(ctx, nil)
 	if err != nil {
 		return err
 	}
 	defer transaction.Rollback()
 	queries := s.historyQueries.WithTx(transaction)
+	if err := queries.DeleteEgressProbeSnapshots(ctx, egressID); err != nil {
+		return err
+	}
+	if err := queries.DeleteEgressProbeExecutions(ctx, egressID); err != nil {
+		return err
+	}
+	if err := queries.DeleteEgressProbeGaps(ctx, egressID); err != nil {
+		return err
+	}
+	if err := queries.DeleteEmptyProbeRuns(ctx); err != nil {
+		return err
+	}
 	if err := queries.DeleteEgressAddressStates(ctx, egressID); err != nil {
 		return err
 	}
@@ -972,7 +1042,8 @@ func validateMetadata(metadata Metadata) (Metadata, error) {
 		strings.ContainsAny(metadata.AgentVersion, "\x00\r\n\t") {
 		return Metadata{}, ErrInvalidMetadata
 	}
-	if metadata.OperatingSystem != "linux" || (metadata.Architecture != "amd64" && metadata.Architecture != "arm64") || len(metadata.Capabilities) > 64 {
+	if metadata.OperatingSystem != "linux" || (metadata.Architecture != "amd64" && metadata.Architecture != "arm64") ||
+		len(metadata.Capabilities) > 64 || metadata.PhysicalMemoryBytes < 1 {
 		return Metadata{}, ErrInvalidMetadata
 	}
 	seen := make(map[string]struct{}, len(metadata.Capabilities))

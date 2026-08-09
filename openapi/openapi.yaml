@@ -392,6 +392,144 @@ paths:
           $ref: "#/components/responses/Forbidden"
         "404":
           $ref: "#/components/responses/NotFound"
+  /api/v1/nodes/{nodeId}/probe:
+    parameters:
+      - $ref: "#/components/parameters/NodeId"
+    get:
+      operationId: getNodeProbe
+      summary: Read complete-probe settings, current task, and recent runs
+      tags: [probes]
+      responses:
+        "200":
+          description: Current complete-probe state for the node.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/NodeProbeState"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "404":
+          $ref: "#/components/responses/NotFound"
+    put:
+      operationId: updateNodeProbeSettings
+      summary: Replace the node complete-probe schedule and resource override
+      tags: [probes]
+      parameters:
+        - $ref: "#/components/parameters/CSRFToken"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/NodeProbeSettingsUpdate"
+      responses:
+        "200":
+          description: Complete-probe settings were updated.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/NodeProbeState"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "409":
+          $ref: "#/components/responses/Conflict"
+  /api/v1/nodes/{nodeId}/probe/tasks:
+    parameters:
+      - $ref: "#/components/parameters/NodeId"
+    post:
+      operationId: createCompleteProbeTask
+      summary: Create the node's single immediate complete-probe task
+      tags: [probes]
+      parameters:
+        - $ref: "#/components/parameters/CSRFToken"
+      responses:
+        "202":
+          description: The immediate task was created for an online Agent.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ProbeTask"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "409":
+          $ref: "#/components/responses/Conflict"
+  /api/v1/probe-runs/{runId}:
+    parameters:
+      - $ref: "#/components/parameters/RunId"
+    get:
+      operationId: getProbeRun
+      summary: Read one complete-probe run and its frozen egress executions
+      tags: [probes]
+      responses:
+        "200":
+          description: Complete-probe run detail.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ProbeRun"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "404":
+          $ref: "#/components/responses/NotFound"
+  /api/v1/probe-snapshots/{snapshotId}:
+    parameters:
+      - $ref: "#/components/parameters/SnapshotId"
+    get:
+      operationId: getProbeSnapshot
+      summary: Read one retained complete-probe source snapshot
+      tags: [probes]
+      responses:
+        "200":
+          description: The exact JSON bytes captured by the Agent.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ProbeSnapshot"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "404":
+          $ref: "#/components/responses/NotFound"
+  /api/v1/history:
+    get:
+      operationId: getHistoryState
+      summary: Read the current history generation and reset state
+      tags: [history]
+      responses:
+        "200":
+          description: Current history state.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/HistoryState"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+    delete:
+      operationId: resetHistory
+      summary: Delete all observed history and advance its generation
+      tags: [history]
+      parameters:
+        - $ref: "#/components/parameters/CSRFToken"
+      responses:
+        "200":
+          description: History was cleared and its generation advanced.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/HistoryState"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
   /api/v1/nodes/{nodeId}/network:
     parameters:
       - $ref: "#/components/parameters/NodeId"
@@ -753,6 +891,32 @@ paths:
           $ref: "#/components/responses/AgentUnauthorized"
         "403":
           $ref: "#/components/responses/AgentForbidden"
+  /api/v1/agent/probe-artifacts:
+    post:
+      operationId: uploadProbeArtifact
+      summary: Idempotently upload one complete-probe run or execution revision
+      security:
+        - agentCredential: []
+      tags: [agent]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/AgentProbeArtifact"
+      responses:
+        "200":
+          description: The artifact was accepted or permanently discarded.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AgentProbeArtifactReceipt"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/AgentUnauthorized"
+        "403":
+          $ref: "#/components/responses/AgentForbidden"
 components:
   securitySchemes:
     administratorSession:
@@ -787,6 +951,20 @@ components:
         format: uuid
     ProxyId:
       name: proxyId
+      in: path
+      required: true
+      schema:
+        type: string
+        format: uuid
+    RunId:
+      name: runId
+      in: path
+      required: true
+      schema:
+        type: string
+        format: uuid
+    SnapshotId:
+      name: snapshotId
       in: path
       required: true
       schema:
@@ -979,6 +1157,7 @@ components:
         - agent_revoked
         - node_not_found
         - node_revoked
+        - node_disabled
         - node_deletion_pending
         - node_sync_unsupported
         - sync_session_unavailable
@@ -994,6 +1173,14 @@ components:
         - network_proxy_limit_reached
         - network_proxy_in_use
         - invalid_observation_settings
+        - invalid_probe_settings
+        - node_offline
+        - probe_task_slot_occupied
+        - probe_already_running
+        - probe_paused_low_memory
+        - no_enabled_egress
+        - probe_run_not_found
+        - probe_snapshot_not_found
         - internal_error
     ErrorResponse:
       type: object
@@ -1077,7 +1264,7 @@ components:
     AgentMetadata:
       type: object
       additionalProperties: false
-      required: [hostname, agentVersion, operatingSystem, architecture, capabilities]
+      required: [hostname, agentVersion, operatingSystem, architecture, capabilities, physicalMemoryBytes]
       properties:
         hostname:
           type: string
@@ -1099,6 +1286,10 @@ components:
             type: string
             minLength: 1
             maxLength: 64
+        physicalMemoryBytes:
+          type: integer
+          format: int64
+          minimum: 1
     AgentRegistrationRequest:
       type: object
       additionalProperties: false
@@ -1166,6 +1357,10 @@ components:
           maxItems: 64
           items:
             $ref: "#/components/schemas/AgentAddressGap"
+        probeStatus:
+          $ref: "#/components/schemas/AgentProbeStatus"
+        taskReport:
+          $ref: "#/components/schemas/AgentTaskReport"
     AgentPollResult:
       type: object
       additionalProperties: false
@@ -1193,6 +1388,11 @@ components:
           $ref: "#/components/schemas/AgentSyncSession"
         addressUploadReceipt:
           $ref: "#/components/schemas/AgentAddressUploadReceipt"
+        task:
+          $ref: "#/components/schemas/AgentTask"
+        acceptedTerminalTaskId:
+          type: string
+          format: uuid
     AgentSyncSession:
       type: object
       additionalProperties: false
@@ -1210,11 +1410,11 @@ components:
     AgentConfigurationSnapshot:
       type: object
       additionalProperties: false
-      required: [schemaVersion, revision, enabled, historyGeneration, discoveryServices, egresses, proxies]
+      required: [schemaVersion, revision, enabled, historyGeneration, discoveryServices, probeSchedule, probeLowMemoryOverride, egresses, proxies]
       properties:
         schemaVersion:
           type: integer
-          enum: [4]
+          enum: [5]
         revision:
           type: integer
           format: int64
@@ -1226,6 +1426,10 @@ components:
           pattern: "^[0-9a-f]{64}$"
         discoveryServices:
           $ref: "#/components/schemas/NetworkObservationSettingsUpdate"
+        probeSchedule:
+          $ref: "#/components/schemas/ProbeSchedule"
+        probeLowMemoryOverride:
+          type: boolean
         egresses:
           type: array
           maxItems: 64
@@ -1888,6 +2092,486 @@ components:
           maxItems: 64
           items:
             $ref: "#/components/schemas/AgentAddressGapReceipt"
+    ProbeTrigger:
+      type: string
+      enum: [manual, schedule, address-change]
+    ProbeRunStatus:
+      type: string
+      enum: [running, succeeded, partial, failed]
+    ProbeExecutionStatus:
+      type: string
+      enum: [pending, running, succeeded, failed, interrupted, skipped]
+    ProbeFailureStage:
+      type: string
+      enum: [download, selector, adapter, process, timeout, output, restart]
+    ProbeTaskStatus:
+      type: string
+      enum: [pending, acknowledged, running, succeeded, partial, failed, rejected, expired]
+    ProbeSchedule:
+      type: object
+      additionalProperties: false
+      required: [enabled, cron, timezone]
+      properties:
+        enabled:
+          type: boolean
+        cron:
+          type: string
+          minLength: 9
+          maxLength: 128
+        timezone:
+          type: string
+          minLength: 1
+          maxLength: 128
+          description: Use agent-local or an IANA time zone name.
+    NodeProbeSettingsUpdate:
+      type: object
+      additionalProperties: false
+      required: [schedule, lowMemoryOverride]
+      properties:
+        schedule:
+          $ref: "#/components/schemas/ProbeSchedule"
+        lowMemoryOverride:
+          type: boolean
+    AgentProbeOccurrenceStatus:
+      type: string
+      enum: [started, skipped]
+    AgentProbeSkipReason:
+      type: string
+      enum: [busy, disabled, low-memory, no-egress, missed]
+    AgentProbeStatus:
+      type: object
+      additionalProperties: false
+      properties:
+        activeRunId:
+          type: string
+          format: uuid
+        nextScheduledAt:
+          type: string
+          format: date-time
+        lastOccurrenceAt:
+          type: string
+          format: date-time
+        lastOccurrenceTrigger:
+          $ref: "#/components/schemas/ProbeTrigger"
+        lastOccurrenceStatus:
+          $ref: "#/components/schemas/AgentProbeOccurrenceStatus"
+        lastSkipReason:
+          $ref: "#/components/schemas/AgentProbeSkipReason"
+        historyResetGeneration:
+          type: string
+          pattern: "^[0-9a-f]{64}$"
+        historyResetAt:
+          type: string
+          format: date-time
+        historyResetDiscardedAddressItems:
+          type: integer
+          format: int64
+          minimum: 0
+        historyResetDiscardedProbeItems:
+          type: integer
+          format: int64
+          minimum: 0
+    AgentTask:
+      type: object
+      additionalProperties: false
+      required: [id, kind, createdAt, expiresAt]
+      properties:
+        id:
+          type: string
+          format: uuid
+        kind:
+          type: string
+          enum: [complete-probe]
+        createdAt:
+          type: string
+          format: date-time
+        expiresAt:
+          type: string
+          format: date-time
+    AgentTaskReport:
+      type: object
+      additionalProperties: false
+      required: [id, status, acknowledgedAt]
+      properties:
+        id:
+          type: string
+          format: uuid
+        status:
+          type: string
+          enum: [acknowledged, running, succeeded, partial, failed, rejected]
+        acknowledgedAt:
+          type: string
+          format: date-time
+        startedAt:
+          type: string
+          format: date-time
+        completedAt:
+          type: string
+          format: date-time
+        runId:
+          type: string
+          format: uuid
+        rejectionReason:
+          $ref: "#/components/schemas/AgentProbeSkipReason"
+    AgentProbeExecutionManifest:
+      type: object
+      additionalProperties: false
+      required: [id, egressId, ordinal, sequence]
+      properties:
+        id:
+          type: string
+          format: uuid
+        egressId:
+          type: string
+          format: uuid
+        ordinal:
+          type: integer
+          minimum: 0
+          maximum: 63
+        sequence:
+          type: integer
+          format: int64
+          minimum: 1
+    AgentProbeRunArtifact:
+      type: object
+      additionalProperties: false
+      required: [id, nodeConfigurationRevision, historyGeneration, trigger, startedAt, status, executions]
+      properties:
+        id:
+          type: string
+          format: uuid
+        nodeConfigurationRevision:
+          type: integer
+          format: int64
+          minimum: 1
+        historyGeneration:
+          type: string
+          pattern: "^[0-9a-f]{64}$"
+        trigger:
+          $ref: "#/components/schemas/ProbeTrigger"
+        taskId:
+          type: string
+          format: uuid
+        triggeringEgressId:
+          type: string
+          format: uuid
+        startedAt:
+          type: string
+          format: date-time
+        completedAt:
+          type: string
+          format: date-time
+        status:
+          $ref: "#/components/schemas/ProbeRunStatus"
+        executions:
+          type: array
+          minItems: 1
+          maxItems: 64
+          items:
+            $ref: "#/components/schemas/AgentProbeExecutionManifest"
+    AgentProbeExecutionArtifact:
+      type: object
+      additionalProperties: false
+      required: [id, egressId, ordinal, sequence, status]
+      properties:
+        id:
+          type: string
+          format: uuid
+        egressId:
+          type: string
+          format: uuid
+        ordinal:
+          type: integer
+          minimum: 0
+          maximum: 63
+        sequence:
+          type: integer
+          format: int64
+          minimum: 1
+        status:
+          $ref: "#/components/schemas/ProbeExecutionStatus"
+        startedAt:
+          type: string
+          format: date-time
+        completedAt:
+          type: string
+          format: date-time
+        failureStage:
+          $ref: "#/components/schemas/ProbeFailureStage"
+        diagnostic:
+          type: string
+          maxLength: 65536
+        rawResult:
+          type: string
+          format: byte
+          maxLength: 1398104
+    AgentProbeGapArtifact:
+      type: object
+      additionalProperties: false
+      required: [id, egressId, historyGeneration, droppedCount, firstSequence, lastSequence, firstObservedAt, lastObservedAt]
+      properties:
+        id:
+          type: string
+          format: uuid
+        egressId:
+          type: string
+          format: uuid
+        historyGeneration:
+          type: string
+          pattern: "^[0-9a-f]{64}$"
+        droppedCount:
+          type: integer
+          format: int64
+          minimum: 1
+        firstSequence:
+          type: integer
+          format: int64
+          minimum: 1
+        lastSequence:
+          type: integer
+          format: int64
+          minimum: 1
+        firstObservedAt:
+          type: string
+          format: date-time
+        lastObservedAt:
+          type: string
+          format: date-time
+    AgentProbeArtifact:
+      type: object
+      additionalProperties: false
+      required: [artifactId, revision]
+      properties:
+        artifactId:
+          type: string
+          format: uuid
+        revision:
+          type: integer
+          format: int64
+          minimum: 1
+        run:
+          $ref: "#/components/schemas/AgentProbeRunArtifact"
+        execution:
+          $ref: "#/components/schemas/AgentProbeExecutionArtifact"
+        gap:
+          $ref: "#/components/schemas/AgentProbeGapArtifact"
+    AgentProbeArtifactDisposition:
+      type: string
+      enum: [accepted, obsolete-generation, egress-deleted]
+    AgentProbeArtifactReceipt:
+      type: object
+      additionalProperties: false
+      required: [artifactId, revision, disposition]
+      properties:
+        artifactId:
+          type: string
+          format: uuid
+        revision:
+          type: integer
+          format: int64
+          minimum: 1
+        disposition:
+          $ref: "#/components/schemas/AgentProbeArtifactDisposition"
+    ProbeTask:
+      type: object
+      additionalProperties: false
+      required: [id, nodeId, status, createdAt, expiresAt, offline]
+      properties:
+        id:
+          type: string
+          format: uuid
+        nodeId:
+          type: string
+          format: uuid
+        status:
+          $ref: "#/components/schemas/ProbeTaskStatus"
+        createdAt:
+          type: string
+          format: date-time
+        expiresAt:
+          type: string
+          format: date-time
+        acknowledgedAt:
+          type: string
+          format: date-time
+        startedAt:
+          type: string
+          format: date-time
+        completedAt:
+          type: string
+          format: date-time
+        runId:
+          type: string
+          format: uuid
+        rejectionReason:
+          $ref: "#/components/schemas/AgentProbeSkipReason"
+        offline:
+          type: boolean
+    ProbeExecution:
+      type: object
+      additionalProperties: false
+      required: [id, runId, egressId, ordinal, sequence, status]
+      properties:
+        id:
+          type: string
+          format: uuid
+        runId:
+          type: string
+          format: uuid
+        egressId:
+          type: string
+          format: uuid
+        ordinal:
+          type: integer
+          minimum: 0
+        sequence:
+          type: integer
+          format: int64
+          minimum: 1
+        status:
+          $ref: "#/components/schemas/ProbeExecutionStatus"
+        startedAt:
+          type: string
+          format: date-time
+        completedAt:
+          type: string
+          format: date-time
+        failureStage:
+          $ref: "#/components/schemas/ProbeFailureStage"
+        diagnostic:
+          type: string
+        snapshotId:
+          type: string
+          format: uuid
+    ProbeRun:
+      type: object
+      additionalProperties: false
+      required: [id, nodeId, configurationRevision, historyGeneration, trigger, startedAt, status, expectedExecutions, executions]
+      properties:
+        id:
+          type: string
+          format: uuid
+        nodeId:
+          type: string
+          format: uuid
+        configurationRevision:
+          type: integer
+          format: int64
+        historyGeneration:
+          type: string
+          pattern: "^[0-9a-f]{64}$"
+        trigger:
+          $ref: "#/components/schemas/ProbeTrigger"
+        taskId:
+          type: string
+          format: uuid
+        triggeringEgressId:
+          type: string
+          format: uuid
+        startedAt:
+          type: string
+          format: date-time
+        completedAt:
+          type: string
+          format: date-time
+        status:
+          $ref: "#/components/schemas/ProbeRunStatus"
+        expectedExecutions:
+          type: integer
+          minimum: 1
+        executions:
+          type: array
+          items:
+            $ref: "#/components/schemas/ProbeExecution"
+    ProbeRunSummary:
+      type: object
+      additionalProperties: false
+      required: [id, nodeId, trigger, startedAt, status, expectedExecutions, completedExecutions]
+      properties:
+        id:
+          type: string
+          format: uuid
+        nodeId:
+          type: string
+          format: uuid
+        trigger:
+          $ref: "#/components/schemas/ProbeTrigger"
+        startedAt:
+          type: string
+          format: date-time
+        completedAt:
+          type: string
+          format: date-time
+        status:
+          $ref: "#/components/schemas/ProbeRunStatus"
+        expectedExecutions:
+          type: integer
+          minimum: 1
+        completedExecutions:
+          type: integer
+          minimum: 0
+    NodeProbeState:
+      type: object
+      additionalProperties: false
+      required: [nodeId, schedule, lowMemoryOverride, pausedLowMemory, recentRuns]
+      properties:
+        nodeId:
+          type: string
+          format: uuid
+        schedule:
+          $ref: "#/components/schemas/ProbeSchedule"
+        lowMemoryOverride:
+          type: boolean
+        physicalMemoryBytes:
+          type: integer
+          format: int64
+          minimum: 1
+        pausedLowMemory:
+          type: boolean
+        agentStatus:
+          $ref: "#/components/schemas/AgentProbeStatus"
+        task:
+          $ref: "#/components/schemas/ProbeTask"
+        recentRuns:
+          type: array
+          maxItems: 30
+          items:
+            $ref: "#/components/schemas/ProbeRunSummary"
+    ProbeSnapshot:
+      type: object
+      additionalProperties: false
+      required: [id, executionId, egressId, sequence, observedAt, rawResult]
+      properties:
+        id:
+          type: string
+          format: uuid
+        executionId:
+          type: string
+          format: uuid
+        egressId:
+          type: string
+          format: uuid
+        sequence:
+          type: integer
+          format: int64
+          minimum: 1
+        observedAt:
+          type: string
+          format: date-time
+        rawResult:
+          type: string
+          format: byte
+    HistoryState:
+      type: object
+      additionalProperties: false
+      required: [generation]
+      properties:
+        generation:
+          type: string
+          pattern: "^[0-9a-f]{64}$"
+        resetAt:
+          type: string
+          format: date-time
     NodeStatus:
       type: string
       enum: [online, offline, disabled, revoked]

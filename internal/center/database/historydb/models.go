@@ -44,6 +44,15 @@ type AddressState struct {
 	ReceivedAt        int64
 }
 
+type CurrentProbeSnapshot struct {
+	EgressID    string
+	ExecutionID string
+	SnapshotID  string
+	Sequence    int64
+	ObservedAt  int64
+	ReceivedAt  int64
+}
+
 type HistoryGap struct {
 	ID                string
 	EgressID          string
@@ -62,4 +71,57 @@ type HistoryMetadatum struct {
 	ID         int64
 	Generation string
 	CreatedAt  int64
+}
+
+type ProbeExecution struct {
+	ID           string
+	RunID        string
+	EgressID     string
+	Ordinal      int64
+	Sequence     int64
+	Status       string
+	StartedAt    *int64
+	CompletedAt  *int64
+	FailureStage *string
+	Diagnostic   *string
+	ReceivedAt   int64
+}
+
+type ProbeGap struct {
+	ID                string
+	EgressID          string
+	NodeID            string
+	HistoryGeneration string
+	DroppedCount      int64
+	FirstSequence     int64
+	LastSequence      int64
+	FirstObservedAt   int64
+	LastObservedAt    int64
+	ReceivedAt        int64
+}
+
+type ProbeRun struct {
+	ID                    string
+	NodeID                string
+	HistoryGeneration     string
+	ConfigurationRevision int64
+	Trigger               string
+	TaskID                *string
+	TriggeringEgressID    *string
+	Status                string
+	ExpectedExecutions    int64
+	StartedAt             int64
+	CompletedAt           *int64
+	ReceivedAt            int64
+}
+
+type ProbeSnapshot struct {
+	ID          string
+	ExecutionID string
+	EgressID    string
+	Sequence    int64
+	ObservedAt  int64
+	RawResult   []byte
+	EncodedSize int64
+	ReceivedAt  int64
 }

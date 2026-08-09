@@ -92,9 +92,11 @@ test("generates an Agent installation command from the nodes page", async ({
         agentVersion: "0.1.0-e2e",
         operatingSystem: "linux",
         architecture: "amd64",
+        physicalMemoryBytes: 536870912,
         capabilities: [
           "control-v1",
-          "configuration-v4",
+          "configuration-v5",
+          "complete-probe-v1",
           "network-inventory-v1",
           "sync-wakeup-v1",
         ],
@@ -127,9 +129,11 @@ test("generates an Agent installation command from the nodes page", async ({
         agentVersion: "0.1.0-e2e",
         operatingSystem: "linux",
         architecture: "amd64",
+        physicalMemoryBytes: 536870912,
         capabilities: [
           "control-v1",
-          "configuration-v4",
+          "configuration-v5",
+          "complete-probe-v1",
           "network-inventory-v1",
           "sync-wakeup-v1",
         ],
@@ -207,11 +211,13 @@ test("generates an Agent installation command from the nodes page", async ({
         agentVersion: "0.1.0-e2e",
         operatingSystem: "linux",
         architecture: "amd64",
+        physicalMemoryBytes: 536870912,
         capabilities: [
           "control-v1",
-          "configuration-v4",
+          "configuration-v5",
           "network-inventory-v1",
           "address-observation-v1",
+          "complete-probe-v1",
           "sync-wakeup-v1",
         ],
       },
@@ -381,6 +387,242 @@ test("generates an Agent installation command from the nodes page", async ({
     fullPage: true,
   });
   await page.getByRole("link", { name: "Back to nodes" }).click();
+
+  await page.getByRole("link", { name: "Complete probes" }).click();
+  await expect(page.getByRole("heading", { name: "edge-e2e" })).toBeVisible();
+  await expect(page.getByLabel("Cron expression")).toHaveValue("0 0 0 * * *");
+  await page.getByRole("button", { name: "Run complete probe" }).click();
+  await expect(
+    page.getByText("The task is waiting for the Agent."),
+  ).toBeVisible();
+
+  const probeConfigurationResponse = await page.request.get(
+    "/api/v1/agent/configuration",
+    { headers: { Authorization: `Bearer ${registered.credential}` } },
+  );
+  expect(probeConfigurationResponse.status()).toBe(200);
+  const probeConfiguration = (await probeConfigurationResponse.json()) as {
+    revision: number;
+    historyGeneration: string;
+    egresses: Array<{ id: string; family: "ipv4" | "ipv6" }>;
+  };
+  const probeEgress = probeConfiguration.egresses.find(
+    (egress) => egress.family === "ipv4",
+  );
+  expect(probeEgress).toBeTruthy();
+  const deliveredTaskResponse = await page.request.post(
+    "/api/v1/agent/control",
+    {
+      headers: { Authorization: `Bearer ${registered.credential}` },
+      data: {
+        appliedConfigurationRevision: probeConfiguration.revision,
+        metadata: {
+          hostname: "edge-e2e",
+          agentVersion: "0.1.0-e2e",
+          operatingSystem: "linux",
+          architecture: "amd64",
+          physicalMemoryBytes: 536870912,
+          capabilities: [
+            "control-v1",
+            "configuration-v5",
+            "network-inventory-v1",
+            "address-observation-v1",
+            "complete-probe-v1",
+            "sync-wakeup-v1",
+          ],
+        },
+      },
+    },
+  );
+  expect(deliveredTaskResponse.status()).toBe(200);
+  const deliveredTask = (await deliveredTaskResponse.json()) as {
+    task: { id: string; createdAt: string; expiresAt: string };
+  };
+  expect(deliveredTask.task.id).toBeTruthy();
+  const runId = "d3173c4d-d437-49f8-89ac-f6cac3a73df3";
+  const executionId = "9c862898-d88c-47af-bd04-52dfb293b9f3";
+  const startedAt = new Date(
+    Date.parse(deliveredTask.task.createdAt) + 1000,
+  ).toISOString();
+  const completedAt = new Date(
+    Date.parse(deliveredTask.task.createdAt) + 2000,
+  ).toISOString();
+  const runningReport = await page.request.post("/api/v1/agent/control", {
+    headers: { Authorization: `Bearer ${registered.credential}` },
+    data: {
+      appliedConfigurationRevision: probeConfiguration.revision,
+      metadata: {
+        hostname: "edge-e2e",
+        agentVersion: "0.1.0-e2e",
+        operatingSystem: "linux",
+        architecture: "amd64",
+        physicalMemoryBytes: 536870912,
+        capabilities: [
+          "control-v1",
+          "configuration-v5",
+          "network-inventory-v1",
+          "address-observation-v1",
+          "complete-probe-v1",
+          "sync-wakeup-v1",
+        ],
+      },
+      probeStatus: {
+        activeRunId: runId,
+        lastOccurrenceAt: startedAt,
+        lastOccurrenceTrigger: "manual",
+        lastOccurrenceStatus: "started",
+      },
+      taskReport: {
+        id: deliveredTask.task.id,
+        status: "running",
+        acknowledgedAt: startedAt,
+        startedAt,
+        runId,
+      },
+    },
+  });
+  expect(runningReport.status()).toBe(200);
+  const runningRun = {
+    id: runId,
+    nodeConfigurationRevision: probeConfiguration.revision,
+    historyGeneration: probeConfiguration.historyGeneration,
+    trigger: "manual",
+    taskId: deliveredTask.task.id,
+    startedAt,
+    status: "running",
+    executions: [
+      {
+        id: executionId,
+        egressId: probeEgress?.id,
+        ordinal: 0,
+        sequence: 1,
+      },
+    ],
+  };
+  const runUpload = await page.request.post("/api/v1/agent/probe-artifacts", {
+    headers: { Authorization: `Bearer ${registered.credential}` },
+    data: { artifactId: runId, revision: 1, run: runningRun },
+  });
+  expect(runUpload.status()).toBe(200);
+  await page.reload();
+  await expect(page.getByText("Agent received")).toBeVisible();
+  await expect(page.getByText("Running").first()).toBeVisible();
+
+  const terminalRun = {
+    ...runningRun,
+    status: "succeeded",
+    completedAt,
+  };
+  const executionUpload = await page.request.post(
+    "/api/v1/agent/probe-artifacts",
+    {
+      headers: { Authorization: `Bearer ${registered.credential}` },
+      data: {
+        artifactId: executionId,
+        revision: 2,
+        run: terminalRun,
+        execution: {
+          id: executionId,
+          egressId: probeEgress?.id,
+          ordinal: 0,
+          sequence: 1,
+          status: "succeeded",
+          startedAt,
+          completedAt,
+          rawResult: Buffer.from(
+            JSON.stringify({ ip: "8.8.8.8", quality: { score: 92 } }),
+          ).toString("base64"),
+        },
+      },
+    },
+  );
+  expect(executionUpload.status()).toBe(200);
+  const terminalReport = await page.request.post("/api/v1/agent/control", {
+    headers: { Authorization: `Bearer ${registered.credential}` },
+    data: {
+      appliedConfigurationRevision: probeConfiguration.revision,
+      metadata: {
+        hostname: "edge-e2e",
+        agentVersion: "0.1.0-e2e",
+        operatingSystem: "linux",
+        architecture: "amd64",
+        physicalMemoryBytes: 536870912,
+        capabilities: [
+          "control-v1",
+          "configuration-v5",
+          "network-inventory-v1",
+          "address-observation-v1",
+          "complete-probe-v1",
+          "sync-wakeup-v1",
+        ],
+      },
+      probeStatus: {
+        lastOccurrenceAt: startedAt,
+        lastOccurrenceTrigger: "manual",
+        lastOccurrenceStatus: "started",
+      },
+      taskReport: {
+        id: deliveredTask.task.id,
+        status: "succeeded",
+        acknowledgedAt: startedAt,
+        startedAt,
+        completedAt,
+        runId,
+      },
+    },
+  });
+  expect(terminalReport.status()).toBe(200);
+  await page.reload();
+  await expect(page.getByText("Succeeded").first()).toBeVisible();
+  await page.getByRole("link", { name: "Open run" }).click();
+  await expect(
+    page.getByRole("heading", { name: "Complete-probe run" }),
+  ).toBeVisible();
+  await page.getByRole("link", { name: "Open report snapshot" }).click();
+  await expect(page.getByText(/8\.8\.8\.8/)).toBeVisible();
+  await expect
+    .poll(() =>
+      page.evaluate(
+        () =>
+          document.documentElement.scrollWidth <=
+          document.documentElement.clientWidth,
+      ),
+    )
+    .toBe(true);
+  await page.screenshot({
+    path: testInfo.outputPath("probe-snapshot.png"),
+    fullPage: true,
+  });
+
+  const historySettingsLink = page.getByRole("link", {
+    name: "History and storage",
+    exact: true,
+  });
+  if (!(await historySettingsLink.isVisible())) {
+    await page.getByRole("button", { name: "Toggle sidebar" }).click();
+  }
+  await historySettingsLink.click();
+  await expect(
+    page.getByRole("heading", { name: "History and storage" }),
+  ).toBeVisible();
+  await page.getByRole("button", { name: "Clear history" }).click();
+  await page
+    .getByRole("alertdialog")
+    .getByRole("button", { name: "Clear all history" })
+    .click();
+  await expect(page.getByText("Never cleared")).not.toBeVisible();
+  await page.screenshot({
+    path: testInfo.outputPath("history-reset.png"),
+    fullPage: true,
+  });
+  const probesNodesLink = page.getByRole("link", {
+    name: "Nodes",
+    exact: true,
+  });
+  if (!(await probesNodesLink.isVisible())) {
+    await page.getByRole("button", { name: "Toggle sidebar" }).click();
+  }
+  await probesNodesLink.click();
 
   await page.getByRole("button", { name: "Pause node" }).click();
   await expect(responsiveItem("Disabled")).toBeVisible();

@@ -10,6 +10,7 @@ import {
   RadioTower,
   RefreshCw,
   RotateCw,
+  ScanSearch,
   Server,
   ShieldX,
   Terminal,
@@ -708,6 +709,20 @@ function NodeActions({
           </Button>
         </TooltipTrigger>
         <TooltipContent>{t("nodes.actions.network")}</TooltipContent>
+      </Tooltip>
+
+      <Tooltip>
+        <TooltipTrigger asChild>
+          <Button variant="ghost" size="icon-sm" asChild>
+            <Link
+              to={`/nodes/${node.id}/probe`}
+              aria-label={t("nodes.actions.probe")}
+            >
+              <ScanSearch aria-hidden="true" />
+            </Link>
+          </Button>
+        </TooltipTrigger>
+        <TooltipContent>{t("nodes.actions.probe")}</TooltipContent>
       </Tooltip>
 
       {node.status !== "revoked" && node.deletionStatus === undefined ? (

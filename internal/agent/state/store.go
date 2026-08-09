@@ -15,16 +15,18 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"sync"
 	"time"
 	"unicode/utf8"
 
 	"github.com/google/uuid"
+	sharedschedule "github.com/ipchronicle/ipchronicle/internal/schedule"
 	bolt "go.etcd.io/bbolt"
 )
 
 const (
 	masterKeySize         = 32
-	localSchemaVersion    = 3
+	localSchemaVersion    = 5
 	secretEnvelopeVersion = 1
 )
 
@@ -37,6 +39,14 @@ var (
 	addressCurrentBucket      = []byte("address-current")
 	addressEventsBucket       = []byte("address-events")
 	addressGapsBucket         = []byte("address-gaps")
+	probeRunsBucket           = []byte("probe-runs")
+	probeExecutionsBucket     = []byte("probe-executions")
+	probeArtifactsBucket      = []byte("probe-artifacts")
+	probeSequencesBucket      = []byte("probe-sequences")
+	probeGapsBucket           = []byte("probe-gaps")
+	probeTasksBucket          = []byte("probe-tasks")
+	probeControlBucket        = []byte("probe-control")
+	probeProcessBucket        = []byte("probe-process")
 	schemaVersionKey          = []byte("schema-version")
 	centerURLKey              = []byte("center-url")
 	nodeIDKey                 = []byte("node-id")
@@ -58,13 +68,21 @@ type Identity struct {
 }
 
 type Configuration struct {
-	SchemaVersion     int               `json:"schemaVersion"`
-	Revision          int64             `json:"revision"`
-	Enabled           bool              `json:"enabled"`
-	HistoryGeneration string            `json:"historyGeneration"`
-	Egresses          []Egress          `json:"egresses,omitempty"`
-	Proxies           []Proxy           `json:"proxies,omitempty"`
-	DiscoveryServices DiscoveryServices `json:"discoveryServices"`
+	SchemaVersion          int               `json:"schemaVersion"`
+	Revision               int64             `json:"revision"`
+	Enabled                bool              `json:"enabled"`
+	HistoryGeneration      string            `json:"historyGeneration"`
+	Egresses               []Egress          `json:"egresses,omitempty"`
+	Proxies                []Proxy           `json:"proxies,omitempty"`
+	DiscoveryServices      DiscoveryServices `json:"discoveryServices"`
+	ProbeSchedule          ProbeSchedule     `json:"probeSchedule"`
+	ProbeLowMemoryOverride bool              `json:"probeLowMemoryOverride"`
+}
+
+type ProbeSchedule struct {
+	Enabled  bool   `json:"enabled"`
+	Cron     string `json:"cron"`
+	Timezone string `json:"timezone"`
 }
 
 type DiscoveryServices struct {
@@ -94,13 +112,15 @@ type Proxy struct {
 }
 
 type storedConfiguration struct {
-	SchemaVersion     int               `json:"schemaVersion"`
-	Revision          int64             `json:"revision"`
-	Enabled           bool              `json:"enabled"`
-	HistoryGeneration string            `json:"historyGeneration"`
-	Egresses          []Egress          `json:"egresses,omitempty"`
-	Proxies           []storedProxy     `json:"proxies,omitempty"`
-	DiscoveryServices DiscoveryServices `json:"discoveryServices"`
+	SchemaVersion          int               `json:"schemaVersion"`
+	Revision               int64             `json:"revision"`
+	Enabled                bool              `json:"enabled"`
+	HistoryGeneration      string            `json:"historyGeneration"`
+	Egresses               []Egress          `json:"egresses,omitempty"`
+	Proxies                []storedProxy     `json:"proxies,omitempty"`
+	DiscoveryServices      DiscoveryServices `json:"discoveryServices"`
+	ProbeSchedule          ProbeSchedule     `json:"probeSchedule"`
+	ProbeLowMemoryOverride bool              `json:"probeLowMemoryOverride"`
 }
 
 type storedProxy struct {
@@ -120,8 +140,10 @@ type ControlState struct {
 }
 
 type Store struct {
-	database  *bolt.DB
-	masterKey [masterKeySize]byte
+	database        *bolt.DB
+	masterKey       [masterKeySize]byte
+	resultDirectory string
+	probeMu         sync.Mutex
 }
 
 func Open(directory string) (*Store, error) {
@@ -133,6 +155,10 @@ func Open(directory string) (*Store, error) {
 	}
 	databasePath := filepath.Join(directory, "state.db")
 	masterKeyPath := filepath.Join(directory, "master.key")
+	resultDirectory := filepath.Join(directory, "results")
+	if err := ensurePrivateDirectory(resultDirectory); err != nil {
+		return nil, fmt.Errorf("prepare Agent result directory: %w", err)
+	}
 	databaseExists, err := regularFileExists(databasePath)
 	if err != nil {
 		return nil, fmt.Errorf("inspect Agent state database: %w", err)
@@ -145,12 +171,20 @@ func Open(directory string) (*Store, error) {
 	if err != nil {
 		return nil, fmt.Errorf("open Agent state database: %w", err)
 	}
-	store := &Store{database: database, masterKey: masterKey}
+	store := &Store{database: database, masterKey: masterKey, resultDirectory: resultDirectory}
 	if err := store.initialize(); err != nil {
 		_ = database.Close()
 		return nil, err
 	}
 	if err := store.validateCurrentConfiguration(); err != nil {
+		_ = database.Close()
+		return nil, err
+	}
+	if err := store.validateProbeControlState(); err != nil {
+		_ = database.Close()
+		return nil, err
+	}
+	if err := store.reconcileProbeArtifacts(); err != nil {
 		_ = database.Close()
 		return nil, err
 	}
@@ -284,17 +318,20 @@ func (s *Store) Configuration() (Configuration, error) {
 }
 
 func (s *Store) ApplyConfiguration(configuration Configuration) error {
+	s.probeMu.Lock()
+	defer s.probeMu.Unlock()
 	if err := validateConfiguration(configuration); err != nil {
 		return err
 	}
-	if configuration.SchemaVersion != 4 {
-		return errors.New("new Agent configuration must use schema version 4")
+	if configuration.SchemaVersion != 5 {
+		return errors.New("new Agent configuration must use schema version 5")
 	}
 	encoded, err := encodeStoredConfiguration(s.masterKey, configuration)
 	if err != nil {
 		return fmt.Errorf("encode Agent configuration: %w", err)
 	}
-	return s.database.Update(func(transaction *bolt.Tx) error {
+	resetAt := time.Now().UTC().Truncate(time.Second)
+	err = s.database.Update(func(transaction *bolt.Tx) error {
 		identity := transaction.Bucket(identityBucket)
 		if identity == nil || identity.Get(nodeIDKey) == nil {
 			return ErrNotEnrolled
@@ -323,14 +360,36 @@ func (s *Store) ApplyConfiguration(configuration Configuration) error {
 		if err := identity.Put(appliedRevisionKey, revision); err != nil {
 			return err
 		}
-		if err := reconcileAddressBuckets(transaction, configuration, previousGeneration); err != nil {
+		discardedAddressItems, err := reconcileAddressBuckets(transaction, configuration, previousGeneration)
+		if err != nil {
 			return err
+		}
+		discardedProbeItems, err := reconcileProbeGeneration(transaction, configuration, previousGeneration)
+		if err != nil {
+			return err
+		}
+		if previousGeneration != "" && previousGeneration != configuration.HistoryGeneration {
+			status, err := probeStatusFromTransaction(transaction)
+			if err != nil {
+				return err
+			}
+			status.HistoryResetGeneration = cloneString(&configuration.HistoryGeneration)
+			status.HistoryResetAt = cloneTime(&resetAt)
+			status.HistoryResetDiscardedAddressItems = discardedAddressItems
+			status.HistoryResetDiscardedProbeItems = discardedProbeItems
+			if err := putJSON(transaction.Bucket(probeControlBucket), probeStatusKey, status); err != nil {
+				return err
+			}
 		}
 		if err := bucket.Delete(configurationErrorKey); err != nil {
 			return err
 		}
 		return bucket.Delete(configurationErrorRevKey)
 	})
+	if err != nil {
+		return err
+	}
+	return s.removeUnreferencedProbeResults()
 }
 
 func (s *Store) RecordConfigurationFailure(revision int64, cause error) error {
@@ -395,7 +454,11 @@ func (s *Store) initialize() error {
 		if _, err = transaction.CreateBucketIfNotExists(identityBucket); err != nil {
 			return err
 		}
-		for _, name := range [][]byte{configurationBucket, addressCurrentBucket, addressEventsBucket, addressGapsBucket} {
+		for _, name := range [][]byte{
+			configurationBucket, addressCurrentBucket, addressEventsBucket, addressGapsBucket,
+			probeRunsBucket, probeExecutionsBucket, probeArtifactsBucket, probeSequencesBucket,
+			probeGapsBucket, probeTasksBucket, probeControlBucket, probeProcessBucket,
+		} {
 			if _, err = transaction.CreateBucketIfNotExists(name); err != nil {
 				return err
 			}
@@ -426,7 +489,7 @@ func (s *Store) validateCurrentConfiguration() error {
 }
 
 func validateConfiguration(configuration Configuration) error {
-	if (configuration.SchemaVersion < 1 || configuration.SchemaVersion > 4) || configuration.Revision < 1 {
+	if (configuration.SchemaVersion < 1 || configuration.SchemaVersion > 5) || configuration.Revision < 1 {
 		return errors.New("unsupported Agent configuration snapshot")
 	}
 	generation, err := hex.DecodeString(configuration.HistoryGeneration)
@@ -448,6 +511,13 @@ func validateConfiguration(configuration Configuration) error {
 		}
 	} else if !validDiscoveryServiceList(configuration.DiscoveryServices.IPv4) || !validDiscoveryServiceList(configuration.DiscoveryServices.IPv6) {
 		return errors.New("Agent configuration contains invalid discovery services")
+	}
+	if configuration.SchemaVersion < 5 {
+		if configuration.ProbeSchedule != (ProbeSchedule{}) || configuration.ProbeLowMemoryOverride {
+			return errors.New("older Agent configuration contains complete-probe settings")
+		}
+	} else if err := sharedschedule.ValidateProbe(configuration.ProbeSchedule.Cron, configuration.ProbeSchedule.Timezone); err != nil {
+		return fmt.Errorf("Agent configuration contains an invalid complete-probe schedule: %w", err)
 	}
 	if len(configuration.Egresses) > 64 {
 		return errors.New("Agent configuration contains too many network egresses")
@@ -572,7 +642,8 @@ func encodeStoredConfiguration(masterKey [masterKeySize]byte, configuration Conf
 		SchemaVersion: configuration.SchemaVersion, Revision: configuration.Revision,
 		Enabled: configuration.Enabled, HistoryGeneration: configuration.HistoryGeneration,
 		Egresses: configuration.Egresses, Proxies: make([]storedProxy, 0, len(configuration.Proxies)),
-		DiscoveryServices: configuration.DiscoveryServices,
+		DiscoveryServices: configuration.DiscoveryServices, ProbeSchedule: configuration.ProbeSchedule,
+		ProbeLowMemoryOverride: configuration.ProbeLowMemoryOverride,
 	}
 	for _, proxy := range configuration.Proxies {
 		item := storedProxy{
@@ -615,7 +686,8 @@ func decodeStoredConfiguration(masterKey [masterKeySize]byte, encoded []byte) (C
 	configuration := Configuration{
 		SchemaVersion: stored.SchemaVersion, Revision: stored.Revision, Enabled: stored.Enabled,
 		HistoryGeneration: stored.HistoryGeneration, Egresses: stored.Egresses,
-		DiscoveryServices: stored.DiscoveryServices,
+		DiscoveryServices: stored.DiscoveryServices, ProbeSchedule: stored.ProbeSchedule,
+		ProbeLowMemoryOverride: stored.ProbeLowMemoryOverride,
 	}
 	if len(stored.Proxies) != 0 {
 		configuration.Proxies = make([]Proxy, 0, len(stored.Proxies))

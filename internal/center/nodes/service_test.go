@@ -352,6 +352,6 @@ func testMetadata() Metadata {
 	return Metadata{
 		Hostname: "edge.example", AgentVersion: "0.1.0",
 		OperatingSystem: "linux", Architecture: "amd64",
-		Capabilities: []string{"control-v1"},
+		Capabilities: []string{"control-v1"}, PhysicalMemoryBytes: 512 * 1024 * 1024,
 	}
 }

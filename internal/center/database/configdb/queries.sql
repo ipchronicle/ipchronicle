@@ -135,7 +135,9 @@ SELECT id, name, hostname, credential_digest, enabled, revoked_at,
        agent_version, operating_system, architecture,
        desired_configuration_revision, applied_configuration_revision,
        configuration_error, registered_at, last_seen_at,
-       configuration_error_revision
+       configuration_error_revision, physical_memory_bytes,
+       probe_schedule_enabled, probe_schedule_cron, probe_schedule_timezone,
+       probe_low_memory_override
 FROM nodes
 WHERE credential_digest = ?;
 
@@ -144,7 +146,9 @@ SELECT id, name, hostname, credential_digest, enabled, revoked_at,
        agent_version, operating_system, architecture,
        desired_configuration_revision, applied_configuration_revision,
        configuration_error, registered_at, last_seen_at,
-       configuration_error_revision
+       configuration_error_revision, physical_memory_bytes,
+       probe_schedule_enabled, probe_schedule_cron, probe_schedule_timezone,
+       probe_low_memory_override
 FROM nodes
 WHERE id = ?;
 
@@ -160,7 +164,9 @@ SELECT id, name, hostname, credential_digest, enabled, revoked_at,
        agent_version, operating_system, architecture,
        desired_configuration_revision, applied_configuration_revision,
        configuration_error, registered_at, last_seen_at,
-       configuration_error_revision
+       configuration_error_revision, physical_memory_bytes,
+       probe_schedule_enabled, probe_schedule_cron, probe_schedule_timezone,
+       probe_low_memory_override
 FROM nodes
 ORDER BY name COLLATE NOCASE, id;
 
@@ -521,3 +527,105 @@ WHERE id = ? AND node_id = ?
       enabled != ? OR lightweight_interval_seconds != ? OR
       probe_on_address_change != ?
   );
+
+-- name: UpdateNodePhysicalMemory :execrows
+UPDATE nodes
+SET physical_memory_bytes = ?
+WHERE id = ? AND revoked_at IS NULL;
+
+-- name: GetNodeProbeSettings :one
+SELECT id, enabled, revoked_at, last_seen_at, applied_configuration_revision,
+       desired_configuration_revision, physical_memory_bytes,
+       probe_schedule_enabled, probe_schedule_cron, probe_schedule_timezone,
+       probe_low_memory_override
+FROM nodes
+WHERE id = ?;
+
+-- name: UpdateNodeProbeSettings :execrows
+UPDATE nodes
+SET probe_schedule_enabled = ?, probe_schedule_cron = ?,
+    probe_schedule_timezone = ?, probe_low_memory_override = ?,
+    desired_configuration_revision = desired_configuration_revision + 1,
+    configuration_error = NULL, configuration_error_revision = NULL
+WHERE id = ? AND revoked_at IS NULL
+  AND NOT EXISTS (
+      SELECT 1 FROM node_deletion_operations
+      WHERE node_id = nodes.id AND status != 'completed'
+  );
+
+-- name: UpsertNodeProbeStatus :exec
+INSERT INTO node_probe_status (
+    node_id, active_run_id, next_scheduled_at, last_occurrence_at,
+    last_occurrence_trigger, last_occurrence_status, last_skip_reason,
+    history_reset_generation, history_reset_at,
+    history_reset_discarded_address_items, history_reset_discarded_probe_items,
+    reported_at
+) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+ON CONFLICT (node_id) DO UPDATE SET
+    active_run_id = excluded.active_run_id,
+    next_scheduled_at = excluded.next_scheduled_at,
+    last_occurrence_at = excluded.last_occurrence_at,
+    last_occurrence_trigger = excluded.last_occurrence_trigger,
+    last_occurrence_status = excluded.last_occurrence_status,
+    last_skip_reason = excluded.last_skip_reason,
+    history_reset_generation = excluded.history_reset_generation,
+    history_reset_at = excluded.history_reset_at,
+    history_reset_discarded_address_items = excluded.history_reset_discarded_address_items,
+    history_reset_discarded_probe_items = excluded.history_reset_discarded_probe_items,
+    reported_at = excluded.reported_at;
+
+-- name: GetNodeProbeStatus :one
+SELECT node_id, active_run_id, next_scheduled_at, last_occurrence_at,
+       last_occurrence_trigger, last_occurrence_status, last_skip_reason,
+       history_reset_generation, history_reset_at,
+       history_reset_discarded_address_items, history_reset_discarded_probe_items,
+       reported_at
+FROM node_probe_status
+WHERE node_id = ?;
+
+-- name: CreateProbeTask :exec
+INSERT INTO probe_tasks (
+    id, node_id, kind, status, created_at, expires_at
+) VALUES (?, ?, 'complete-probe', 'pending', ?, ?);
+
+-- name: GetProbeTask :one
+SELECT id, node_id, kind, status, created_at, expires_at, acknowledged_at,
+       started_at, completed_at, run_id, rejection_reason,
+       terminal_confirmed_at
+FROM probe_tasks
+WHERE id = ? AND node_id = ?;
+
+-- name: GetActiveProbeTask :one
+SELECT id, node_id, kind, status, created_at, expires_at, acknowledged_at,
+       started_at, completed_at, run_id, rejection_reason,
+       terminal_confirmed_at
+FROM probe_tasks
+WHERE node_id = ? AND status IN ('pending', 'acknowledged', 'running')
+ORDER BY created_at, id
+LIMIT 1;
+
+-- name: GetLatestProbeTask :one
+SELECT id, node_id, kind, status, created_at, expires_at, acknowledged_at,
+       started_at, completed_at, run_id, rejection_reason,
+       terminal_confirmed_at
+FROM probe_tasks
+WHERE node_id = ?
+ORDER BY created_at DESC, id DESC
+LIMIT 1;
+
+-- name: ExpireProbeTask :execrows
+UPDATE probe_tasks
+SET status = 'expired', completed_at = ?
+WHERE id = ? AND node_id = ? AND status = 'pending' AND expires_at <= ?;
+
+-- name: UpdateProbeTaskReport :execrows
+UPDATE probe_tasks
+SET status = ?, acknowledged_at = ?, started_at = ?, completed_at = ?,
+    run_id = ?, rejection_reason = ?, terminal_confirmed_at = ?
+WHERE id = ? AND node_id = ?
+  AND status IN ('pending', 'acknowledged', 'running');
+
+-- name: DeleteTerminalProbeTasksBefore :exec
+DELETE FROM probe_tasks
+WHERE completed_at IS NOT NULL AND completed_at < ?
+  AND status IN ('succeeded', 'partial', 'failed', 'rejected', 'expired');

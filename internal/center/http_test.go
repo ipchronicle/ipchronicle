@@ -64,7 +64,7 @@ func TestAdministratorLoginStatusAndLogout(t *testing.T) {
 	if err := json.NewDecoder(statusResponse.Body).Decode(&status); err != nil {
 		t.Fatal(err)
 	}
-	if status.Service != api.IpchronicleCenter || status.Status != api.Ok || !status.TransportWarning || status.ConfigSchemaVersion != 8 || status.HistorySchemaVersion != 2 {
+	if status.Service != api.IpchronicleCenter || status.Status != api.Ok || !status.TransportWarning || status.ConfigSchemaVersion != 9 || status.HistorySchemaVersion != 3 {
 		t.Fatalf("unexpected status response: %#v", status)
 	}
 
@@ -163,7 +163,7 @@ func TestNetworkObservationAndEgressAPIWorkflow(t *testing.T) {
 	}
 	registration, err := nodeService.Register(ctx, enrollment.Key, nodes.Metadata{
 		Hostname: "api-edge.example", AgentVersion: "0.1.0", OperatingSystem: "linux",
-		Architecture: "amd64", Capabilities: []string{"control-v1"},
+		Architecture: "amd64", Capabilities: []string{"control-v1"}, PhysicalMemoryBytes: 512 * 1024 * 1024,
 	})
 	if err != nil {
 		t.Fatal(err)
@@ -181,7 +181,7 @@ func TestNetworkObservationAndEgressAPIWorkflow(t *testing.T) {
 	}
 	if _, err := nodeService.Poll(ctx, registration.Credential, nodes.Metadata{
 		Hostname: "api-edge.example", AgentVersion: "0.1.0", OperatingSystem: "linux",
-		Architecture: "amd64", Capabilities: []string{"control-v1"},
+		Architecture: "amd64", Capabilities: []string{"control-v1"}, PhysicalMemoryBytes: 512 * 1024 * 1024,
 	}, 0, nil, nil, &inventory, nil); err != nil {
 		t.Fatal(err)
 	}
@@ -295,7 +295,7 @@ func TestAdministratorEnrollmentAndAgentCredentialBoundaries(t *testing.T) {
 		RegistrationKey: enrollment.Key,
 		Metadata: api.AgentMetadata{
 			Hostname: "edge-1", AgentVersion: "0.1.0", OperatingSystem: api.Linux,
-			Architecture: api.Amd64, Capabilities: []string{"control-v1"},
+			Architecture: api.Amd64, Capabilities: []string{"control-v1"}, PhysicalMemoryBytes: 512 * 1024 * 1024,
 		},
 	})
 	if err != nil {
@@ -313,7 +313,7 @@ func TestAdministratorEnrollmentAndAgentCredentialBoundaries(t *testing.T) {
 		AppliedConfigurationRevision: 0,
 		Metadata: api.AgentMetadata{
 			Hostname: "edge-1", AgentVersion: "0.1.0", OperatingSystem: api.Linux,
-			Architecture: api.Amd64, Capabilities: []string{"control-v1"},
+			Architecture: api.Amd64, Capabilities: []string{"control-v1"}, PhysicalMemoryBytes: 512 * 1024 * 1024,
 		},
 	})
 	if err != nil {
@@ -339,7 +339,7 @@ func TestAdministratorEnrollmentAndAgentCredentialBoundaries(t *testing.T) {
 	if err := json.NewDecoder(list.Body).Decode(&nodes); err != nil {
 		t.Fatal(err)
 	}
-	if len(nodes.Items) != 1 || nodes.Items[0].Status != api.Online {
+	if len(nodes.Items) != 1 || nodes.Items[0].Status != api.NodeStatusOnline {
 		t.Fatalf("unexpected node list: %#v", nodes.Items)
 	}
 
@@ -408,7 +408,7 @@ func TestTemporarySyncWebSocketAuthenticationWakeAndStop(t *testing.T) {
 	}
 	metadata := nodes.Metadata{
 		Hostname: "sync-edge", AgentVersion: "0.1.0", OperatingSystem: "linux", Architecture: "amd64",
-		Capabilities: []string{"control-v1", nodes.SyncWakeCapability},
+		Capabilities: []string{"control-v1", nodes.SyncWakeCapability}, PhysicalMemoryBytes: 512 * 1024 * 1024,
 	}
 	registration, err := nodeService.Register(ctx, enrollment.Key, metadata)
 	if err != nil {

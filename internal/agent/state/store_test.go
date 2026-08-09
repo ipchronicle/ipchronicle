@@ -94,7 +94,8 @@ func TestProxyCredentialsPersistEncryptedAcrossRestart(t *testing.T) {
 	proxyID := "6fc6d7e8-bc63-49e2-91fc-d4c58b43ac16"
 	password := "retained-proxy-password"
 	configuration := Configuration{
-		SchemaVersion: 4, Revision: 1, Enabled: true, DiscoveryServices: testDiscoveryServices(),
+		SchemaVersion: 5, Revision: 1, Enabled: true, DiscoveryServices: testDiscoveryServices(),
+		ProbeSchedule:     ProbeSchedule{Enabled: true, Cron: "0 0 0 * * *", Timezone: "agent-local"},
 		HistoryGeneration: "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef",
 		Egresses: []Egress{{
 			ID: "c7b5eeac-903d-4b99-961d-190a8a4e5d2e", Kind: "proxy", Family: "ipv4",
@@ -152,7 +153,8 @@ func TestConfigurationReplacementFailureAndRevocationPersist(t *testing.T) {
 		t.Fatal(err)
 	}
 	first := Configuration{
-		SchemaVersion: 4, Revision: 1, Enabled: true, DiscoveryServices: testDiscoveryServices(),
+		SchemaVersion: 5, Revision: 1, Enabled: true, DiscoveryServices: testDiscoveryServices(),
+		ProbeSchedule:     ProbeSchedule{Enabled: true, Cron: "0 0 0 * * *", Timezone: "agent-local"},
 		HistoryGeneration: "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef",
 	}
 	if err := store.ApplyConfiguration(first); err != nil {

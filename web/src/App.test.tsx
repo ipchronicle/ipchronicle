@@ -35,6 +35,15 @@ import {
   listNetworkProxies,
   updateNetworkProxy,
 } from "@/api/proxies";
+import {
+  createCompleteProbeTask,
+  getHistoryState,
+  getNodeProbe,
+  getProbeRun,
+  getProbeSnapshot,
+  resetHistory,
+  updateNodeProbeSettings,
+} from "@/api/probes";
 import App from "@/App";
 import { AuthProvider } from "@/auth-context";
 import { TooltipProvider } from "@/components/ui/tooltip";
@@ -83,6 +92,16 @@ vi.mock("@/api/proxies", () => ({
   updateNetworkProxy: vi.fn(),
 }));
 
+vi.mock("@/api/probes", () => ({
+  createCompleteProbeTask: vi.fn(),
+  getHistoryState: vi.fn(),
+  getNodeProbe: vi.fn(),
+  getProbeRun: vi.fn(),
+  getProbeSnapshot: vi.fn(),
+  resetHistory: vi.fn(),
+  updateNodeProbeSettings: vi.fn(),
+}));
+
 const getSessionMock = vi.mocked(getAuthenticatedSession);
 const loginMock = vi.mocked(login);
 const logoutMock = vi.mocked(logout);
@@ -109,6 +128,13 @@ const createProxyMock = vi.mocked(createNetworkProxy);
 const deleteProxyMock = vi.mocked(deleteNetworkProxy);
 const listProxiesMock = vi.mocked(listNetworkProxies);
 const updateProxyMock = vi.mocked(updateNetworkProxy);
+const createProbeTaskMock = vi.mocked(createCompleteProbeTask);
+const getHistoryStateMock = vi.mocked(getHistoryState);
+const getNodeProbeMock = vi.mocked(getNodeProbe);
+const getProbeRunMock = vi.mocked(getProbeRun);
+const getProbeSnapshotMock = vi.mocked(getProbeSnapshot);
+const resetHistoryMock = vi.mocked(resetHistory);
+const updateProbeSettingsMock = vi.mocked(updateNodeProbeSettings);
 
 const session: AuthenticatedSession = {
   account: {
@@ -171,6 +197,13 @@ describe("administrator application", () => {
     listProxiesMock.mockReset();
     listProxiesMock.mockResolvedValue([]);
     updateProxyMock.mockReset();
+    createProbeTaskMock.mockReset();
+    getHistoryStateMock.mockReset();
+    getNodeProbeMock.mockReset();
+    getProbeRunMock.mockReset();
+    getProbeSnapshotMock.mockReset();
+    resetHistoryMock.mockReset();
+    updateProbeSettingsMock.mockReset();
   });
 
   it("routes an anonymous browser to the real login form", async () => {
@@ -529,7 +562,223 @@ describe("administrator application", () => {
       screen.getByRole("link", { name: "Network probes" }),
     ).toHaveAttribute("aria-current", "page");
   });
+
+  it("configures a low-memory node and creates an immediate probe task", async () => {
+    getSessionMock.mockResolvedValue(session);
+    listNodesMock.mockResolvedValue([probeTestNode]);
+    const pausedState = {
+      nodeId: probeTestNode.id,
+      schedule: { enabled: true, cron: "0 0 0 * * *", timezone: "agent-local" },
+      lowMemoryOverride: false,
+      physicalMemoryBytes: 64 * 1024 * 1024,
+      pausedLowMemory: true,
+      recentRuns: [],
+    };
+    const enabledState = {
+      ...pausedState,
+      lowMemoryOverride: true,
+      pausedLowMemory: false,
+    };
+    getNodeProbeMock.mockResolvedValue(pausedState);
+    updateProbeSettingsMock.mockResolvedValue(enabledState);
+    createProbeTaskMock.mockResolvedValue({
+      id: "b4bd9b72-a761-4f53-8a21-570aed465b88",
+      nodeId: probeTestNode.id,
+      status: "pending",
+      createdAt: "2026-08-09T12:00:00Z",
+      expiresAt: "2026-08-09T12:02:00Z",
+      offline: false,
+    });
+
+    renderApplication(`/nodes/${probeTestNode.id}/probe`);
+
+    expect(
+      await screen.findByRole("heading", { name: "edge-1" }),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByText("Complete probes are paused for low memory"),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByRole("button", { name: "Run complete probe" }),
+    ).toBeDisabled();
+    fireEvent.click(
+      screen.getByRole("switch", { name: "Allow probes below 256 MiB" }),
+    );
+    fireEvent.click(
+      screen.getByRole("button", { name: "Save probe settings" }),
+    );
+    await waitFor(() =>
+      expect(updateProbeSettingsMock).toHaveBeenCalledWith(
+        probeTestNode.id,
+        {
+          schedule: {
+            enabled: true,
+            cron: "0 0 0 * * *",
+            timezone: "agent-local",
+          },
+          lowMemoryOverride: true,
+        },
+        session.csrfToken,
+      ),
+    );
+    fireEvent.click(screen.getByRole("button", { name: "Run complete probe" }));
+    await waitFor(() =>
+      expect(createProbeTaskMock).toHaveBeenCalledWith(
+        probeTestNode.id,
+        session.csrfToken,
+      ),
+    );
+    expect(await screen.findByText("Waiting for Agent")).toBeInTheDocument();
+  });
+
+  it("shows partial probe runs with successful and failed egresses", async () => {
+    getSessionMock.mockResolvedValue(session);
+    listNodesMock.mockResolvedValue([probeTestNode]);
+    getProbeRunMock.mockResolvedValue({
+      id: "84e7d535-e04e-47f9-8374-1585a5dce6c9",
+      nodeId: probeTestNode.id,
+      configurationRevision: 2,
+      historyGeneration: "a".repeat(64),
+      trigger: "schedule",
+      startedAt: "2026-08-09T11:59:00Z",
+      completedAt: "2026-08-09T12:00:00Z",
+      status: "partial",
+      expectedExecutions: 2,
+      executions: [
+        {
+          id: "cd6233d2-a600-443b-9cf5-a0bc3c241ea5",
+          runId: "84e7d535-e04e-47f9-8374-1585a5dce6c9",
+          egressId: "a6a2f052-f9c4-4f37-88d5-4dc4c95d68d9",
+          ordinal: 0,
+          sequence: 1,
+          status: "succeeded",
+          startedAt: "2026-08-09T11:59:01Z",
+          completedAt: "2026-08-09T11:59:20Z",
+          snapshotId: "cd6233d2-a600-443b-9cf5-a0bc3c241ea5",
+        },
+        {
+          id: "ea79d052-545b-46f2-926c-b82be60647e8",
+          runId: "84e7d535-e04e-47f9-8374-1585a5dce6c9",
+          egressId: "da1a3999-e0bd-4649-85ae-aa9a4a9d6961",
+          ordinal: 1,
+          sequence: 1,
+          status: "failed",
+          startedAt: "2026-08-09T11:59:21Z",
+          completedAt: "2026-08-09T11:59:40Z",
+          failureStage: "process",
+          diagnostic: "exit status 1",
+        },
+      ],
+    });
+    getNodeNetworkMock.mockResolvedValue({
+      egresses: [
+        {
+          id: "a6a2f052-f9c4-4f37-88d5-4dc4c95d68d9",
+          nodeId: probeTestNode.id,
+          name: "default-ipv4",
+          kind: "default",
+          family: "ipv4",
+          enabled: true,
+          available: true,
+          automatic: true,
+          lightweightIntervalSeconds: 600,
+          probeOnAddressChange: true,
+        },
+        {
+          id: "da1a3999-e0bd-4649-85ae-aa9a4a9d6961",
+          nodeId: probeTestNode.id,
+          name: "default-ipv6",
+          kind: "default",
+          family: "ipv6",
+          enabled: true,
+          available: true,
+          automatic: true,
+          lightweightIntervalSeconds: 600,
+          probeOnAddressChange: true,
+        },
+      ],
+      candidates: [],
+      addressStates: [],
+      addressEvents: [],
+      addressGaps: [],
+    });
+
+    renderApplication("/probe-runs/84e7d535-e04e-47f9-8374-1585a5dce6c9");
+
+    expect(
+      await screen.findByText("This run completed with partial success"),
+    ).toBeInTheDocument();
+    expect(screen.getByText("Default IPv4")).toBeInTheDocument();
+    expect(screen.getByText("exit status 1")).toBeInTheDocument();
+    expect(
+      screen.getByRole("link", { name: "Open report snapshot" }),
+    ).toHaveAttribute(
+      "href",
+      "/probe-snapshots/cd6233d2-a600-443b-9cf5-a0bc3c241ea5?runId=84e7d535-e04e-47f9-8374-1585a5dce6c9",
+    );
+  });
+
+  it("renders the exact decoded probe JSON", async () => {
+    getSessionMock.mockResolvedValue(session);
+    getProbeSnapshotMock.mockResolvedValue({
+      id: "cd6233d2-a600-443b-9cf5-a0bc3c241ea5",
+      executionId: "cd6233d2-a600-443b-9cf5-a0bc3c241ea5",
+      egressId: "a6a2f052-f9c4-4f37-88d5-4dc4c95d68d9",
+      sequence: 1,
+      observedAt: "2026-08-09T11:59:20Z",
+      rawResult: window.btoa('{"ip":"203.0.113.10"}'),
+    });
+
+    renderApplication("/probe-snapshots/cd6233d2-a600-443b-9cf5-a0bc3c241ea5");
+
+    expect(await screen.findByText(/203\.0\.113\.10/)).toBeInTheDocument();
+    expect(
+      screen.getByRole("button", { name: "Copy JSON" }),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByRole("button", { name: "Download JSON" }),
+    ).toBeInTheDocument();
+  });
+
+  it("clears history only after destructive confirmation", async () => {
+    getSessionMock.mockResolvedValue(session);
+    getHistoryStateMock.mockResolvedValue({ generation: "a".repeat(64) });
+    resetHistoryMock.mockResolvedValue({
+      generation: "b".repeat(64),
+      resetAt: "2026-08-09T12:00:00Z",
+    });
+
+    renderApplication("/settings/history");
+
+    expect(
+      await screen.findByRole("heading", { name: "History and storage" }),
+    ).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Clear history" }));
+    expect(resetHistoryMock).not.toHaveBeenCalled();
+    fireEvent.click(screen.getByRole("button", { name: "Clear all history" }));
+    await waitFor(() =>
+      expect(resetHistoryMock).toHaveBeenCalledWith(session.csrfToken),
+    );
+    expect(await screen.findByText("b".repeat(64))).toBeInTheDocument();
+  });
 });
+
+const probeTestNode = {
+  id: "7289cfa3-a75d-4a3f-ac06-8f1074446a85",
+  name: "edge-1",
+  hostname: "edge-1",
+  status: "online" as const,
+  enabled: true,
+  agentVersion: "0.1.0",
+  operatingSystem: "linux" as const,
+  architecture: "amd64" as const,
+  capabilities: ["control-v1", "complete-probe-v1"],
+  desiredConfigurationRevision: 2,
+  appliedConfigurationRevision: 2,
+  configurationStatus: "current" as const,
+  registeredAt: "2026-08-09T11:00:00Z",
+  lastSeenAt: "2026-08-09T12:00:00Z",
+};
 
 function renderApplication(path: string) {
   return render(

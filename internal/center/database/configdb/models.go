@@ -96,6 +96,11 @@ type Node struct {
 	RegisteredAt                 int64
 	LastSeenAt                   *int64
 	ConfigurationErrorRevision   *int64
+	PhysicalMemoryBytes          *int64
+	ProbeScheduleEnabled         int64
+	ProbeScheduleCron            string
+	ProbeScheduleTimezone        string
+	ProbeLowMemoryOverride       int64
 }
 
 type NodeCapability struct {
@@ -120,12 +125,42 @@ type NodeNetworkInventory struct {
 	LastError  *string
 }
 
+type NodeProbeStatus struct {
+	NodeID                            string
+	ActiveRunID                       *string
+	NextScheduledAt                   *int64
+	LastOccurrenceAt                  *int64
+	LastOccurrenceTrigger             *string
+	LastOccurrenceStatus              *string
+	LastSkipReason                    *string
+	HistoryResetGeneration            *string
+	HistoryResetAt                    *int64
+	HistoryResetDiscardedAddressItems int64
+	HistoryResetDiscardedProbeItems   int64
+	ReportedAt                        int64
+}
+
 type NodeSyncSession struct {
 	NodeID      string
 	SessionID   string
 	RequestedAt int64
 	ExpiresAt   int64
 	DeliveredAt *int64
+}
+
+type ProbeTask struct {
+	ID                  string
+	NodeID              string
+	Kind                string
+	Status              string
+	CreatedAt           int64
+	ExpiresAt           int64
+	AcknowledgedAt      *int64
+	StartedAt           *int64
+	CompletedAt         *int64
+	RunID               *string
+	RejectionReason     *string
+	TerminalConfirmedAt *int64
 }
 
 type RevokedAgentCredential struct {

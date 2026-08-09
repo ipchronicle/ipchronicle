@@ -18,22 +18,22 @@ import (
 
 // Defines values for AddressEventKind.
 const (
-	AddressChange    AddressEventKind = "address-change"
-	CheckFailure     AddressEventKind = "check-failure"
-	FirstObservation AddressEventKind = "first-observation"
-	Recovery         AddressEventKind = "recovery"
+	AddressEventKindAddressChange    AddressEventKind = "address-change"
+	AddressEventKindCheckFailure     AddressEventKind = "check-failure"
+	AddressEventKindFirstObservation AddressEventKind = "first-observation"
+	AddressEventKindRecovery         AddressEventKind = "recovery"
 )
 
 // Valid indicates whether the value is a known member of the AddressEventKind enum.
 func (e AddressEventKind) Valid() bool {
 	switch e {
-	case AddressChange:
+	case AddressEventKindAddressChange:
 		return true
-	case CheckFailure:
+	case AddressEventKindCheckFailure:
 		return true
-	case FirstObservation:
+	case AddressEventKindFirstObservation:
 		return true
-	case Recovery:
+	case AddressEventKindRecovery:
 		return true
 	default:
 		return false
@@ -120,13 +120,13 @@ func (e AgentArchitecture) Valid() bool {
 
 // Defines values for AgentConfigurationSnapshotSchemaVersion.
 const (
-	N4 AgentConfigurationSnapshotSchemaVersion = 4
+	N5 AgentConfigurationSnapshotSchemaVersion = 5
 )
 
 // Valid indicates whether the value is a known member of the AgentConfigurationSnapshotSchemaVersion enum.
 func (e AgentConfigurationSnapshotSchemaVersion) Valid() bool {
 	switch e {
-	case N4:
+	case N5:
 		return true
 	default:
 		return false
@@ -142,6 +142,117 @@ const (
 func (e AgentPlatform) Valid() bool {
 	switch e {
 	case Linux:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for AgentProbeArtifactDisposition.
+const (
+	Accepted           AgentProbeArtifactDisposition = "accepted"
+	EgressDeleted      AgentProbeArtifactDisposition = "egress-deleted"
+	ObsoleteGeneration AgentProbeArtifactDisposition = "obsolete-generation"
+)
+
+// Valid indicates whether the value is a known member of the AgentProbeArtifactDisposition enum.
+func (e AgentProbeArtifactDisposition) Valid() bool {
+	switch e {
+	case Accepted:
+		return true
+	case EgressDeleted:
+		return true
+	case ObsoleteGeneration:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for AgentProbeOccurrenceStatus.
+const (
+	AgentProbeOccurrenceStatusSkipped AgentProbeOccurrenceStatus = "skipped"
+	AgentProbeOccurrenceStatusStarted AgentProbeOccurrenceStatus = "started"
+)
+
+// Valid indicates whether the value is a known member of the AgentProbeOccurrenceStatus enum.
+func (e AgentProbeOccurrenceStatus) Valid() bool {
+	switch e {
+	case AgentProbeOccurrenceStatusSkipped:
+		return true
+	case AgentProbeOccurrenceStatusStarted:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for AgentProbeSkipReason.
+const (
+	AgentProbeSkipReasonBusy      AgentProbeSkipReason = "busy"
+	AgentProbeSkipReasonDisabled  AgentProbeSkipReason = "disabled"
+	AgentProbeSkipReasonLowMemory AgentProbeSkipReason = "low-memory"
+	AgentProbeSkipReasonMissed    AgentProbeSkipReason = "missed"
+	AgentProbeSkipReasonNoEgress  AgentProbeSkipReason = "no-egress"
+)
+
+// Valid indicates whether the value is a known member of the AgentProbeSkipReason enum.
+func (e AgentProbeSkipReason) Valid() bool {
+	switch e {
+	case AgentProbeSkipReasonBusy:
+		return true
+	case AgentProbeSkipReasonDisabled:
+		return true
+	case AgentProbeSkipReasonLowMemory:
+		return true
+	case AgentProbeSkipReasonMissed:
+		return true
+	case AgentProbeSkipReasonNoEgress:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for AgentTaskKind.
+const (
+	CompleteProbe AgentTaskKind = "complete-probe"
+)
+
+// Valid indicates whether the value is a known member of the AgentTaskKind enum.
+func (e AgentTaskKind) Valid() bool {
+	switch e {
+	case CompleteProbe:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for AgentTaskReportStatus.
+const (
+	AgentTaskReportStatusAcknowledged AgentTaskReportStatus = "acknowledged"
+	AgentTaskReportStatusFailed       AgentTaskReportStatus = "failed"
+	AgentTaskReportStatusPartial      AgentTaskReportStatus = "partial"
+	AgentTaskReportStatusRejected     AgentTaskReportStatus = "rejected"
+	AgentTaskReportStatusRunning      AgentTaskReportStatus = "running"
+	AgentTaskReportStatusSucceeded    AgentTaskReportStatus = "succeeded"
+)
+
+// Valid indicates whether the value is a known member of the AgentTaskReportStatus enum.
+func (e AgentTaskReportStatus) Valid() bool {
+	switch e {
+	case AgentTaskReportStatusAcknowledged:
+		return true
+	case AgentTaskReportStatusFailed:
+		return true
+	case AgentTaskReportStatusPartial:
+		return true
+	case AgentTaskReportStatusRejected:
+		return true
+	case AgentTaskReportStatusRunning:
+		return true
+	case AgentTaskReportStatusSucceeded:
 		return true
 	default:
 		return false
@@ -181,6 +292,7 @@ const (
 	InvalidEgressCandidate        ErrorCode = "invalid_egress_candidate"
 	InvalidNetworkProxy           ErrorCode = "invalid_network_proxy"
 	InvalidObservationSettings    ErrorCode = "invalid_observation_settings"
+	InvalidProbeSettings          ErrorCode = "invalid_probe_settings"
 	InvalidRequest                ErrorCode = "invalid_request"
 	InvalidTotp                   ErrorCode = "invalid_totp"
 	NetworkInventoryUnavailable   ErrorCode = "network_inventory_unavailable"
@@ -189,11 +301,19 @@ const (
 	NetworkProxyLimitReached      ErrorCode = "network_proxy_limit_reached"
 	NetworkProxyNotFound          ErrorCode = "network_proxy_not_found"
 	NoAccountChange               ErrorCode = "no_account_change"
+	NoEnabledEgress               ErrorCode = "no_enabled_egress"
 	NodeDeletionPending           ErrorCode = "node_deletion_pending"
+	NodeDisabled                  ErrorCode = "node_disabled"
 	NodeNotFound                  ErrorCode = "node_not_found"
+	NodeOffline                   ErrorCode = "node_offline"
 	NodeRevoked                   ErrorCode = "node_revoked"
 	NodeSyncUnsupported           ErrorCode = "node_sync_unsupported"
 	OriginNotAllowed              ErrorCode = "origin_not_allowed"
+	ProbeAlreadyRunning           ErrorCode = "probe_already_running"
+	ProbePausedLowMemory          ErrorCode = "probe_paused_low_memory"
+	ProbeRunNotFound              ErrorCode = "probe_run_not_found"
+	ProbeSnapshotNotFound         ErrorCode = "probe_snapshot_not_found"
+	ProbeTaskSlotOccupied         ErrorCode = "probe_task_slot_occupied"
 	RateLimited                   ErrorCode = "rate_limited"
 	RegistrationDisabled          ErrorCode = "registration_disabled"
 	RegistrationKeyInvalid        ErrorCode = "registration_key_invalid"
@@ -235,6 +355,8 @@ func (e ErrorCode) Valid() bool {
 		return true
 	case InvalidObservationSettings:
 		return true
+	case InvalidProbeSettings:
+		return true
 	case InvalidRequest:
 		return true
 	case InvalidTotp:
@@ -251,15 +373,31 @@ func (e ErrorCode) Valid() bool {
 		return true
 	case NoAccountChange:
 		return true
+	case NoEnabledEgress:
+		return true
 	case NodeDeletionPending:
 		return true
+	case NodeDisabled:
+		return true
 	case NodeNotFound:
+		return true
+	case NodeOffline:
 		return true
 	case NodeRevoked:
 		return true
 	case NodeSyncUnsupported:
 		return true
 	case OriginNotAllowed:
+		return true
+	case ProbeAlreadyRunning:
+		return true
+	case ProbePausedLowMemory:
+		return true
+	case ProbeRunNotFound:
+		return true
+	case ProbeSnapshotNotFound:
+		return true
+	case ProbeTaskSlotOccupied:
 		return true
 	case RateLimited:
 		return true
@@ -495,22 +633,22 @@ func (e NodeDeletionStatus) Valid() bool {
 
 // Defines values for NodeStatus.
 const (
-	Disabled NodeStatus = "disabled"
-	Offline  NodeStatus = "offline"
-	Online   NodeStatus = "online"
-	Revoked  NodeStatus = "revoked"
+	NodeStatusDisabled NodeStatus = "disabled"
+	NodeStatusOffline  NodeStatus = "offline"
+	NodeStatusOnline   NodeStatus = "online"
+	NodeStatusRevoked  NodeStatus = "revoked"
 )
 
 // Valid indicates whether the value is a known member of the NodeStatus enum.
 func (e NodeStatus) Valid() bool {
 	switch e {
-	case Disabled:
+	case NodeStatusDisabled:
 		return true
-	case Offline:
+	case NodeStatusOffline:
 		return true
-	case Online:
+	case NodeStatusOnline:
 		return true
-	case Revoked:
+	case NodeStatusRevoked:
 		return true
 	default:
 		return false
@@ -532,6 +670,150 @@ func (e NodeSyncStatus) Valid() bool {
 	case NodeSyncStatusDegraded:
 		return true
 	case NodeSyncStatusPending:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for ProbeExecutionStatus.
+const (
+	ProbeExecutionStatusFailed      ProbeExecutionStatus = "failed"
+	ProbeExecutionStatusInterrupted ProbeExecutionStatus = "interrupted"
+	ProbeExecutionStatusPending     ProbeExecutionStatus = "pending"
+	ProbeExecutionStatusRunning     ProbeExecutionStatus = "running"
+	ProbeExecutionStatusSkipped     ProbeExecutionStatus = "skipped"
+	ProbeExecutionStatusSucceeded   ProbeExecutionStatus = "succeeded"
+)
+
+// Valid indicates whether the value is a known member of the ProbeExecutionStatus enum.
+func (e ProbeExecutionStatus) Valid() bool {
+	switch e {
+	case ProbeExecutionStatusFailed:
+		return true
+	case ProbeExecutionStatusInterrupted:
+		return true
+	case ProbeExecutionStatusPending:
+		return true
+	case ProbeExecutionStatusRunning:
+		return true
+	case ProbeExecutionStatusSkipped:
+		return true
+	case ProbeExecutionStatusSucceeded:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for ProbeFailureStage.
+const (
+	Adapter  ProbeFailureStage = "adapter"
+	Download ProbeFailureStage = "download"
+	Output   ProbeFailureStage = "output"
+	Process  ProbeFailureStage = "process"
+	Restart  ProbeFailureStage = "restart"
+	Selector ProbeFailureStage = "selector"
+	Timeout  ProbeFailureStage = "timeout"
+)
+
+// Valid indicates whether the value is a known member of the ProbeFailureStage enum.
+func (e ProbeFailureStage) Valid() bool {
+	switch e {
+	case Adapter:
+		return true
+	case Download:
+		return true
+	case Output:
+		return true
+	case Process:
+		return true
+	case Restart:
+		return true
+	case Selector:
+		return true
+	case Timeout:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for ProbeRunStatus.
+const (
+	ProbeRunStatusFailed    ProbeRunStatus = "failed"
+	ProbeRunStatusPartial   ProbeRunStatus = "partial"
+	ProbeRunStatusRunning   ProbeRunStatus = "running"
+	ProbeRunStatusSucceeded ProbeRunStatus = "succeeded"
+)
+
+// Valid indicates whether the value is a known member of the ProbeRunStatus enum.
+func (e ProbeRunStatus) Valid() bool {
+	switch e {
+	case ProbeRunStatusFailed:
+		return true
+	case ProbeRunStatusPartial:
+		return true
+	case ProbeRunStatusRunning:
+		return true
+	case ProbeRunStatusSucceeded:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for ProbeTaskStatus.
+const (
+	ProbeTaskStatusAcknowledged ProbeTaskStatus = "acknowledged"
+	ProbeTaskStatusExpired      ProbeTaskStatus = "expired"
+	ProbeTaskStatusFailed       ProbeTaskStatus = "failed"
+	ProbeTaskStatusPartial      ProbeTaskStatus = "partial"
+	ProbeTaskStatusPending      ProbeTaskStatus = "pending"
+	ProbeTaskStatusRejected     ProbeTaskStatus = "rejected"
+	ProbeTaskStatusRunning      ProbeTaskStatus = "running"
+	ProbeTaskStatusSucceeded    ProbeTaskStatus = "succeeded"
+)
+
+// Valid indicates whether the value is a known member of the ProbeTaskStatus enum.
+func (e ProbeTaskStatus) Valid() bool {
+	switch e {
+	case ProbeTaskStatusAcknowledged:
+		return true
+	case ProbeTaskStatusExpired:
+		return true
+	case ProbeTaskStatusFailed:
+		return true
+	case ProbeTaskStatusPartial:
+		return true
+	case ProbeTaskStatusPending:
+		return true
+	case ProbeTaskStatusRejected:
+		return true
+	case ProbeTaskStatusRunning:
+		return true
+	case ProbeTaskStatusSucceeded:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for ProbeTrigger.
+const (
+	ProbeTriggerAddressChange ProbeTrigger = "address-change"
+	ProbeTriggerManual        ProbeTrigger = "manual"
+	ProbeTriggerSchedule      ProbeTrigger = "schedule"
+)
+
+// Valid indicates whether the value is a known member of the ProbeTrigger enum.
+func (e ProbeTrigger) Valid() bool {
+	switch e {
+	case ProbeTriggerAddressChange:
+		return true
+	case ProbeTriggerManual:
+		return true
+	case ProbeTriggerSchedule:
 		return true
 	default:
 		return false
@@ -706,13 +988,15 @@ type AgentArchitecture string
 
 // AgentConfigurationSnapshot defines model for AgentConfigurationSnapshot.
 type AgentConfigurationSnapshot struct {
-	DiscoveryServices NetworkObservationSettingsUpdate        `json:"discoveryServices"`
-	Egresses          []AgentEgressConfiguration              `json:"egresses"`
-	Enabled           bool                                    `json:"enabled"`
-	HistoryGeneration string                                  `json:"historyGeneration"`
-	Proxies           []AgentProxyConfiguration               `json:"proxies"`
-	Revision          int64                                   `json:"revision"`
-	SchemaVersion     AgentConfigurationSnapshotSchemaVersion `json:"schemaVersion"`
+	DiscoveryServices      NetworkObservationSettingsUpdate        `json:"discoveryServices"`
+	Egresses               []AgentEgressConfiguration              `json:"egresses"`
+	Enabled                bool                                    `json:"enabled"`
+	HistoryGeneration      string                                  `json:"historyGeneration"`
+	ProbeLowMemoryOverride bool                                    `json:"probeLowMemoryOverride"`
+	ProbeSchedule          ProbeSchedule                           `json:"probeSchedule"`
+	Proxies                []AgentProxyConfiguration               `json:"proxies"`
+	Revision               int64                                   `json:"revision"`
+	SchemaVersion          AgentConfigurationSnapshotSchemaVersion `json:"schemaVersion"`
 }
 
 // AgentConfigurationSnapshotSchemaVersion defines model for AgentConfigurationSnapshot.SchemaVersion.
@@ -746,11 +1030,12 @@ type AgentEnrollmentUpdate struct {
 
 // AgentMetadata defines model for AgentMetadata.
 type AgentMetadata struct {
-	AgentVersion    string            `json:"agentVersion"`
-	Architecture    AgentArchitecture `json:"architecture"`
-	Capabilities    []string          `json:"capabilities"`
-	Hostname        string            `json:"hostname"`
-	OperatingSystem AgentPlatform     `json:"operatingSystem"`
+	AgentVersion        string            `json:"agentVersion"`
+	Architecture        AgentArchitecture `json:"architecture"`
+	Capabilities        []string          `json:"capabilities"`
+	Hostname            string            `json:"hostname"`
+	OperatingSystem     AgentPlatform     `json:"operatingSystem"`
+	PhysicalMemoryBytes int64             `json:"physicalMemoryBytes"`
 }
 
 // AgentPlatform defines model for AgentPlatform.
@@ -767,16 +1052,107 @@ type AgentPollRequest struct {
 	Metadata                     AgentMetadata        `json:"metadata"`
 	NetworkInventory             *NetworkInventory    `json:"networkInventory,omitempty"`
 	NetworkInventoryError        *string              `json:"networkInventoryError,omitempty"`
+	ProbeStatus                  *AgentProbeStatus    `json:"probeStatus,omitempty"`
+	TaskReport                   *AgentTaskReport     `json:"taskReport,omitempty"`
 }
 
 // AgentPollResult defines model for AgentPollResult.
 type AgentPollResult struct {
+	AcceptedTerminalTaskId       *openapi_types.UUID       `json:"acceptedTerminalTaskId,omitempty"`
 	AddressUploadReceipt         AgentAddressUploadReceipt `json:"addressUploadReceipt"`
 	CenterVersion                string                    `json:"centerVersion"`
 	DesiredConfigurationRevision int64                     `json:"desiredConfigurationRevision"`
 	Enabled                      bool                      `json:"enabled"`
 	PollIntervalSeconds          int                       `json:"pollIntervalSeconds"`
 	SyncSession                  *AgentSyncSession         `json:"syncSession,omitempty"`
+	Task                         *AgentTask                `json:"task,omitempty"`
+}
+
+// AgentProbeArtifact defines model for AgentProbeArtifact.
+type AgentProbeArtifact struct {
+	ArtifactId openapi_types.UUID           `json:"artifactId"`
+	Execution  *AgentProbeExecutionArtifact `json:"execution,omitempty"`
+	Gap        *AgentProbeGapArtifact       `json:"gap,omitempty"`
+	Revision   int64                        `json:"revision"`
+	Run        *AgentProbeRunArtifact       `json:"run,omitempty"`
+}
+
+// AgentProbeArtifactDisposition defines model for AgentProbeArtifactDisposition.
+type AgentProbeArtifactDisposition string
+
+// AgentProbeArtifactReceipt defines model for AgentProbeArtifactReceipt.
+type AgentProbeArtifactReceipt struct {
+	ArtifactId  openapi_types.UUID            `json:"artifactId"`
+	Disposition AgentProbeArtifactDisposition `json:"disposition"`
+	Revision    int64                         `json:"revision"`
+}
+
+// AgentProbeExecutionArtifact defines model for AgentProbeExecutionArtifact.
+type AgentProbeExecutionArtifact struct {
+	CompletedAt  *time.Time           `json:"completedAt,omitempty"`
+	Diagnostic   *string              `json:"diagnostic,omitempty"`
+	EgressId     openapi_types.UUID   `json:"egressId"`
+	FailureStage *ProbeFailureStage   `json:"failureStage,omitempty"`
+	Id           openapi_types.UUID   `json:"id"`
+	Ordinal      int                  `json:"ordinal"`
+	RawResult    *[]byte              `json:"rawResult,omitempty"`
+	Sequence     int64                `json:"sequence"`
+	StartedAt    *time.Time           `json:"startedAt,omitempty"`
+	Status       ProbeExecutionStatus `json:"status"`
+}
+
+// AgentProbeExecutionManifest defines model for AgentProbeExecutionManifest.
+type AgentProbeExecutionManifest struct {
+	EgressId openapi_types.UUID `json:"egressId"`
+	Id       openapi_types.UUID `json:"id"`
+	Ordinal  int                `json:"ordinal"`
+	Sequence int64              `json:"sequence"`
+}
+
+// AgentProbeGapArtifact defines model for AgentProbeGapArtifact.
+type AgentProbeGapArtifact struct {
+	DroppedCount      int64              `json:"droppedCount"`
+	EgressId          openapi_types.UUID `json:"egressId"`
+	FirstObservedAt   time.Time          `json:"firstObservedAt"`
+	FirstSequence     int64              `json:"firstSequence"`
+	HistoryGeneration string             `json:"historyGeneration"`
+	Id                openapi_types.UUID `json:"id"`
+	LastObservedAt    time.Time          `json:"lastObservedAt"`
+	LastSequence      int64              `json:"lastSequence"`
+}
+
+// AgentProbeOccurrenceStatus defines model for AgentProbeOccurrenceStatus.
+type AgentProbeOccurrenceStatus string
+
+// AgentProbeRunArtifact defines model for AgentProbeRunArtifact.
+type AgentProbeRunArtifact struct {
+	CompletedAt               *time.Time                    `json:"completedAt,omitempty"`
+	Executions                []AgentProbeExecutionManifest `json:"executions"`
+	HistoryGeneration         string                        `json:"historyGeneration"`
+	Id                        openapi_types.UUID            `json:"id"`
+	NodeConfigurationRevision int64                         `json:"nodeConfigurationRevision"`
+	StartedAt                 time.Time                     `json:"startedAt"`
+	Status                    ProbeRunStatus                `json:"status"`
+	TaskId                    *openapi_types.UUID           `json:"taskId,omitempty"`
+	Trigger                   ProbeTrigger                  `json:"trigger"`
+	TriggeringEgressId        *openapi_types.UUID           `json:"triggeringEgressId,omitempty"`
+}
+
+// AgentProbeSkipReason defines model for AgentProbeSkipReason.
+type AgentProbeSkipReason string
+
+// AgentProbeStatus defines model for AgentProbeStatus.
+type AgentProbeStatus struct {
+	ActiveRunId                       *openapi_types.UUID         `json:"activeRunId,omitempty"`
+	HistoryResetAt                    *time.Time                  `json:"historyResetAt,omitempty"`
+	HistoryResetDiscardedAddressItems *int64                      `json:"historyResetDiscardedAddressItems,omitempty"`
+	HistoryResetDiscardedProbeItems   *int64                      `json:"historyResetDiscardedProbeItems,omitempty"`
+	HistoryResetGeneration            *string                     `json:"historyResetGeneration,omitempty"`
+	LastOccurrenceAt                  *time.Time                  `json:"lastOccurrenceAt,omitempty"`
+	LastOccurrenceStatus              *AgentProbeOccurrenceStatus `json:"lastOccurrenceStatus,omitempty"`
+	LastOccurrenceTrigger             *ProbeTrigger               `json:"lastOccurrenceTrigger,omitempty"`
+	LastSkipReason                    *AgentProbeSkipReason       `json:"lastSkipReason,omitempty"`
+	NextScheduledAt                   *time.Time                  `json:"nextScheduledAt,omitempty"`
 }
 
 // AgentProxyConfiguration defines model for AgentProxyConfiguration.
@@ -808,6 +1184,31 @@ type AgentSyncSession struct {
 	Id            openapi_types.UUID `json:"id"`
 	WebsocketPath string             `json:"websocketPath"`
 }
+
+// AgentTask defines model for AgentTask.
+type AgentTask struct {
+	CreatedAt time.Time          `json:"createdAt"`
+	ExpiresAt time.Time          `json:"expiresAt"`
+	Id        openapi_types.UUID `json:"id"`
+	Kind      AgentTaskKind      `json:"kind"`
+}
+
+// AgentTaskKind defines model for AgentTask.Kind.
+type AgentTaskKind string
+
+// AgentTaskReport defines model for AgentTaskReport.
+type AgentTaskReport struct {
+	AcknowledgedAt  time.Time             `json:"acknowledgedAt"`
+	CompletedAt     *time.Time            `json:"completedAt,omitempty"`
+	Id              openapi_types.UUID    `json:"id"`
+	RejectionReason *AgentProbeSkipReason `json:"rejectionReason,omitempty"`
+	RunId           *openapi_types.UUID   `json:"runId,omitempty"`
+	StartedAt       *time.Time            `json:"startedAt,omitempty"`
+	Status          AgentTaskReportStatus `json:"status"`
+}
+
+// AgentTaskReportStatus defines model for AgentTaskReport.Status.
+type AgentTaskReportStatus string
 
 // AuthenticatedSession defines model for AuthenticatedSession.
 type AuthenticatedSession struct {
@@ -849,6 +1250,12 @@ type ErrorCode string
 type ErrorResponse struct {
 	Code       ErrorCode          `json:"code"`
 	Parameters *map[string]string `json:"parameters,omitempty"`
+}
+
+// HistoryState defines model for HistoryState.
+type HistoryState struct {
+	Generation string     `json:"generation"`
+	ResetAt    *time.Time `json:"resetAt,omitempty"`
 }
 
 // LocaleUpdateRequest defines model for LocaleUpdateRequest.
@@ -1077,6 +1484,24 @@ type NodeNetworkState struct {
 	InventoryReceivedAt *time.Time               `json:"inventoryReceivedAt,omitempty"`
 }
 
+// NodeProbeSettingsUpdate defines model for NodeProbeSettingsUpdate.
+type NodeProbeSettingsUpdate struct {
+	LowMemoryOverride bool          `json:"lowMemoryOverride"`
+	Schedule          ProbeSchedule `json:"schedule"`
+}
+
+// NodeProbeState defines model for NodeProbeState.
+type NodeProbeState struct {
+	AgentStatus         *AgentProbeStatus  `json:"agentStatus,omitempty"`
+	LowMemoryOverride   bool               `json:"lowMemoryOverride"`
+	NodeId              openapi_types.UUID `json:"nodeId"`
+	PausedLowMemory     bool               `json:"pausedLowMemory"`
+	PhysicalMemoryBytes *int64             `json:"physicalMemoryBytes,omitempty"`
+	RecentRuns          []ProbeRunSummary  `json:"recentRuns"`
+	Schedule            ProbeSchedule      `json:"schedule"`
+	Task                *ProbeTask         `json:"task,omitempty"`
+}
+
 // NodeStatus defines model for NodeStatus.
 type NodeStatus string
 
@@ -1087,6 +1512,98 @@ type NodeSyncStatus string
 type NodeUpdate struct {
 	Enabled bool `json:"enabled"`
 }
+
+// ProbeExecution defines model for ProbeExecution.
+type ProbeExecution struct {
+	CompletedAt  *time.Time           `json:"completedAt,omitempty"`
+	Diagnostic   *string              `json:"diagnostic,omitempty"`
+	EgressId     openapi_types.UUID   `json:"egressId"`
+	FailureStage *ProbeFailureStage   `json:"failureStage,omitempty"`
+	Id           openapi_types.UUID   `json:"id"`
+	Ordinal      int                  `json:"ordinal"`
+	RunId        openapi_types.UUID   `json:"runId"`
+	Sequence     int64                `json:"sequence"`
+	SnapshotId   *openapi_types.UUID  `json:"snapshotId,omitempty"`
+	StartedAt    *time.Time           `json:"startedAt,omitempty"`
+	Status       ProbeExecutionStatus `json:"status"`
+}
+
+// ProbeExecutionStatus defines model for ProbeExecutionStatus.
+type ProbeExecutionStatus string
+
+// ProbeFailureStage defines model for ProbeFailureStage.
+type ProbeFailureStage string
+
+// ProbeRun defines model for ProbeRun.
+type ProbeRun struct {
+	CompletedAt           *time.Time          `json:"completedAt,omitempty"`
+	ConfigurationRevision int64               `json:"configurationRevision"`
+	Executions            []ProbeExecution    `json:"executions"`
+	ExpectedExecutions    int                 `json:"expectedExecutions"`
+	HistoryGeneration     string              `json:"historyGeneration"`
+	Id                    openapi_types.UUID  `json:"id"`
+	NodeId                openapi_types.UUID  `json:"nodeId"`
+	StartedAt             time.Time           `json:"startedAt"`
+	Status                ProbeRunStatus      `json:"status"`
+	TaskId                *openapi_types.UUID `json:"taskId,omitempty"`
+	Trigger               ProbeTrigger        `json:"trigger"`
+	TriggeringEgressId    *openapi_types.UUID `json:"triggeringEgressId,omitempty"`
+}
+
+// ProbeRunStatus defines model for ProbeRunStatus.
+type ProbeRunStatus string
+
+// ProbeRunSummary defines model for ProbeRunSummary.
+type ProbeRunSummary struct {
+	CompletedAt         *time.Time         `json:"completedAt,omitempty"`
+	CompletedExecutions int                `json:"completedExecutions"`
+	ExpectedExecutions  int                `json:"expectedExecutions"`
+	Id                  openapi_types.UUID `json:"id"`
+	NodeId              openapi_types.UUID `json:"nodeId"`
+	StartedAt           time.Time          `json:"startedAt"`
+	Status              ProbeRunStatus     `json:"status"`
+	Trigger             ProbeTrigger       `json:"trigger"`
+}
+
+// ProbeSchedule defines model for ProbeSchedule.
+type ProbeSchedule struct {
+	Cron    string `json:"cron"`
+	Enabled bool   `json:"enabled"`
+
+	// Timezone Use agent-local or an IANA time zone name.
+	Timezone string `json:"timezone"`
+}
+
+// ProbeSnapshot defines model for ProbeSnapshot.
+type ProbeSnapshot struct {
+	EgressId    openapi_types.UUID `json:"egressId"`
+	ExecutionId openapi_types.UUID `json:"executionId"`
+	Id          openapi_types.UUID `json:"id"`
+	ObservedAt  time.Time          `json:"observedAt"`
+	RawResult   []byte             `json:"rawResult"`
+	Sequence    int64              `json:"sequence"`
+}
+
+// ProbeTask defines model for ProbeTask.
+type ProbeTask struct {
+	AcknowledgedAt  *time.Time            `json:"acknowledgedAt,omitempty"`
+	CompletedAt     *time.Time            `json:"completedAt,omitempty"`
+	CreatedAt       time.Time             `json:"createdAt"`
+	ExpiresAt       time.Time             `json:"expiresAt"`
+	Id              openapi_types.UUID    `json:"id"`
+	NodeId          openapi_types.UUID    `json:"nodeId"`
+	Offline         bool                  `json:"offline"`
+	RejectionReason *AgentProbeSkipReason `json:"rejectionReason,omitempty"`
+	RunId           *openapi_types.UUID   `json:"runId,omitempty"`
+	StartedAt       *time.Time            `json:"startedAt,omitempty"`
+	Status          ProbeTaskStatus       `json:"status"`
+}
+
+// ProbeTaskStatus defines model for ProbeTaskStatus.
+type ProbeTaskStatus string
+
+// ProbeTrigger defines model for ProbeTrigger.
+type ProbeTrigger string
 
 // SupportedLocale defines model for SupportedLocale.
 type SupportedLocale string
@@ -1135,6 +1652,12 @@ type NodeId = openapi_types.UUID
 
 // ProxyId defines model for ProxyId.
 type ProxyId = openapi_types.UUID
+
+// RunId defines model for RunId.
+type RunId = openapi_types.UUID
+
+// SnapshotId defines model for SnapshotId.
+type SnapshotId = openapi_types.UUID
 
 // AgentForbidden defines model for AgentForbidden.
 type AgentForbidden = ErrorResponse
@@ -1202,6 +1725,11 @@ type LogoutParams struct {
 	XCSRFToken *CSRFToken `json:"X-CSRF-Token,omitempty"`
 }
 
+// ResetHistoryParams defines parameters for ResetHistory.
+type ResetHistoryParams struct {
+	XCSRFToken *CSRFToken `json:"X-CSRF-Token,omitempty"`
+}
+
 // UpdateNetworkObservationSettingsParams defines parameters for UpdateNetworkObservationSettings.
 type UpdateNetworkObservationSettingsParams struct {
 	XCSRFToken *CSRFToken `json:"X-CSRF-Token,omitempty"`
@@ -1247,6 +1775,16 @@ type UpdateNodeEgressParams struct {
 	XCSRFToken *CSRFToken `json:"X-CSRF-Token,omitempty"`
 }
 
+// UpdateNodeProbeSettingsParams defines parameters for UpdateNodeProbeSettings.
+type UpdateNodeProbeSettingsParams struct {
+	XCSRFToken *CSRFToken `json:"X-CSRF-Token,omitempty"`
+}
+
+// CreateCompleteProbeTaskParams defines parameters for CreateCompleteProbeTask.
+type CreateCompleteProbeTaskParams struct {
+	XCSRFToken *CSRFToken `json:"X-CSRF-Token,omitempty"`
+}
+
 // RevokeNodeParams defines parameters for RevokeNode.
 type RevokeNodeParams struct {
 	XCSRFToken *CSRFToken `json:"X-CSRF-Token,omitempty"`
@@ -1286,6 +1824,9 @@ type PollAgentJSONRequestBody = AgentPollRequest
 // RegisterAgentJSONRequestBody defines body for RegisterAgent for application/json ContentType.
 type RegisterAgentJSONRequestBody = AgentRegistrationRequest
 
+// UploadProbeArtifactJSONRequestBody defines body for UploadProbeArtifact for application/json ContentType.
+type UploadProbeArtifactJSONRequestBody = AgentProbeArtifact
+
 // LoginJSONRequestBody defines body for Login for application/json ContentType.
 type LoginJSONRequestBody = LoginRequest
 
@@ -1306,6 +1847,9 @@ type CreateNodeEgressJSONRequestBody = NetworkEgressCreate
 
 // UpdateNodeEgressJSONRequestBody defines body for UpdateNodeEgress for application/json ContentType.
 type UpdateNodeEgressJSONRequestBody = NetworkEgressUpdate
+
+// UpdateNodeProbeSettingsJSONRequestBody defines body for UpdateNodeProbeSettings for application/json ContentType.
+type UpdateNodeProbeSettingsJSONRequestBody = NodeProbeSettingsUpdate
 
 // ServerInterface represents all server handlers.
 type ServerInterface interface {
@@ -1348,6 +1892,9 @@ type ServerInterface interface {
 	// RegisterAgent Register a new Agent and node
 	// (POST /api/v1/agent/enroll)
 	RegisterAgent(w http.ResponseWriter, r *http.Request)
+	// UploadProbeArtifact Idempotently upload one complete-probe run or execution revision
+	// (POST /api/v1/agent/probe-artifacts)
+	UploadProbeArtifact(w http.ResponseWriter, r *http.Request)
 	// Login Start an administrator session
 	// (POST /api/v1/auth/login)
 	Login(w http.ResponseWriter, r *http.Request)
@@ -1357,6 +1904,12 @@ type ServerInterface interface {
 	// GetAuthenticatedSession Read the current administrator session
 	// (GET /api/v1/auth/session)
 	GetAuthenticatedSession(w http.ResponseWriter, r *http.Request)
+	// ResetHistory Delete all observed history and advance its generation
+	// (DELETE /api/v1/history)
+	ResetHistory(w http.ResponseWriter, r *http.Request, params ResetHistoryParams)
+	// GetHistoryState Read the current history generation and reset state
+	// (GET /api/v1/history)
+	GetHistoryState(w http.ResponseWriter, r *http.Request)
 	// GetNetworkObservationSettings Read global lightweight address discovery services
 	// (GET /api/v1/network-observation-settings)
 	GetNetworkObservationSettings(w http.ResponseWriter, r *http.Request)
@@ -1396,6 +1949,15 @@ type ServerInterface interface {
 	// GetNodeNetwork Read the latest network inventory, candidates, and configured egresses
 	// (GET /api/v1/nodes/{nodeId}/network)
 	GetNodeNetwork(w http.ResponseWriter, r *http.Request, nodeId NodeId)
+	// GetNodeProbe Read complete-probe settings, current task, and recent runs
+	// (GET /api/v1/nodes/{nodeId}/probe)
+	GetNodeProbe(w http.ResponseWriter, r *http.Request, nodeId NodeId)
+	// UpdateNodeProbeSettings Replace the node complete-probe schedule and resource override
+	// (PUT /api/v1/nodes/{nodeId}/probe)
+	UpdateNodeProbeSettings(w http.ResponseWriter, r *http.Request, nodeId NodeId, params UpdateNodeProbeSettingsParams)
+	// CreateCompleteProbeTask Create the node's single immediate complete-probe task
+	// (POST /api/v1/nodes/{nodeId}/probe/tasks)
+	CreateCompleteProbeTask(w http.ResponseWriter, r *http.Request, nodeId NodeId, params CreateCompleteProbeTaskParams)
 	// RevokeNode Permanently revoke a node Agent credential
 	// (POST /api/v1/nodes/{nodeId}/revoke)
 	RevokeNode(w http.ResponseWriter, r *http.Request, nodeId NodeId, params RevokeNodeParams)
@@ -1405,6 +1967,12 @@ type ServerInterface interface {
 	// StartNodeSyncSession Start or replace a ten-minute temporary node sync session
 	// (POST /api/v1/nodes/{nodeId}/sync-session)
 	StartNodeSyncSession(w http.ResponseWriter, r *http.Request, nodeId NodeId, params StartNodeSyncSessionParams)
+	// GetProbeRun Read one complete-probe run and its frozen egress executions
+	// (GET /api/v1/probe-runs/{runId})
+	GetProbeRun(w http.ResponseWriter, r *http.Request, runId RunId)
+	// GetProbeSnapshot Read one retained complete-probe source snapshot
+	// (GET /api/v1/probe-snapshots/{snapshotId})
+	GetProbeSnapshot(w http.ResponseWriter, r *http.Request, snapshotId SnapshotId)
 	// GetSystemStatus Read center status
 	// (GET /api/v1/system/status)
 	GetSystemStatus(w http.ResponseWriter, r *http.Request)
@@ -1492,6 +2060,12 @@ func (_ Unimplemented) RegisterAgent(w http.ResponseWriter, r *http.Request) {
 	w.WriteHeader(http.StatusNotImplemented)
 }
 
+// UploadProbeArtifact Idempotently upload one complete-probe run or execution revision
+// (POST /api/v1/agent/probe-artifacts)
+func (_ Unimplemented) UploadProbeArtifact(w http.ResponseWriter, r *http.Request) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
 // Login Start an administrator session
 // (POST /api/v1/auth/login)
 func (_ Unimplemented) Login(w http.ResponseWriter, r *http.Request) {
@@ -1507,6 +2081,18 @@ func (_ Unimplemented) Logout(w http.ResponseWriter, r *http.Request, params Log
 // GetAuthenticatedSession Read the current administrator session
 // (GET /api/v1/auth/session)
 func (_ Unimplemented) GetAuthenticatedSession(w http.ResponseWriter, r *http.Request) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
+// ResetHistory Delete all observed history and advance its generation
+// (DELETE /api/v1/history)
+func (_ Unimplemented) ResetHistory(w http.ResponseWriter, r *http.Request, params ResetHistoryParams) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
+// GetHistoryState Read the current history generation and reset state
+// (GET /api/v1/history)
+func (_ Unimplemented) GetHistoryState(w http.ResponseWriter, r *http.Request) {
 	w.WriteHeader(http.StatusNotImplemented)
 }
 
@@ -1588,6 +2174,24 @@ func (_ Unimplemented) GetNodeNetwork(w http.ResponseWriter, r *http.Request, no
 	w.WriteHeader(http.StatusNotImplemented)
 }
 
+// GetNodeProbe Read complete-probe settings, current task, and recent runs
+// (GET /api/v1/nodes/{nodeId}/probe)
+func (_ Unimplemented) GetNodeProbe(w http.ResponseWriter, r *http.Request, nodeId NodeId) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
+// UpdateNodeProbeSettings Replace the node complete-probe schedule and resource override
+// (PUT /api/v1/nodes/{nodeId}/probe)
+func (_ Unimplemented) UpdateNodeProbeSettings(w http.ResponseWriter, r *http.Request, nodeId NodeId, params UpdateNodeProbeSettingsParams) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
+// CreateCompleteProbeTask Create the node's single immediate complete-probe task
+// (POST /api/v1/nodes/{nodeId}/probe/tasks)
+func (_ Unimplemented) CreateCompleteProbeTask(w http.ResponseWriter, r *http.Request, nodeId NodeId, params CreateCompleteProbeTaskParams) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
 // RevokeNode Permanently revoke a node Agent credential
 // (POST /api/v1/nodes/{nodeId}/revoke)
 func (_ Unimplemented) RevokeNode(w http.ResponseWriter, r *http.Request, nodeId NodeId, params RevokeNodeParams) {
@@ -1603,6 +2207,18 @@ func (_ Unimplemented) StopNodeSyncSession(w http.ResponseWriter, r *http.Reques
 // StartNodeSyncSession Start or replace a ten-minute temporary node sync session
 // (POST /api/v1/nodes/{nodeId}/sync-session)
 func (_ Unimplemented) StartNodeSyncSession(w http.ResponseWriter, r *http.Request, nodeId NodeId, params StartNodeSyncSessionParams) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
+// GetProbeRun Read one complete-probe run and its frozen egress executions
+// (GET /api/v1/probe-runs/{runId})
+func (_ Unimplemented) GetProbeRun(w http.ResponseWriter, r *http.Request, runId RunId) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
+// GetProbeSnapshot Read one retained complete-probe source snapshot
+// (GET /api/v1/probe-snapshots/{snapshotId})
+func (_ Unimplemented) GetProbeSnapshot(w http.ResponseWriter, r *http.Request, snapshotId SnapshotId) {
 	w.WriteHeader(http.StatusNotImplemented)
 }
 
@@ -2019,6 +2635,20 @@ func (siw *ServerInterfaceWrapper) RegisterAgent(w http.ResponseWriter, r *http.
 	handler.ServeHTTP(w, r)
 }
 
+// UploadProbeArtifact operation middleware
+func (siw *ServerInterfaceWrapper) UploadProbeArtifact(w http.ResponseWriter, r *http.Request) {
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.UploadProbeArtifact(w, r)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
 // Login operation middleware
 func (siw *ServerInterfaceWrapper) Login(w http.ResponseWriter, r *http.Request) {
 
@@ -2079,6 +2709,61 @@ func (siw *ServerInterfaceWrapper) GetAuthenticatedSession(w http.ResponseWriter
 
 	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		siw.Handler.GetAuthenticatedSession(w, r)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// ResetHistory operation middleware
+func (siw *ServerInterfaceWrapper) ResetHistory(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	// Parameter object where we will unmarshal all parameters from the context
+	var params ResetHistoryParams
+
+	headers := r.Header
+
+	// ------------- Optional header parameter "X-CSRF-Token" -------------
+	if valueList, found := headers[http.CanonicalHeaderKey("X-CSRF-Token")]; found {
+		var XCSRFToken CSRFToken
+		n := len(valueList)
+		if n != 1 {
+			siw.ErrorHandlerFunc(w, r, &TooManyValuesForParamError{ParamName: "X-CSRF-Token", Count: n})
+			return
+		}
+
+		err = runtime.BindStyledParameterWithOptions("simple", "X-CSRF-Token", valueList[0], &XCSRFToken, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: false, Type: "string", Format: ""})
+		if err != nil {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "X-CSRF-Token", Err: err})
+			return
+		}
+
+		params.XCSRFToken = &XCSRFToken
+
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.ResetHistory(w, r, params)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// GetHistoryState operation middleware
+func (siw *ServerInterfaceWrapper) GetHistoryState(w http.ResponseWriter, r *http.Request) {
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.GetHistoryState(w, r)
 	}))
 
 	for _, middleware := range siw.HandlerMiddlewares {
@@ -2606,6 +3291,132 @@ func (siw *ServerInterfaceWrapper) GetNodeNetwork(w http.ResponseWriter, r *http
 	handler.ServeHTTP(w, r)
 }
 
+// GetNodeProbe operation middleware
+func (siw *ServerInterfaceWrapper) GetNodeProbe(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "nodeId" -------------
+	var nodeId NodeId
+
+	err = runtime.BindStyledParameterWithOptions("simple", "nodeId", chi.URLParam(r, "nodeId"), &nodeId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "uuid", ValueIsUnescaped: r.URL.RawPath == ""})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "nodeId", Err: err})
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.GetNodeProbe(w, r, nodeId)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// UpdateNodeProbeSettings operation middleware
+func (siw *ServerInterfaceWrapper) UpdateNodeProbeSettings(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "nodeId" -------------
+	var nodeId NodeId
+
+	err = runtime.BindStyledParameterWithOptions("simple", "nodeId", chi.URLParam(r, "nodeId"), &nodeId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "uuid", ValueIsUnescaped: r.URL.RawPath == ""})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "nodeId", Err: err})
+		return
+	}
+
+	// Parameter object where we will unmarshal all parameters from the context
+	var params UpdateNodeProbeSettingsParams
+
+	headers := r.Header
+
+	// ------------- Optional header parameter "X-CSRF-Token" -------------
+	if valueList, found := headers[http.CanonicalHeaderKey("X-CSRF-Token")]; found {
+		var XCSRFToken CSRFToken
+		n := len(valueList)
+		if n != 1 {
+			siw.ErrorHandlerFunc(w, r, &TooManyValuesForParamError{ParamName: "X-CSRF-Token", Count: n})
+			return
+		}
+
+		err = runtime.BindStyledParameterWithOptions("simple", "X-CSRF-Token", valueList[0], &XCSRFToken, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: false, Type: "string", Format: ""})
+		if err != nil {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "X-CSRF-Token", Err: err})
+			return
+		}
+
+		params.XCSRFToken = &XCSRFToken
+
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.UpdateNodeProbeSettings(w, r, nodeId, params)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// CreateCompleteProbeTask operation middleware
+func (siw *ServerInterfaceWrapper) CreateCompleteProbeTask(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "nodeId" -------------
+	var nodeId NodeId
+
+	err = runtime.BindStyledParameterWithOptions("simple", "nodeId", chi.URLParam(r, "nodeId"), &nodeId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "uuid", ValueIsUnescaped: r.URL.RawPath == ""})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "nodeId", Err: err})
+		return
+	}
+
+	// Parameter object where we will unmarshal all parameters from the context
+	var params CreateCompleteProbeTaskParams
+
+	headers := r.Header
+
+	// ------------- Optional header parameter "X-CSRF-Token" -------------
+	if valueList, found := headers[http.CanonicalHeaderKey("X-CSRF-Token")]; found {
+		var XCSRFToken CSRFToken
+		n := len(valueList)
+		if n != 1 {
+			siw.ErrorHandlerFunc(w, r, &TooManyValuesForParamError{ParamName: "X-CSRF-Token", Count: n})
+			return
+		}
+
+		err = runtime.BindStyledParameterWithOptions("simple", "X-CSRF-Token", valueList[0], &XCSRFToken, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: false, Type: "string", Format: ""})
+		if err != nil {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "X-CSRF-Token", Err: err})
+			return
+		}
+
+		params.XCSRFToken = &XCSRFToken
+
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.CreateCompleteProbeTask(w, r, nodeId, params)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
 // RevokeNode operation middleware
 func (siw *ServerInterfaceWrapper) RevokeNode(w http.ResponseWriter, r *http.Request) {
 
@@ -2747,6 +3558,58 @@ func (siw *ServerInterfaceWrapper) StartNodeSyncSession(w http.ResponseWriter, r
 
 	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		siw.Handler.StartNodeSyncSession(w, r, nodeId, params)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// GetProbeRun operation middleware
+func (siw *ServerInterfaceWrapper) GetProbeRun(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "runId" -------------
+	var runId RunId
+
+	err = runtime.BindStyledParameterWithOptions("simple", "runId", chi.URLParam(r, "runId"), &runId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "uuid", ValueIsUnescaped: r.URL.RawPath == ""})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "runId", Err: err})
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.GetProbeRun(w, r, runId)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// GetProbeSnapshot operation middleware
+func (siw *ServerInterfaceWrapper) GetProbeSnapshot(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "snapshotId" -------------
+	var snapshotId SnapshotId
+
+	err = runtime.BindStyledParameterWithOptions("simple", "snapshotId", chi.URLParam(r, "snapshotId"), &snapshotId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "uuid", ValueIsUnescaped: r.URL.RawPath == ""})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "snapshotId", Err: err})
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.GetProbeSnapshot(w, r, snapshotId)
 	}))
 
 	for _, middleware := range siw.HandlerMiddlewares {
@@ -2935,6 +3798,27 @@ func HandlerWithOptions(si ServerInterface, options ChiServerOptions) http.Handl
 		r.Post(options.BaseURL+"/api/v1/nodes/{nodeId}/sync-session", wrapper.StartNodeSyncSession)
 	})
 	r.Group(func(r chi.Router) {
+		r.Get(options.BaseURL+"/api/v1/nodes/{nodeId}/probe", wrapper.GetNodeProbe)
+	})
+	r.Group(func(r chi.Router) {
+		r.Put(options.BaseURL+"/api/v1/nodes/{nodeId}/probe", wrapper.UpdateNodeProbeSettings)
+	})
+	r.Group(func(r chi.Router) {
+		r.Post(options.BaseURL+"/api/v1/nodes/{nodeId}/probe/tasks", wrapper.CreateCompleteProbeTask)
+	})
+	r.Group(func(r chi.Router) {
+		r.Get(options.BaseURL+"/api/v1/probe-runs/{runId}", wrapper.GetProbeRun)
+	})
+	r.Group(func(r chi.Router) {
+		r.Get(options.BaseURL+"/api/v1/probe-snapshots/{snapshotId}", wrapper.GetProbeSnapshot)
+	})
+	r.Group(func(r chi.Router) {
+		r.Delete(options.BaseURL+"/api/v1/history", wrapper.ResetHistory)
+	})
+	r.Group(func(r chi.Router) {
+		r.Get(options.BaseURL+"/api/v1/history", wrapper.GetHistoryState)
+	})
+	r.Group(func(r chi.Router) {
 		r.Get(options.BaseURL+"/api/v1/nodes/{nodeId}/network", wrapper.GetNodeNetwork)
 	})
 	r.Group(func(r chi.Router) {
@@ -2981,6 +3865,9 @@ func HandlerWithOptions(si ServerInterface, options ChiServerOptions) http.Handl
 	})
 	r.Group(func(r chi.Router) {
 		r.Get(options.BaseURL+"/api/v1/agent/configuration", wrapper.GetAgentConfiguration)
+	})
+	r.Group(func(r chi.Router) {
+		r.Post(options.BaseURL+"/api/v1/agent/probe-artifacts", wrapper.UploadProbeArtifact)
 	})
 
 	return r
@@ -3807,6 +4694,70 @@ func (response RegisterAgent403JSONResponse) VisitRegisterAgentResponse(w http.R
 	return err
 }
 
+type UploadProbeArtifactRequestObject struct {
+	Body *UploadProbeArtifactJSONRequestBody
+}
+
+type UploadProbeArtifactResponseObject interface {
+	VisitUploadProbeArtifactResponse(w http.ResponseWriter) error
+}
+
+type UploadProbeArtifact200JSONResponse AgentProbeArtifactReceipt
+
+func (response UploadProbeArtifact200JSONResponse) VisitUploadProbeArtifactResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type UploadProbeArtifact400JSONResponse struct{ BadRequestJSONResponse }
+
+func (response UploadProbeArtifact400JSONResponse) VisitUploadProbeArtifactResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(400)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type UploadProbeArtifact401JSONResponse struct{ AgentUnauthorizedJSONResponse }
+
+func (response UploadProbeArtifact401JSONResponse) VisitUploadProbeArtifactResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(401)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type UploadProbeArtifact403JSONResponse struct{ AgentForbiddenJSONResponse }
+
+func (response UploadProbeArtifact403JSONResponse) VisitUploadProbeArtifactResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(403)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
 type LoginRequestObject struct {
 	Body *LoginJSONRequestBody
 }
@@ -3971,6 +4922,91 @@ func (response GetAuthenticatedSession200JSONResponse) VisitGetAuthenticatedSess
 type GetAuthenticatedSession401JSONResponse struct{ UnauthorizedJSONResponse }
 
 func (response GetAuthenticatedSession401JSONResponse) VisitGetAuthenticatedSessionResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(401)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type ResetHistoryRequestObject struct {
+	Params ResetHistoryParams
+}
+
+type ResetHistoryResponseObject interface {
+	VisitResetHistoryResponse(w http.ResponseWriter) error
+}
+
+type ResetHistory200JSONResponse HistoryState
+
+func (response ResetHistory200JSONResponse) VisitResetHistoryResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type ResetHistory401JSONResponse struct{ UnauthorizedJSONResponse }
+
+func (response ResetHistory401JSONResponse) VisitResetHistoryResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(401)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type ResetHistory403JSONResponse struct{ ForbiddenJSONResponse }
+
+func (response ResetHistory403JSONResponse) VisitResetHistoryResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(403)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type GetHistoryStateRequestObject struct {
+}
+
+type GetHistoryStateResponseObject interface {
+	VisitGetHistoryStateResponse(w http.ResponseWriter) error
+}
+
+type GetHistoryState200JSONResponse HistoryState
+
+func (response GetHistoryState200JSONResponse) VisitGetHistoryStateResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type GetHistoryState401JSONResponse struct{ UnauthorizedJSONResponse }
+
+func (response GetHistoryState401JSONResponse) VisitGetHistoryStateResponse(w http.ResponseWriter) error {
 
 	var buf bytes.Buffer
 	if err := json.NewEncoder(&buf).Encode(response); err != nil {
@@ -4876,6 +5912,229 @@ func (response GetNodeNetwork404JSONResponse) VisitGetNodeNetworkResponse(w http
 	return err
 }
 
+type GetNodeProbeRequestObject struct {
+	NodeId NodeId `json:"nodeId"`
+}
+
+type GetNodeProbeResponseObject interface {
+	VisitGetNodeProbeResponse(w http.ResponseWriter) error
+}
+
+type GetNodeProbe200JSONResponse NodeProbeState
+
+func (response GetNodeProbe200JSONResponse) VisitGetNodeProbeResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type GetNodeProbe401JSONResponse struct{ UnauthorizedJSONResponse }
+
+func (response GetNodeProbe401JSONResponse) VisitGetNodeProbeResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(401)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type GetNodeProbe404JSONResponse struct{ NotFoundJSONResponse }
+
+func (response GetNodeProbe404JSONResponse) VisitGetNodeProbeResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(404)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type UpdateNodeProbeSettingsRequestObject struct {
+	NodeId NodeId `json:"nodeId"`
+	Params UpdateNodeProbeSettingsParams
+	Body   *UpdateNodeProbeSettingsJSONRequestBody
+}
+
+type UpdateNodeProbeSettingsResponseObject interface {
+	VisitUpdateNodeProbeSettingsResponse(w http.ResponseWriter) error
+}
+
+type UpdateNodeProbeSettings200JSONResponse NodeProbeState
+
+func (response UpdateNodeProbeSettings200JSONResponse) VisitUpdateNodeProbeSettingsResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type UpdateNodeProbeSettings400JSONResponse struct{ BadRequestJSONResponse }
+
+func (response UpdateNodeProbeSettings400JSONResponse) VisitUpdateNodeProbeSettingsResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(400)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type UpdateNodeProbeSettings401JSONResponse struct{ UnauthorizedJSONResponse }
+
+func (response UpdateNodeProbeSettings401JSONResponse) VisitUpdateNodeProbeSettingsResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(401)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type UpdateNodeProbeSettings403JSONResponse struct{ ForbiddenJSONResponse }
+
+func (response UpdateNodeProbeSettings403JSONResponse) VisitUpdateNodeProbeSettingsResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(403)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type UpdateNodeProbeSettings404JSONResponse struct{ NotFoundJSONResponse }
+
+func (response UpdateNodeProbeSettings404JSONResponse) VisitUpdateNodeProbeSettingsResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(404)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type UpdateNodeProbeSettings409JSONResponse struct{ ConflictJSONResponse }
+
+func (response UpdateNodeProbeSettings409JSONResponse) VisitUpdateNodeProbeSettingsResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(409)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type CreateCompleteProbeTaskRequestObject struct {
+	NodeId NodeId `json:"nodeId"`
+	Params CreateCompleteProbeTaskParams
+}
+
+type CreateCompleteProbeTaskResponseObject interface {
+	VisitCreateCompleteProbeTaskResponse(w http.ResponseWriter) error
+}
+
+type CreateCompleteProbeTask202JSONResponse ProbeTask
+
+func (response CreateCompleteProbeTask202JSONResponse) VisitCreateCompleteProbeTaskResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(202)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type CreateCompleteProbeTask401JSONResponse struct{ UnauthorizedJSONResponse }
+
+func (response CreateCompleteProbeTask401JSONResponse) VisitCreateCompleteProbeTaskResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(401)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type CreateCompleteProbeTask403JSONResponse struct{ ForbiddenJSONResponse }
+
+func (response CreateCompleteProbeTask403JSONResponse) VisitCreateCompleteProbeTaskResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(403)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type CreateCompleteProbeTask404JSONResponse struct{ NotFoundJSONResponse }
+
+func (response CreateCompleteProbeTask404JSONResponse) VisitCreateCompleteProbeTaskResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(404)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type CreateCompleteProbeTask409JSONResponse struct{ ConflictJSONResponse }
+
+func (response CreateCompleteProbeTask409JSONResponse) VisitCreateCompleteProbeTaskResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(409)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
 type RevokeNodeRequestObject struct {
 	NodeId NodeId `json:"nodeId"`
 	Params RevokeNodeParams
@@ -5099,6 +6358,106 @@ func (response StartNodeSyncSession409JSONResponse) VisitStartNodeSyncSessionRes
 	return err
 }
 
+type GetProbeRunRequestObject struct {
+	RunId RunId `json:"runId"`
+}
+
+type GetProbeRunResponseObject interface {
+	VisitGetProbeRunResponse(w http.ResponseWriter) error
+}
+
+type GetProbeRun200JSONResponse ProbeRun
+
+func (response GetProbeRun200JSONResponse) VisitGetProbeRunResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type GetProbeRun401JSONResponse struct{ UnauthorizedJSONResponse }
+
+func (response GetProbeRun401JSONResponse) VisitGetProbeRunResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(401)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type GetProbeRun404JSONResponse struct{ NotFoundJSONResponse }
+
+func (response GetProbeRun404JSONResponse) VisitGetProbeRunResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(404)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type GetProbeSnapshotRequestObject struct {
+	SnapshotId SnapshotId `json:"snapshotId"`
+}
+
+type GetProbeSnapshotResponseObject interface {
+	VisitGetProbeSnapshotResponse(w http.ResponseWriter) error
+}
+
+type GetProbeSnapshot200JSONResponse ProbeSnapshot
+
+func (response GetProbeSnapshot200JSONResponse) VisitGetProbeSnapshotResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type GetProbeSnapshot401JSONResponse struct{ UnauthorizedJSONResponse }
+
+func (response GetProbeSnapshot401JSONResponse) VisitGetProbeSnapshotResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(401)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type GetProbeSnapshot404JSONResponse struct{ NotFoundJSONResponse }
+
+func (response GetProbeSnapshot404JSONResponse) VisitGetProbeSnapshotResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(404)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
 type GetSystemStatusRequestObject struct {
 }
 
@@ -5175,6 +6534,9 @@ type StrictServerInterface interface {
 	// RegisterAgent Register a new Agent and node
 	// (POST /api/v1/agent/enroll)
 	RegisterAgent(ctx context.Context, request RegisterAgentRequestObject) (RegisterAgentResponseObject, error)
+	// UploadProbeArtifact Idempotently upload one complete-probe run or execution revision
+	// (POST /api/v1/agent/probe-artifacts)
+	UploadProbeArtifact(ctx context.Context, request UploadProbeArtifactRequestObject) (UploadProbeArtifactResponseObject, error)
 	// Login Start an administrator session
 	// (POST /api/v1/auth/login)
 	Login(ctx context.Context, request LoginRequestObject) (LoginResponseObject, error)
@@ -5184,6 +6546,12 @@ type StrictServerInterface interface {
 	// GetAuthenticatedSession Read the current administrator session
 	// (GET /api/v1/auth/session)
 	GetAuthenticatedSession(ctx context.Context, request GetAuthenticatedSessionRequestObject) (GetAuthenticatedSessionResponseObject, error)
+	// ResetHistory Delete all observed history and advance its generation
+	// (DELETE /api/v1/history)
+	ResetHistory(ctx context.Context, request ResetHistoryRequestObject) (ResetHistoryResponseObject, error)
+	// GetHistoryState Read the current history generation and reset state
+	// (GET /api/v1/history)
+	GetHistoryState(ctx context.Context, request GetHistoryStateRequestObject) (GetHistoryStateResponseObject, error)
 	// GetNetworkObservationSettings Read global lightweight address discovery services
 	// (GET /api/v1/network-observation-settings)
 	GetNetworkObservationSettings(ctx context.Context, request GetNetworkObservationSettingsRequestObject) (GetNetworkObservationSettingsResponseObject, error)
@@ -5223,6 +6591,15 @@ type StrictServerInterface interface {
 	// GetNodeNetwork Read the latest network inventory, candidates, and configured egresses
 	// (GET /api/v1/nodes/{nodeId}/network)
 	GetNodeNetwork(ctx context.Context, request GetNodeNetworkRequestObject) (GetNodeNetworkResponseObject, error)
+	// GetNodeProbe Read complete-probe settings, current task, and recent runs
+	// (GET /api/v1/nodes/{nodeId}/probe)
+	GetNodeProbe(ctx context.Context, request GetNodeProbeRequestObject) (GetNodeProbeResponseObject, error)
+	// UpdateNodeProbeSettings Replace the node complete-probe schedule and resource override
+	// (PUT /api/v1/nodes/{nodeId}/probe)
+	UpdateNodeProbeSettings(ctx context.Context, request UpdateNodeProbeSettingsRequestObject) (UpdateNodeProbeSettingsResponseObject, error)
+	// CreateCompleteProbeTask Create the node's single immediate complete-probe task
+	// (POST /api/v1/nodes/{nodeId}/probe/tasks)
+	CreateCompleteProbeTask(ctx context.Context, request CreateCompleteProbeTaskRequestObject) (CreateCompleteProbeTaskResponseObject, error)
 	// RevokeNode Permanently revoke a node Agent credential
 	// (POST /api/v1/nodes/{nodeId}/revoke)
 	RevokeNode(ctx context.Context, request RevokeNodeRequestObject) (RevokeNodeResponseObject, error)
@@ -5232,6 +6609,12 @@ type StrictServerInterface interface {
 	// StartNodeSyncSession Start or replace a ten-minute temporary node sync session
 	// (POST /api/v1/nodes/{nodeId}/sync-session)
 	StartNodeSyncSession(ctx context.Context, request StartNodeSyncSessionRequestObject) (StartNodeSyncSessionResponseObject, error)
+	// GetProbeRun Read one complete-probe run and its frozen egress executions
+	// (GET /api/v1/probe-runs/{runId})
+	GetProbeRun(ctx context.Context, request GetProbeRunRequestObject) (GetProbeRunResponseObject, error)
+	// GetProbeSnapshot Read one retained complete-probe source snapshot
+	// (GET /api/v1/probe-snapshots/{snapshotId})
+	GetProbeSnapshot(ctx context.Context, request GetProbeSnapshotRequestObject) (GetProbeSnapshotResponseObject, error)
 	// GetSystemStatus Read center status
 	// (GET /api/v1/system/status)
 	GetSystemStatus(ctx context.Context, request GetSystemStatusRequestObject) (GetSystemStatusResponseObject, error)
@@ -5660,6 +7043,37 @@ func (sh *strictHandler) RegisterAgent(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
+// UploadProbeArtifact operation middleware
+func (sh *strictHandler) UploadProbeArtifact(w http.ResponseWriter, r *http.Request) {
+	var request UploadProbeArtifactRequestObject
+
+	var body UploadProbeArtifactJSONRequestBody
+	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+		sh.options.RequestErrorHandlerFunc(w, r, fmt.Errorf("can't decode JSON body: %w", err))
+		return
+	}
+	request.Body = &body
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.UploadProbeArtifact(ctx, request.(UploadProbeArtifactRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "UploadProbeArtifact")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(UploadProbeArtifactResponseObject); ok {
+		if err := validResponse.VisitUploadProbeArtifactResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
 // Login operation middleware
 func (sh *strictHandler) Login(w http.ResponseWriter, r *http.Request) {
 	var request LoginRequestObject
@@ -5734,6 +7148,56 @@ func (sh *strictHandler) GetAuthenticatedSession(w http.ResponseWriter, r *http.
 		sh.options.ResponseErrorHandlerFunc(w, r, err)
 	} else if validResponse, ok := response.(GetAuthenticatedSessionResponseObject); ok {
 		if err := validResponse.VisitGetAuthenticatedSessionResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// ResetHistory operation middleware
+func (sh *strictHandler) ResetHistory(w http.ResponseWriter, r *http.Request, params ResetHistoryParams) {
+	var request ResetHistoryRequestObject
+
+	request.Params = params
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.ResetHistory(ctx, request.(ResetHistoryRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "ResetHistory")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(ResetHistoryResponseObject); ok {
+		if err := validResponse.VisitResetHistoryResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// GetHistoryState operation middleware
+func (sh *strictHandler) GetHistoryState(w http.ResponseWriter, r *http.Request) {
+	var request GetHistoryStateRequestObject
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.GetHistoryState(ctx, request.(GetHistoryStateRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "GetHistoryState")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(GetHistoryStateResponseObject); ok {
+		if err := validResponse.VisitGetHistoryStateResponse(w); err != nil {
 			sh.options.ResponseErrorHandlerFunc(w, r, err)
 		}
 	} else if response != nil {
@@ -6124,6 +7588,93 @@ func (sh *strictHandler) GetNodeNetwork(w http.ResponseWriter, r *http.Request, 
 	}
 }
 
+// GetNodeProbe operation middleware
+func (sh *strictHandler) GetNodeProbe(w http.ResponseWriter, r *http.Request, nodeId NodeId) {
+	var request GetNodeProbeRequestObject
+
+	request.NodeId = nodeId
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.GetNodeProbe(ctx, request.(GetNodeProbeRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "GetNodeProbe")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(GetNodeProbeResponseObject); ok {
+		if err := validResponse.VisitGetNodeProbeResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// UpdateNodeProbeSettings operation middleware
+func (sh *strictHandler) UpdateNodeProbeSettings(w http.ResponseWriter, r *http.Request, nodeId NodeId, params UpdateNodeProbeSettingsParams) {
+	var request UpdateNodeProbeSettingsRequestObject
+
+	request.NodeId = nodeId
+	request.Params = params
+
+	var body UpdateNodeProbeSettingsJSONRequestBody
+	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+		sh.options.RequestErrorHandlerFunc(w, r, fmt.Errorf("can't decode JSON body: %w", err))
+		return
+	}
+	request.Body = &body
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.UpdateNodeProbeSettings(ctx, request.(UpdateNodeProbeSettingsRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "UpdateNodeProbeSettings")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(UpdateNodeProbeSettingsResponseObject); ok {
+		if err := validResponse.VisitUpdateNodeProbeSettingsResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// CreateCompleteProbeTask operation middleware
+func (sh *strictHandler) CreateCompleteProbeTask(w http.ResponseWriter, r *http.Request, nodeId NodeId, params CreateCompleteProbeTaskParams) {
+	var request CreateCompleteProbeTaskRequestObject
+
+	request.NodeId = nodeId
+	request.Params = params
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.CreateCompleteProbeTask(ctx, request.(CreateCompleteProbeTaskRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "CreateCompleteProbeTask")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(CreateCompleteProbeTaskResponseObject); ok {
+		if err := validResponse.VisitCreateCompleteProbeTaskResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
 // RevokeNode operation middleware
 func (sh *strictHandler) RevokeNode(w http.ResponseWriter, r *http.Request, nodeId NodeId, params RevokeNodeParams) {
 	var request RevokeNodeRequestObject
@@ -6198,6 +7749,58 @@ func (sh *strictHandler) StartNodeSyncSession(w http.ResponseWriter, r *http.Req
 		sh.options.ResponseErrorHandlerFunc(w, r, err)
 	} else if validResponse, ok := response.(StartNodeSyncSessionResponseObject); ok {
 		if err := validResponse.VisitStartNodeSyncSessionResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// GetProbeRun operation middleware
+func (sh *strictHandler) GetProbeRun(w http.ResponseWriter, r *http.Request, runId RunId) {
+	var request GetProbeRunRequestObject
+
+	request.RunId = runId
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.GetProbeRun(ctx, request.(GetProbeRunRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "GetProbeRun")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(GetProbeRunResponseObject); ok {
+		if err := validResponse.VisitGetProbeRunResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// GetProbeSnapshot operation middleware
+func (sh *strictHandler) GetProbeSnapshot(w http.ResponseWriter, r *http.Request, snapshotId SnapshotId) {
+	var request GetProbeSnapshotRequestObject
+
+	request.SnapshotId = snapshotId
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.GetProbeSnapshot(ctx, request.(GetProbeSnapshotRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "GetProbeSnapshot")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(GetProbeSnapshotResponseObject); ok {
+		if err := validResponse.VisitGetProbeSnapshotResponse(w); err != nil {
 			sh.options.ResponseErrorHandlerFunc(w, r, err)
 		}
 	} else if response != nil {

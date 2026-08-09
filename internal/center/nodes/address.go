@@ -62,9 +62,11 @@ type AddressGap struct {
 }
 
 type AddressUpload struct {
-	States []AddressState
-	Events []AddressEvent
-	Gaps   []AddressGap
+	States      []AddressState
+	Events      []AddressEvent
+	Gaps        []AddressGap
+	ProbeStatus *ProbeStatus
+	TaskReport  *TaskReport
 }
 
 type AddressGapReceipt struct {
@@ -87,6 +89,8 @@ func (s *Service) ingestAddressUpload(ctx context.Context, nodeID string, upload
 	if len(upload.States) > 64 || len(upload.Events) > 64 || len(upload.Gaps) > 64 {
 		return receipt, ErrInvalidMetadata
 	}
+	s.historyMu.Lock()
+	defer s.historyMu.Unlock()
 	systemState, err := s.queries.GetSystemState(ctx)
 	if err != nil {
 		return receipt, err

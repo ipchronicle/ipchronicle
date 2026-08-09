@@ -91,6 +91,45 @@ func TestObserverSurfacesInvalidCheckerOutputForCurrentConfiguration(t *testing.
 	}
 }
 
+func TestObserverTriggersOnlyConfirmedAddressTransition(t *testing.T) {
+	store := openObserverTestStore(t)
+	configuration := observerTestConfiguration()
+	egress := configuration.Egresses[0]
+	checkedAt := time.Date(2026, 8, 9, 15, 0, 0, 0, time.UTC)
+	if _, err := store.RecordAddressObservation(state.AddressObservation{
+		EgressID: egress.ID, ConfigurationRevision: configuration.Revision,
+		HistoryGeneration: configuration.HistoryGeneration, Family: egress.Family,
+		Confirmed: true, PublicAddress: "203.0.113.10", CheckedAt: checkedAt,
+	}); err != nil {
+		t.Fatal(err)
+	}
+	triggered := make(chan string, 1)
+	ctx, cancel := context.WithCancel(context.Background())
+	observer := NewObserverWithChangeHandler(store, log.New(io.Discard, "", 0), func(_ context.Context, egressID string, _ time.Time) error {
+		triggered <- egressID
+		cancel()
+		return nil
+	})
+	observer.checker = checkerFunc(func(_ context.Context, configuration state.Configuration, egress state.Egress, _ *state.AddressState, checkedAt time.Time) state.AddressObservation {
+		return state.AddressObservation{
+			EgressID: egress.ID, ConfigurationRevision: configuration.Revision,
+			HistoryGeneration: configuration.HistoryGeneration, Family: egress.Family,
+			Confirmed: true, PublicAddress: "203.0.113.11", CheckedAt: checkedAt,
+		}
+	})
+	if err := observer.Run(ctx); err != nil {
+		t.Fatal(err)
+	}
+	select {
+	case id := <-triggered:
+		if id != egress.ID {
+			t.Fatalf("triggered egress = %s", id)
+		}
+	default:
+		t.Fatal("confirmed address transition did not trigger a complete probe")
+	}
+}
+
 type checkerFunc func(context.Context, state.Configuration, state.Egress, *state.AddressState, time.Time) state.AddressObservation
 
 func (function checkerFunc) Check(ctx context.Context, configuration state.Configuration, egress state.Egress, previous *state.AddressState, checkedAt time.Time) state.AddressObservation {
@@ -118,7 +157,8 @@ func openObserverTestStore(t *testing.T) *state.Store {
 
 func observerTestConfiguration() state.Configuration {
 	return state.Configuration{
-		SchemaVersion: 4, Revision: 1, Enabled: true,
+		SchemaVersion: 5, Revision: 1, Enabled: true,
+		ProbeSchedule:     state.ProbeSchedule{Enabled: true, Cron: "0 0 0 * * *", Timezone: "agent-local"},
 		HistoryGeneration: "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef",
 		DiscoveryServices: state.DiscoveryServices{
 			IPv4: []string{"https://one.example/ip", "https://two.example/ip"},

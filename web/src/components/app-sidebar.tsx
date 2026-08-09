@@ -1,4 +1,11 @@
-import { CircleUserRound, Gauge, Network, Radar, Server } from "lucide-react";
+import {
+  CircleUserRound,
+  Database,
+  Gauge,
+  Network,
+  Radar,
+  Server,
+} from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { Link, useLocation } from "react-router";
 
@@ -116,6 +123,25 @@ export function AppSidebar() {
                     >
                       <Network aria-hidden="true" />
                       <span>{t("navigation.networkSettings")}</span>
+                    </SidebarLink>
+                  </SidebarMenuButton>
+                </SidebarMenuItem>
+                <SidebarMenuItem>
+                  <SidebarMenuButton
+                    asChild
+                    isActive={location.pathname === "/settings/history"}
+                    tooltip={t("navigation.historySettings")}
+                  >
+                    <SidebarLink
+                      to="/settings/history"
+                      aria-current={
+                        location.pathname === "/settings/history"
+                          ? "page"
+                          : undefined
+                      }
+                    >
+                      <Database aria-hidden="true" />
+                      <span>{t("navigation.historySettings")}</span>
                     </SidebarLink>
                   </SidebarMenuButton>
                 </SidebarMenuItem>

@@ -8,12 +8,14 @@ tool github.com/oapi-codegen/oapi-codegen/v2/cmd/oapi-codegen
 
 require (
 	github.com/coder/websocket v1.8.15
+	github.com/elazarl/goproxy v1.9.0
 	github.com/go-chi/chi/v5 v5.3.1
 	github.com/google/uuid v1.6.0
 	github.com/mattn/go-sqlite3 v1.14.49
 	github.com/oapi-codegen/runtime v1.6.0
 	github.com/pquerna/otp v1.5.0
 	github.com/pressly/goose/v3 v3.27.3
+	github.com/robfig/cron/v3 v3.0.1
 	go.etcd.io/bbolt v1.4.3
 	golang.org/x/crypto v0.54.0
 	golang.org/x/net v0.57.0

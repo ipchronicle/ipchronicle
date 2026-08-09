@@ -13,6 +13,7 @@ export const en = {
       account: "Account",
       settings: "Settings",
       networkSettings: "Network probes",
+      historySettings: "History and storage",
     },
     language: {
       current: "EN",
@@ -168,6 +169,7 @@ export const en = {
       actions: {
         title: "Node actions",
         network: "Network egresses",
+        probe: "Complete probes",
         enable: "Enable node",
         disable: "Pause node",
         revoke: "Revoke Agent credential",
@@ -394,6 +396,187 @@ export const en = {
         "unusable-address": "The address is not currently usable",
       },
     },
+    probe: {
+      section: "Node probes",
+      title: "Complete probes",
+      detail: "Schedule and inspect full IPQuality runs for this node.",
+      back: "Back to nodes",
+      refresh: "Refresh",
+      retry: "Retry",
+      loadFailed: "Complete-probe state could not be loaded",
+      nodeNotFound: "The node does not exist or was deleted",
+      notAvailable: "Not available",
+      runNow: "Run complete probe",
+      lowMemory: {
+        title: "Complete probes are paused for low memory",
+        detail:
+          "The Agent reported less than 256 MiB of physical memory. Address checks continue; an administrator can accept the risk in probe settings.",
+      },
+      unavailable: {
+        offline:
+          "The node is offline, so an immediate task cannot be delivered.",
+        disabled:
+          "The node is disabled. Enable it before starting a complete probe.",
+        lowMemory:
+          "Complete probes are paused until the low-memory override is enabled.",
+        running: "A complete-probe run is already active on this node.",
+        task: "The node already has an immediate task waiting or running.",
+      },
+      status: {
+        title: "Agent probe state",
+        detail: "Latest schedule and execution state reported by the Agent.",
+        running: "Running",
+        idle: "Idle",
+        next: "Next scheduled run",
+        last: "Last occurrence",
+        trigger: "Trigger",
+        memory: "Physical memory",
+        lastSkipped: "The last occurrence was skipped: {{reason}}",
+        resetApplied:
+          "History reset applied {{value}}; {{count}} queued item(s) were discarded.",
+      },
+      task: {
+        title: "Immediate task",
+        detail:
+          "Delivery and execution state for the latest administrator command.",
+        empty: "No immediate complete-probe task has been created.",
+        created: "The task is waiting for the Agent.",
+        offline: "The task is still active, but the node is currently offline.",
+        waiting: "Waiting for Agent",
+        createdAt: "Created",
+        receivedAt: "Agent received",
+        startedAt: "Started",
+        completedAt: "Completed",
+        openRun: "Open run",
+      },
+      runs: {
+        title: "Recent runs",
+        detail:
+          "Node-level runs retain their frozen egress order and individual outcomes.",
+        empty: "No complete probe has been run yet.",
+        progress: "{{completed}} of {{total}} complete",
+      },
+      settings: {
+        title: "Probe settings",
+        detail:
+          "The schedule runs locally on the Agent using a six-field Cron expression.",
+        scheduleEnabled: "Enable recurring probes",
+        scheduleEnabledDetail:
+          "Missed occurrences are skipped and are not run after restart.",
+        cron: "Cron expression",
+        timezone: "Time zone",
+        memoryOverride: "Allow probes below 256 MiB",
+        memoryOverrideDetail:
+          "Enabling this accepts possible probe failure or node resource exhaustion.",
+        save: "Save probe settings",
+      },
+      trigger: {
+        manual: "Manual",
+        schedule: "Schedule",
+        "address-change": "Address change",
+      },
+      state: {
+        pending: "Waiting",
+        acknowledged: "Received",
+        running: "Running",
+        succeeded: "Succeeded",
+        partial: "Partial success",
+        failed: "Failed",
+        rejected: "Rejected",
+        expired: "Expired",
+        interrupted: "Interrupted",
+        skipped: "Skipped",
+      },
+      skip: {
+        busy: "another probe was active",
+        disabled: "probing was disabled",
+        "low-memory": "the node was below the memory baseline",
+        "no-egress": "no enabled egress was available",
+        missed: "the occurrence was missed",
+      },
+      failure: {
+        download: "Script download",
+        selector: "Egress selector",
+        adapter: "Proxy adapter",
+        process: "Probe process",
+        timeout: "Timeout",
+        output: "JSON output",
+        restart: "Agent restart",
+      },
+    },
+    probeRun: {
+      section: "Probe run",
+      title: "Complete-probe run",
+      detail: "Run details",
+      back: "Back to node probes",
+      refresh: "Refresh",
+      retry: "Retry",
+      notFound: "The probe run does not exist or its history was removed",
+      loadFailed: "The probe run could not be loaded",
+      partial: {
+        title: "This run completed with partial success",
+        detail:
+          "Successful egress snapshots remain available alongside failed or skipped sibling executions.",
+      },
+      summary: {
+        title: "Run summary",
+        trigger: "Trigger",
+        startedAt: "Started",
+        completedAt: "Completed",
+        progress: "Progress",
+      },
+      executions: {
+        title: "Egress executions",
+        detail: "Each frozen egress is attempted at most once in this run.",
+        sequence: "Egress sequence {{value}}",
+        startedAt: "Started",
+        completedAt: "Completed",
+        stage: "Failure stage",
+        openSnapshot: "Open report snapshot",
+        snapshotPending: "The successful snapshot is still arriving.",
+      },
+    },
+    snapshot: {
+      section: "Probe report",
+      title: "Raw snapshot",
+      back: "Back to probe run",
+      retry: "Retry",
+      notFound: "The snapshot does not exist or was removed",
+      loadFailed: "The snapshot could not be loaded",
+      raw: {
+        title: "IPQuality JSON",
+        detail: "Egress sequence {{sequence}}, observed {{value}}",
+        wrap: "Toggle line wrapping",
+        copy: "Copy JSON",
+        copied: "Copied",
+        download: "Download JSON",
+      },
+    },
+    historySettings: {
+      title: "History and storage",
+      detail:
+        "Inspect the current history boundary and remove observed data without changing configuration.",
+      retry: "Retry",
+      loadFailed: "History state could not be loaded",
+      state: {
+        title: "History state",
+        detail:
+          "The generation prevents offline Agent queues from restoring intentionally cleared history.",
+        generation: "Current generation",
+        resetAt: "Last cleared",
+        never: "Never cleared",
+      },
+      danger: {
+        title: "Clear observed history",
+        detail:
+          "This removes address events, probe runs, executions, snapshots, and history gaps. Node, egress, proxy, account, and task configuration remains.",
+        action: "Clear history",
+        confirmTitle: "Clear all observed history?",
+        confirmDetail:
+          "This action cannot be undone. Agents will discard queued data from the old generation; no complete probe starts automatically.",
+        confirm: "Clear all history",
+      },
+    },
     errors: {
       actionFailed: "The action could not be completed.",
       invalid_request: "The submitted values are invalid.",
@@ -447,6 +630,19 @@ export const en = {
         "This proxy is still referenced by a network egress and cannot be deleted.",
       invalid_observation_settings:
         "Use 2 to 8 valid HTTP or HTTPS URLs with distinct hosts for each address family.",
+      invalid_probe_settings: "The Cron expression or time zone is invalid.",
+      node_offline: "The node is offline and cannot receive an immediate task.",
+      probe_task_slot_occupied:
+        "An immediate task is already waiting or running for this node.",
+      probe_already_running:
+        "A complete-probe run is already active on this node.",
+      probe_paused_low_memory:
+        "Complete probes are paused because this node reported less than 256 MiB of memory.",
+      no_enabled_egress: "This node has no enabled network egress.",
+      probe_run_not_found:
+        "The complete-probe run does not exist or was removed.",
+      probe_snapshot_not_found:
+        "The report snapshot does not exist or was removed.",
       internal_error: "The center could not complete the request.",
     },
   },

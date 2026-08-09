@@ -51,3 +51,20 @@ func TestAgentAPIResponseBodyIsBounded(t *testing.T) {
 		t.Fatalf("bounded response length = %d", len(body))
 	}
 }
+
+func TestParsePhysicalMemory(t *testing.T) {
+	memory, err := parsePhysicalMemory(strings.NewReader("SwapTotal: 0 kB\nMemTotal:       262144 kB\n"))
+	if err != nil || memory != 256*1024*1024 {
+		t.Fatalf("physical memory = %d, %v", memory, err)
+	}
+	for _, input := range []string{
+		"SwapTotal: 0 kB\n",
+		"MemTotal: unknown kB\n",
+		"MemTotal: 0 kB\n",
+		"MemTotal: 1024 MB\n",
+	} {
+		if _, err := parsePhysicalMemory(strings.NewReader(input)); err == nil {
+			t.Fatalf("invalid meminfo %q unexpectedly succeeded", input)
+		}
+	}
+}

@@ -1,6 +1,7 @@
 package agent
 
 import (
+	"bufio"
 	"bytes"
 	"context"
 	"encoding/json"
@@ -12,12 +13,15 @@ import (
 	"net/url"
 	"os"
 	"runtime"
+	"strconv"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/google/uuid"
 	agentnetwork "github.com/ipchronicle/ipchronicle/internal/agent/network"
 	"github.com/ipchronicle/ipchronicle/internal/agent/observation"
+	agentprobe "github.com/ipchronicle/ipchronicle/internal/agent/probe"
 	"github.com/ipchronicle/ipchronicle/internal/agent/state"
 	"github.com/ipchronicle/ipchronicle/internal/generated/agentapi"
 )
@@ -37,6 +41,7 @@ type pollOutcome struct {
 	applied     bool
 	received    bool
 	syncSession *agentapi.AgentSyncSession
+	task        *state.ProbeTaskDelivery
 }
 
 func NewControlClient(centerURL string) (*ControlClient, error) {
@@ -135,18 +140,56 @@ func Run(ctx context.Context, store *state.Store, version string, logger *log.Lo
 	interval := 30 * time.Second
 	syncManager := newSyncManager(ctx, identity.CenterURL, identity.Credential, logger)
 	defer syncManager.Close()
-	observerContext, stopObserver := context.WithCancel(ctx)
-	defer stopObserver()
-	observerDone := make(chan error, 1)
+	workerContext, stopWorkers := context.WithCancel(ctx)
+	var workers sync.WaitGroup
+	defer func() {
+		stopWorkers()
+		workers.Wait()
+	}()
+	probeManager := agentprobe.NewManager(store, metadata.PhysicalMemoryBytes, logger)
+	probeDone := make(chan error, 1)
+	workers.Add(1)
 	go func() {
-		observerDone <- observation.NewObserver(store, logger).Run(observerContext)
+		defer workers.Done()
+		probeDone <- probeManager.Run(workerContext)
+	}()
+	observerDone := make(chan error, 1)
+	workers.Add(1)
+	go func() {
+		defer workers.Done()
+		observer := observation.NewObserverWithChangeHandler(store, logger, func(ctx context.Context, egressID string, at time.Time) error {
+			return probeManager.TriggerAddressChange(ctx, egressID, at)
+		})
+		observerDone <- observer.Run(workerContext)
+	}()
+	uploaderDone := make(chan error, 1)
+	workers.Add(1)
+	go func() {
+		defer workers.Done()
+		uploaderDone <- client.runProbeUploader(workerContext, store, identity, probeManager.UploadWake(), logger)
 	}()
 	logger.Printf("Agent %s polling %s", identity.NodeID, identity.CenterURL)
 	for {
 		select {
+		case probeErr := <-probeDone:
+			if probeErr != nil {
+				return fmt.Errorf("run complete-probe manager: %w", probeErr)
+			}
+			return nil
 		case observerErr := <-observerDone:
 			if observerErr != nil {
 				return fmt.Errorf("run lightweight address observer: %w", observerErr)
+			}
+			return nil
+		case uploaderErr := <-uploaderDone:
+			if errors.Is(uploaderErr, ErrAgentRevoked) {
+				if markErr := store.MarkRevoked(); markErr != nil {
+					return errors.Join(uploaderErr, markErr)
+				}
+				return nil
+			}
+			if uploaderErr != nil {
+				return fmt.Errorf("run complete-probe uploader: %w", uploaderErr)
 			}
 			return nil
 		default:
@@ -174,6 +217,11 @@ func Run(ctx context.Context, store *state.Store, version string, logger *log.Lo
 		if outcome.received {
 			syncManager.Update(outcome.syncSession)
 		}
+		if err == nil && outcome.task != nil {
+			if taskErr := probeManager.AcceptTask(workerContext, *outcome.task); taskErr != nil {
+				return fmt.Errorf("accept complete-probe task: %w", taskErr)
+			}
+		}
 		if outcome.interval >= 5*time.Second && outcome.interval <= time.Hour {
 			interval = outcome.interval
 		}
@@ -192,12 +240,38 @@ func Run(ctx context.Context, store *state.Store, version string, logger *log.Lo
 			if !timer.Stop() {
 				<-timer.C
 			}
+		case <-probeManager.Wake():
+			if !timer.Stop() {
+				<-timer.C
+			}
+		case probeErr := <-probeDone:
+			if !timer.Stop() {
+				<-timer.C
+			}
+			if probeErr != nil {
+				return fmt.Errorf("run complete-probe manager: %w", probeErr)
+			}
+			return nil
 		case observerErr := <-observerDone:
 			if !timer.Stop() {
 				<-timer.C
 			}
 			if observerErr != nil {
 				return fmt.Errorf("run lightweight address observer: %w", observerErr)
+			}
+			return nil
+		case uploaderErr := <-uploaderDone:
+			if !timer.Stop() {
+				<-timer.C
+			}
+			if errors.Is(uploaderErr, ErrAgentRevoked) {
+				if markErr := store.MarkRevoked(); markErr != nil {
+					return errors.Join(uploaderErr, markErr)
+				}
+				return nil
+			}
+			if uploaderErr != nil {
+				return fmt.Errorf("run complete-probe uploader: %w", uploaderErr)
 			}
 			return nil
 		}
@@ -221,6 +295,18 @@ func (c *ControlClient) poll(
 	if err != nil {
 		return pollOutcome{}, err
 	}
+	probeStatus, taskReport, err := store.ProbeControlReport()
+	if err != nil {
+		return pollOutcome{}, err
+	}
+	probeStatusAPI, err := probeStatusToAPI(probeStatus)
+	if err != nil {
+		return pollOutcome{}, err
+	}
+	taskReportAPI, err := taskReportToAPI(taskReport)
+	if err != nil {
+		return pollOutcome{}, err
+	}
 	response, err := c.client.PollAgentWithResponse(ctx, agentapi.AgentPollRequest{
 		AppliedConfigurationRevision: controlState.AppliedConfigurationRevision,
 		ConfigurationError:           controlState.ConfigurationError,
@@ -231,6 +317,8 @@ func (c *ControlClient) poll(
 		AddressStates:                &addressStates,
 		AddressEvents:                &addressEvents,
 		AddressGaps:                  &addressGaps,
+		ProbeStatus:                  probeStatusAPI,
+		TaskReport:                   taskReportAPI,
 	}, func(_ context.Context, request *http.Request) error {
 		request.Header.Set("Authorization", "Bearer "+identity.Credential)
 		return nil
@@ -244,9 +332,23 @@ func (c *ControlClient) poll(
 	if err := store.AcknowledgeAddressUpload(addressReceiptFromAPI(response.JSON200.AddressUploadReceipt)); err != nil {
 		return pollOutcome{}, fmt.Errorf("acknowledge address upload: %w", err)
 	}
+	if response.JSON200.AcceptedTerminalTaskId != nil {
+		if err := store.ConfirmTerminalProbeTask(response.JSON200.AcceptedTerminalTaskId.String(), time.Now().UTC()); err != nil {
+			return pollOutcome{}, fmt.Errorf("confirm terminal probe task: %w", err)
+		}
+	}
 	outcome := pollOutcome{
 		interval: time.Duration(response.JSON200.PollIntervalSeconds) * time.Second,
 		received: true, syncSession: response.JSON200.SyncSession,
+	}
+	if response.JSON200.Task != nil {
+		if response.JSON200.Task.Kind != agentapi.CompleteProbe {
+			return pollOutcome{}, errors.New("center returned an unsupported Agent task kind")
+		}
+		outcome.task = &state.ProbeTaskDelivery{
+			ID: response.JSON200.Task.Id.String(), CreatedAt: response.JSON200.Task.CreatedAt,
+			ExpiresAt: response.JSON200.Task.ExpiresAt,
+		}
 	}
 	if response.JSON200.DesiredConfigurationRevision == controlState.AppliedConfigurationRevision {
 		return outcome, nil
@@ -342,11 +444,47 @@ func currentMetadata(version string) (agentapi.AgentMetadata, error) {
 	if hostname == "" {
 		return agentapi.AgentMetadata{}, errors.New("hostname must not be empty")
 	}
+	physicalMemoryBytes, err := readPhysicalMemory("/proc/meminfo")
+	if err != nil {
+		return agentapi.AgentMetadata{}, fmt.Errorf("read physical memory: %w", err)
+	}
 	return agentapi.AgentMetadata{
 		Hostname: hostname, AgentVersion: version,
 		OperatingSystem: agentapi.Linux, Architecture: agentapi.AgentArchitecture(runtime.GOARCH),
-		Capabilities: []string{controlCapability, "configuration-v4", "network-inventory-v1", "address-observation-v1", syncWakeCapability},
+		Capabilities:        []string{controlCapability, "configuration-v5", "network-inventory-v1", "address-observation-v1", "complete-probe-v1", syncWakeCapability},
+		PhysicalMemoryBytes: physicalMemoryBytes,
 	}, nil
+}
+
+func readPhysicalMemory(path string) (int64, error) {
+	file, err := os.Open(path)
+	if err != nil {
+		return 0, err
+	}
+	defer file.Close()
+	return parsePhysicalMemory(file)
+}
+
+func parsePhysicalMemory(input io.Reader) (int64, error) {
+	scanner := bufio.NewScanner(input)
+	for scanner.Scan() {
+		fields := strings.Fields(scanner.Text())
+		if len(fields) == 0 || fields[0] != "MemTotal:" {
+			continue
+		}
+		if len(fields) != 3 || fields[2] != "kB" {
+			return 0, errors.New("MemTotal has an unexpected format")
+		}
+		kilobytes, err := strconv.ParseInt(fields[1], 10, 64)
+		if err != nil || kilobytes < 1 || kilobytes > (1<<63-1)/1024 {
+			return 0, errors.New("MemTotal is outside the supported range")
+		}
+		return kilobytes * 1024, nil
+	}
+	if err := scanner.Err(); err != nil {
+		return 0, err
+	}
+	return 0, errors.New("MemTotal is missing")
 }
 
 func addressUploadToAPI(upload state.AddressUpload) ([]agentapi.AgentAddressState, []agentapi.AgentAddressEvent, []agentapi.AgentAddressGap, error) {

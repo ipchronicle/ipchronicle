@@ -9,6 +9,32 @@ import (
 	"context"
 )
 
+const completeProbeRun = `-- name: CompleteProbeRun :execrows
+UPDATE probe_runs
+SET status = ?, completed_at = ?, received_at = ?
+WHERE id = ? AND status = 'running'
+`
+
+type CompleteProbeRunParams struct {
+	Status      string
+	CompletedAt *int64
+	ReceivedAt  int64
+	ID          string
+}
+
+func (q *Queries) CompleteProbeRun(ctx context.Context, arg CompleteProbeRunParams) (int64, error) {
+	result, err := q.db.ExecContext(ctx, completeProbeRun,
+		arg.Status,
+		arg.CompletedAt,
+		arg.ReceivedAt,
+		arg.ID,
+	)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected()
+}
+
 const createAddressEvent = `-- name: CreateAddressEvent :execrows
 INSERT INTO address_events (
     id, egress_id, node_id, history_generation, sequence, kind, family,
@@ -79,6 +105,129 @@ func (q *Queries) CreateHistoryMetadata(ctx context.Context, arg CreateHistoryMe
 	return err
 }
 
+const createProbeExecution = `-- name: CreateProbeExecution :execrows
+INSERT INTO probe_executions (
+    id, run_id, egress_id, ordinal, sequence, status, started_at,
+    completed_at, failure_stage, diagnostic, received_at
+) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+ON CONFLICT (id) DO NOTHING
+`
+
+type CreateProbeExecutionParams struct {
+	ID           string
+	RunID        string
+	EgressID     string
+	Ordinal      int64
+	Sequence     int64
+	Status       string
+	StartedAt    *int64
+	CompletedAt  *int64
+	FailureStage *string
+	Diagnostic   *string
+	ReceivedAt   int64
+}
+
+func (q *Queries) CreateProbeExecution(ctx context.Context, arg CreateProbeExecutionParams) (int64, error) {
+	result, err := q.db.ExecContext(ctx, createProbeExecution,
+		arg.ID,
+		arg.RunID,
+		arg.EgressID,
+		arg.Ordinal,
+		arg.Sequence,
+		arg.Status,
+		arg.StartedAt,
+		arg.CompletedAt,
+		arg.FailureStage,
+		arg.Diagnostic,
+		arg.ReceivedAt,
+	)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected()
+}
+
+const createProbeRun = `-- name: CreateProbeRun :execrows
+INSERT INTO probe_runs (
+    id, node_id, history_generation, configuration_revision, trigger,
+    task_id, triggering_egress_id, status, expected_executions,
+    started_at, completed_at, received_at
+) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+ON CONFLICT (id) DO NOTHING
+`
+
+type CreateProbeRunParams struct {
+	ID                    string
+	NodeID                string
+	HistoryGeneration     string
+	ConfigurationRevision int64
+	Trigger               string
+	TaskID                *string
+	TriggeringEgressID    *string
+	Status                string
+	ExpectedExecutions    int64
+	StartedAt             int64
+	CompletedAt           *int64
+	ReceivedAt            int64
+}
+
+func (q *Queries) CreateProbeRun(ctx context.Context, arg CreateProbeRunParams) (int64, error) {
+	result, err := q.db.ExecContext(ctx, createProbeRun,
+		arg.ID,
+		arg.NodeID,
+		arg.HistoryGeneration,
+		arg.ConfigurationRevision,
+		arg.Trigger,
+		arg.TaskID,
+		arg.TriggeringEgressID,
+		arg.Status,
+		arg.ExpectedExecutions,
+		arg.StartedAt,
+		arg.CompletedAt,
+		arg.ReceivedAt,
+	)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected()
+}
+
+const createProbeSnapshot = `-- name: CreateProbeSnapshot :execrows
+INSERT INTO probe_snapshots (
+    id, execution_id, egress_id, sequence, observed_at, raw_result,
+    encoded_size, received_at
+) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+ON CONFLICT (id) DO NOTHING
+`
+
+type CreateProbeSnapshotParams struct {
+	ID          string
+	ExecutionID string
+	EgressID    string
+	Sequence    int64
+	ObservedAt  int64
+	RawResult   []byte
+	EncodedSize int64
+	ReceivedAt  int64
+}
+
+func (q *Queries) CreateProbeSnapshot(ctx context.Context, arg CreateProbeSnapshotParams) (int64, error) {
+	result, err := q.db.ExecContext(ctx, createProbeSnapshot,
+		arg.ID,
+		arg.ExecutionID,
+		arg.EgressID,
+		arg.Sequence,
+		arg.ObservedAt,
+		arg.RawResult,
+		arg.EncodedSize,
+		arg.ReceivedAt,
+	)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected()
+}
+
 const deleteEgressAddressEvents = `-- name: DeleteEgressAddressEvents :exec
 DELETE FROM address_events WHERE egress_id = ?
 `
@@ -106,6 +255,45 @@ func (q *Queries) DeleteEgressAddressStates(ctx context.Context, egressID string
 	return err
 }
 
+const deleteEgressProbeExecutions = `-- name: DeleteEgressProbeExecutions :exec
+DELETE FROM probe_executions WHERE egress_id = ?
+`
+
+func (q *Queries) DeleteEgressProbeExecutions(ctx context.Context, egressID string) error {
+	_, err := q.db.ExecContext(ctx, deleteEgressProbeExecutions, egressID)
+	return err
+}
+
+const deleteEgressProbeGaps = `-- name: DeleteEgressProbeGaps :exec
+DELETE FROM probe_gaps WHERE egress_id = ?
+`
+
+func (q *Queries) DeleteEgressProbeGaps(ctx context.Context, egressID string) error {
+	_, err := q.db.ExecContext(ctx, deleteEgressProbeGaps, egressID)
+	return err
+}
+
+const deleteEgressProbeSnapshots = `-- name: DeleteEgressProbeSnapshots :exec
+DELETE FROM probe_snapshots WHERE egress_id = ?
+`
+
+func (q *Queries) DeleteEgressProbeSnapshots(ctx context.Context, egressID string) error {
+	_, err := q.db.ExecContext(ctx, deleteEgressProbeSnapshots, egressID)
+	return err
+}
+
+const deleteEmptyProbeRuns = `-- name: DeleteEmptyProbeRuns :exec
+DELETE FROM probe_runs
+WHERE NOT EXISTS (
+    SELECT 1 FROM probe_executions e WHERE e.run_id = probe_runs.id
+)
+`
+
+func (q *Queries) DeleteEmptyProbeRuns(ctx context.Context) error {
+	_, err := q.db.ExecContext(ctx, deleteEmptyProbeRuns)
+	return err
+}
+
 const deleteNodeAddressEvents = `-- name: DeleteNodeAddressEvents :exec
 DELETE FROM address_events WHERE node_id = ?
 `
@@ -130,6 +318,24 @@ DELETE FROM address_states WHERE node_id = ?
 
 func (q *Queries) DeleteNodeAddressStates(ctx context.Context, nodeID string) error {
 	_, err := q.db.ExecContext(ctx, deleteNodeAddressStates, nodeID)
+	return err
+}
+
+const deleteNodeProbeGaps = `-- name: DeleteNodeProbeGaps :exec
+DELETE FROM probe_gaps WHERE node_id = ?
+`
+
+func (q *Queries) DeleteNodeProbeGaps(ctx context.Context, nodeID string) error {
+	_, err := q.db.ExecContext(ctx, deleteNodeProbeGaps, nodeID)
+	return err
+}
+
+const deleteNodeProbeHistory = `-- name: DeleteNodeProbeHistory :exec
+DELETE FROM probe_runs WHERE node_id = ?
+`
+
+func (q *Queries) DeleteNodeProbeHistory(ctx context.Context, nodeID string) error {
+	_, err := q.db.ExecContext(ctx, deleteNodeProbeHistory, nodeID)
 	return err
 }
 
@@ -217,6 +423,106 @@ func (q *Queries) GetHistoryMetadata(ctx context.Context) (HistoryMetadatum, err
 	row := q.db.QueryRowContext(ctx, getHistoryMetadata)
 	var i HistoryMetadatum
 	err := row.Scan(&i.ID, &i.Generation, &i.CreatedAt)
+	return i, err
+}
+
+const getProbeExecution = `-- name: GetProbeExecution :one
+SELECT id, run_id, egress_id, ordinal, sequence, status, started_at,
+       completed_at, failure_stage, diagnostic, received_at
+FROM probe_executions
+WHERE id = ?
+`
+
+func (q *Queries) GetProbeExecution(ctx context.Context, id string) (ProbeExecution, error) {
+	row := q.db.QueryRowContext(ctx, getProbeExecution, id)
+	var i ProbeExecution
+	err := row.Scan(
+		&i.ID,
+		&i.RunID,
+		&i.EgressID,
+		&i.Ordinal,
+		&i.Sequence,
+		&i.Status,
+		&i.StartedAt,
+		&i.CompletedAt,
+		&i.FailureStage,
+		&i.Diagnostic,
+		&i.ReceivedAt,
+	)
+	return i, err
+}
+
+const getProbeRun = `-- name: GetProbeRun :one
+SELECT id, node_id, history_generation, configuration_revision, trigger,
+       task_id, triggering_egress_id, status, expected_executions,
+       started_at, completed_at, received_at
+FROM probe_runs
+WHERE id = ?
+`
+
+func (q *Queries) GetProbeRun(ctx context.Context, id string) (ProbeRun, error) {
+	row := q.db.QueryRowContext(ctx, getProbeRun, id)
+	var i ProbeRun
+	err := row.Scan(
+		&i.ID,
+		&i.NodeID,
+		&i.HistoryGeneration,
+		&i.ConfigurationRevision,
+		&i.Trigger,
+		&i.TaskID,
+		&i.TriggeringEgressID,
+		&i.Status,
+		&i.ExpectedExecutions,
+		&i.StartedAt,
+		&i.CompletedAt,
+		&i.ReceivedAt,
+	)
+	return i, err
+}
+
+const getProbeSnapshot = `-- name: GetProbeSnapshot :one
+SELECT id, execution_id, egress_id, sequence, observed_at, raw_result,
+       encoded_size, received_at
+FROM probe_snapshots
+WHERE id = ?
+`
+
+func (q *Queries) GetProbeSnapshot(ctx context.Context, id string) (ProbeSnapshot, error) {
+	row := q.db.QueryRowContext(ctx, getProbeSnapshot, id)
+	var i ProbeSnapshot
+	err := row.Scan(
+		&i.ID,
+		&i.ExecutionID,
+		&i.EgressID,
+		&i.Sequence,
+		&i.ObservedAt,
+		&i.RawResult,
+		&i.EncodedSize,
+		&i.ReceivedAt,
+	)
+	return i, err
+}
+
+const getProbeSnapshotByExecution = `-- name: GetProbeSnapshotByExecution :one
+SELECT id, execution_id, egress_id, sequence, observed_at, raw_result,
+       encoded_size, received_at
+FROM probe_snapshots
+WHERE execution_id = ?
+`
+
+func (q *Queries) GetProbeSnapshotByExecution(ctx context.Context, executionID string) (ProbeSnapshot, error) {
+	row := q.db.QueryRowContext(ctx, getProbeSnapshotByExecution, executionID)
+	var i ProbeSnapshot
+	err := row.Scan(
+		&i.ID,
+		&i.ExecutionID,
+		&i.EgressID,
+		&i.Sequence,
+		&i.ObservedAt,
+		&i.RawResult,
+		&i.EncodedSize,
+		&i.ReceivedAt,
+	)
 	return i, err
 }
 
@@ -378,6 +684,197 @@ func (q *Queries) ListNodeAddressStates(ctx context.Context, nodeID string) ([]A
 	return items, nil
 }
 
+const listNodeProbeRuns = `-- name: ListNodeProbeRuns :many
+SELECT id, node_id, history_generation, configuration_revision, trigger,
+       task_id, triggering_egress_id, status, expected_executions,
+       started_at, completed_at, received_at
+FROM probe_runs
+WHERE node_id = ?
+ORDER BY started_at DESC, id DESC
+LIMIT ?
+`
+
+type ListNodeProbeRunsParams struct {
+	NodeID string
+	Limit  int64
+}
+
+func (q *Queries) ListNodeProbeRuns(ctx context.Context, arg ListNodeProbeRunsParams) ([]ProbeRun, error) {
+	rows, err := q.db.QueryContext(ctx, listNodeProbeRuns, arg.NodeID, arg.Limit)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []ProbeRun{}
+	for rows.Next() {
+		var i ProbeRun
+		if err := rows.Scan(
+			&i.ID,
+			&i.NodeID,
+			&i.HistoryGeneration,
+			&i.ConfigurationRevision,
+			&i.Trigger,
+			&i.TaskID,
+			&i.TriggeringEgressID,
+			&i.Status,
+			&i.ExpectedExecutions,
+			&i.StartedAt,
+			&i.CompletedAt,
+			&i.ReceivedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listProbeRunExecutions = `-- name: ListProbeRunExecutions :many
+SELECT id, run_id, egress_id, ordinal, sequence, status, started_at,
+       completed_at, failure_stage, diagnostic, received_at
+FROM probe_executions
+WHERE run_id = ?
+ORDER BY ordinal, id
+`
+
+func (q *Queries) ListProbeRunExecutions(ctx context.Context, runID string) ([]ProbeExecution, error) {
+	rows, err := q.db.QueryContext(ctx, listProbeRunExecutions, runID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []ProbeExecution{}
+	for rows.Next() {
+		var i ProbeExecution
+		if err := rows.Scan(
+			&i.ID,
+			&i.RunID,
+			&i.EgressID,
+			&i.Ordinal,
+			&i.Sequence,
+			&i.Status,
+			&i.StartedAt,
+			&i.CompletedAt,
+			&i.FailureStage,
+			&i.Diagnostic,
+			&i.ReceivedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const resetAddressGaps = `-- name: ResetAddressGaps :exec
+DELETE FROM history_gaps
+`
+
+func (q *Queries) ResetAddressGaps(ctx context.Context) error {
+	_, err := q.db.ExecContext(ctx, resetAddressGaps)
+	return err
+}
+
+const resetAddressHistory = `-- name: ResetAddressHistory :exec
+DELETE FROM address_events
+`
+
+func (q *Queries) ResetAddressHistory(ctx context.Context) error {
+	_, err := q.db.ExecContext(ctx, resetAddressHistory)
+	return err
+}
+
+const resetAddressStates = `-- name: ResetAddressStates :exec
+DELETE FROM address_states
+`
+
+func (q *Queries) ResetAddressStates(ctx context.Context) error {
+	_, err := q.db.ExecContext(ctx, resetAddressStates)
+	return err
+}
+
+const resetProbeGaps = `-- name: ResetProbeGaps :exec
+DELETE FROM probe_gaps
+`
+
+func (q *Queries) ResetProbeGaps(ctx context.Context) error {
+	_, err := q.db.ExecContext(ctx, resetProbeGaps)
+	return err
+}
+
+const resetProbeHistory = `-- name: ResetProbeHistory :exec
+DELETE FROM probe_runs
+`
+
+func (q *Queries) ResetProbeHistory(ctx context.Context) error {
+	_, err := q.db.ExecContext(ctx, resetProbeHistory)
+	return err
+}
+
+const updateHistoryGeneration = `-- name: UpdateHistoryGeneration :execrows
+UPDATE history_metadata
+SET generation = ?, created_at = ?
+WHERE id = 1
+`
+
+type UpdateHistoryGenerationParams struct {
+	Generation string
+	CreatedAt  int64
+}
+
+func (q *Queries) UpdateHistoryGeneration(ctx context.Context, arg UpdateHistoryGenerationParams) (int64, error) {
+	result, err := q.db.ExecContext(ctx, updateHistoryGeneration, arg.Generation, arg.CreatedAt)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected()
+}
+
+const updateProbeExecution = `-- name: UpdateProbeExecution :execrows
+UPDATE probe_executions
+SET status = ?, started_at = ?, completed_at = ?, failure_stage = ?,
+    diagnostic = ?, received_at = ?
+WHERE id = ? AND status IN ('pending', 'running')
+`
+
+type UpdateProbeExecutionParams struct {
+	Status       string
+	StartedAt    *int64
+	CompletedAt  *int64
+	FailureStage *string
+	Diagnostic   *string
+	ReceivedAt   int64
+	ID           string
+}
+
+func (q *Queries) UpdateProbeExecution(ctx context.Context, arg UpdateProbeExecutionParams) (int64, error) {
+	result, err := q.db.ExecContext(ctx, updateProbeExecution,
+		arg.Status,
+		arg.StartedAt,
+		arg.CompletedAt,
+		arg.FailureStage,
+		arg.Diagnostic,
+		arg.ReceivedAt,
+		arg.ID,
+	)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected()
+}
+
 const upsertAddressGap = `-- name: UpsertAddressGap :execrows
 INSERT INTO history_gaps (
     id, egress_id, node_id, history_generation, kind, dropped_count,
@@ -501,4 +998,88 @@ func (q *Queries) UpsertAddressState(ctx context.Context, arg UpsertAddressState
 		arg.ReceivedAt,
 	)
 	return err
+}
+
+const upsertCurrentProbeSnapshot = `-- name: UpsertCurrentProbeSnapshot :exec
+INSERT INTO current_probe_snapshots (
+    egress_id, execution_id, snapshot_id, sequence, observed_at, received_at
+) VALUES (?, ?, ?, ?, ?, ?)
+ON CONFLICT (egress_id) DO UPDATE SET
+    execution_id = excluded.execution_id,
+    snapshot_id = excluded.snapshot_id,
+    sequence = excluded.sequence,
+    observed_at = excluded.observed_at,
+    received_at = excluded.received_at
+WHERE excluded.sequence > current_probe_snapshots.sequence
+`
+
+type UpsertCurrentProbeSnapshotParams struct {
+	EgressID    string
+	ExecutionID string
+	SnapshotID  string
+	Sequence    int64
+	ObservedAt  int64
+	ReceivedAt  int64
+}
+
+func (q *Queries) UpsertCurrentProbeSnapshot(ctx context.Context, arg UpsertCurrentProbeSnapshotParams) error {
+	_, err := q.db.ExecContext(ctx, upsertCurrentProbeSnapshot,
+		arg.EgressID,
+		arg.ExecutionID,
+		arg.SnapshotID,
+		arg.Sequence,
+		arg.ObservedAt,
+		arg.ReceivedAt,
+	)
+	return err
+}
+
+const upsertProbeGap = `-- name: UpsertProbeGap :execrows
+INSERT INTO probe_gaps (
+    id, egress_id, node_id, history_generation, dropped_count,
+    first_sequence, last_sequence, first_observed_at, last_observed_at,
+    received_at
+) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+ON CONFLICT (id) DO UPDATE SET
+    dropped_count = MAX(probe_gaps.dropped_count, excluded.dropped_count),
+    last_sequence = MAX(probe_gaps.last_sequence, excluded.last_sequence),
+    last_observed_at = MAX(probe_gaps.last_observed_at, excluded.last_observed_at),
+    received_at = excluded.received_at
+WHERE probe_gaps.egress_id = excluded.egress_id
+  AND probe_gaps.node_id = excluded.node_id
+  AND probe_gaps.history_generation = excluded.history_generation
+  AND probe_gaps.first_sequence = excluded.first_sequence
+  AND probe_gaps.first_observed_at = excluded.first_observed_at
+`
+
+type UpsertProbeGapParams struct {
+	ID                string
+	EgressID          string
+	NodeID            string
+	HistoryGeneration string
+	DroppedCount      int64
+	FirstSequence     int64
+	LastSequence      int64
+	FirstObservedAt   int64
+	LastObservedAt    int64
+	ReceivedAt        int64
+}
+
+func (q *Queries) UpsertProbeGap(ctx context.Context, arg UpsertProbeGapParams) (int64, error) {
+	result, err := q.db.ExecContext(ctx, upsertProbeGap,
+		arg.ID,
+		arg.EgressID,
+		arg.NodeID,
+		arg.HistoryGeneration,
+		arg.DroppedCount,
+		arg.FirstSequence,
+		arg.LastSequence,
+		arg.FirstObservedAt,
+		arg.LastObservedAt,
+		arg.ReceivedAt,
+	)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected()
 }

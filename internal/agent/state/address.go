@@ -391,14 +391,17 @@ func extendAddressGap(transaction *bolt.Tx, dropped AddressEvent) error {
 	return bucket.Put(key, encoded)
 }
 
-func reconcileAddressBuckets(transaction *bolt.Tx, configuration Configuration, previousGeneration string) error {
+func reconcileAddressBuckets(transaction *bolt.Tx, configuration Configuration, previousGeneration string) (int64, error) {
+	var discarded int64
 	if previousGeneration != "" && previousGeneration != configuration.HistoryGeneration {
 		for _, name := range [][]byte{addressCurrentBucket, addressEventsBucket, addressGapsBucket} {
+			count := transaction.Bucket(name).Stats().KeyN
+			discarded += int64(count)
 			if err := clearBucket(transaction.Bucket(name)); err != nil {
-				return err
+				return 0, err
 			}
 		}
-		return nil
+		return discarded, nil
 	}
 	retained := make(map[string]struct{}, len(configuration.Egresses))
 	for _, egress := range configuration.Egresses {
@@ -419,15 +422,15 @@ func reconcileAddressBuckets(transaction *bolt.Tx, configuration Configuration, 
 			}
 			return nil
 		}); err != nil {
-			return err
+			return 0, err
 		}
 		for _, key := range keys {
 			if err := bucket.Delete(key); err != nil {
-				return err
+				return 0, err
 			}
 		}
 	}
-	return nil
+	return 0, nil
 }
 
 func clearBucket(bucket *bolt.Bucket) error {
