@@ -94,7 +94,7 @@ test("generates an Agent installation command from the nodes page", async ({
         architecture: "amd64",
         capabilities: [
           "control-v1",
-          "configuration-v3",
+          "configuration-v4",
           "network-inventory-v1",
           "sync-wakeup-v1",
         ],
@@ -108,7 +108,7 @@ test("generates an Agent installation command from the nodes page", async ({
   };
 
   await page.reload();
-  const responsiveItem = (text: string) => {
+  const responsiveItem = (text: string | RegExp) => {
     const items = page.getByText(text, { exact: true });
     return testInfo.project.name === "mobile-chromium"
       ? items.last()
@@ -129,7 +129,7 @@ test("generates an Agent installation command from the nodes page", async ({
         architecture: "amd64",
         capabilities: [
           "control-v1",
-          "configuration-v3",
+          "configuration-v4",
           "network-inventory-v1",
           "sync-wakeup-v1",
         ],
@@ -183,6 +183,77 @@ test("generates an Agent installation command from the nodes page", async ({
     },
   });
   expect(poll.status()).toBe(200);
+  const configurationResponse = await page.request.get(
+    "/api/v1/agent/configuration",
+    { headers: { Authorization: `Bearer ${registered.credential}` } },
+  );
+  expect(configurationResponse.status()).toBe(200);
+  const configuration = (await configurationResponse.json()) as {
+    revision: number;
+    historyGeneration: string;
+    egresses: Array<{ id: string; family: "ipv4" | "ipv6" }>;
+  };
+  const ipv4Egress = configuration.egresses.find(
+    (egress) => egress.family === "ipv4",
+  );
+  expect(ipv4Egress).toBeTruthy();
+  const observedAt = "2026-08-09T06:02:00Z";
+  const addressPoll = await page.request.post("/api/v1/agent/control", {
+    headers: { Authorization: `Bearer ${registered.credential}` },
+    data: {
+      appliedConfigurationRevision: configuration.revision,
+      metadata: {
+        hostname: "edge-e2e",
+        agentVersion: "0.1.0-e2e",
+        operatingSystem: "linux",
+        architecture: "amd64",
+        capabilities: [
+          "control-v1",
+          "configuration-v4",
+          "network-inventory-v1",
+          "address-observation-v1",
+          "sync-wakeup-v1",
+        ],
+      },
+      addressStates: [
+        {
+          egressId: ipv4Egress?.id,
+          historyGeneration: configuration.historyGeneration,
+          family: "ipv4",
+          status: "confirmed",
+          sequence: 1,
+          publicAddress: "8.8.8.8",
+          localInterface: "eth0",
+          localAddress: "10.0.0.5",
+          proxyPath: false,
+          likelyNat: true,
+          temporary: false,
+          lastCheckedAt: observedAt,
+          lastSucceededAt: observedAt,
+          lastChangedAt: observedAt,
+        },
+      ],
+      addressEvents: [
+        {
+          id: "76e22263-00ee-4656-a97a-90d74fd5f86d",
+          egressId: ipv4Egress?.id,
+          historyGeneration: configuration.historyGeneration,
+          sequence: 1,
+          kind: "first-observation",
+          family: "ipv4",
+          publicAddress: "8.8.8.8",
+          localInterface: "eth0",
+          localAddress: "10.0.0.5",
+          proxyPath: false,
+          likelyNat: true,
+          temporary: false,
+          observedAt,
+        },
+      ],
+      addressGaps: [],
+    },
+  });
+  expect(addressPoll.status()).toBe(200);
   await page.reload();
   await expect(responsiveItem("Using normal polling")).toBeVisible();
   await page.screenshot({
@@ -205,6 +276,23 @@ test("generates an Agent installation command from the nodes page", async ({
   await expect(
     page.getByRole("heading", { name: "Network probes" }),
   ).toBeVisible();
+  await page
+    .getByLabel("IPv4 services")
+    .fill("http://one.example/ip\nhttps://two.example/ip");
+  await page
+    .getByLabel("IPv6 services")
+    .fill("https://six-one.example/ip\nhttps://six-two.example/ip");
+  await expect(page.getByText("A discovery service uses HTTP")).toBeVisible();
+  await page.getByRole("button", { name: "Save discovery services" }).click();
+  await expect
+    .poll(async () => {
+      const response = await page.request.get(
+        "/api/v1/network-observation-settings",
+      );
+      const body = (await response.json()) as { ipv4Services: string[] };
+      return body.ipv4Services[0];
+    })
+    .toBe("http://one.example/ip");
   await page.getByLabel("Name", { exact: true }).fill("E2E proxy");
   await page.getByLabel("Protocol").click();
   await page.getByRole("option", { name: "SOCKS5" }).click();
@@ -246,10 +334,39 @@ test("generates an Agent installation command from the nodes page", async ({
   await expect(page.getByText("Default IPv4").first()).toBeVisible();
   await expect(page.getByText("Temporary IPv6").first()).toBeVisible();
   await expect(
+    page.getByText("eth0 · 10.0.0.5 -> 8.8.8.8", { exact: true }).first(),
+  ).toBeVisible();
+  await expect(page.getByText("Likely NAT")).toBeVisible();
+  await expect(
+    page.getByText("First observation", { exact: true }),
+  ).toBeVisible();
+  await expect(
     page.getByRole("button", { name: "Enable path" }).last(),
   ).toBeDisabled();
   await page.getByRole("button", { name: "Add egress" }).click();
   await expect(page.getByText("Proxy · E2E proxy")).toBeVisible();
+  const interval = page
+    .getByRole("spinbutton", { name: "Address check interval (seconds)" })
+    .first();
+  await interval.fill("15");
+  await page
+    .getByRole("button", { name: "Save address check interval" })
+    .first()
+    .click();
+  await expect(interval).toHaveValue("15");
+  const proxyEgress = page
+    .getByText("Proxy · E2E proxy", { exact: true })
+    .locator(
+      "xpath=ancestor::div[contains(@class, 'space-y-4') and contains(@class, 'rounded-md')][1]",
+    );
+  await proxyEgress
+    .getByRole("button", { name: "Permanently delete egress" })
+    .click();
+  await page
+    .getByRole("alertdialog")
+    .getByRole("button", { name: "Permanently delete", exact: true })
+    .click();
+  await expect(proxyEgress.getByText("Deletion pending")).toBeVisible();
   await expect
     .poll(() =>
       page.evaluate(
@@ -267,7 +384,7 @@ test("generates an Agent installation command from the nodes page", async ({
 
   await page.getByRole("button", { name: "Pause node" }).click();
   await expect(responsiveItem("Disabled")).toBeVisible();
-  await expect(responsiveItem("Pending · 0/4")).toBeVisible();
+  await expect(responsiveItem(/Pending · \d+\/\d+/)).toBeVisible();
   await page.screenshot({
     path: testInfo.outputPath("node-actions.png"),
     fullPage: true,

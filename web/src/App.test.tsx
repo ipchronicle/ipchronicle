@@ -13,7 +13,9 @@ import { getSystemStatus } from "@/api/system";
 import {
   createNodeEgress,
   deleteNodeEgress,
+  getNetworkObservationSettings,
   getNodeNetwork,
+  updateNetworkObservationSettings,
   updateNodeEgress,
 } from "@/api/network";
 import {
@@ -56,7 +58,9 @@ vi.mock("@/api/system", () => ({
 vi.mock("@/api/network", () => ({
   createNodeEgress: vi.fn(),
   deleteNodeEgress: vi.fn(),
+  getNetworkObservationSettings: vi.fn(),
   getNodeNetwork: vi.fn(),
+  updateNetworkObservationSettings: vi.fn(),
   updateNodeEgress: vi.fn(),
 }));
 
@@ -86,7 +90,11 @@ const updateLocaleMock = vi.mocked(updateAccountLocale);
 const getSystemStatusMock = vi.mocked(getSystemStatus);
 const createEgressMock = vi.mocked(createNodeEgress);
 const deleteEgressMock = vi.mocked(deleteNodeEgress);
+const getObservationSettingsMock = vi.mocked(getNetworkObservationSettings);
 const getNodeNetworkMock = vi.mocked(getNodeNetwork);
+const updateObservationSettingsMock = vi.mocked(
+  updateNetworkObservationSettings,
+);
 const updateEgressMock = vi.mocked(updateNodeEgress);
 const getEnrollmentMock = vi.mocked(getAgentEnrollment);
 const listNodesMock = vi.mocked(listNodes);
@@ -117,8 +125,8 @@ const healthyStatus = {
   service: "ipchronicle-center" as const,
   status: "ok" as const,
   version: "0.0.0-test",
-  configSchemaVersion: 6,
-  historySchemaVersion: 1,
+  configSchemaVersion: 8,
+  historySchemaVersion: 2,
   transportSecurity: "http" as const,
   transportWarning: true,
   externalOriginConfigured: false,
@@ -137,7 +145,17 @@ describe("administrator application", () => {
     getSystemStatusMock.mockReset();
     createEgressMock.mockReset();
     deleteEgressMock.mockReset();
+    getObservationSettingsMock.mockReset();
+    getObservationSettingsMock.mockResolvedValue({
+      ipv4Services: ["https://one.example/ip", "https://two.example/ip"],
+      ipv6Services: [
+        "https://six-one.example/ip",
+        "https://six-two.example/ip",
+      ],
+      updatedAt: "2026-08-09T06:00:00Z",
+    });
     getNodeNetworkMock.mockReset();
+    updateObservationSettingsMock.mockReset();
     updateEgressMock.mockReset();
     getEnrollmentMock.mockReset();
     listNodesMock.mockReset();
@@ -463,6 +481,9 @@ describe("administrator application", () => {
           unavailableReason: "temporary-address",
         },
       ],
+      addressStates: [],
+      addressEvents: [],
+      addressGaps: [],
     });
 
     renderApplication("/nodes/7289cfa3-a75d-4a3f-ac06-8f1074446a85/network");
@@ -497,7 +518,7 @@ describe("administrator application", () => {
     expect(
       await screen.findByRole("heading", { name: "Network probes" }),
     ).toBeInTheDocument();
-    expect(screen.getByText("Password configured")).toBeInTheDocument();
+    expect(await screen.findByText("Password configured")).toBeInTheDocument();
     expect(
       screen.getByRole("button", { name: "Replace password" }),
     ).toBeDisabled();

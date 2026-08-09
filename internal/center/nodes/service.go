@@ -17,6 +17,7 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/ipchronicle/ipchronicle/internal/center/database/configdb"
+	"github.com/ipchronicle/ipchronicle/internal/center/database/historydb"
 )
 
 const (
@@ -47,14 +48,16 @@ type SyncConnections interface {
 }
 
 type Service struct {
-	database      *sql.DB
-	history       *sql.DB
-	queries       *configdb.Queries
-	masterKey     [32]byte
-	now           func() time.Time
-	deletionWake  chan struct{}
-	deleteHistory func(context.Context, string) error
-	sync          SyncConnections
+	database            *sql.DB
+	history             *sql.DB
+	queries             *configdb.Queries
+	historyQueries      *historydb.Queries
+	masterKey           [32]byte
+	now                 func() time.Time
+	deletionWake        chan struct{}
+	deleteHistory       func(context.Context, string) error
+	deleteEgressHistory func(context.Context, string) error
+	sync                SyncConnections
 }
 
 type Enrollment struct {
@@ -81,6 +84,7 @@ type Poll struct {
 	DesiredConfigurationRevision int64
 	Enabled                      bool
 	SyncSession                  *SyncSession
+	AddressUploadReceipt         AddressUploadReceipt
 }
 
 type SyncSession struct {
@@ -101,9 +105,18 @@ type Configuration struct {
 	HistoryGeneration string
 	Egresses          []NetworkEgress
 	Proxies           []AgentProxyConfiguration
+	DiscoveryServices DiscoveryServices
 }
 
 type Deletion struct {
+	NodeID      uuid.UUID
+	Status      string
+	RequestedAt time.Time
+	Error       *string
+}
+
+type EgressDeletion struct {
+	EgressID    uuid.UUID
 	NodeID      uuid.UUID
 	Status      string
 	RequestedAt time.Time
@@ -139,9 +152,11 @@ func NewService(database, history *sql.DB, queries *configdb.Queries, masterKey 
 	}
 	service := &Service{
 		database: database, history: history, queries: queries, masterKey: masterKey,
-		now: time.Now, deletionWake: make(chan struct{}, 1), sync: syncConnections,
+		historyQueries: historydb.New(history), now: time.Now,
+		deletionWake: make(chan struct{}, 1), sync: syncConnections,
 	}
 	service.deleteHistory = service.deleteNodeHistory
+	service.deleteEgressHistory = service.deleteNetworkEgressHistory
 	return service
 }
 
@@ -253,7 +268,15 @@ func (s *Service) Poll(
 	configurationErrorRevision *int64,
 	inventory *NetworkInventory,
 	inventoryError *string,
+	addressUploads ...AddressUpload,
 ) (Poll, error) {
+	if len(addressUploads) > 1 {
+		return Poll{}, ErrInvalidMetadata
+	}
+	addressUpload := AddressUpload{}
+	if len(addressUploads) == 1 {
+		addressUpload = addressUploads[0]
+	}
 	metadata, err := validateMetadata(metadata)
 	if err != nil || appliedRevision < 0 || !validConfigurationError(configurationError) ||
 		(configurationError == nil) != (configurationErrorRevision == nil) ||
@@ -328,13 +351,17 @@ func (s *Service) Poll(
 	if err := transaction.Commit(); err != nil {
 		return Poll{}, err
 	}
+	receipt, err := s.ingestAddressUpload(ctx, node.ID, addressUpload, now)
+	if err != nil {
+		return Poll{}, err
+	}
 	current, err := s.queries.GetNodeByID(ctx, node.ID)
 	if err != nil {
 		return Poll{}, err
 	}
 	return Poll{
 		DesiredConfigurationRevision: current.DesiredConfigurationRevision,
-		Enabled:                      current.Enabled == 1, SyncSession: syncSession,
+		Enabled:                      current.Enabled == 1, SyncSession: syncSession, AddressUploadReceipt: receipt,
 	}, nil
 }
 
@@ -370,7 +397,7 @@ func (s *Service) Configuration(ctx context.Context, credential string) (Configu
 	if err != nil {
 		return Configuration{}, err
 	}
-	egressRecords, err := s.queries.ListNodeEgresses(ctx, node.ID)
+	egressRecords, err := s.queries.ListActiveNodeEgresses(ctx, node.ID)
 	if err != nil {
 		return Configuration{}, err
 	}
@@ -394,10 +421,14 @@ func (s *Service) Configuration(ctx context.Context, credential string) (Configu
 		}
 		proxies = append(proxies, proxy)
 	}
+	discoveryServices, err := s.ObservationSettings(ctx)
+	if err != nil {
+		return Configuration{}, err
+	}
 	return Configuration{
-		SchemaVersion: 3, Revision: node.DesiredConfigurationRevision,
+		SchemaVersion: 4, Revision: node.DesiredConfigurationRevision,
 		Enabled: node.Enabled == 1, HistoryGeneration: state.HistoryGeneration,
-		Egresses: egresses, Proxies: proxies,
+		Egresses: egresses, Proxies: proxies, DiscoveryServices: discoveryServices,
 	}, nil
 }
 
@@ -727,6 +758,13 @@ func (s *Service) RunDeletionWorker(ctx context.Context, logger *log.Logger) {
 }
 
 func (s *Service) processDeletions(ctx context.Context, limit int64) error {
+	if err := s.processNodeDeletions(ctx, limit); err != nil {
+		return err
+	}
+	return s.processEgressDeletions(ctx, limit)
+}
+
+func (s *Service) processNodeDeletions(ctx context.Context, limit int64) error {
 	operations, err := s.queries.ListActiveNodeDeletions(ctx, limit)
 	if err != nil {
 		return err
@@ -753,6 +791,9 @@ func (s *Service) processDeletions(ctx context.Context, limit int64) error {
 		}
 		queries := s.queries.WithTx(transaction)
 		if err := queries.DeleteNodeCapabilities(ctx, operation.NodeID); err == nil {
+			err = queries.DeleteNodeEgressDeletionOperations(ctx, operation.NodeID)
+		}
+		if err == nil {
 			err = queries.DeleteNode(ctx, operation.NodeID)
 		}
 		if err == nil {
@@ -775,13 +816,94 @@ func (s *Service) processDeletions(ctx context.Context, limit int64) error {
 	return nil
 }
 
-func (s *Service) deleteNodeHistory(ctx context.Context, _ string) error {
+func (s *Service) processEgressDeletions(ctx context.Context, limit int64) error {
+	operations, err := s.queries.ListActiveEgressDeletions(ctx, limit)
+	if err != nil {
+		return err
+	}
+	for _, operation := range operations {
+		now := s.now().UTC().Truncate(time.Second).Unix()
+		if operation.Status == "failed" {
+			if err := s.queries.RetryEgressDeletion(ctx, configdb.RetryEgressDeletionParams{
+				UpdatedAt: now, EgressID: operation.EgressID, NodeID: operation.NodeID,
+			}); err != nil {
+				return err
+			}
+		}
+		if err := s.deleteEgressHistory(ctx, operation.EgressID); err != nil {
+			message := boundedError(err)
+			if recordErr := s.queries.FailEgressDeletion(ctx, configdb.FailEgressDeletionParams{
+				UpdatedAt: now, LastError: &message, EgressID: operation.EgressID, NodeID: operation.NodeID,
+			}); recordErr != nil {
+				return errors.Join(err, recordErr)
+			}
+			continue
+		}
+		transaction, err := s.database.BeginTx(ctx, nil)
+		if err != nil {
+			return err
+		}
+		queries := s.queries.WithTx(transaction)
+		_, err = queries.DeleteNodeEgress(ctx, configdb.DeleteNodeEgressParams{
+			ID: operation.EgressID, NodeID: operation.NodeID,
+		})
+		if err == nil {
+			err = queries.CompleteEgressDeletion(ctx, configdb.CompleteEgressDeletionParams{
+				UpdatedAt: now, EgressID: operation.EgressID, NodeID: operation.NodeID,
+			})
+		}
+		if err == nil {
+			err = transaction.Commit()
+		} else {
+			_ = transaction.Rollback()
+		}
+		if err != nil {
+			message := boundedError(err)
+			if recordErr := s.queries.FailEgressDeletion(ctx, configdb.FailEgressDeletionParams{
+				UpdatedAt: now, LastError: &message, EgressID: operation.EgressID, NodeID: operation.NodeID,
+			}); recordErr != nil {
+				return errors.Join(err, recordErr)
+			}
+		}
+	}
+	return nil
+}
+
+func (s *Service) deleteNodeHistory(ctx context.Context, nodeID string) error {
 	transaction, err := s.history.BeginTx(ctx, nil)
 	if err != nil {
 		return err
 	}
-	// Phase 2 has no node-owned history tables. Later phases add their
-	// idempotent cleanup to this transaction before the configuration commit.
+	defer transaction.Rollback()
+	queries := s.historyQueries.WithTx(transaction)
+	if err := queries.DeleteNodeAddressStates(ctx, nodeID); err != nil {
+		return err
+	}
+	if err := queries.DeleteNodeAddressEvents(ctx, nodeID); err != nil {
+		return err
+	}
+	if err := queries.DeleteNodeAddressGaps(ctx, nodeID); err != nil {
+		return err
+	}
+	return transaction.Commit()
+}
+
+func (s *Service) deleteNetworkEgressHistory(ctx context.Context, egressID string) error {
+	transaction, err := s.history.BeginTx(ctx, nil)
+	if err != nil {
+		return err
+	}
+	defer transaction.Rollback()
+	queries := s.historyQueries.WithTx(transaction)
+	if err := queries.DeleteEgressAddressStates(ctx, egressID); err != nil {
+		return err
+	}
+	if err := queries.DeleteEgressAddressEvents(ctx, egressID); err != nil {
+		return err
+	}
+	if err := queries.DeleteEgressAddressGaps(ctx, egressID); err != nil {
+		return err
+	}
 	return transaction.Commit()
 }
 
@@ -812,6 +934,21 @@ func deletionFromRecord(record configdb.NodeDeletionOperation) (Deletion, error)
 	}
 	return Deletion{
 		NodeID: id, Status: record.Status,
+		RequestedAt: time.Unix(record.RequestedAt, 0).UTC(), Error: record.LastError,
+	}, nil
+}
+
+func egressDeletionFromRecord(record configdb.EgressDeletionOperation) (EgressDeletion, error) {
+	egressID, err := uuid.Parse(record.EgressID)
+	if err != nil {
+		return EgressDeletion{}, fmt.Errorf("parse stored egress deletion ID %q: %w", record.EgressID, err)
+	}
+	nodeID, err := uuid.Parse(record.NodeID)
+	if err != nil {
+		return EgressDeletion{}, fmt.Errorf("parse stored egress deletion node ID %q: %w", record.NodeID, err)
+	}
+	return EgressDeletion{
+		EgressID: egressID, NodeID: nodeID, Status: record.Status,
 		RequestedAt: time.Unix(record.RequestedAt, 0).UTC(), Error: record.LastError,
 	}, nil
 }

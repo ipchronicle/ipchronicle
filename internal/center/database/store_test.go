@@ -21,7 +21,7 @@ func TestFreshOpenAndRestart(t *testing.T) {
 		t.Fatal(err)
 	}
 	firstGeneration := store.HistoryGeneration
-	if store.ConfigSchemaVersion != 6 || store.HistorySchemaVersion != 1 {
+	if store.ConfigSchemaVersion != 8 || store.HistorySchemaVersion != 2 {
 		t.Fatalf("unexpected schema versions: %d/%d", store.ConfigSchemaVersion, store.HistorySchemaVersion)
 	}
 	if err := store.Close(); err != nil {
@@ -63,7 +63,7 @@ func TestMissingMasterKeyFailsWhenDatabaseExists(t *testing.T) {
 	}
 }
 
-func TestVersionFiveNetworkEgressesMigrateToVersionSix(t *testing.T) {
+func TestVersionFiveNetworkEgressesMigrateToCurrentVersion(t *testing.T) {
 	ctx := context.Background()
 	paths := PathsFromDataDirectory(t.TempDir())
 	if err := prepareDirectories(paths); err != nil {
@@ -115,8 +115,8 @@ func TestVersionFiveNetworkEgressesMigrateToVersionSix(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer store.Close()
-	if store.ConfigSchemaVersion != 6 {
-		t.Fatalf("configuration schema = %d, want 6", store.ConfigSchemaVersion)
+	if store.ConfigSchemaVersion != 8 {
+		t.Fatalf("configuration schema = %d, want 8", store.ConfigSchemaVersion)
 	}
 	egress, err := store.ConfigQueries.GetNodeEgress(ctx, configdb.GetNodeEgressParams{NodeID: nodeID, ID: egressID})
 	if err != nil {

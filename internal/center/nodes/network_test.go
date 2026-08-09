@@ -111,11 +111,43 @@ func TestInventoryCreatesDefaultsAndControlsDiscoveredEgresses(t *testing.T) {
 	if err != nil || disabled.Enabled {
 		t.Fatalf("disabled egress = %#v, %v", disabled, err)
 	}
-	if err := service.DeleteEgress(ctx, registration.NodeID, state.Egresses[0].ID); err != nil {
+	firstDeletion, err := service.DeleteEgress(ctx, registration.NodeID, state.Egresses[0].ID)
+	if err != nil || firstDeletion.Status != "pending" {
 		t.Fatalf("delete automatic egress: %v", err)
 	}
-	if err := service.DeleteEgress(ctx, registration.NodeID, created.ID); err != nil {
+	if _, err := service.DeleteEgress(ctx, registration.NodeID, created.ID); err != nil {
 		t.Fatal(err)
+	}
+	pending, err := service.Network(ctx, registration.NodeID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, egress := range pending.Egresses {
+		if (egress.ID == state.Egresses[0].ID || egress.ID == created.ID) &&
+			(egress.DeletionStatus == nil || *egress.DeletionStatus != "pending") {
+			t.Fatalf("queued egress deletion is not visible: %#v", egress)
+		}
+	}
+	configuration, err = service.Configuration(ctx, registration.Credential)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, egress := range configuration.Egresses {
+		if egress.ID == state.Egresses[0].ID || egress.ID == created.ID {
+			t.Fatalf("deleting egress remained in Agent configuration: %#v", egress)
+		}
+	}
+	if err := service.processDeletions(ctx, 16); err != nil {
+		t.Fatal(err)
+	}
+	completed, err := service.Network(ctx, registration.NodeID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, egress := range completed.Egresses {
+		if egress.ID == state.Egresses[0].ID || egress.ID == created.ID {
+			t.Fatalf("completed egress deletion retained configuration: %#v", egress)
+		}
 	}
 	if len(connections.wakes) != 4 {
 		t.Fatalf("configuration wake count = %d, want 4", len(connections.wakes))

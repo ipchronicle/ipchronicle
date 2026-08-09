@@ -34,6 +34,15 @@ type AgentEnrollment struct {
 	RotatedAt    int64
 }
 
+type EgressDeletionOperation struct {
+	EgressID    string
+	NodeID      string
+	Status      string
+	RequestedAt int64
+	UpdatedAt   int64
+	LastError   *string
+}
+
 type NetworkEgress struct {
 	ID                         string
 	NodeID                     string
@@ -50,6 +59,13 @@ type NetworkEgress struct {
 	ProbeOnAddressChange       int64
 	CreatedAt                  int64
 	UpdatedAt                  int64
+}
+
+type NetworkObservationSetting struct {
+	ID           int64
+	Ipv4Services string
+	Ipv6Services string
+	UpdatedAt    int64
 }
 
 type NetworkProxy struct {

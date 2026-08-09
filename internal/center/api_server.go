@@ -9,6 +9,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/google/uuid"
 	"github.com/ipchronicle/ipchronicle/internal/center/admin"
 	"github.com/ipchronicle/ipchronicle/internal/center/nodes"
 	"github.com/ipchronicle/ipchronicle/internal/generated/api"
@@ -460,6 +461,47 @@ func (s apiServer) GetNodeNetwork(ctx context.Context, request api.GetNodeNetwor
 	return api.GetNodeNetwork200JSONResponse(networkStateResponse(state)), nil
 }
 
+func (s apiServer) GetNetworkObservationSettings(ctx context.Context, _ api.GetNetworkObservationSettingsRequestObject) (api.GetNetworkObservationSettingsResponseObject, error) {
+	_, failure, err := s.authorize(ctx, false, "")
+	if err != nil {
+		return nil, err
+	}
+	if failure != "" {
+		return api.GetNetworkObservationSettings401JSONResponse{UnauthorizedJSONResponse: unauthorized(failure)}, nil
+	}
+	settings, err := s.nodes.ObservationSettings(ctx)
+	if err != nil {
+		return nil, err
+	}
+	return api.GetNetworkObservationSettings200JSONResponse(networkObservationSettingsResponse(settings)), nil
+}
+
+func (s apiServer) UpdateNetworkObservationSettings(ctx context.Context, request api.UpdateNetworkObservationSettingsRequestObject) (api.UpdateNetworkObservationSettingsResponseObject, error) {
+	_, failure, err := s.authorize(ctx, true, csrfValue(request.Params.XCSRFToken))
+	if err != nil {
+		return nil, err
+	}
+	if failure == api.Unauthenticated {
+		return api.UpdateNetworkObservationSettings401JSONResponse{UnauthorizedJSONResponse: unauthorized(failure)}, nil
+	}
+	if failure != "" {
+		return api.UpdateNetworkObservationSettings403JSONResponse{ForbiddenJSONResponse: forbidden(failure)}, nil
+	}
+	if request.Body == nil {
+		return api.UpdateNetworkObservationSettings400JSONResponse{BadRequestJSONResponse: badRequest(api.InvalidRequest)}, nil
+	}
+	settings, err := s.nodes.UpdateObservationSettings(ctx, nodes.DiscoveryServices{
+		IPv4: request.Body.Ipv4Services, IPv6: request.Body.Ipv6Services,
+	})
+	if errors.Is(err, nodes.ErrInvalidObservationSettings) {
+		return api.UpdateNetworkObservationSettings400JSONResponse{BadRequestJSONResponse: badRequest(api.InvalidObservationSettings)}, nil
+	}
+	if err != nil {
+		return nil, err
+	}
+	return api.UpdateNetworkObservationSettings200JSONResponse(networkObservationSettingsResponse(settings)), nil
+}
+
 func (s apiServer) CreateNodeEgress(ctx context.Context, request api.CreateNodeEgressRequestObject) (api.CreateNodeEgressResponseObject, error) {
 	_, failure, err := s.authorize(ctx, true, csrfValue(request.Params.XCSRFToken))
 	if err != nil {
@@ -624,14 +666,21 @@ func (s apiServer) UpdateNodeEgress(ctx context.Context, request api.UpdateNodeE
 	if request.Body == nil {
 		return api.UpdateNodeEgress400JSONResponse{BadRequestJSONResponse: badRequest(api.InvalidRequest)}, nil
 	}
-	egress, err := s.nodes.SetEgressEnabled(ctx, request.NodeId, request.EgressId, request.Body.Enabled)
+	egress, err := s.nodes.UpdateEgress(ctx, request.NodeId, request.EgressId, nodes.NetworkEgressUpdate{
+		Enabled: request.Body.Enabled, LightweightIntervalSeconds: request.Body.LightweightIntervalSeconds,
+		ProbeOnAddressChange: request.Body.ProbeOnAddressChange,
+	})
 	switch {
+	case errors.Is(err, nodes.ErrInvalidEgressCandidate):
+		return api.UpdateNodeEgress400JSONResponse{BadRequestJSONResponse: badRequest(api.InvalidEgressCandidate)}, nil
 	case errors.Is(err, nodes.ErrNodeNotFound), errors.Is(err, nodes.ErrEgressNotFound):
 		return api.UpdateNodeEgress404JSONResponse{NotFoundJSONResponse: notFound(api.EgressNotFound)}, nil
 	case errors.Is(err, nodes.ErrNodeRevoked):
 		return api.UpdateNodeEgress409JSONResponse{ConflictJSONResponse: conflict(api.NodeRevoked)}, nil
 	case errors.Is(err, nodes.ErrNodeDeletionPending):
 		return api.UpdateNodeEgress409JSONResponse{ConflictJSONResponse: conflict(api.NodeDeletionPending)}, nil
+	case errors.Is(err, nodes.ErrEgressDeletionPending):
+		return api.UpdateNodeEgress409JSONResponse{ConflictJSONResponse: conflict(api.EgressDeletionPending)}, nil
 	case err != nil:
 		return nil, err
 	}
@@ -649,7 +698,7 @@ func (s apiServer) DeleteNodeEgress(ctx context.Context, request api.DeleteNodeE
 	if failure != "" {
 		return api.DeleteNodeEgress403JSONResponse{ForbiddenJSONResponse: forbidden(failure)}, nil
 	}
-	err = s.nodes.DeleteEgress(ctx, request.NodeId, request.EgressId)
+	deletion, err := s.nodes.DeleteEgress(ctx, request.NodeId, request.EgressId)
 	switch {
 	case errors.Is(err, nodes.ErrNodeNotFound), errors.Is(err, nodes.ErrEgressNotFound):
 		return api.DeleteNodeEgress404JSONResponse{NotFoundJSONResponse: notFound(api.EgressNotFound)}, nil
@@ -660,7 +709,7 @@ func (s apiServer) DeleteNodeEgress(ctx context.Context, request api.DeleteNodeE
 	case err != nil:
 		return nil, err
 	}
-	return api.DeleteNodeEgress204Response{}, nil
+	return api.DeleteNodeEgress202JSONResponse(egressDeletionResponse(deletion)), nil
 }
 
 func (s apiServer) GetAgentEnrollment(ctx context.Context, _ api.GetAgentEnrollmentRequestObject) (api.GetAgentEnrollmentResponseObject, error) {
@@ -751,6 +800,7 @@ func (s apiServer) PollAgent(ctx context.Context, request api.PollAgentRequestOb
 		request.Body.AppliedConfigurationRevision, request.Body.ConfigurationError,
 		request.Body.ConfigurationErrorRevision, networkInventoryFromAPI(request.Body.NetworkInventory),
 		request.Body.NetworkInventoryError,
+		addressUploadFromAPI(request.Body.AddressStates, request.Body.AddressEvents, request.Body.AddressGaps),
 	)
 	switch {
 	case errors.Is(err, nodes.ErrInvalidMetadata):
@@ -765,6 +815,7 @@ func (s apiServer) PollAgent(ctx context.Context, request api.PollAgentRequestOb
 	result := api.PollAgent200JSONResponse{
 		CenterVersion: s.version, DesiredConfigurationRevision: poll.DesiredConfigurationRevision,
 		Enabled: poll.Enabled, PollIntervalSeconds: int(nodes.PollInterval / time.Second),
+		AddressUploadReceipt: addressUploadReceiptResponse(poll.AddressUploadReceipt),
 	}
 	if poll.SyncSession != nil {
 		result.SyncSession = &api.AgentSyncSession{
@@ -807,6 +858,10 @@ func (s apiServer) GetAgentConfiguration(ctx context.Context, _ api.GetAgentConf
 		SchemaVersion: api.AgentConfigurationSnapshotSchemaVersion(configuration.SchemaVersion),
 		Revision:      configuration.Revision, Enabled: configuration.Enabled,
 		HistoryGeneration: configuration.HistoryGeneration, Egresses: egresses, Proxies: proxies,
+		DiscoveryServices: api.NetworkObservationSettingsUpdate{
+			Ipv4Services: configuration.DiscoveryServices.IPv4,
+			Ipv6Services: configuration.DiscoveryServices.IPv6,
+		},
 	}, nil
 }
 
@@ -959,8 +1014,11 @@ func nodeResponse(node nodes.Node) api.Node {
 func networkStateResponse(state nodes.NodeNetworkState) api.NodeNetworkState {
 	response := api.NodeNetworkState{
 		InventoryError: state.InventoryError, InventoryReceivedAt: state.InventoryReceivedAt,
-		Egresses:   make([]api.NetworkEgress, 0, len(state.Egresses)),
-		Candidates: make([]api.NetworkEgressCandidate, 0, len(state.Candidates)),
+		Egresses:      make([]api.NetworkEgress, 0, len(state.Egresses)),
+		Candidates:    make([]api.NetworkEgressCandidate, 0, len(state.Candidates)),
+		AddressStates: make([]api.AgentAddressState, 0, len(state.AddressStates)),
+		AddressEvents: make([]api.AgentAddressEvent, 0, len(state.AddressEvents)),
+		AddressGaps:   make([]api.AgentAddressGap, 0, len(state.AddressGaps)),
 	}
 	if state.Inventory != nil {
 		response.Inventory = networkInventoryResponse(*state.Inventory)
@@ -983,6 +1041,15 @@ func networkStateResponse(state nodes.NodeNetworkState) api.NodeNetworkState {
 			candidate.UnavailableReason = &value
 		}
 		response.Candidates = append(response.Candidates, candidate)
+	}
+	for _, item := range state.AddressStates {
+		response.AddressStates = append(response.AddressStates, addressStateResponse(item))
+	}
+	for _, item := range state.AddressEvents {
+		response.AddressEvents = append(response.AddressEvents, addressEventResponse(item))
+	}
+	for _, item := range state.AddressGaps {
+		response.AddressGaps = append(response.AddressGaps, addressGapResponse(item))
 	}
 	return response
 }
@@ -1013,7 +1080,128 @@ func networkInventoryResponse(inventory nodes.NetworkInventory) *api.NetworkInve
 	return response
 }
 
+func addressUploadFromAPI(states *[]api.AgentAddressState, events *[]api.AgentAddressEvent, gaps *[]api.AgentAddressGap) nodes.AddressUpload {
+	result := nodes.AddressUpload{}
+	if states != nil {
+		result.States = make([]nodes.AddressState, 0, len(*states))
+		for _, item := range *states {
+			var failureReason *string
+			if item.FailureReason != nil {
+				value := string(*item.FailureReason)
+				failureReason = &value
+			}
+			result.States = append(result.States, nodes.AddressState{
+				EgressID: item.EgressId, HistoryGeneration: item.HistoryGeneration,
+				Family: string(item.Family), Status: string(item.Status), Sequence: item.Sequence,
+				PublicAddress: item.PublicAddress, LocalInterface: item.LocalInterface, LocalAddress: item.LocalAddress,
+				ProxyPath: item.ProxyPath, LikelyNAT: item.LikelyNat, Temporary: item.Temporary,
+				FailureReason: failureReason, LastCheckedAt: item.LastCheckedAt,
+				LastSucceededAt: item.LastSucceededAt, LastChangedAt: item.LastChangedAt,
+			})
+		}
+	}
+	if events != nil {
+		result.Events = make([]nodes.AddressEvent, 0, len(*events))
+		for _, item := range *events {
+			var failureReason *string
+			if item.FailureReason != nil {
+				value := string(*item.FailureReason)
+				failureReason = &value
+			}
+			result.Events = append(result.Events, nodes.AddressEvent{
+				ID: item.Id, EgressID: item.EgressId, HistoryGeneration: item.HistoryGeneration,
+				Sequence: item.Sequence, Kind: string(item.Kind), Family: string(item.Family),
+				PreviousAddress: item.PreviousAddress, PublicAddress: item.PublicAddress,
+				LocalInterface: item.LocalInterface, LocalAddress: item.LocalAddress,
+				ProxyPath: item.ProxyPath, LikelyNAT: item.LikelyNat, Temporary: item.Temporary,
+				FailureReason: failureReason, ObservedAt: item.ObservedAt,
+			})
+		}
+	}
+	if gaps != nil {
+		result.Gaps = make([]nodes.AddressGap, 0, len(*gaps))
+		for _, item := range *gaps {
+			result.Gaps = append(result.Gaps, nodes.AddressGap{
+				ID: item.Id, EgressID: item.EgressId, HistoryGeneration: item.HistoryGeneration,
+				DroppedCount: item.DroppedCount, FirstSequence: item.FirstSequence, LastSequence: item.LastSequence,
+				FirstObservedAt: item.FirstObservedAt, LastObservedAt: item.LastObservedAt,
+			})
+		}
+	}
+	return result
+}
+
+func addressUploadReceiptResponse(receipt nodes.AddressUploadReceipt) api.AgentAddressUploadReceipt {
+	result := api.AgentAddressUploadReceipt{
+		AcceptedEventIds:  make([]uuid.UUID, 0, len(receipt.AcceptedEventIDs)),
+		DiscardedEventIds: make([]uuid.UUID, 0, len(receipt.DiscardedEventIDs)),
+		AcceptedGaps:      make([]api.AgentAddressGapReceipt, 0, len(receipt.AcceptedGaps)),
+		DiscardedGaps:     make([]api.AgentAddressGapReceipt, 0, len(receipt.DiscardedGaps)),
+	}
+	result.AcceptedEventIds = append(result.AcceptedEventIds, receipt.AcceptedEventIDs...)
+	result.DiscardedEventIds = append(result.DiscardedEventIds, receipt.DiscardedEventIDs...)
+	for _, item := range receipt.AcceptedGaps {
+		result.AcceptedGaps = append(result.AcceptedGaps, api.AgentAddressGapReceipt{Id: item.ID, LastSequence: item.LastSequence})
+	}
+	for _, item := range receipt.DiscardedGaps {
+		result.DiscardedGaps = append(result.DiscardedGaps, api.AgentAddressGapReceipt{Id: item.ID, LastSequence: item.LastSequence})
+	}
+	return result
+}
+
+func addressStateResponse(item nodes.AddressState) api.AgentAddressState {
+	var failureReason *api.AddressFailureReason
+	if item.FailureReason != nil {
+		value := api.AddressFailureReason(*item.FailureReason)
+		failureReason = &value
+	}
+	return api.AgentAddressState{
+		EgressId: item.EgressID, HistoryGeneration: item.HistoryGeneration,
+		Family: api.AddressFamily(item.Family), Status: api.AddressObservationStatus(item.Status),
+		Sequence: item.Sequence, PublicAddress: item.PublicAddress,
+		LocalInterface: item.LocalInterface, LocalAddress: item.LocalAddress,
+		ProxyPath: item.ProxyPath, LikelyNat: item.LikelyNAT, Temporary: item.Temporary,
+		FailureReason: failureReason, LastCheckedAt: item.LastCheckedAt,
+		LastSucceededAt: item.LastSucceededAt, LastChangedAt: item.LastChangedAt,
+	}
+}
+
+func addressEventResponse(item nodes.AddressEvent) api.AgentAddressEvent {
+	var failureReason *api.AddressFailureReason
+	if item.FailureReason != nil {
+		value := api.AddressFailureReason(*item.FailureReason)
+		failureReason = &value
+	}
+	return api.AgentAddressEvent{
+		Id: item.ID, EgressId: item.EgressID, HistoryGeneration: item.HistoryGeneration,
+		Sequence: item.Sequence, Kind: api.AddressEventKind(item.Kind), Family: api.AddressFamily(item.Family),
+		PreviousAddress: item.PreviousAddress, PublicAddress: item.PublicAddress,
+		LocalInterface: item.LocalInterface, LocalAddress: item.LocalAddress,
+		ProxyPath: item.ProxyPath, LikelyNat: item.LikelyNAT, Temporary: item.Temporary,
+		FailureReason: failureReason, ObservedAt: item.ObservedAt,
+	}
+}
+
+func addressGapResponse(item nodes.AddressGap) api.AgentAddressGap {
+	return api.AgentAddressGap{
+		Id: item.ID, EgressId: item.EgressID, HistoryGeneration: item.HistoryGeneration,
+		DroppedCount: item.DroppedCount, FirstSequence: item.FirstSequence, LastSequence: item.LastSequence,
+		FirstObservedAt: item.FirstObservedAt, LastObservedAt: item.LastObservedAt,
+	}
+}
+
+func networkObservationSettingsResponse(settings nodes.DiscoveryServices) api.NetworkObservationSettings {
+	return api.NetworkObservationSettings{
+		Ipv4Services: settings.IPv4, Ipv6Services: settings.IPv6, UpdatedAt: settings.UpdatedAt,
+	}
+}
+
 func egressResponse(egress nodes.NetworkEgress) api.NetworkEgress {
+	var deletionStatus *api.EgressDeletionStatus
+	if egress.DeletionStatus != nil {
+		value := api.EgressDeletionStatus(*egress.DeletionStatus)
+		deletionStatus = &value
+	}
 	return api.NetworkEgress{
 		Id: egress.ID, NodeId: egress.NodeID, Name: egress.Name,
 		Kind: api.NetworkEgressKind(egress.Kind), Family: api.AddressFamily(egress.Family),
@@ -1021,6 +1209,16 @@ func egressResponse(egress nodes.NetworkEgress) api.NetworkEgress {
 		Enabled: egress.Enabled, Available: egress.Available, Automatic: egress.Automatic,
 		LightweightIntervalSeconds: egress.LightweightIntervalSeconds,
 		ProbeOnAddressChange:       egress.ProbeOnAddressChange,
+		DeletionStatus:             deletionStatus,
+		DeletionError:              egress.DeletionError,
+	}
+}
+
+func egressDeletionResponse(deletion nodes.EgressDeletion) api.EgressDeletion {
+	return api.EgressDeletion{
+		EgressId: deletion.EgressID, NodeId: deletion.NodeID,
+		Status:      api.EgressDeletionStatus(deletion.Status),
+		RequestedAt: deletion.RequestedAt, Error: deletion.Error,
 	}
 }
 

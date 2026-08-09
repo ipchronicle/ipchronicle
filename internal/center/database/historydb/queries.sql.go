@@ -9,6 +9,61 @@ import (
 	"context"
 )
 
+const createAddressEvent = `-- name: CreateAddressEvent :execrows
+INSERT INTO address_events (
+    id, egress_id, node_id, history_generation, sequence, kind, family,
+    previous_address, public_address, local_interface, local_address,
+    proxy_path, likely_nat, temporary, failure_reason, observed_at, received_at
+) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+ON CONFLICT (id) DO NOTHING
+`
+
+type CreateAddressEventParams struct {
+	ID                string
+	EgressID          string
+	NodeID            string
+	HistoryGeneration string
+	Sequence          int64
+	Kind              string
+	Family            string
+	PreviousAddress   *string
+	PublicAddress     *string
+	LocalInterface    *string
+	LocalAddress      *string
+	ProxyPath         int64
+	LikelyNat         int64
+	Temporary         int64
+	FailureReason     *string
+	ObservedAt        int64
+	ReceivedAt        int64
+}
+
+func (q *Queries) CreateAddressEvent(ctx context.Context, arg CreateAddressEventParams) (int64, error) {
+	result, err := q.db.ExecContext(ctx, createAddressEvent,
+		arg.ID,
+		arg.EgressID,
+		arg.NodeID,
+		arg.HistoryGeneration,
+		arg.Sequence,
+		arg.Kind,
+		arg.Family,
+		arg.PreviousAddress,
+		arg.PublicAddress,
+		arg.LocalInterface,
+		arg.LocalAddress,
+		arg.ProxyPath,
+		arg.LikelyNat,
+		arg.Temporary,
+		arg.FailureReason,
+		arg.ObservedAt,
+		arg.ReceivedAt,
+	)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected()
+}
+
 const createHistoryMetadata = `-- name: CreateHistoryMetadata :exec
 INSERT INTO history_metadata (id, generation, created_at)
 VALUES (1, ?, ?)
@@ -24,6 +79,134 @@ func (q *Queries) CreateHistoryMetadata(ctx context.Context, arg CreateHistoryMe
 	return err
 }
 
+const deleteEgressAddressEvents = `-- name: DeleteEgressAddressEvents :exec
+DELETE FROM address_events WHERE egress_id = ?
+`
+
+func (q *Queries) DeleteEgressAddressEvents(ctx context.Context, egressID string) error {
+	_, err := q.db.ExecContext(ctx, deleteEgressAddressEvents, egressID)
+	return err
+}
+
+const deleteEgressAddressGaps = `-- name: DeleteEgressAddressGaps :exec
+DELETE FROM history_gaps WHERE egress_id = ?
+`
+
+func (q *Queries) DeleteEgressAddressGaps(ctx context.Context, egressID string) error {
+	_, err := q.db.ExecContext(ctx, deleteEgressAddressGaps, egressID)
+	return err
+}
+
+const deleteEgressAddressStates = `-- name: DeleteEgressAddressStates :exec
+DELETE FROM address_states WHERE egress_id = ?
+`
+
+func (q *Queries) DeleteEgressAddressStates(ctx context.Context, egressID string) error {
+	_, err := q.db.ExecContext(ctx, deleteEgressAddressStates, egressID)
+	return err
+}
+
+const deleteNodeAddressEvents = `-- name: DeleteNodeAddressEvents :exec
+DELETE FROM address_events WHERE node_id = ?
+`
+
+func (q *Queries) DeleteNodeAddressEvents(ctx context.Context, nodeID string) error {
+	_, err := q.db.ExecContext(ctx, deleteNodeAddressEvents, nodeID)
+	return err
+}
+
+const deleteNodeAddressGaps = `-- name: DeleteNodeAddressGaps :exec
+DELETE FROM history_gaps WHERE node_id = ?
+`
+
+func (q *Queries) DeleteNodeAddressGaps(ctx context.Context, nodeID string) error {
+	_, err := q.db.ExecContext(ctx, deleteNodeAddressGaps, nodeID)
+	return err
+}
+
+const deleteNodeAddressStates = `-- name: DeleteNodeAddressStates :exec
+DELETE FROM address_states WHERE node_id = ?
+`
+
+func (q *Queries) DeleteNodeAddressStates(ctx context.Context, nodeID string) error {
+	_, err := q.db.ExecContext(ctx, deleteNodeAddressStates, nodeID)
+	return err
+}
+
+const getAddressEvent = `-- name: GetAddressEvent :one
+SELECT id, egress_id, node_id, history_generation, sequence, kind, family,
+       previous_address, public_address, local_interface, local_address,
+       proxy_path, likely_nat, temporary, failure_reason, observed_at,
+       received_at
+FROM address_events
+WHERE id = ?
+`
+
+func (q *Queries) GetAddressEvent(ctx context.Context, id string) (AddressEvent, error) {
+	row := q.db.QueryRowContext(ctx, getAddressEvent, id)
+	var i AddressEvent
+	err := row.Scan(
+		&i.ID,
+		&i.EgressID,
+		&i.NodeID,
+		&i.HistoryGeneration,
+		&i.Sequence,
+		&i.Kind,
+		&i.Family,
+		&i.PreviousAddress,
+		&i.PublicAddress,
+		&i.LocalInterface,
+		&i.LocalAddress,
+		&i.ProxyPath,
+		&i.LikelyNat,
+		&i.Temporary,
+		&i.FailureReason,
+		&i.ObservedAt,
+		&i.ReceivedAt,
+	)
+	return i, err
+}
+
+const getAddressEventBySequence = `-- name: GetAddressEventBySequence :one
+SELECT id, egress_id, node_id, history_generation, sequence, kind, family,
+       previous_address, public_address, local_interface, local_address,
+       proxy_path, likely_nat, temporary, failure_reason, observed_at,
+       received_at
+FROM address_events
+WHERE egress_id = ? AND history_generation = ? AND sequence = ?
+`
+
+type GetAddressEventBySequenceParams struct {
+	EgressID          string
+	HistoryGeneration string
+	Sequence          int64
+}
+
+func (q *Queries) GetAddressEventBySequence(ctx context.Context, arg GetAddressEventBySequenceParams) (AddressEvent, error) {
+	row := q.db.QueryRowContext(ctx, getAddressEventBySequence, arg.EgressID, arg.HistoryGeneration, arg.Sequence)
+	var i AddressEvent
+	err := row.Scan(
+		&i.ID,
+		&i.EgressID,
+		&i.NodeID,
+		&i.HistoryGeneration,
+		&i.Sequence,
+		&i.Kind,
+		&i.Family,
+		&i.PreviousAddress,
+		&i.PublicAddress,
+		&i.LocalInterface,
+		&i.LocalAddress,
+		&i.ProxyPath,
+		&i.LikelyNat,
+		&i.Temporary,
+		&i.FailureReason,
+		&i.ObservedAt,
+		&i.ReceivedAt,
+	)
+	return i, err
+}
+
 const getHistoryMetadata = `-- name: GetHistoryMetadata :one
 SELECT id, generation, created_at
 FROM history_metadata
@@ -35,4 +218,287 @@ func (q *Queries) GetHistoryMetadata(ctx context.Context) (HistoryMetadatum, err
 	var i HistoryMetadatum
 	err := row.Scan(&i.ID, &i.Generation, &i.CreatedAt)
 	return i, err
+}
+
+const listNodeAddressEvents = `-- name: ListNodeAddressEvents :many
+SELECT id, egress_id, node_id, history_generation, sequence, kind, family,
+       previous_address, public_address, local_interface, local_address,
+       proxy_path, likely_nat, temporary, failure_reason, observed_at,
+       received_at
+FROM address_events
+WHERE node_id = ?
+ORDER BY observed_at DESC, sequence DESC, id
+LIMIT ?
+`
+
+type ListNodeAddressEventsParams struct {
+	NodeID string
+	Limit  int64
+}
+
+func (q *Queries) ListNodeAddressEvents(ctx context.Context, arg ListNodeAddressEventsParams) ([]AddressEvent, error) {
+	rows, err := q.db.QueryContext(ctx, listNodeAddressEvents, arg.NodeID, arg.Limit)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []AddressEvent{}
+	for rows.Next() {
+		var i AddressEvent
+		if err := rows.Scan(
+			&i.ID,
+			&i.EgressID,
+			&i.NodeID,
+			&i.HistoryGeneration,
+			&i.Sequence,
+			&i.Kind,
+			&i.Family,
+			&i.PreviousAddress,
+			&i.PublicAddress,
+			&i.LocalInterface,
+			&i.LocalAddress,
+			&i.ProxyPath,
+			&i.LikelyNat,
+			&i.Temporary,
+			&i.FailureReason,
+			&i.ObservedAt,
+			&i.ReceivedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listNodeAddressGaps = `-- name: ListNodeAddressGaps :many
+SELECT id, egress_id, node_id, history_generation, kind, dropped_count,
+       first_sequence, last_sequence, first_observed_at, last_observed_at,
+       received_at
+FROM history_gaps
+WHERE node_id = ?
+ORDER BY last_observed_at DESC, id
+LIMIT ?
+`
+
+type ListNodeAddressGapsParams struct {
+	NodeID string
+	Limit  int64
+}
+
+func (q *Queries) ListNodeAddressGaps(ctx context.Context, arg ListNodeAddressGapsParams) ([]HistoryGap, error) {
+	rows, err := q.db.QueryContext(ctx, listNodeAddressGaps, arg.NodeID, arg.Limit)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []HistoryGap{}
+	for rows.Next() {
+		var i HistoryGap
+		if err := rows.Scan(
+			&i.ID,
+			&i.EgressID,
+			&i.NodeID,
+			&i.HistoryGeneration,
+			&i.Kind,
+			&i.DroppedCount,
+			&i.FirstSequence,
+			&i.LastSequence,
+			&i.FirstObservedAt,
+			&i.LastObservedAt,
+			&i.ReceivedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listNodeAddressStates = `-- name: ListNodeAddressStates :many
+SELECT egress_id, node_id, history_generation, family, status, sequence,
+       public_address, local_interface, local_address, proxy_path, likely_nat,
+       temporary, failure_reason, last_checked_at, last_succeeded_at,
+       last_changed_at, received_at
+FROM address_states
+WHERE node_id = ?
+ORDER BY egress_id
+`
+
+func (q *Queries) ListNodeAddressStates(ctx context.Context, nodeID string) ([]AddressState, error) {
+	rows, err := q.db.QueryContext(ctx, listNodeAddressStates, nodeID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []AddressState{}
+	for rows.Next() {
+		var i AddressState
+		if err := rows.Scan(
+			&i.EgressID,
+			&i.NodeID,
+			&i.HistoryGeneration,
+			&i.Family,
+			&i.Status,
+			&i.Sequence,
+			&i.PublicAddress,
+			&i.LocalInterface,
+			&i.LocalAddress,
+			&i.ProxyPath,
+			&i.LikelyNat,
+			&i.Temporary,
+			&i.FailureReason,
+			&i.LastCheckedAt,
+			&i.LastSucceededAt,
+			&i.LastChangedAt,
+			&i.ReceivedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const upsertAddressGap = `-- name: UpsertAddressGap :execrows
+INSERT INTO history_gaps (
+    id, egress_id, node_id, history_generation, kind, dropped_count,
+    first_sequence, last_sequence, first_observed_at, last_observed_at,
+    received_at
+) VALUES (?, ?, ?, ?, 'address', ?, ?, ?, ?, ?, ?)
+ON CONFLICT (id) DO UPDATE SET
+    dropped_count = MAX(history_gaps.dropped_count, excluded.dropped_count),
+    last_sequence = MAX(history_gaps.last_sequence, excluded.last_sequence),
+    last_observed_at = MAX(history_gaps.last_observed_at, excluded.last_observed_at),
+    received_at = excluded.received_at
+WHERE history_gaps.egress_id = excluded.egress_id
+  AND history_gaps.node_id = excluded.node_id
+  AND history_gaps.history_generation = excluded.history_generation
+  AND history_gaps.first_sequence = excluded.first_sequence
+  AND history_gaps.first_observed_at = excluded.first_observed_at
+`
+
+type UpsertAddressGapParams struct {
+	ID                string
+	EgressID          string
+	NodeID            string
+	HistoryGeneration string
+	DroppedCount      int64
+	FirstSequence     int64
+	LastSequence      int64
+	FirstObservedAt   int64
+	LastObservedAt    int64
+	ReceivedAt        int64
+}
+
+func (q *Queries) UpsertAddressGap(ctx context.Context, arg UpsertAddressGapParams) (int64, error) {
+	result, err := q.db.ExecContext(ctx, upsertAddressGap,
+		arg.ID,
+		arg.EgressID,
+		arg.NodeID,
+		arg.HistoryGeneration,
+		arg.DroppedCount,
+		arg.FirstSequence,
+		arg.LastSequence,
+		arg.FirstObservedAt,
+		arg.LastObservedAt,
+		arg.ReceivedAt,
+	)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected()
+}
+
+const upsertAddressState = `-- name: UpsertAddressState :exec
+INSERT INTO address_states (
+    egress_id, node_id, history_generation, family, status, sequence,
+    public_address, local_interface, local_address, proxy_path, likely_nat,
+    temporary, failure_reason, last_checked_at, last_succeeded_at,
+    last_changed_at, received_at
+) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+ON CONFLICT (egress_id) DO UPDATE SET
+    node_id = excluded.node_id,
+    history_generation = excluded.history_generation,
+    family = excluded.family,
+    status = excluded.status,
+    sequence = excluded.sequence,
+    public_address = excluded.public_address,
+    local_interface = excluded.local_interface,
+    local_address = excluded.local_address,
+    proxy_path = excluded.proxy_path,
+    likely_nat = excluded.likely_nat,
+    temporary = excluded.temporary,
+    failure_reason = excluded.failure_reason,
+    last_checked_at = excluded.last_checked_at,
+    last_succeeded_at = excluded.last_succeeded_at,
+    last_changed_at = excluded.last_changed_at,
+    received_at = excluded.received_at
+WHERE excluded.history_generation != address_states.history_generation
+   OR excluded.sequence > address_states.sequence
+   OR (
+       excluded.sequence = address_states.sequence AND
+       excluded.last_checked_at >= address_states.last_checked_at
+   )
+`
+
+type UpsertAddressStateParams struct {
+	EgressID          string
+	NodeID            string
+	HistoryGeneration string
+	Family            string
+	Status            string
+	Sequence          int64
+	PublicAddress     *string
+	LocalInterface    *string
+	LocalAddress      *string
+	ProxyPath         int64
+	LikelyNat         int64
+	Temporary         int64
+	FailureReason     *string
+	LastCheckedAt     int64
+	LastSucceededAt   *int64
+	LastChangedAt     *int64
+	ReceivedAt        int64
+}
+
+func (q *Queries) UpsertAddressState(ctx context.Context, arg UpsertAddressStateParams) error {
+	_, err := q.db.ExecContext(ctx, upsertAddressState,
+		arg.EgressID,
+		arg.NodeID,
+		arg.HistoryGeneration,
+		arg.Family,
+		arg.Status,
+		arg.Sequence,
+		arg.PublicAddress,
+		arg.LocalInterface,
+		arg.LocalAddress,
+		arg.ProxyPath,
+		arg.LikelyNat,
+		arg.Temporary,
+		arg.FailureReason,
+		arg.LastCheckedAt,
+		arg.LastSucceededAt,
+		arg.LastChangedAt,
+		arg.ReceivedAt,
+	)
+	return err
 }

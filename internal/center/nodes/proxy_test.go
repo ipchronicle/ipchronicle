@@ -77,7 +77,7 @@ func TestNetworkProxyCredentialsAndReferencedConfiguration(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if configuration.SchemaVersion != 3 || configuration.Revision != 2 || len(configuration.Egresses) != 1 || len(configuration.Proxies) != 1 {
+	if configuration.SchemaVersion != 4 || configuration.Revision != 2 || len(configuration.Egresses) != 1 || len(configuration.Proxies) != 1 || len(configuration.DiscoveryServices.IPv4) < 2 {
 		t.Fatalf("referenced proxy configuration = %#v", configuration)
 	}
 	if configuration.Proxies[0].ID != proxy.ID || configuration.Proxies[0].Password == nil || *configuration.Proxies[0].Password != password {
@@ -115,7 +115,10 @@ func TestNetworkProxyCredentialsAndReferencedConfiguration(t *testing.T) {
 	if err := service.DeleteNetworkProxy(ctx, proxy.ID); !errors.Is(err, ErrNetworkProxyInUse) {
 		t.Fatalf("delete referenced proxy error = %v", err)
 	}
-	if err := service.DeleteEgress(ctx, registration.NodeID, egress.ID); err != nil {
+	if _, err := service.DeleteEgress(ctx, registration.NodeID, egress.ID); err != nil {
+		t.Fatal(err)
+	}
+	if err := service.processDeletions(ctx, 1); err != nil {
 		t.Fatal(err)
 	}
 	if err := service.DeleteNetworkProxy(ctx, proxy.ID); err != nil {

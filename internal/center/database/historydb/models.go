@@ -4,6 +4,60 @@
 
 package historydb
 
+type AddressEvent struct {
+	ID                string
+	EgressID          string
+	NodeID            string
+	HistoryGeneration string
+	Sequence          int64
+	Kind              string
+	Family            string
+	PreviousAddress   *string
+	PublicAddress     *string
+	LocalInterface    *string
+	LocalAddress      *string
+	ProxyPath         int64
+	LikelyNat         int64
+	Temporary         int64
+	FailureReason     *string
+	ObservedAt        int64
+	ReceivedAt        int64
+}
+
+type AddressState struct {
+	EgressID          string
+	NodeID            string
+	HistoryGeneration string
+	Family            string
+	Status            string
+	Sequence          int64
+	PublicAddress     *string
+	LocalInterface    *string
+	LocalAddress      *string
+	ProxyPath         int64
+	LikelyNat         int64
+	Temporary         int64
+	FailureReason     *string
+	LastCheckedAt     int64
+	LastSucceededAt   *int64
+	LastChangedAt     *int64
+	ReceivedAt        int64
+}
+
+type HistoryGap struct {
+	ID                string
+	EgressID          string
+	NodeID            string
+	HistoryGeneration string
+	Kind              string
+	DroppedCount      int64
+	FirstSequence     int64
+	LastSequence      int64
+	FirstObservedAt   int64
+	LastObservedAt    int64
+	ReceivedAt        int64
+}
+
 type HistoryMetadatum struct {
 	ID         int64
 	Generation string

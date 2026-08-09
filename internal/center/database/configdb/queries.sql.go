@@ -9,6 +9,23 @@ import (
 	"context"
 )
 
+const completeEgressDeletion = `-- name: CompleteEgressDeletion :exec
+UPDATE egress_deletion_operations
+SET status = 'completed', updated_at = ?, last_error = NULL
+WHERE egress_id = ? AND node_id = ?
+`
+
+type CompleteEgressDeletionParams struct {
+	UpdatedAt int64
+	EgressID  string
+	NodeID    string
+}
+
+func (q *Queries) CompleteEgressDeletion(ctx context.Context, arg CompleteEgressDeletionParams) error {
+	_, err := q.db.ExecContext(ctx, completeEgressDeletion, arg.UpdatedAt, arg.EgressID, arg.NodeID)
+	return err
+}
+
 const completeNodeDeletion = `-- name: CompleteNodeDeletion :exec
 UPDATE node_deletion_operations
 SET status = 'completed', updated_at = ?, last_error = NULL
@@ -96,6 +113,36 @@ func (q *Queries) CreateAdministratorSession(ctx context.Context, arg CreateAdmi
 		arg.ExpiresAt,
 		arg.ClientAddress,
 		arg.UserAgent,
+	)
+	return err
+}
+
+const createEgressDeletion = `-- name: CreateEgressDeletion :exec
+INSERT INTO egress_deletion_operations (
+    egress_id, node_id, status, requested_at, updated_at
+) VALUES (?, ?, 'pending', ?, ?)
+ON CONFLICT (egress_id) DO UPDATE SET
+    status = CASE
+        WHEN egress_deletion_operations.status = 'completed' THEN 'completed'
+        ELSE 'pending'
+    END,
+    updated_at = excluded.updated_at,
+    last_error = NULL
+`
+
+type CreateEgressDeletionParams struct {
+	EgressID    string
+	NodeID      string
+	RequestedAt int64
+	UpdatedAt   int64
+}
+
+func (q *Queries) CreateEgressDeletion(ctx context.Context, arg CreateEgressDeletionParams) error {
+	_, err := q.db.ExecContext(ctx, createEgressDeletion,
+		arg.EgressID,
+		arg.NodeID,
+		arg.RequestedAt,
+		arg.UpdatedAt,
 	)
 	return err
 }
@@ -346,6 +393,16 @@ func (q *Queries) DeleteNodeEgress(ctx context.Context, arg DeleteNodeEgressPara
 	return result.RowsAffected()
 }
 
+const deleteNodeEgressDeletionOperations = `-- name: DeleteNodeEgressDeletionOperations :exec
+DELETE FROM egress_deletion_operations
+WHERE node_id = ?
+`
+
+func (q *Queries) DeleteNodeEgressDeletionOperations(ctx context.Context, nodeID string) error {
+	_, err := q.db.ExecContext(ctx, deleteNodeEgressDeletionOperations, nodeID)
+	return err
+}
+
 const deleteNodeSyncSession = `-- name: DeleteNodeSyncSession :exec
 DELETE FROM node_sync_sessions
 WHERE node_id = ?
@@ -376,6 +433,29 @@ WHERE id = 1 AND totp_secret_encrypted IS NOT NULL
 
 func (q *Queries) EnableTOTP(ctx context.Context, totpLastUsedStep int64) error {
 	_, err := q.db.ExecContext(ctx, enableTOTP, totpLastUsedStep)
+	return err
+}
+
+const failEgressDeletion = `-- name: FailEgressDeletion :exec
+UPDATE egress_deletion_operations
+SET status = 'failed', updated_at = ?, last_error = ?
+WHERE egress_id = ? AND node_id = ? AND status != 'completed'
+`
+
+type FailEgressDeletionParams struct {
+	UpdatedAt int64
+	LastError *string
+	EgressID  string
+	NodeID    string
+}
+
+func (q *Queries) FailEgressDeletion(ctx context.Context, arg FailEgressDeletionParams) error {
+	_, err := q.db.ExecContext(ctx, failEgressDeletion,
+		arg.UpdatedAt,
+		arg.LastError,
+		arg.EgressID,
+		arg.NodeID,
+	)
 	return err
 }
 
@@ -572,6 +652,49 @@ func (q *Queries) GetDefaultNodeEgress(ctx context.Context, arg GetDefaultNodeEg
 		&i.LightweightIntervalSeconds,
 		&i.ProbeOnAddressChange,
 		&i.CreatedAt,
+		&i.UpdatedAt,
+	)
+	return i, err
+}
+
+const getEgressDeletion = `-- name: GetEgressDeletion :one
+SELECT egress_id, node_id, status, requested_at, updated_at, last_error
+FROM egress_deletion_operations
+WHERE egress_id = ? AND node_id = ?
+`
+
+type GetEgressDeletionParams struct {
+	EgressID string
+	NodeID   string
+}
+
+func (q *Queries) GetEgressDeletion(ctx context.Context, arg GetEgressDeletionParams) (EgressDeletionOperation, error) {
+	row := q.db.QueryRowContext(ctx, getEgressDeletion, arg.EgressID, arg.NodeID)
+	var i EgressDeletionOperation
+	err := row.Scan(
+		&i.EgressID,
+		&i.NodeID,
+		&i.Status,
+		&i.RequestedAt,
+		&i.UpdatedAt,
+		&i.LastError,
+	)
+	return i, err
+}
+
+const getNetworkObservationSettings = `-- name: GetNetworkObservationSettings :one
+SELECT id, ipv4_services, ipv6_services, updated_at
+FROM network_observation_settings
+WHERE id = 1
+`
+
+func (q *Queries) GetNetworkObservationSettings(ctx context.Context) (NetworkObservationSetting, error) {
+	row := q.db.QueryRowContext(ctx, getNetworkObservationSettings)
+	var i NetworkObservationSetting
+	err := row.Scan(
+		&i.ID,
+		&i.Ipv4Services,
+		&i.Ipv6Services,
 		&i.UpdatedAt,
 	)
 	return i, err
@@ -925,6 +1048,44 @@ func (q *Queries) IncrementNodeDesiredConfigurationRevision(ctx context.Context,
 	return result.RowsAffected()
 }
 
+const listActiveEgressDeletions = `-- name: ListActiveEgressDeletions :many
+SELECT egress_id, node_id, status, requested_at, updated_at, last_error
+FROM egress_deletion_operations
+WHERE status IN ('pending', 'failed')
+ORDER BY requested_at, egress_id
+LIMIT ?
+`
+
+func (q *Queries) ListActiveEgressDeletions(ctx context.Context, limit int64) ([]EgressDeletionOperation, error) {
+	rows, err := q.db.QueryContext(ctx, listActiveEgressDeletions, limit)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []EgressDeletionOperation{}
+	for rows.Next() {
+		var i EgressDeletionOperation
+		if err := rows.Scan(
+			&i.EgressID,
+			&i.NodeID,
+			&i.Status,
+			&i.RequestedAt,
+			&i.UpdatedAt,
+			&i.LastError,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const listActiveNodeDeletions = `-- name: ListActiveNodeDeletions :many
 SELECT node_id, credential_digest, status, requested_at, updated_at, last_error
 FROM node_deletion_operations
@@ -949,6 +1110,97 @@ func (q *Queries) ListActiveNodeDeletions(ctx context.Context, limit int64) ([]N
 			&i.RequestedAt,
 			&i.UpdatedAt,
 			&i.LastError,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listActiveNodeEgressDeletions = `-- name: ListActiveNodeEgressDeletions :many
+SELECT egress_id, node_id, status, requested_at, updated_at, last_error
+FROM egress_deletion_operations
+WHERE node_id = ? AND status IN ('pending', 'failed')
+ORDER BY requested_at, egress_id
+`
+
+func (q *Queries) ListActiveNodeEgressDeletions(ctx context.Context, nodeID string) ([]EgressDeletionOperation, error) {
+	rows, err := q.db.QueryContext(ctx, listActiveNodeEgressDeletions, nodeID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []EgressDeletionOperation{}
+	for rows.Next() {
+		var i EgressDeletionOperation
+		if err := rows.Scan(
+			&i.EgressID,
+			&i.NodeID,
+			&i.Status,
+			&i.RequestedAt,
+			&i.UpdatedAt,
+			&i.LastError,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listActiveNodeEgresses = `-- name: ListActiveNodeEgresses :many
+SELECT e.id, e.node_id, e.name, e.kind, e.family, e.interface_name,
+       e.source_address, e.proxy_id, e.enabled, e.available, e.automatic,
+       e.lightweight_interval_seconds, e.probe_on_address_change,
+       e.created_at, e.updated_at
+FROM network_egresses e
+WHERE e.node_id = ?
+  AND NOT EXISTS (
+      SELECT 1
+      FROM egress_deletion_operations d
+      WHERE d.egress_id = e.id AND d.status IN ('pending', 'failed')
+  )
+ORDER BY e.family, e.kind, e.created_at, e.id
+`
+
+func (q *Queries) ListActiveNodeEgresses(ctx context.Context, nodeID string) ([]NetworkEgress, error) {
+	rows, err := q.db.QueryContext(ctx, listActiveNodeEgresses, nodeID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []NetworkEgress{}
+	for rows.Next() {
+		var i NetworkEgress
+		if err := rows.Scan(
+			&i.ID,
+			&i.NodeID,
+			&i.Name,
+			&i.Kind,
+			&i.Family,
+			&i.InterfaceName,
+			&i.SourceAddress,
+			&i.ProxyID,
+			&i.Enabled,
+			&i.Available,
+			&i.Automatic,
+			&i.LightweightIntervalSeconds,
+			&i.ProbeOnAddressChange,
+			&i.CreatedAt,
+			&i.UpdatedAt,
 		); err != nil {
 			return nil, err
 		}
@@ -1115,6 +1367,11 @@ SELECT DISTINCT p.id, p.name, p.scheme, p.host, p.port, p.username,
 FROM network_proxies p
 JOIN network_egresses e ON e.proxy_id = p.id
 WHERE e.node_id = ?
+  AND NOT EXISTS (
+      SELECT 1
+      FROM egress_deletion_operations d
+      WHERE d.egress_id = e.id AND d.status IN ('pending', 'failed')
+  )
 ORDER BY p.name COLLATE NOCASE, p.id
 `
 
@@ -1311,6 +1568,23 @@ WHERE id = 1
 
 func (q *Queries) RehashAdministratorPassword(ctx context.Context, passwordHash string) error {
 	_, err := q.db.ExecContext(ctx, rehashAdministratorPassword, passwordHash)
+	return err
+}
+
+const retryEgressDeletion = `-- name: RetryEgressDeletion :exec
+UPDATE egress_deletion_operations
+SET status = 'pending', updated_at = ?, last_error = NULL
+WHERE egress_id = ? AND node_id = ? AND status = 'failed'
+`
+
+type RetryEgressDeletionParams struct {
+	UpdatedAt int64
+	EgressID  string
+	NodeID    string
+}
+
+func (q *Queries) RetryEgressDeletion(ctx context.Context, arg RetryEgressDeletionParams) error {
+	_, err := q.db.ExecContext(ctx, retryEgressDeletion, arg.UpdatedAt, arg.EgressID, arg.NodeID)
 	return err
 }
 
@@ -1517,6 +1791,23 @@ func (q *Queries) UpdateAdministratorUsername(ctx context.Context, arg UpdateAdm
 	return err
 }
 
+const updateNetworkObservationSettings = `-- name: UpdateNetworkObservationSettings :exec
+UPDATE network_observation_settings
+SET ipv4_services = ?, ipv6_services = ?, updated_at = ?
+WHERE id = 1
+`
+
+type UpdateNetworkObservationSettingsParams struct {
+	Ipv4Services string
+	Ipv6Services string
+	UpdatedAt    int64
+}
+
+func (q *Queries) UpdateNetworkObservationSettings(ctx context.Context, arg UpdateNetworkObservationSettingsParams) error {
+	_, err := q.db.ExecContext(ctx, updateNetworkObservationSettings, arg.Ipv4Services, arg.Ipv6Services, arg.UpdatedAt)
+	return err
+}
+
 const updateNetworkProxy = `-- name: UpdateNetworkProxy :execrows
 UPDATE network_proxies
 SET name = ?, scheme = ?, host = ?, port = ?, username = ?,
@@ -1545,6 +1836,47 @@ func (q *Queries) UpdateNetworkProxy(ctx context.Context, arg UpdateNetworkProxy
 		arg.PasswordEncrypted,
 		arg.UpdatedAt,
 		arg.ID,
+	)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected()
+}
+
+const updateNodeEgressSettings = `-- name: UpdateNodeEgressSettings :execrows
+UPDATE network_egresses
+SET enabled = ?, lightweight_interval_seconds = ?,
+    probe_on_address_change = ?, updated_at = ?
+WHERE id = ? AND node_id = ?
+  AND (
+      enabled != ? OR lightweight_interval_seconds != ? OR
+      probe_on_address_change != ?
+  )
+`
+
+type UpdateNodeEgressSettingsParams struct {
+	Enabled                      int64
+	LightweightIntervalSeconds   int64
+	ProbeOnAddressChange         int64
+	UpdatedAt                    int64
+	ID                           string
+	NodeID                       string
+	Enabled_2                    int64
+	LightweightIntervalSeconds_2 int64
+	ProbeOnAddressChange_2       int64
+}
+
+func (q *Queries) UpdateNodeEgressSettings(ctx context.Context, arg UpdateNodeEgressSettingsParams) (int64, error) {
+	result, err := q.db.ExecContext(ctx, updateNodeEgressSettings,
+		arg.Enabled,
+		arg.LightweightIntervalSeconds,
+		arg.ProbeOnAddressChange,
+		arg.UpdatedAt,
+		arg.ID,
+		arg.NodeID,
+		arg.Enabled_2,
+		arg.LightweightIntervalSeconds_2,
+		arg.ProbeOnAddressChange_2,
 	)
 	if err != nil {
 		return 0, err

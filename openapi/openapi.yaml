@@ -482,8 +482,12 @@ paths:
       parameters:
         - $ref: "#/components/parameters/CSRFToken"
       responses:
-        "204":
-          description: The egress was permanently deleted.
+        "202":
+          description: Durable egress deletion has been queued.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/EgressDeletion"
         "401":
           $ref: "#/components/responses/Unauthorized"
         "403":
@@ -492,6 +496,45 @@ paths:
           $ref: "#/components/responses/NotFound"
         "409":
           $ref: "#/components/responses/Conflict"
+  /api/v1/network-observation-settings:
+    get:
+      operationId: getNetworkObservationSettings
+      summary: Read global lightweight address discovery services
+      tags: [network]
+      responses:
+        "200":
+          description: Current lightweight address discovery settings.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/NetworkObservationSettings"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+    put:
+      operationId: updateNetworkObservationSettings
+      summary: Replace global lightweight address discovery services
+      tags: [network]
+      parameters:
+        - $ref: "#/components/parameters/CSRFToken"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/NetworkObservationSettingsUpdate"
+      responses:
+        "200":
+          description: Lightweight address discovery settings were updated.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/NetworkObservationSettings"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
   /api/v1/network-proxies:
     get:
       operationId: listNetworkProxies
@@ -944,11 +987,13 @@ components:
         - egress_already_exists
         - egress_limit_reached
         - egress_not_found
+        - egress_deletion_pending
         - invalid_network_proxy
         - network_proxy_not_found
         - network_proxy_already_exists
         - network_proxy_limit_reached
         - network_proxy_in_use
+        - invalid_observation_settings
         - internal_error
     ErrorResponse:
       type: object
@@ -1106,6 +1151,21 @@ components:
           type: string
           minLength: 1
           maxLength: 1024
+        addressStates:
+          type: array
+          maxItems: 64
+          items:
+            $ref: "#/components/schemas/AgentAddressState"
+        addressEvents:
+          type: array
+          maxItems: 64
+          items:
+            $ref: "#/components/schemas/AgentAddressEvent"
+        addressGaps:
+          type: array
+          maxItems: 64
+          items:
+            $ref: "#/components/schemas/AgentAddressGap"
     AgentPollResult:
       type: object
       additionalProperties: false
@@ -1114,6 +1174,7 @@ components:
         - desiredConfigurationRevision
         - enabled
         - pollIntervalSeconds
+        - addressUploadReceipt
       properties:
         centerVersion:
           type: string
@@ -1130,6 +1191,8 @@ components:
           maximum: 3600
         syncSession:
           $ref: "#/components/schemas/AgentSyncSession"
+        addressUploadReceipt:
+          $ref: "#/components/schemas/AgentAddressUploadReceipt"
     AgentSyncSession:
       type: object
       additionalProperties: false
@@ -1147,11 +1210,11 @@ components:
     AgentConfigurationSnapshot:
       type: object
       additionalProperties: false
-      required: [schemaVersion, revision, enabled, historyGeneration, egresses, proxies]
+      required: [schemaVersion, revision, enabled, historyGeneration, discoveryServices, egresses, proxies]
       properties:
         schemaVersion:
           type: integer
-          enum: [3]
+          enum: [4]
         revision:
           type: integer
           format: int64
@@ -1161,6 +1224,8 @@ components:
         historyGeneration:
           type: string
           pattern: "^[0-9a-f]{64}$"
+        discoveryServices:
+          $ref: "#/components/schemas/NetworkObservationSettingsUpdate"
         egresses:
           type: array
           maxItems: 64
@@ -1313,8 +1378,38 @@ components:
           type: integer
           format: int64
           minimum: 1
+          maximum: 9223372036
         probeOnAddressChange:
           type: boolean
+        deletionStatus:
+          $ref: "#/components/schemas/EgressDeletionStatus"
+        deletionError:
+          type: string
+          minLength: 1
+          maxLength: 1024
+    EgressDeletionStatus:
+      type: string
+      enum: [pending, failed]
+    EgressDeletion:
+      type: object
+      additionalProperties: false
+      required: [egressId, nodeId, status, requestedAt]
+      properties:
+        egressId:
+          type: string
+          format: uuid
+        nodeId:
+          type: string
+          format: uuid
+        status:
+          $ref: "#/components/schemas/EgressDeletionStatus"
+        requestedAt:
+          type: string
+          format: date-time
+        error:
+          type: string
+          minLength: 1
+          maxLength: 1024
     NetworkEgressCandidate:
       type: object
       additionalProperties: false
@@ -1348,7 +1443,7 @@ components:
     NodeNetworkState:
       type: object
       additionalProperties: false
-      required: [egresses, candidates]
+      required: [egresses, candidates, addressStates, addressEvents, addressGaps]
       properties:
         inventory:
           $ref: "#/components/schemas/NetworkInventory"
@@ -1367,6 +1462,21 @@ components:
           type: array
           items:
             $ref: "#/components/schemas/NetworkEgressCandidate"
+        addressStates:
+          type: array
+          maxItems: 64
+          items:
+            $ref: "#/components/schemas/AgentAddressState"
+        addressEvents:
+          type: array
+          maxItems: 100
+          items:
+            $ref: "#/components/schemas/AgentAddressEvent"
+        addressGaps:
+          type: array
+          maxItems: 100
+          items:
+            $ref: "#/components/schemas/AgentAddressGap"
     NetworkEgressCreate:
       type: object
       additionalProperties: false
@@ -1391,9 +1501,16 @@ components:
     NetworkEgressUpdate:
       type: object
       additionalProperties: false
-      required: [enabled]
+      required: [enabled, lightweightIntervalSeconds, probeOnAddressChange]
       properties:
         enabled:
+          type: boolean
+        lightweightIntervalSeconds:
+          type: integer
+          format: int64
+          minimum: 1
+          maximum: 9223372036
+        probeOnAddressChange:
           type: boolean
     AgentEgressConfiguration:
       type: object
@@ -1564,6 +1681,213 @@ components:
           type: string
           minLength: 1
           maxLength: 4096
+    NetworkObservationSettings:
+      type: object
+      additionalProperties: false
+      required: [ipv4Services, ipv6Services, updatedAt]
+      properties:
+        ipv4Services:
+          $ref: "#/components/schemas/DiscoveryServiceList"
+        ipv6Services:
+          $ref: "#/components/schemas/DiscoveryServiceList"
+        updatedAt:
+          type: string
+          format: date-time
+    NetworkObservationSettingsUpdate:
+      type: object
+      additionalProperties: false
+      required: [ipv4Services, ipv6Services]
+      properties:
+        ipv4Services:
+          $ref: "#/components/schemas/DiscoveryServiceList"
+        ipv6Services:
+          $ref: "#/components/schemas/DiscoveryServiceList"
+    DiscoveryServiceList:
+      type: array
+      minItems: 2
+      maxItems: 8
+      items:
+        type: string
+        format: uri
+        minLength: 8
+        maxLength: 2048
+    AddressObservationStatus:
+      type: string
+      enum: [confirmed, failed]
+    AddressFailureReason:
+      type: string
+      enum: [selector-unavailable, no-valid-response, confirmation-unavailable, conflicting-responses]
+    AddressEventKind:
+      type: string
+      enum: [first-observation, address-change, check-failure, recovery]
+    AgentAddressState:
+      type: object
+      additionalProperties: false
+      required: [egressId, historyGeneration, family, status, sequence, proxyPath, likelyNat, temporary, lastCheckedAt]
+      properties:
+        egressId:
+          type: string
+          format: uuid
+        historyGeneration:
+          type: string
+          pattern: "^[0-9a-f]{64}$"
+        family:
+          $ref: "#/components/schemas/AddressFamily"
+        status:
+          $ref: "#/components/schemas/AddressObservationStatus"
+        sequence:
+          type: integer
+          format: int64
+          minimum: 0
+        publicAddress:
+          type: string
+          minLength: 2
+          maxLength: 45
+        localInterface:
+          type: string
+          minLength: 1
+          maxLength: 64
+        localAddress:
+          type: string
+          minLength: 2
+          maxLength: 45
+        proxyPath:
+          type: boolean
+        likelyNat:
+          type: boolean
+        temporary:
+          type: boolean
+        failureReason:
+          $ref: "#/components/schemas/AddressFailureReason"
+        lastCheckedAt:
+          type: string
+          format: date-time
+        lastSucceededAt:
+          type: string
+          format: date-time
+        lastChangedAt:
+          type: string
+          format: date-time
+    AgentAddressEvent:
+      type: object
+      additionalProperties: false
+      required: [id, egressId, historyGeneration, sequence, kind, family, proxyPath, likelyNat, temporary, observedAt]
+      properties:
+        id:
+          type: string
+          format: uuid
+        egressId:
+          type: string
+          format: uuid
+        historyGeneration:
+          type: string
+          pattern: "^[0-9a-f]{64}$"
+        sequence:
+          type: integer
+          format: int64
+          minimum: 1
+        kind:
+          $ref: "#/components/schemas/AddressEventKind"
+        family:
+          $ref: "#/components/schemas/AddressFamily"
+        previousAddress:
+          type: string
+          minLength: 2
+          maxLength: 45
+        publicAddress:
+          type: string
+          minLength: 2
+          maxLength: 45
+        localInterface:
+          type: string
+          minLength: 1
+          maxLength: 64
+        localAddress:
+          type: string
+          minLength: 2
+          maxLength: 45
+        proxyPath:
+          type: boolean
+        likelyNat:
+          type: boolean
+        temporary:
+          type: boolean
+        failureReason:
+          $ref: "#/components/schemas/AddressFailureReason"
+        observedAt:
+          type: string
+          format: date-time
+    AgentAddressGap:
+      type: object
+      additionalProperties: false
+      required: [id, egressId, historyGeneration, droppedCount, firstSequence, lastSequence, firstObservedAt, lastObservedAt]
+      properties:
+        id:
+          type: string
+          format: uuid
+        egressId:
+          type: string
+          format: uuid
+        historyGeneration:
+          type: string
+          pattern: "^[0-9a-f]{64}$"
+        droppedCount:
+          type: integer
+          format: int64
+          minimum: 1
+        firstSequence:
+          type: integer
+          format: int64
+          minimum: 1
+        lastSequence:
+          type: integer
+          format: int64
+          minimum: 1
+        firstObservedAt:
+          type: string
+          format: date-time
+        lastObservedAt:
+          type: string
+          format: date-time
+    AgentAddressGapReceipt:
+      type: object
+      additionalProperties: false
+      required: [id, lastSequence]
+      properties:
+        id:
+          type: string
+          format: uuid
+        lastSequence:
+          type: integer
+          format: int64
+          minimum: 1
+    AgentAddressUploadReceipt:
+      type: object
+      additionalProperties: false
+      required: [acceptedEventIds, discardedEventIds, acceptedGaps, discardedGaps]
+      properties:
+        acceptedEventIds:
+          type: array
+          maxItems: 64
+          items:
+            type: string
+            format: uuid
+        discardedEventIds:
+          type: array
+          maxItems: 64
+          items:
+            type: string
+            format: uuid
+        acceptedGaps:
+          type: array
+          maxItems: 64
+          items:
+            $ref: "#/components/schemas/AgentAddressGapReceipt"
+        discardedGaps:
+          type: array
+          maxItems: 64
+          items:
+            $ref: "#/components/schemas/AgentAddressGapReceipt"
     NodeStatus:
       type: string
       enum: [online, offline, disabled, revoked]

@@ -15,7 +15,9 @@ import (
 	"strings"
 	"time"
 
+	"github.com/google/uuid"
 	agentnetwork "github.com/ipchronicle/ipchronicle/internal/agent/network"
+	"github.com/ipchronicle/ipchronicle/internal/agent/observation"
 	"github.com/ipchronicle/ipchronicle/internal/agent/state"
 	"github.com/ipchronicle/ipchronicle/internal/generated/agentapi"
 )
@@ -133,8 +135,22 @@ func Run(ctx context.Context, store *state.Store, version string, logger *log.Lo
 	interval := 30 * time.Second
 	syncManager := newSyncManager(ctx, identity.CenterURL, identity.Credential, logger)
 	defer syncManager.Close()
+	observerContext, stopObserver := context.WithCancel(ctx)
+	defer stopObserver()
+	observerDone := make(chan error, 1)
+	go func() {
+		observerDone <- observation.NewObserver(store, logger).Run(observerContext)
+	}()
 	logger.Printf("Agent %s polling %s", identity.NodeID, identity.CenterURL)
 	for {
+		select {
+		case observerErr := <-observerDone:
+			if observerErr != nil {
+				return fmt.Errorf("run lightweight address observer: %w", observerErr)
+			}
+			return nil
+		default:
+		}
 		controlState, err := store.ControlState()
 		if err != nil {
 			return err
@@ -176,6 +192,14 @@ func Run(ctx context.Context, store *state.Store, version string, logger *log.Lo
 			if !timer.Stop() {
 				<-timer.C
 			}
+		case observerErr := <-observerDone:
+			if !timer.Stop() {
+				<-timer.C
+			}
+			if observerErr != nil {
+				return fmt.Errorf("run lightweight address observer: %w", observerErr)
+			}
+			return nil
 		}
 	}
 }
@@ -189,6 +213,14 @@ func (c *ControlClient) poll(
 	inventory *agentapi.NetworkInventory,
 	inventoryError *string,
 ) (pollOutcome, error) {
+	upload, err := store.AddressUpload(64)
+	if err != nil {
+		return pollOutcome{}, err
+	}
+	addressStates, addressEvents, addressGaps, err := addressUploadToAPI(upload)
+	if err != nil {
+		return pollOutcome{}, err
+	}
 	response, err := c.client.PollAgentWithResponse(ctx, agentapi.AgentPollRequest{
 		AppliedConfigurationRevision: controlState.AppliedConfigurationRevision,
 		ConfigurationError:           controlState.ConfigurationError,
@@ -196,6 +228,9 @@ func (c *ControlClient) poll(
 		Metadata:                     metadata,
 		NetworkInventory:             inventory,
 		NetworkInventoryError:        inventoryError,
+		AddressStates:                &addressStates,
+		AddressEvents:                &addressEvents,
+		AddressGaps:                  &addressGaps,
 	}, func(_ context.Context, request *http.Request) error {
 		request.Header.Set("Authorization", "Bearer "+identity.Credential)
 		return nil
@@ -205,6 +240,9 @@ func (c *ControlClient) poll(
 	}
 	if response.JSON200 == nil {
 		return pollOutcome{}, responseError("poll center", response.StatusCode(), response.JSON400, response.JSON401, response.JSON403)
+	}
+	if err := store.AcknowledgeAddressUpload(addressReceiptFromAPI(response.JSON200.AddressUploadReceipt)); err != nil {
+		return pollOutcome{}, fmt.Errorf("acknowledge address upload: %w", err)
 	}
 	outcome := pollOutcome{
 		interval: time.Duration(response.JSON200.PollIntervalSeconds) * time.Second,
@@ -307,8 +345,94 @@ func currentMetadata(version string) (agentapi.AgentMetadata, error) {
 	return agentapi.AgentMetadata{
 		Hostname: hostname, AgentVersion: version,
 		OperatingSystem: agentapi.Linux, Architecture: agentapi.AgentArchitecture(runtime.GOARCH),
-		Capabilities: []string{controlCapability, "configuration-v3", "network-inventory-v1", syncWakeCapability},
+		Capabilities: []string{controlCapability, "configuration-v4", "network-inventory-v1", "address-observation-v1", syncWakeCapability},
 	}, nil
+}
+
+func addressUploadToAPI(upload state.AddressUpload) ([]agentapi.AgentAddressState, []agentapi.AgentAddressEvent, []agentapi.AgentAddressGap, error) {
+	states := make([]agentapi.AgentAddressState, 0, len(upload.States))
+	for _, item := range upload.States {
+		egressID, err := uuid.Parse(item.EgressID)
+		if err != nil {
+			return nil, nil, nil, err
+		}
+		var failureReason *agentapi.AddressFailureReason
+		if item.FailureReason != nil {
+			value := agentapi.AddressFailureReason(*item.FailureReason)
+			failureReason = &value
+		}
+		states = append(states, agentapi.AgentAddressState{
+			EgressId: egressID, HistoryGeneration: item.HistoryGeneration,
+			Family: agentapi.AddressFamily(item.Family), Status: agentapi.AddressObservationStatus(item.Status),
+			Sequence: item.Sequence, PublicAddress: item.PublicAddress, LocalInterface: item.LocalInterface,
+			LocalAddress: item.LocalAddress, ProxyPath: item.ProxyPath, LikelyNat: item.LikelyNAT,
+			Temporary: item.Temporary, FailureReason: failureReason, LastCheckedAt: item.LastCheckedAt,
+			LastSucceededAt: item.LastSucceededAt, LastChangedAt: item.LastChangedAt,
+		})
+	}
+	events := make([]agentapi.AgentAddressEvent, 0, len(upload.Events))
+	for _, item := range upload.Events {
+		id, err := uuid.Parse(item.ID)
+		if err != nil {
+			return nil, nil, nil, err
+		}
+		egressID, err := uuid.Parse(item.EgressID)
+		if err != nil {
+			return nil, nil, nil, err
+		}
+		var failureReason *agentapi.AddressFailureReason
+		if item.FailureReason != nil {
+			value := agentapi.AddressFailureReason(*item.FailureReason)
+			failureReason = &value
+		}
+		events = append(events, agentapi.AgentAddressEvent{
+			Id: id, EgressId: egressID, HistoryGeneration: item.HistoryGeneration,
+			Sequence: item.Sequence, Kind: agentapi.AddressEventKind(item.Kind), Family: agentapi.AddressFamily(item.Family),
+			PreviousAddress: item.PreviousAddress, PublicAddress: item.PublicAddress,
+			LocalInterface: item.LocalInterface, LocalAddress: item.LocalAddress,
+			ProxyPath: item.ProxyPath, LikelyNat: item.LikelyNAT, Temporary: item.Temporary,
+			FailureReason: failureReason, ObservedAt: item.ObservedAt,
+		})
+	}
+	gaps := make([]agentapi.AgentAddressGap, 0, len(upload.Gaps))
+	for _, item := range upload.Gaps {
+		id, err := uuid.Parse(item.ID)
+		if err != nil {
+			return nil, nil, nil, err
+		}
+		egressID, err := uuid.Parse(item.EgressID)
+		if err != nil {
+			return nil, nil, nil, err
+		}
+		gaps = append(gaps, agentapi.AgentAddressGap{
+			Id: id, EgressId: egressID, HistoryGeneration: item.HistoryGeneration,
+			DroppedCount: item.DroppedCount, FirstSequence: item.FirstSequence, LastSequence: item.LastSequence,
+			FirstObservedAt: item.FirstObservedAt, LastObservedAt: item.LastObservedAt,
+		})
+	}
+	return states, events, gaps, nil
+}
+
+func addressReceiptFromAPI(receipt agentapi.AgentAddressUploadReceipt) state.AddressUploadReceipt {
+	result := state.AddressUploadReceipt{
+		AcceptedEventIDs:  make([]string, 0, len(receipt.AcceptedEventIds)),
+		DiscardedEventIDs: make([]string, 0, len(receipt.DiscardedEventIds)),
+		AcceptedGaps:      make([]state.AddressGapReceipt, 0, len(receipt.AcceptedGaps)),
+		DiscardedGaps:     make([]state.AddressGapReceipt, 0, len(receipt.DiscardedGaps)),
+	}
+	for _, id := range receipt.AcceptedEventIds {
+		result.AcceptedEventIDs = append(result.AcceptedEventIDs, id.String())
+	}
+	for _, id := range receipt.DiscardedEventIds {
+		result.DiscardedEventIDs = append(result.DiscardedEventIDs, id.String())
+	}
+	for _, gap := range receipt.AcceptedGaps {
+		result.AcceptedGaps = append(result.AcceptedGaps, state.AddressGapReceipt{ID: gap.Id.String(), LastSequence: gap.LastSequence})
+	}
+	for _, gap := range receipt.DiscardedGaps {
+		result.DiscardedGaps = append(result.DiscardedGaps, state.AddressGapReceipt{ID: gap.Id.String(), LastSequence: gap.LastSequence})
+	}
+	return result
 }
 
 func captureNetworkInventory() (*agentapi.NetworkInventory, *string) {

@@ -240,6 +240,55 @@ UPDATE node_deletion_operations
 SET status = 'completed', updated_at = ?, last_error = NULL
 WHERE node_id = ?;
 
+-- name: CreateEgressDeletion :exec
+INSERT INTO egress_deletion_operations (
+    egress_id, node_id, status, requested_at, updated_at
+) VALUES (?, ?, 'pending', ?, ?)
+ON CONFLICT (egress_id) DO UPDATE SET
+    status = CASE
+        WHEN egress_deletion_operations.status = 'completed' THEN 'completed'
+        ELSE 'pending'
+    END,
+    updated_at = excluded.updated_at,
+    last_error = NULL;
+
+-- name: GetEgressDeletion :one
+SELECT egress_id, node_id, status, requested_at, updated_at, last_error
+FROM egress_deletion_operations
+WHERE egress_id = ? AND node_id = ?;
+
+-- name: ListActiveEgressDeletions :many
+SELECT egress_id, node_id, status, requested_at, updated_at, last_error
+FROM egress_deletion_operations
+WHERE status IN ('pending', 'failed')
+ORDER BY requested_at, egress_id
+LIMIT ?;
+
+-- name: ListActiveNodeEgressDeletions :many
+SELECT egress_id, node_id, status, requested_at, updated_at, last_error
+FROM egress_deletion_operations
+WHERE node_id = ? AND status IN ('pending', 'failed')
+ORDER BY requested_at, egress_id;
+
+-- name: RetryEgressDeletion :exec
+UPDATE egress_deletion_operations
+SET status = 'pending', updated_at = ?, last_error = NULL
+WHERE egress_id = ? AND node_id = ? AND status = 'failed';
+
+-- name: FailEgressDeletion :exec
+UPDATE egress_deletion_operations
+SET status = 'failed', updated_at = ?, last_error = ?
+WHERE egress_id = ? AND node_id = ? AND status != 'completed';
+
+-- name: CompleteEgressDeletion :exec
+UPDATE egress_deletion_operations
+SET status = 'completed', updated_at = ?, last_error = NULL
+WHERE egress_id = ? AND node_id = ?;
+
+-- name: DeleteNodeEgressDeletionOperations :exec
+DELETE FROM egress_deletion_operations
+WHERE node_id = ?;
+
 -- name: DeleteNode :exec
 DELETE FROM nodes
 WHERE id = ?;
@@ -328,6 +377,20 @@ FROM network_egresses
 WHERE node_id = ?
 ORDER BY family, kind, created_at, id;
 
+-- name: ListActiveNodeEgresses :many
+SELECT e.id, e.node_id, e.name, e.kind, e.family, e.interface_name,
+       e.source_address, e.proxy_id, e.enabled, e.available, e.automatic,
+       e.lightweight_interval_seconds, e.probe_on_address_change,
+       e.created_at, e.updated_at
+FROM network_egresses e
+WHERE e.node_id = ?
+  AND NOT EXISTS (
+      SELECT 1
+      FROM egress_deletion_operations d
+      WHERE d.egress_id = e.id AND d.status IN ('pending', 'failed')
+  )
+ORDER BY e.family, e.kind, e.created_at, e.id;
+
 -- name: GetNodeEgress :one
 SELECT id, node_id, name, kind, family, interface_name, source_address, proxy_id,
        enabled, available, automatic, lightweight_interval_seconds,
@@ -406,6 +469,11 @@ SELECT DISTINCT p.id, p.name, p.scheme, p.host, p.port, p.username,
 FROM network_proxies p
 JOIN network_egresses e ON e.proxy_id = p.id
 WHERE e.node_id = ?
+  AND NOT EXISTS (
+      SELECT 1
+      FROM egress_deletion_operations d
+      WHERE d.egress_id = e.id AND d.status IN ('pending', 'failed')
+  )
 ORDER BY p.name COLLATE NOCASE, p.id;
 
 -- name: CreateNetworkProxy :exec
@@ -433,3 +501,23 @@ SELECT count(*) FROM network_egresses WHERE proxy_id = ?;
 
 -- name: DeleteNetworkProxy :execrows
 DELETE FROM network_proxies WHERE id = ?;
+
+-- name: GetNetworkObservationSettings :one
+SELECT id, ipv4_services, ipv6_services, updated_at
+FROM network_observation_settings
+WHERE id = 1;
+
+-- name: UpdateNetworkObservationSettings :exec
+UPDATE network_observation_settings
+SET ipv4_services = ?, ipv6_services = ?, updated_at = ?
+WHERE id = 1;
+
+-- name: UpdateNodeEgressSettings :execrows
+UPDATE network_egresses
+SET enabled = ?, lightweight_interval_seconds = ?,
+    probe_on_address_change = ?, updated_at = ?
+WHERE id = ? AND node_id = ?
+  AND (
+      enabled != ? OR lightweight_interval_seconds != ? OR
+      probe_on_address_change != ?
+  );

@@ -189,6 +189,19 @@ export const zhCN = {
       loadFailed: "无法加载网络代理设置",
       empty: "尚未配置中心管理的代理。",
       save: "保存设置",
+      discovery: {
+        title: "公网地址发现",
+        detail:
+          "Agent 按顺序尝试这些独立服务；首次发现或疑似变化时，必须由两个服务返回一致结果。",
+        ipv4: "IPv4 服务",
+        ipv6: "IPv6 服务",
+        format: "每行填写一个 HTTP 或 HTTPS 地址；每组需要 2 至 8 个不同主机。",
+        save: "保存发现服务",
+        updated: "更新于 {{value}}",
+        httpTitle: "发现服务使用 HTTP",
+        httpDetail:
+          "未加密响应可能在传输中被修改并产生错误地址事件；系统仍允许保存。",
+      },
       create: {
         title: "添加代理",
         detail: "Center 只向拥有引用该代理出口的 Agent 下发凭据。",
@@ -242,11 +255,48 @@ export const zhCN = {
         proxy: "代理 · {{name}}",
         missingProxy: "代理已缺失",
         enabledLabel: "启用或停用 {{name}}",
+        interval: "地址检查间隔（秒）",
+        saveInterval: "保存地址检查间隔",
+        probeOnChange: "确认地址变化后执行完整探测",
+        probeOnChangeDetail: "首次确认地址不会触发完整探测。",
         delete: "永久删除出口",
         deleteTitle: "永久删除这个网络出口？",
         deleteDetail:
           "出口配置及其归属数据会被不可逆删除。默认路由仍可用时，自动出口可能以新身份重新创建；暂时停用请使用开关。",
         deleteConfirm: "永久删除",
+        deletionPending: "正在删除",
+        deletionFailed: "删除失败",
+        retryDeletion: "重试永久删除",
+      },
+      observation: {
+        waiting: "等待首次轻量地址观察。",
+        unknown: "尚无已确认公网地址",
+        proxy: "代理路径",
+        nat: "疑似 NAT",
+        temporary: "临时 IPv6 源地址",
+        natDetail:
+          "本地源地址与观察到的公网地址不同。上游部分 DNS 或原始邮件连通性检查可能使用默认路由或无法绑定。",
+        status: { confirmed: "已确认", failed: "检查失败" },
+        failure: {
+          "selector-unavailable": "配置的本地选择器当前不可用。",
+          "no-valid-response": "没有发现服务返回有效地址。",
+          "confirmation-unavailable": "第二个独立服务未能确认该地址。",
+          "conflicting-responses": "独立发现服务返回了不同地址。",
+        },
+      },
+      addressHistory: {
+        title: "地址变化",
+        detail: "仅保留首次观察、确认变化、失败边界、恢复以及上报的历史缺口。",
+        empty: "尚未上报地址变化事件。",
+        kind: {
+          "first-observation": "首次观察",
+          "address-change": "地址变化",
+          "check-failure": "检查失败",
+          recovery: "已经恢复",
+        },
+        gap: "历史缺口",
+        gapDetail:
+          "离线队列丢弃了 {{count}} 条事件（序号 {{first}} 至 {{last}}）。",
       },
       proxyEgress: {
         title: "添加代理出口",
@@ -347,11 +397,14 @@ export const zhCN = {
       egress_already_exists: "该网络出口已经存在。",
       egress_limit_reached: "此节点已达到 64 个网络出口的配置上限。",
       egress_not_found: "网络出口不存在或已经删除。",
+      egress_deletion_pending: "网络出口正在永久删除，不能执行其他操作。",
       invalid_network_proxy: "网络代理设置无效。",
       network_proxy_not_found: "网络代理不存在或已经删除。",
       network_proxy_already_exists: "同名网络代理已经存在。",
       network_proxy_limit_reached: "此安装已达到 64 个网络代理的配置上限。",
       network_proxy_in_use: "此代理仍被网络出口引用，不能删除。",
+      invalid_observation_settings:
+        "每个地址族需要填写 2 至 8 个有效的 HTTP 或 HTTPS 地址，并使用不同主机。",
       internal_error: "中心服务未能完成请求。",
     },
   },

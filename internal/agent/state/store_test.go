@@ -94,7 +94,7 @@ func TestProxyCredentialsPersistEncryptedAcrossRestart(t *testing.T) {
 	proxyID := "6fc6d7e8-bc63-49e2-91fc-d4c58b43ac16"
 	password := "retained-proxy-password"
 	configuration := Configuration{
-		SchemaVersion: 3, Revision: 1, Enabled: true,
+		SchemaVersion: 4, Revision: 1, Enabled: true, DiscoveryServices: testDiscoveryServices(),
 		HistoryGeneration: "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef",
 		Egresses: []Egress{{
 			ID: "c7b5eeac-903d-4b99-961d-190a8a4e5d2e", Kind: "proxy", Family: "ipv4",
@@ -152,7 +152,7 @@ func TestConfigurationReplacementFailureAndRevocationPersist(t *testing.T) {
 		t.Fatal(err)
 	}
 	first := Configuration{
-		SchemaVersion: 3, Revision: 1, Enabled: true,
+		SchemaVersion: 4, Revision: 1, Enabled: true, DiscoveryServices: testDiscoveryServices(),
 		HistoryGeneration: "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef",
 	}
 	if err := store.ApplyConfiguration(first); err != nil {
@@ -203,5 +203,12 @@ func TestConfigurationReplacementFailureAndRevocationPersist(t *testing.T) {
 	current, err = restarted.Configuration()
 	if err != nil || !reflect.DeepEqual(current, second) {
 		t.Fatalf("restarted configuration = %#v, %v", current, err)
+	}
+}
+
+func testDiscoveryServices() DiscoveryServices {
+	return DiscoveryServices{
+		IPv4: []string{"https://one.example/ip", "https://two.example/ip"},
+		IPv6: []string{"https://six-one.example/ip", "https://six-two.example/ip"},
 	}
 }

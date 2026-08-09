@@ -16,6 +16,54 @@ import (
 	openapi_types "github.com/oapi-codegen/runtime/types"
 )
 
+// Defines values for AddressEventKind.
+const (
+	AddressChange    AddressEventKind = "address-change"
+	CheckFailure     AddressEventKind = "check-failure"
+	FirstObservation AddressEventKind = "first-observation"
+	Recovery         AddressEventKind = "recovery"
+)
+
+// Valid indicates whether the value is a known member of the AddressEventKind enum.
+func (e AddressEventKind) Valid() bool {
+	switch e {
+	case AddressChange:
+		return true
+	case CheckFailure:
+		return true
+	case FirstObservation:
+		return true
+	case Recovery:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for AddressFailureReason.
+const (
+	ConfirmationUnavailable AddressFailureReason = "confirmation-unavailable"
+	ConflictingResponses    AddressFailureReason = "conflicting-responses"
+	NoValidResponse         AddressFailureReason = "no-valid-response"
+	SelectorUnavailable     AddressFailureReason = "selector-unavailable"
+)
+
+// Valid indicates whether the value is a known member of the AddressFailureReason enum.
+func (e AddressFailureReason) Valid() bool {
+	switch e {
+	case ConfirmationUnavailable:
+		return true
+	case ConflictingResponses:
+		return true
+	case NoValidResponse:
+		return true
+	case SelectorUnavailable:
+		return true
+	default:
+		return false
+	}
+}
+
 // Defines values for AddressFamily.
 const (
 	Ipv4 AddressFamily = "ipv4"
@@ -28,6 +76,24 @@ func (e AddressFamily) Valid() bool {
 	case Ipv4:
 		return true
 	case Ipv6:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for AddressObservationStatus.
+const (
+	AddressObservationStatusConfirmed AddressObservationStatus = "confirmed"
+	AddressObservationStatusFailed    AddressObservationStatus = "failed"
+)
+
+// Valid indicates whether the value is a known member of the AddressObservationStatus enum.
+func (e AddressObservationStatus) Valid() bool {
+	switch e {
+	case AddressObservationStatusConfirmed:
+		return true
+	case AddressObservationStatusFailed:
 		return true
 	default:
 		return false
@@ -54,13 +120,13 @@ func (e AgentArchitecture) Valid() bool {
 
 // Defines values for AgentConfigurationSnapshotSchemaVersion.
 const (
-	N3 AgentConfigurationSnapshotSchemaVersion = 3
+	N4 AgentConfigurationSnapshotSchemaVersion = 4
 )
 
 // Valid indicates whether the value is a known member of the AgentConfigurationSnapshotSchemaVersion enum.
 func (e AgentConfigurationSnapshotSchemaVersion) Valid() bool {
 	switch e {
-	case N3:
+	case N4:
 		return true
 	default:
 		return false
@@ -82,6 +148,24 @@ func (e AgentPlatform) Valid() bool {
 	}
 }
 
+// Defines values for EgressDeletionStatus.
+const (
+	EgressDeletionStatusFailed  EgressDeletionStatus = "failed"
+	EgressDeletionStatusPending EgressDeletionStatus = "pending"
+)
+
+// Valid indicates whether the value is a known member of the EgressDeletionStatus enum.
+func (e EgressDeletionStatus) Valid() bool {
+	switch e {
+	case EgressDeletionStatusFailed:
+		return true
+	case EgressDeletionStatusPending:
+		return true
+	default:
+		return false
+	}
+}
+
 // Defines values for ErrorCode.
 const (
 	AgentRevoked                  ErrorCode = "agent_revoked"
@@ -89,12 +173,14 @@ const (
 	CsrfFailed                    ErrorCode = "csrf_failed"
 	CurrentPasswordInvalid        ErrorCode = "current_password_invalid"
 	EgressAlreadyExists           ErrorCode = "egress_already_exists"
+	EgressDeletionPending         ErrorCode = "egress_deletion_pending"
 	EgressLimitReached            ErrorCode = "egress_limit_reached"
 	EgressNotFound                ErrorCode = "egress_not_found"
 	InternalError                 ErrorCode = "internal_error"
 	InvalidCredentials            ErrorCode = "invalid_credentials"
 	InvalidEgressCandidate        ErrorCode = "invalid_egress_candidate"
 	InvalidNetworkProxy           ErrorCode = "invalid_network_proxy"
+	InvalidObservationSettings    ErrorCode = "invalid_observation_settings"
 	InvalidRequest                ErrorCode = "invalid_request"
 	InvalidTotp                   ErrorCode = "invalid_totp"
 	NetworkInventoryUnavailable   ErrorCode = "network_inventory_unavailable"
@@ -133,6 +219,8 @@ func (e ErrorCode) Valid() bool {
 		return true
 	case EgressAlreadyExists:
 		return true
+	case EgressDeletionPending:
+		return true
 	case EgressLimitReached:
 		return true
 	case EgressNotFound:
@@ -144,6 +232,8 @@ func (e ErrorCode) Valid() bool {
 	case InvalidEgressCandidate:
 		return true
 	case InvalidNetworkProxy:
+		return true
+	case InvalidObservationSettings:
 		return true
 	case InvalidRequest:
 		return true
@@ -535,14 +625,88 @@ type AccountUpdateResult struct {
 	SessionRevoked bool    `json:"sessionRevoked"`
 }
 
+// AddressEventKind defines model for AddressEventKind.
+type AddressEventKind string
+
+// AddressFailureReason defines model for AddressFailureReason.
+type AddressFailureReason string
+
 // AddressFamily defines model for AddressFamily.
 type AddressFamily string
+
+// AddressObservationStatus defines model for AddressObservationStatus.
+type AddressObservationStatus string
+
+// AgentAddressEvent defines model for AgentAddressEvent.
+type AgentAddressEvent struct {
+	EgressId          openapi_types.UUID    `json:"egressId"`
+	FailureReason     *AddressFailureReason `json:"failureReason,omitempty"`
+	Family            AddressFamily         `json:"family"`
+	HistoryGeneration string                `json:"historyGeneration"`
+	Id                openapi_types.UUID    `json:"id"`
+	Kind              AddressEventKind      `json:"kind"`
+	LikelyNat         bool                  `json:"likelyNat"`
+	LocalAddress      *string               `json:"localAddress,omitempty"`
+	LocalInterface    *string               `json:"localInterface,omitempty"`
+	ObservedAt        time.Time             `json:"observedAt"`
+	PreviousAddress   *string               `json:"previousAddress,omitempty"`
+	ProxyPath         bool                  `json:"proxyPath"`
+	PublicAddress     *string               `json:"publicAddress,omitempty"`
+	Sequence          int64                 `json:"sequence"`
+	Temporary         bool                  `json:"temporary"`
+}
+
+// AgentAddressGap defines model for AgentAddressGap.
+type AgentAddressGap struct {
+	DroppedCount      int64              `json:"droppedCount"`
+	EgressId          openapi_types.UUID `json:"egressId"`
+	FirstObservedAt   time.Time          `json:"firstObservedAt"`
+	FirstSequence     int64              `json:"firstSequence"`
+	HistoryGeneration string             `json:"historyGeneration"`
+	Id                openapi_types.UUID `json:"id"`
+	LastObservedAt    time.Time          `json:"lastObservedAt"`
+	LastSequence      int64              `json:"lastSequence"`
+}
+
+// AgentAddressGapReceipt defines model for AgentAddressGapReceipt.
+type AgentAddressGapReceipt struct {
+	Id           openapi_types.UUID `json:"id"`
+	LastSequence int64              `json:"lastSequence"`
+}
+
+// AgentAddressState defines model for AgentAddressState.
+type AgentAddressState struct {
+	EgressId          openapi_types.UUID       `json:"egressId"`
+	FailureReason     *AddressFailureReason    `json:"failureReason,omitempty"`
+	Family            AddressFamily            `json:"family"`
+	HistoryGeneration string                   `json:"historyGeneration"`
+	LastChangedAt     *time.Time               `json:"lastChangedAt,omitempty"`
+	LastCheckedAt     time.Time                `json:"lastCheckedAt"`
+	LastSucceededAt   *time.Time               `json:"lastSucceededAt,omitempty"`
+	LikelyNat         bool                     `json:"likelyNat"`
+	LocalAddress      *string                  `json:"localAddress,omitempty"`
+	LocalInterface    *string                  `json:"localInterface,omitempty"`
+	ProxyPath         bool                     `json:"proxyPath"`
+	PublicAddress     *string                  `json:"publicAddress,omitempty"`
+	Sequence          int64                    `json:"sequence"`
+	Status            AddressObservationStatus `json:"status"`
+	Temporary         bool                     `json:"temporary"`
+}
+
+// AgentAddressUploadReceipt defines model for AgentAddressUploadReceipt.
+type AgentAddressUploadReceipt struct {
+	AcceptedEventIds  []openapi_types.UUID     `json:"acceptedEventIds"`
+	AcceptedGaps      []AgentAddressGapReceipt `json:"acceptedGaps"`
+	DiscardedEventIds []openapi_types.UUID     `json:"discardedEventIds"`
+	DiscardedGaps     []AgentAddressGapReceipt `json:"discardedGaps"`
+}
 
 // AgentArchitecture defines model for AgentArchitecture.
 type AgentArchitecture string
 
 // AgentConfigurationSnapshot defines model for AgentConfigurationSnapshot.
 type AgentConfigurationSnapshot struct {
+	DiscoveryServices NetworkObservationSettingsUpdate        `json:"discoveryServices"`
 	Egresses          []AgentEgressConfiguration              `json:"egresses"`
 	Enabled           bool                                    `json:"enabled"`
 	HistoryGeneration string                                  `json:"historyGeneration"`
@@ -594,21 +758,25 @@ type AgentPlatform string
 
 // AgentPollRequest defines model for AgentPollRequest.
 type AgentPollRequest struct {
-	AppliedConfigurationRevision int64             `json:"appliedConfigurationRevision"`
-	ConfigurationError           *string           `json:"configurationError,omitempty"`
-	ConfigurationErrorRevision   *int64            `json:"configurationErrorRevision,omitempty"`
-	Metadata                     AgentMetadata     `json:"metadata"`
-	NetworkInventory             *NetworkInventory `json:"networkInventory,omitempty"`
-	NetworkInventoryError        *string           `json:"networkInventoryError,omitempty"`
+	AddressEvents                *[]AgentAddressEvent `json:"addressEvents,omitempty"`
+	AddressGaps                  *[]AgentAddressGap   `json:"addressGaps,omitempty"`
+	AddressStates                *[]AgentAddressState `json:"addressStates,omitempty"`
+	AppliedConfigurationRevision int64                `json:"appliedConfigurationRevision"`
+	ConfigurationError           *string              `json:"configurationError,omitempty"`
+	ConfigurationErrorRevision   *int64               `json:"configurationErrorRevision,omitempty"`
+	Metadata                     AgentMetadata        `json:"metadata"`
+	NetworkInventory             *NetworkInventory    `json:"networkInventory,omitempty"`
+	NetworkInventoryError        *string              `json:"networkInventoryError,omitempty"`
 }
 
 // AgentPollResult defines model for AgentPollResult.
 type AgentPollResult struct {
-	CenterVersion                string            `json:"centerVersion"`
-	DesiredConfigurationRevision int64             `json:"desiredConfigurationRevision"`
-	Enabled                      bool              `json:"enabled"`
-	PollIntervalSeconds          int               `json:"pollIntervalSeconds"`
-	SyncSession                  *AgentSyncSession `json:"syncSession,omitempty"`
+	AddressUploadReceipt         AgentAddressUploadReceipt `json:"addressUploadReceipt"`
+	CenterVersion                string                    `json:"centerVersion"`
+	DesiredConfigurationRevision int64                     `json:"desiredConfigurationRevision"`
+	Enabled                      bool                      `json:"enabled"`
+	PollIntervalSeconds          int                       `json:"pollIntervalSeconds"`
+	SyncSession                  *AgentSyncSession         `json:"syncSession,omitempty"`
 }
 
 // AgentProxyConfiguration defines model for AgentProxyConfiguration.
@@ -659,6 +827,21 @@ type DisableTOTPRequest struct {
 	CurrentPassword string `json:"currentPassword"`
 }
 
+// DiscoveryServiceList defines model for DiscoveryServiceList.
+type DiscoveryServiceList = []string
+
+// EgressDeletion defines model for EgressDeletion.
+type EgressDeletion struct {
+	EgressId    openapi_types.UUID   `json:"egressId"`
+	Error       *string              `json:"error,omitempty"`
+	NodeId      openapi_types.UUID   `json:"nodeId"`
+	RequestedAt time.Time            `json:"requestedAt"`
+	Status      EgressDeletionStatus `json:"status"`
+}
+
+// EgressDeletionStatus defines model for EgressDeletionStatus.
+type EgressDeletionStatus string
+
 // ErrorCode defines model for ErrorCode.
 type ErrorCode string
 
@@ -698,19 +881,21 @@ type NetworkAddressScope string
 
 // NetworkEgress defines model for NetworkEgress.
 type NetworkEgress struct {
-	Automatic                  bool                `json:"automatic"`
-	Available                  bool                `json:"available"`
-	Enabled                    bool                `json:"enabled"`
-	Family                     AddressFamily       `json:"family"`
-	Id                         openapi_types.UUID  `json:"id"`
-	InterfaceName              *string             `json:"interfaceName,omitempty"`
-	Kind                       NetworkEgressKind   `json:"kind"`
-	LightweightIntervalSeconds int64               `json:"lightweightIntervalSeconds"`
-	Name                       string              `json:"name"`
-	NodeId                     openapi_types.UUID  `json:"nodeId"`
-	ProbeOnAddressChange       bool                `json:"probeOnAddressChange"`
-	ProxyId                    *openapi_types.UUID `json:"proxyId,omitempty"`
-	SourceAddress              *string             `json:"sourceAddress,omitempty"`
+	Automatic                  bool                  `json:"automatic"`
+	Available                  bool                  `json:"available"`
+	DeletionError              *string               `json:"deletionError,omitempty"`
+	DeletionStatus             *EgressDeletionStatus `json:"deletionStatus,omitempty"`
+	Enabled                    bool                  `json:"enabled"`
+	Family                     AddressFamily         `json:"family"`
+	Id                         openapi_types.UUID    `json:"id"`
+	InterfaceName              *string               `json:"interfaceName,omitempty"`
+	Kind                       NetworkEgressKind     `json:"kind"`
+	LightweightIntervalSeconds int64                 `json:"lightweightIntervalSeconds"`
+	Name                       string                `json:"name"`
+	NodeId                     openapi_types.UUID    `json:"nodeId"`
+	ProbeOnAddressChange       bool                  `json:"probeOnAddressChange"`
+	ProxyId                    *openapi_types.UUID   `json:"proxyId,omitempty"`
+	SourceAddress              *string               `json:"sourceAddress,omitempty"`
 }
 
 // NetworkEgressCandidate defines model for NetworkEgressCandidate.
@@ -749,7 +934,9 @@ type NetworkEgressKind string
 
 // NetworkEgressUpdate defines model for NetworkEgressUpdate.
 type NetworkEgressUpdate struct {
-	Enabled bool `json:"enabled"`
+	Enabled                    bool  `json:"enabled"`
+	LightweightIntervalSeconds int64 `json:"lightweightIntervalSeconds"`
+	ProbeOnAddressChange       bool  `json:"probeOnAddressChange"`
 }
 
 // NetworkInterface defines model for NetworkInterface.
@@ -766,6 +953,19 @@ type NetworkInventory struct {
 	CapturedAt time.Time          `json:"capturedAt"`
 	Interfaces []NetworkInterface `json:"interfaces"`
 	Routes     []NetworkRoute     `json:"routes"`
+}
+
+// NetworkObservationSettings defines model for NetworkObservationSettings.
+type NetworkObservationSettings struct {
+	Ipv4Services DiscoveryServiceList `json:"ipv4Services"`
+	Ipv6Services DiscoveryServiceList `json:"ipv6Services"`
+	UpdatedAt    time.Time            `json:"updatedAt"`
+}
+
+// NetworkObservationSettingsUpdate defines model for NetworkObservationSettingsUpdate.
+type NetworkObservationSettingsUpdate struct {
+	Ipv4Services DiscoveryServiceList `json:"ipv4Services"`
+	Ipv6Services DiscoveryServiceList `json:"ipv6Services"`
 }
 
 // NetworkProxy defines model for NetworkProxy.
@@ -867,6 +1067,9 @@ type NodeList struct {
 
 // NodeNetworkState defines model for NodeNetworkState.
 type NodeNetworkState struct {
+	AddressEvents       []AgentAddressEvent      `json:"addressEvents"`
+	AddressGaps         []AgentAddressGap        `json:"addressGaps"`
+	AddressStates       []AgentAddressState      `json:"addressStates"`
 	Candidates          []NetworkEgressCandidate `json:"candidates"`
 	Egresses            []NetworkEgress          `json:"egresses"`
 	Inventory           *NetworkInventory        `json:"inventory,omitempty"`
@@ -999,6 +1202,11 @@ type LogoutParams struct {
 	XCSRFToken *CSRFToken `json:"X-CSRF-Token,omitempty"`
 }
 
+// UpdateNetworkObservationSettingsParams defines parameters for UpdateNetworkObservationSettings.
+type UpdateNetworkObservationSettingsParams struct {
+	XCSRFToken *CSRFToken `json:"X-CSRF-Token,omitempty"`
+}
+
 // CreateNetworkProxyParams defines parameters for CreateNetworkProxy.
 type CreateNetworkProxyParams struct {
 	XCSRFToken *CSRFToken `json:"X-CSRF-Token,omitempty"`
@@ -1081,6 +1289,9 @@ type RegisterAgentJSONRequestBody = AgentRegistrationRequest
 // LoginJSONRequestBody defines body for Login for application/json ContentType.
 type LoginJSONRequestBody = LoginRequest
 
+// UpdateNetworkObservationSettingsJSONRequestBody defines body for UpdateNetworkObservationSettings for application/json ContentType.
+type UpdateNetworkObservationSettingsJSONRequestBody = NetworkObservationSettingsUpdate
+
 // CreateNetworkProxyJSONRequestBody defines body for CreateNetworkProxy for application/json ContentType.
 type CreateNetworkProxyJSONRequestBody = NetworkProxyCreate
 
@@ -1146,6 +1357,12 @@ type ServerInterface interface {
 	// GetAuthenticatedSession Read the current administrator session
 	// (GET /api/v1/auth/session)
 	GetAuthenticatedSession(w http.ResponseWriter, r *http.Request)
+	// GetNetworkObservationSettings Read global lightweight address discovery services
+	// (GET /api/v1/network-observation-settings)
+	GetNetworkObservationSettings(w http.ResponseWriter, r *http.Request)
+	// UpdateNetworkObservationSettings Replace global lightweight address discovery services
+	// (PUT /api/v1/network-observation-settings)
+	UpdateNetworkObservationSettings(w http.ResponseWriter, r *http.Request, params UpdateNetworkObservationSettingsParams)
 	// ListNetworkProxies List centrally managed network proxies without revealing passwords
 	// (GET /api/v1/network-proxies)
 	ListNetworkProxies(w http.ResponseWriter, r *http.Request)
@@ -1290,6 +1507,18 @@ func (_ Unimplemented) Logout(w http.ResponseWriter, r *http.Request, params Log
 // GetAuthenticatedSession Read the current administrator session
 // (GET /api/v1/auth/session)
 func (_ Unimplemented) GetAuthenticatedSession(w http.ResponseWriter, r *http.Request) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
+// GetNetworkObservationSettings Read global lightweight address discovery services
+// (GET /api/v1/network-observation-settings)
+func (_ Unimplemented) GetNetworkObservationSettings(w http.ResponseWriter, r *http.Request) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
+// UpdateNetworkObservationSettings Replace global lightweight address discovery services
+// (PUT /api/v1/network-observation-settings)
+func (_ Unimplemented) UpdateNetworkObservationSettings(w http.ResponseWriter, r *http.Request, params UpdateNetworkObservationSettingsParams) {
 	w.WriteHeader(http.StatusNotImplemented)
 }
 
@@ -1850,6 +2079,61 @@ func (siw *ServerInterfaceWrapper) GetAuthenticatedSession(w http.ResponseWriter
 
 	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		siw.Handler.GetAuthenticatedSession(w, r)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// GetNetworkObservationSettings operation middleware
+func (siw *ServerInterfaceWrapper) GetNetworkObservationSettings(w http.ResponseWriter, r *http.Request) {
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.GetNetworkObservationSettings(w, r)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// UpdateNetworkObservationSettings operation middleware
+func (siw *ServerInterfaceWrapper) UpdateNetworkObservationSettings(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	// Parameter object where we will unmarshal all parameters from the context
+	var params UpdateNetworkObservationSettingsParams
+
+	headers := r.Header
+
+	// ------------- Optional header parameter "X-CSRF-Token" -------------
+	if valueList, found := headers[http.CanonicalHeaderKey("X-CSRF-Token")]; found {
+		var XCSRFToken CSRFToken
+		n := len(valueList)
+		if n != 1 {
+			siw.ErrorHandlerFunc(w, r, &TooManyValuesForParamError{ParamName: "X-CSRF-Token", Count: n})
+			return
+		}
+
+		err = runtime.BindStyledParameterWithOptions("simple", "X-CSRF-Token", valueList[0], &XCSRFToken, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: false, Type: "string", Format: ""})
+		if err != nil {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "X-CSRF-Token", Err: err})
+			return
+		}
+
+		params.XCSRFToken = &XCSRFToken
+
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.UpdateNetworkObservationSettings(w, r, params)
 	}))
 
 	for _, middleware := range siw.HandlerMiddlewares {
@@ -2661,6 +2945,12 @@ func HandlerWithOptions(si ServerInterface, options ChiServerOptions) http.Handl
 	})
 	r.Group(func(r chi.Router) {
 		r.Patch(options.BaseURL+"/api/v1/nodes/{nodeId}/egresses/{egressId}", wrapper.UpdateNodeEgress)
+	})
+	r.Group(func(r chi.Router) {
+		r.Get(options.BaseURL+"/api/v1/network-observation-settings", wrapper.GetNetworkObservationSettings)
+	})
+	r.Group(func(r chi.Router) {
+		r.Put(options.BaseURL+"/api/v1/network-observation-settings", wrapper.UpdateNetworkObservationSettings)
 	})
 	r.Group(func(r chi.Router) {
 		r.Get(options.BaseURL+"/api/v1/network-proxies", wrapper.ListNetworkProxies)
@@ -3692,6 +3982,106 @@ func (response GetAuthenticatedSession401JSONResponse) VisitGetAuthenticatedSess
 	return err
 }
 
+type GetNetworkObservationSettingsRequestObject struct {
+}
+
+type GetNetworkObservationSettingsResponseObject interface {
+	VisitGetNetworkObservationSettingsResponse(w http.ResponseWriter) error
+}
+
+type GetNetworkObservationSettings200JSONResponse NetworkObservationSettings
+
+func (response GetNetworkObservationSettings200JSONResponse) VisitGetNetworkObservationSettingsResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type GetNetworkObservationSettings401JSONResponse struct{ UnauthorizedJSONResponse }
+
+func (response GetNetworkObservationSettings401JSONResponse) VisitGetNetworkObservationSettingsResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(401)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type UpdateNetworkObservationSettingsRequestObject struct {
+	Params UpdateNetworkObservationSettingsParams
+	Body   *UpdateNetworkObservationSettingsJSONRequestBody
+}
+
+type UpdateNetworkObservationSettingsResponseObject interface {
+	VisitUpdateNetworkObservationSettingsResponse(w http.ResponseWriter) error
+}
+
+type UpdateNetworkObservationSettings200JSONResponse NetworkObservationSettings
+
+func (response UpdateNetworkObservationSettings200JSONResponse) VisitUpdateNetworkObservationSettingsResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type UpdateNetworkObservationSettings400JSONResponse struct{ BadRequestJSONResponse }
+
+func (response UpdateNetworkObservationSettings400JSONResponse) VisitUpdateNetworkObservationSettingsResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(400)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type UpdateNetworkObservationSettings401JSONResponse struct{ UnauthorizedJSONResponse }
+
+func (response UpdateNetworkObservationSettings401JSONResponse) VisitUpdateNetworkObservationSettingsResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(401)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type UpdateNetworkObservationSettings403JSONResponse struct{ ForbiddenJSONResponse }
+
+func (response UpdateNetworkObservationSettings403JSONResponse) VisitUpdateNetworkObservationSettingsResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(403)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
 type ListNetworkProxiesRequestObject struct {
 }
 
@@ -4271,12 +4661,18 @@ type DeleteNodeEgressResponseObject interface {
 	VisitDeleteNodeEgressResponse(w http.ResponseWriter) error
 }
 
-type DeleteNodeEgress204Response struct {
-}
+type DeleteNodeEgress202JSONResponse EgressDeletion
 
-func (response DeleteNodeEgress204Response) VisitDeleteNodeEgressResponse(w http.ResponseWriter) error {
-	w.WriteHeader(204)
-	return nil
+func (response DeleteNodeEgress202JSONResponse) VisitDeleteNodeEgressResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(202)
+	_, err := buf.WriteTo(w)
+	return err
 }
 
 type DeleteNodeEgress401JSONResponse struct{ UnauthorizedJSONResponse }
@@ -4788,6 +5184,12 @@ type StrictServerInterface interface {
 	// GetAuthenticatedSession Read the current administrator session
 	// (GET /api/v1/auth/session)
 	GetAuthenticatedSession(ctx context.Context, request GetAuthenticatedSessionRequestObject) (GetAuthenticatedSessionResponseObject, error)
+	// GetNetworkObservationSettings Read global lightweight address discovery services
+	// (GET /api/v1/network-observation-settings)
+	GetNetworkObservationSettings(ctx context.Context, request GetNetworkObservationSettingsRequestObject) (GetNetworkObservationSettingsResponseObject, error)
+	// UpdateNetworkObservationSettings Replace global lightweight address discovery services
+	// (PUT /api/v1/network-observation-settings)
+	UpdateNetworkObservationSettings(ctx context.Context, request UpdateNetworkObservationSettingsRequestObject) (UpdateNetworkObservationSettingsResponseObject, error)
 	// ListNetworkProxies List centrally managed network proxies without revealing passwords
 	// (GET /api/v1/network-proxies)
 	ListNetworkProxies(ctx context.Context, request ListNetworkProxiesRequestObject) (ListNetworkProxiesResponseObject, error)
@@ -5332,6 +5734,63 @@ func (sh *strictHandler) GetAuthenticatedSession(w http.ResponseWriter, r *http.
 		sh.options.ResponseErrorHandlerFunc(w, r, err)
 	} else if validResponse, ok := response.(GetAuthenticatedSessionResponseObject); ok {
 		if err := validResponse.VisitGetAuthenticatedSessionResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// GetNetworkObservationSettings operation middleware
+func (sh *strictHandler) GetNetworkObservationSettings(w http.ResponseWriter, r *http.Request) {
+	var request GetNetworkObservationSettingsRequestObject
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.GetNetworkObservationSettings(ctx, request.(GetNetworkObservationSettingsRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "GetNetworkObservationSettings")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(GetNetworkObservationSettingsResponseObject); ok {
+		if err := validResponse.VisitGetNetworkObservationSettingsResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// UpdateNetworkObservationSettings operation middleware
+func (sh *strictHandler) UpdateNetworkObservationSettings(w http.ResponseWriter, r *http.Request, params UpdateNetworkObservationSettingsParams) {
+	var request UpdateNetworkObservationSettingsRequestObject
+
+	request.Params = params
+
+	var body UpdateNetworkObservationSettingsJSONRequestBody
+	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+		sh.options.RequestErrorHandlerFunc(w, r, fmt.Errorf("can't decode JSON body: %w", err))
+		return
+	}
+	request.Body = &body
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.UpdateNetworkObservationSettings(ctx, request.(UpdateNetworkObservationSettingsRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "UpdateNetworkObservationSettings")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(UpdateNetworkObservationSettingsResponseObject); ok {
+		if err := validResponse.VisitUpdateNetworkObservationSettingsResponse(w); err != nil {
 			sh.options.ResponseErrorHandlerFunc(w, r, err)
 		}
 	} else if response != nil {

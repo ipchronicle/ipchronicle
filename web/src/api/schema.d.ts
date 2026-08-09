@@ -294,6 +294,24 @@ export interface paths {
         patch: operations["updateNodeEgress"];
         trace?: never;
     };
+    "/api/v1/network-observation-settings": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Read global lightweight address discovery services */
+        get: operations["getNetworkObservationSettings"];
+        /** Replace global lightweight address discovery services */
+        put: operations["updateNetworkObservationSettings"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/network-proxies": {
         parameters: {
             query?: never;
@@ -469,7 +487,7 @@ export interface components {
             provisioningUri: string;
         };
         /** @enum {string} */
-        ErrorCode: "invalid_request" | "invalid_credentials" | "totp_required" | "rate_limited" | "unauthenticated" | "csrf_failed" | "origin_not_allowed" | "current_password_invalid" | "invalid_totp" | "totp_already_enabled" | "totp_not_enabled" | "totp_enrollment_not_started" | "no_account_change" | "registration_key_not_initialized" | "registration_key_invalid" | "registration_disabled" | "agent_unauthenticated" | "agent_revoked" | "node_not_found" | "node_revoked" | "node_deletion_pending" | "node_sync_unsupported" | "sync_session_unavailable" | "network_inventory_unavailable" | "invalid_egress_candidate" | "egress_already_exists" | "egress_limit_reached" | "egress_not_found" | "invalid_network_proxy" | "network_proxy_not_found" | "network_proxy_already_exists" | "network_proxy_limit_reached" | "network_proxy_in_use" | "internal_error";
+        ErrorCode: "invalid_request" | "invalid_credentials" | "totp_required" | "rate_limited" | "unauthenticated" | "csrf_failed" | "origin_not_allowed" | "current_password_invalid" | "invalid_totp" | "totp_already_enabled" | "totp_not_enabled" | "totp_enrollment_not_started" | "no_account_change" | "registration_key_not_initialized" | "registration_key_invalid" | "registration_disabled" | "agent_unauthenticated" | "agent_revoked" | "node_not_found" | "node_revoked" | "node_deletion_pending" | "node_sync_unsupported" | "sync_session_unavailable" | "network_inventory_unavailable" | "invalid_egress_candidate" | "egress_already_exists" | "egress_limit_reached" | "egress_not_found" | "egress_deletion_pending" | "invalid_network_proxy" | "network_proxy_not_found" | "network_proxy_already_exists" | "network_proxy_limit_reached" | "network_proxy_in_use" | "invalid_observation_settings" | "internal_error";
         ErrorResponse: {
             code: components["schemas"]["ErrorCode"];
             parameters?: {
@@ -532,6 +550,9 @@ export interface components {
             configurationErrorRevision?: number;
             networkInventory?: components["schemas"]["NetworkInventory"];
             networkInventoryError?: string;
+            addressStates?: components["schemas"]["AgentAddressState"][];
+            addressEvents?: components["schemas"]["AgentAddressEvent"][];
+            addressGaps?: components["schemas"]["AgentAddressGap"][];
         };
         AgentPollResult: {
             centerVersion: string;
@@ -540,6 +561,7 @@ export interface components {
             enabled: boolean;
             pollIntervalSeconds: number;
             syncSession?: components["schemas"]["AgentSyncSession"];
+            addressUploadReceipt: components["schemas"]["AgentAddressUploadReceipt"];
         };
         AgentSyncSession: {
             /** Format: uuid */
@@ -550,11 +572,12 @@ export interface components {
         };
         AgentConfigurationSnapshot: {
             /** @enum {integer} */
-            schemaVersion: 3;
+            schemaVersion: 4;
             /** Format: int64 */
             revision: number;
             enabled: boolean;
             historyGeneration: string;
+            discoveryServices: components["schemas"]["NetworkObservationSettingsUpdate"];
             egresses: components["schemas"]["AgentEgressConfiguration"][];
             proxies: components["schemas"]["AgentProxyConfiguration"][];
         };
@@ -615,6 +638,20 @@ export interface components {
             /** Format: int64 */
             lightweightIntervalSeconds: number;
             probeOnAddressChange: boolean;
+            deletionStatus?: components["schemas"]["EgressDeletionStatus"];
+            deletionError?: string;
+        };
+        /** @enum {string} */
+        EgressDeletionStatus: "pending" | "failed";
+        EgressDeletion: {
+            /** Format: uuid */
+            egressId: string;
+            /** Format: uuid */
+            nodeId: string;
+            status: components["schemas"]["EgressDeletionStatus"];
+            /** Format: date-time */
+            requestedAt: string;
+            error?: string;
         };
         NetworkEgressCandidate: {
             /** @enum {string} */
@@ -637,6 +674,9 @@ export interface components {
             inventoryReceivedAt?: string;
             egresses: components["schemas"]["NetworkEgress"][];
             candidates: components["schemas"]["NetworkEgressCandidate"][];
+            addressStates: components["schemas"]["AgentAddressState"][];
+            addressEvents: components["schemas"]["AgentAddressEvent"][];
+            addressGaps: components["schemas"]["AgentAddressGap"][];
         };
         NetworkEgressCreate: {
             /** @enum {string} */
@@ -649,6 +689,9 @@ export interface components {
         };
         NetworkEgressUpdate: {
             enabled: boolean;
+            /** Format: int64 */
+            lightweightIntervalSeconds: number;
+            probeOnAddressChange: boolean;
         };
         AgentEgressConfiguration: {
             /** Format: uuid */
@@ -714,6 +757,95 @@ export interface components {
             port: number;
             username?: string;
             password?: string;
+        };
+        NetworkObservationSettings: {
+            ipv4Services: components["schemas"]["DiscoveryServiceList"];
+            ipv6Services: components["schemas"]["DiscoveryServiceList"];
+            /** Format: date-time */
+            updatedAt: string;
+        };
+        NetworkObservationSettingsUpdate: {
+            ipv4Services: components["schemas"]["DiscoveryServiceList"];
+            ipv6Services: components["schemas"]["DiscoveryServiceList"];
+        };
+        DiscoveryServiceList: string[];
+        /** @enum {string} */
+        AddressObservationStatus: "confirmed" | "failed";
+        /** @enum {string} */
+        AddressFailureReason: "selector-unavailable" | "no-valid-response" | "confirmation-unavailable" | "conflicting-responses";
+        /** @enum {string} */
+        AddressEventKind: "first-observation" | "address-change" | "check-failure" | "recovery";
+        AgentAddressState: {
+            /** Format: uuid */
+            egressId: string;
+            historyGeneration: string;
+            family: components["schemas"]["AddressFamily"];
+            status: components["schemas"]["AddressObservationStatus"];
+            /** Format: int64 */
+            sequence: number;
+            publicAddress?: string;
+            localInterface?: string;
+            localAddress?: string;
+            proxyPath: boolean;
+            likelyNat: boolean;
+            temporary: boolean;
+            failureReason?: components["schemas"]["AddressFailureReason"];
+            /** Format: date-time */
+            lastCheckedAt: string;
+            /** Format: date-time */
+            lastSucceededAt?: string;
+            /** Format: date-time */
+            lastChangedAt?: string;
+        };
+        AgentAddressEvent: {
+            /** Format: uuid */
+            id: string;
+            /** Format: uuid */
+            egressId: string;
+            historyGeneration: string;
+            /** Format: int64 */
+            sequence: number;
+            kind: components["schemas"]["AddressEventKind"];
+            family: components["schemas"]["AddressFamily"];
+            previousAddress?: string;
+            publicAddress?: string;
+            localInterface?: string;
+            localAddress?: string;
+            proxyPath: boolean;
+            likelyNat: boolean;
+            temporary: boolean;
+            failureReason?: components["schemas"]["AddressFailureReason"];
+            /** Format: date-time */
+            observedAt: string;
+        };
+        AgentAddressGap: {
+            /** Format: uuid */
+            id: string;
+            /** Format: uuid */
+            egressId: string;
+            historyGeneration: string;
+            /** Format: int64 */
+            droppedCount: number;
+            /** Format: int64 */
+            firstSequence: number;
+            /** Format: int64 */
+            lastSequence: number;
+            /** Format: date-time */
+            firstObservedAt: string;
+            /** Format: date-time */
+            lastObservedAt: string;
+        };
+        AgentAddressGapReceipt: {
+            /** Format: uuid */
+            id: string;
+            /** Format: int64 */
+            lastSequence: number;
+        };
+        AgentAddressUploadReceipt: {
+            acceptedEventIds: string[];
+            discardedEventIds: string[];
+            acceptedGaps: components["schemas"]["AgentAddressGapReceipt"][];
+            discardedGaps: components["schemas"]["AgentAddressGapReceipt"][];
         };
         /** @enum {string} */
         NodeStatus: "online" | "offline" | "disabled" | "revoked";
@@ -1371,12 +1503,14 @@ export interface operations {
         };
         requestBody?: never;
         responses: {
-            /** @description The egress was permanently deleted. */
-            204: {
+            /** @description Durable egress deletion has been queued. */
+            202: {
                 headers: {
                     [name: string]: unknown;
                 };
-                content?: never;
+                content: {
+                    "application/json": components["schemas"]["EgressDeletion"];
+                };
             };
             401: components["responses"]["Unauthorized"];
             403: components["responses"]["Forbidden"];
@@ -1416,6 +1550,56 @@ export interface operations {
             403: components["responses"]["Forbidden"];
             404: components["responses"]["NotFound"];
             409: components["responses"]["Conflict"];
+        };
+    };
+    getNetworkObservationSettings: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Current lightweight address discovery settings. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["NetworkObservationSettings"];
+                };
+            };
+            401: components["responses"]["Unauthorized"];
+        };
+    };
+    updateNetworkObservationSettings: {
+        parameters: {
+            query?: never;
+            header?: {
+                "X-CSRF-Token"?: components["parameters"]["CSRFToken"];
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["NetworkObservationSettingsUpdate"];
+            };
+        };
+        responses: {
+            /** @description Lightweight address discovery settings were updated. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["NetworkObservationSettings"];
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
         };
     };
     listNetworkProxies: {

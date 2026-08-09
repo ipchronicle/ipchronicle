@@ -3,11 +3,14 @@ import {
   ArrowLeft,
   Cable,
   CirclePlus,
+  Clock3,
   Globe2,
+  History,
   LoaderCircle,
   Network,
   RefreshCw,
   Route,
+  Save,
   Trash2,
   TriangleAlert,
   Waypoints,
@@ -22,6 +25,7 @@ import {
   updateNodeEgress,
   type NetworkEgress,
   type NetworkEgressCandidate,
+  type NetworkEgressUpdate,
   type NodeNetworkState,
 } from "@/api/network";
 import { listNodes, type Node } from "@/api/nodes";
@@ -51,6 +55,8 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 import {
   Select,
   SelectContent,
@@ -140,11 +146,14 @@ export function NodeNetworkPage() {
     );
   }
 
-  async function setEnabled(egress: NetworkEgress, enabled: boolean) {
+  async function updateEgress(
+    egress: NetworkEgress,
+    update: NetworkEgressUpdate,
+  ) {
     setFeedback(undefined);
     try {
       replaceEgress(
-        await updateNodeEgress(nodeId, egress.id, enabled, csrfToken),
+        await updateNodeEgress(nodeId, egress.id, update, csrfToken),
       );
     } catch (error) {
       setFeedback(formatAPIError(error, t));
@@ -187,8 +196,12 @@ export function NodeNetworkPage() {
   async function removeEgress(egress: NetworkEgress) {
     setFeedback(undefined);
     try {
-      await deleteNodeEgress(nodeId, egress.id, csrfToken);
-      await load();
+      const deletion = await deleteNodeEgress(nodeId, egress.id, csrfToken);
+      replaceEgress({
+        ...egress,
+        deletionStatus: deletion.status,
+        deletionError: deletion.error,
+      });
     } catch (error) {
       setFeedback(formatAPIError(error, t));
     }
@@ -263,10 +276,12 @@ export function NodeNetworkPage() {
           <>
             <EgressCard
               egresses={state.network.egresses}
+              addressStates={state.network.addressStates}
               proxies={state.proxies}
-              onEnabled={setEnabled}
+              onUpdate={updateEgress}
               onDelete={removeEgress}
             />
+            <AddressHistoryCard network={state.network} />
             <ProxyEgressCard
               proxies={state.proxies}
               egresses={state.network.egresses}
@@ -286,17 +301,21 @@ export function NodeNetworkPage() {
 
 function EgressCard({
   egresses,
+  addressStates,
   proxies,
-  onEnabled,
+  onUpdate,
   onDelete,
 }: {
   egresses: NetworkEgress[];
+  addressStates: NodeNetworkState["addressStates"];
   proxies: NetworkProxy[];
-  onEnabled: (egress: NetworkEgress, enabled: boolean) => Promise<void>;
+  onUpdate: (
+    egress: NetworkEgress,
+    update: NetworkEgressUpdate,
+  ) => Promise<void>;
   onDelete: (egress: NetworkEgress) => Promise<void>;
 }) {
   const { t } = useTranslation();
-  const [working, setWorking] = useState<string>();
 
   return (
     <Card>
@@ -317,92 +336,398 @@ function EgressCard({
           </p>
         ) : (
           egresses.map((egress) => (
-            <div
+            <EgressItem
               key={egress.id}
-              className="flex flex-wrap items-center justify-between gap-4 rounded-md border p-4"
-            >
-              <div className="min-w-0">
-                <div className="flex flex-wrap items-center gap-2">
-                  <p className="font-medium">
-                    {egressLabel(egress, proxies, t)}
-                  </p>
-                  <Badge variant={egress.available ? "outline" : "destructive"}>
-                    {egress.available
-                      ? t("network.egresses.available")
-                      : t("network.egresses.unavailable")}
-                  </Badge>
-                  {egress.automatic ? (
-                    <Badge variant="secondary">
-                      {t("network.egresses.automatic")}
-                    </Badge>
-                  ) : null}
-                </div>
-                <p className="mt-1 break-all text-xs text-muted-foreground">
-                  {t(`network.family.${egress.family}`)} · {egress.id}
-                </p>
-              </div>
-              <div className="flex items-center gap-2">
-                <AlertDialog>
-                  <AlertDialogTrigger asChild>
-                    <Button
-                      variant="ghost"
-                      size="icon"
-                      disabled={working === egress.id}
-                      aria-label={t("network.egresses.delete")}
-                    >
-                      <Trash2 aria-hidden="true" />
-                    </Button>
-                  </AlertDialogTrigger>
-                  <AlertDialogContent>
-                    <AlertDialogHeader>
-                      <AlertDialogMedia>
-                        <TriangleAlert aria-hidden="true" />
-                      </AlertDialogMedia>
-                      <AlertDialogTitle>
-                        {t("network.egresses.deleteTitle")}
-                      </AlertDialogTitle>
-                      <AlertDialogDescription>
-                        {t("network.egresses.deleteDetail")}
-                      </AlertDialogDescription>
-                    </AlertDialogHeader>
-                    <AlertDialogFooter>
-                      <AlertDialogCancel>
-                        {t("common.cancel")}
-                      </AlertDialogCancel>
-                      <AlertDialogAction
-                        variant="destructive"
-                        onClick={() => {
-                          setWorking(egress.id);
-                          void onDelete(egress).finally(() =>
-                            setWorking(undefined),
-                          );
-                        }}
-                      >
-                        {t("network.egresses.deleteConfirm")}
-                      </AlertDialogAction>
-                    </AlertDialogFooter>
-                  </AlertDialogContent>
-                </AlertDialog>
-                <Switch
-                  checked={egress.enabled}
-                  disabled={working === egress.id}
-                  aria-label={t("network.egresses.enabledLabel", {
-                    name: egressLabel(egress, proxies, t),
-                  })}
-                  onCheckedChange={(checked) => {
-                    setWorking(egress.id);
-                    void onEnabled(egress, checked).finally(() =>
-                      setWorking(undefined),
-                    );
-                  }}
-                />
-              </div>
-            </div>
+              egress={egress}
+              addressState={addressStates.find(
+                (item) => item.egressId === egress.id,
+              )}
+              proxies={proxies}
+              onUpdate={onUpdate}
+              onDelete={onDelete}
+            />
           ))
         )}
       </CardContent>
     </Card>
   );
+}
+
+function EgressItem({
+  egress,
+  addressState,
+  proxies,
+  onUpdate,
+  onDelete,
+}: {
+  egress: NetworkEgress;
+  addressState: NodeNetworkState["addressStates"][number] | undefined;
+  proxies: NetworkProxy[];
+  onUpdate: (
+    egress: NetworkEgress,
+    update: NetworkEgressUpdate,
+  ) => Promise<void>;
+  onDelete: (egress: NetworkEgress) => Promise<void>;
+}) {
+  const { i18n, t } = useTranslation();
+  const [interval, setInterval] = useState(
+    String(egress.lightweightIntervalSeconds),
+  );
+  const [working, setWorking] = useState(false);
+
+  useEffect(() => {
+    setInterval(String(egress.lightweightIntervalSeconds));
+  }, [egress.lightweightIntervalSeconds]);
+
+  async function update(update: NetworkEgressUpdate) {
+    setWorking(true);
+    try {
+      await onUpdate(egress, update);
+    } finally {
+      setWorking(false);
+    }
+  }
+
+  const common = {
+    enabled: egress.enabled,
+    lightweightIntervalSeconds: egress.lightweightIntervalSeconds,
+    probeOnAddressChange: egress.probeOnAddressChange,
+  };
+  const deletionPending = egress.deletionStatus === "pending";
+  const deletionFailed = egress.deletionStatus === "failed";
+  const deletionActive = deletionPending || deletionFailed;
+
+  return (
+    <div className="space-y-4 rounded-md border p-4">
+      <div className="flex flex-wrap items-start justify-between gap-4">
+        <div className="min-w-0">
+          <div className="flex flex-wrap items-center gap-2">
+            <p className="font-medium">{egressLabel(egress, proxies, t)}</p>
+            <Badge variant={egress.available ? "outline" : "destructive"}>
+              {egress.available
+                ? t("network.egresses.available")
+                : t("network.egresses.unavailable")}
+            </Badge>
+            {egress.automatic ? (
+              <Badge variant="secondary">
+                {t("network.egresses.automatic")}
+              </Badge>
+            ) : null}
+            {deletionActive ? (
+              <Badge variant="destructive">
+                <Trash2 aria-hidden="true" />
+                {deletionFailed
+                  ? t("network.egresses.deletionFailed")
+                  : t("network.egresses.deletionPending")}
+              </Badge>
+            ) : null}
+          </div>
+          <p className="mt-1 break-all text-xs text-muted-foreground">
+            {t(`network.family.${egress.family}`)} · {egress.id}
+          </p>
+        </div>
+        <div className="flex items-center gap-2">
+          {!deletionPending ? (
+            <AlertDialog>
+              <AlertDialogTrigger asChild>
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  disabled={working}
+                  aria-label={t(
+                    deletionFailed
+                      ? "network.egresses.retryDeletion"
+                      : "network.egresses.delete",
+                  )}
+                >
+                  {deletionFailed ? (
+                    <RefreshCw aria-hidden="true" />
+                  ) : (
+                    <Trash2 aria-hidden="true" />
+                  )}
+                </Button>
+              </AlertDialogTrigger>
+              <AlertDialogContent>
+                <AlertDialogHeader>
+                  <AlertDialogMedia>
+                    <TriangleAlert aria-hidden="true" />
+                  </AlertDialogMedia>
+                  <AlertDialogTitle>
+                    {t("network.egresses.deleteTitle")}
+                  </AlertDialogTitle>
+                  <AlertDialogDescription>
+                    {t("network.egresses.deleteDetail")}
+                  </AlertDialogDescription>
+                </AlertDialogHeader>
+                <AlertDialogFooter>
+                  <AlertDialogCancel>{t("common.cancel")}</AlertDialogCancel>
+                  <AlertDialogAction
+                    variant="destructive"
+                    onClick={() => {
+                      setWorking(true);
+                      void onDelete(egress).finally(() => setWorking(false));
+                    }}
+                  >
+                    {t(
+                      deletionFailed
+                        ? "network.egresses.retryDeletion"
+                        : "network.egresses.deleteConfirm",
+                    )}
+                  </AlertDialogAction>
+                </AlertDialogFooter>
+              </AlertDialogContent>
+            </AlertDialog>
+          ) : null}
+          <Switch
+            checked={egress.enabled}
+            disabled={working || deletionActive}
+            aria-label={t("network.egresses.enabledLabel", {
+              name: egressLabel(egress, proxies, t),
+            })}
+            onCheckedChange={(enabled) => void update({ ...common, enabled })}
+          />
+        </div>
+      </div>
+
+      {deletionFailed && egress.deletionError ? (
+        <Alert variant="destructive">
+          <TriangleAlert aria-hidden="true" />
+          <AlertTitle>{t("network.egresses.deletionFailed")}</AlertTitle>
+          <AlertDescription>{egress.deletionError}</AlertDescription>
+        </Alert>
+      ) : null}
+
+      <AddressSummary state={addressState} locale={i18n.language} />
+
+      <div className="grid items-end gap-4 border-t pt-4 sm:grid-cols-[minmax(0,14rem)_minmax(0,1fr)]">
+        <div className="space-y-2">
+          <Label htmlFor={`interval-${egress.id}`}>
+            {t("network.egresses.interval")}
+          </Label>
+          <div className="flex gap-2">
+            <Input
+              id={`interval-${egress.id}`}
+              type="number"
+              min={1}
+              max={9223372036}
+              value={interval}
+              disabled={working || deletionActive}
+              onChange={(event) => setInterval(event.target.value)}
+            />
+            <Button
+              size="icon"
+              variant="outline"
+              disabled={working || deletionActive || Number(interval) < 1}
+              aria-label={t("network.egresses.saveInterval")}
+              onClick={() =>
+                void update({
+                  ...common,
+                  lightweightIntervalSeconds: Number(interval),
+                })
+              }
+            >
+              <Save aria-hidden="true" />
+            </Button>
+          </div>
+        </div>
+        <div className="flex items-center justify-between gap-4 rounded-md border px-3 py-2">
+          <div>
+            <Label htmlFor={`change-probe-${egress.id}`}>
+              {t("network.egresses.probeOnChange")}
+            </Label>
+            <p className="text-xs text-muted-foreground">
+              {t("network.egresses.probeOnChangeDetail")}
+            </p>
+          </div>
+          <Switch
+            id={`change-probe-${egress.id}`}
+            checked={egress.probeOnAddressChange}
+            disabled={working || deletionActive}
+            onCheckedChange={(probeOnAddressChange) =>
+              void update({ ...common, probeOnAddressChange })
+            }
+          />
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function AddressSummary({
+  state,
+  locale,
+}: {
+  state: NodeNetworkState["addressStates"][number] | undefined;
+  locale: string;
+}) {
+  const { t } = useTranslation();
+  if (!state) {
+    return (
+      <div className="rounded-md bg-muted/40 px-3 py-3 text-sm text-muted-foreground">
+        {t("network.observation.waiting")}
+      </div>
+    );
+  }
+  const mapping = state.proxyPath
+    ? (state.publicAddress ?? t("network.observation.unknown"))
+    : state.localAddress && state.publicAddress
+      ? `${state.localInterface} · ${state.localAddress}${state.localAddress === state.publicAddress ? "" : ` -> ${state.publicAddress}`}`
+      : (state.publicAddress ?? t("network.observation.unknown"));
+  return (
+    <div className="space-y-3 rounded-md bg-muted/40 px-3 py-3">
+      <div className="flex flex-wrap items-center gap-2">
+        <span className="break-all font-mono text-sm">{mapping}</span>
+        <Badge variant={state.status === "failed" ? "destructive" : "outline"}>
+          {t(`network.observation.status.${state.status}`)}
+        </Badge>
+        {state.proxyPath ? (
+          <Badge variant="secondary">{t("network.observation.proxy")}</Badge>
+        ) : null}
+        {state.likelyNat ? (
+          <Badge variant="destructive">{t("network.observation.nat")}</Badge>
+        ) : null}
+        {state.temporary ? (
+          <Badge variant="secondary">
+            {t("network.observation.temporary")}
+          </Badge>
+        ) : null}
+      </div>
+      <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-muted-foreground">
+        <span className="inline-flex items-center gap-1">
+          <Clock3 aria-hidden="true" className="size-3" />
+          {new Date(state.lastCheckedAt).toLocaleString(locale)}
+        </span>
+        {state.failureReason ? (
+          <span>{t(`network.observation.failure.${state.failureReason}`)}</span>
+        ) : null}
+      </div>
+      {state.likelyNat ? (
+        <Alert>
+          <TriangleAlert aria-hidden="true" />
+          <AlertDescription>
+            {t("network.observation.natDetail")}
+          </AlertDescription>
+        </Alert>
+      ) : null}
+    </div>
+  );
+}
+
+function AddressHistoryCard({ network }: { network: NodeNetworkState }) {
+  const { i18n, t } = useTranslation();
+  const items = [
+    ...network.addressEvents.map((event) => ({
+      type: "event" as const,
+      id: event.id,
+      time: event.observedAt,
+      event,
+    })),
+    ...network.addressGaps.map((gap) => ({
+      type: "gap" as const,
+      id: gap.id,
+      time: gap.lastObservedAt,
+      gap,
+    })),
+  ].sort((left, right) => right.time.localeCompare(left.time));
+
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle className="flex items-center gap-2">
+          <History aria-hidden="true" className="size-4" />
+          {t("network.addressHistory.title")}
+        </CardTitle>
+        <CardDescription>{t("network.addressHistory.detail")}</CardDescription>
+        <CardAction>
+          <Badge variant="secondary">{items.length}</Badge>
+        </CardAction>
+      </CardHeader>
+      <CardContent className="space-y-3">
+        {items.length === 0 ? (
+          <p className="py-6 text-center text-sm text-muted-foreground">
+            {t("network.addressHistory.empty")}
+          </p>
+        ) : (
+          items.map((item) =>
+            item.type === "event" ? (
+              <div
+                key={item.id}
+                className="flex flex-wrap items-start justify-between gap-3 rounded-md border p-3"
+              >
+                <div className="min-w-0">
+                  <div className="flex flex-wrap items-center gap-2">
+                    <Badge
+                      variant={
+                        item.event.kind === "check-failure"
+                          ? "destructive"
+                          : "outline"
+                      }
+                    >
+                      {t(`network.addressHistory.kind.${item.event.kind}`)}
+                    </Badge>
+                    <span className="break-all font-mono text-xs">
+                      {eventMapping(item.event, t)}
+                    </span>
+                  </div>
+                  {item.event.failureReason ? (
+                    <p className="mt-2 text-xs text-muted-foreground">
+                      {t(
+                        `network.observation.failure.${item.event.failureReason}`,
+                      )}
+                    </p>
+                  ) : null}
+                </div>
+                <time className="text-xs whitespace-nowrap text-muted-foreground">
+                  {new Date(item.event.observedAt).toLocaleString(
+                    i18n.language,
+                  )}
+                </time>
+              </div>
+            ) : (
+              <div
+                key={item.id}
+                className="flex flex-wrap items-start justify-between gap-3 rounded-md border border-destructive/40 p-3"
+              >
+                <div>
+                  <Badge variant="destructive">
+                    {t("network.addressHistory.gap")}
+                  </Badge>
+                  <p className="mt-2 text-sm">
+                    {t("network.addressHistory.gapDetail", {
+                      count: item.gap.droppedCount,
+                      first: item.gap.firstSequence,
+                      last: item.gap.lastSequence,
+                    })}
+                  </p>
+                </div>
+                <time className="text-xs whitespace-nowrap text-muted-foreground">
+                  {new Date(item.gap.lastObservedAt).toLocaleString(
+                    i18n.language,
+                  )}
+                </time>
+              </div>
+            ),
+          )
+        )}
+      </CardContent>
+    </Card>
+  );
+}
+
+function eventMapping(
+  event: NodeNetworkState["addressEvents"][number],
+  t: ReturnType<typeof useTranslation>["t"],
+) {
+  if (event.previousAddress && event.publicAddress) {
+    return `${event.previousAddress} -> ${event.publicAddress}`;
+  }
+  if (event.proxyPath) {
+    return event.publicAddress ?? t("network.observation.unknown");
+  }
+  if (event.localAddress && event.publicAddress) {
+    return `${event.localInterface} · ${event.localAddress}${event.localAddress === event.publicAddress ? "" : ` -> ${event.publicAddress}`}`;
+  }
+  return event.publicAddress ?? t("network.observation.unknown");
 }
 
 function ProxyEgressCard({

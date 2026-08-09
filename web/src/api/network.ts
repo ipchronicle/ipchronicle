@@ -7,6 +7,12 @@ export type NetworkEgress = components["schemas"]["NetworkEgress"];
 export type NetworkEgressCandidate =
   components["schemas"]["NetworkEgressCandidate"];
 export type NetworkEgressCreate = components["schemas"]["NetworkEgressCreate"];
+export type NetworkEgressUpdate = components["schemas"]["NetworkEgressUpdate"];
+export type EgressDeletion = components["schemas"]["EgressDeletion"];
+export type NetworkObservationSettings =
+  components["schemas"]["NetworkObservationSettings"];
+export type NetworkObservationSettingsUpdate =
+  components["schemas"]["NetworkObservationSettingsUpdate"];
 
 export async function getNodeNetwork(nodeId: string, signal?: AbortSignal) {
   const result = await apiClient.GET("/api/v1/nodes/{nodeId}/network", {
@@ -38,17 +44,41 @@ export async function createNodeEgress(
 export async function updateNodeEgress(
   nodeId: string,
   egressId: string,
-  enabled: boolean,
+  update: NetworkEgressUpdate,
   csrfToken: string,
 ) {
   const result = await apiClient.PATCH(
     "/api/v1/nodes/{nodeId}/egresses/{egressId}",
     {
       params: { path: { nodeId, egressId } },
-      body: { enabled },
+      body: update,
       headers: { "X-CSRF-Token": csrfToken },
     },
   );
+  if (!result.response.ok || result.data === undefined) {
+    throwAPIError(result.response, result.error);
+  }
+  return result.data;
+}
+
+export async function getNetworkObservationSettings(signal?: AbortSignal) {
+  const result = await apiClient.GET("/api/v1/network-observation-settings", {
+    signal,
+  });
+  if (!result.response.ok || result.data === undefined) {
+    throwAPIError(result.response, result.error);
+  }
+  return result.data;
+}
+
+export async function updateNetworkObservationSettings(
+  update: NetworkObservationSettingsUpdate,
+  csrfToken: string,
+) {
+  const result = await apiClient.PUT("/api/v1/network-observation-settings", {
+    body: update,
+    headers: { "X-CSRF-Token": csrfToken },
+  });
   if (!result.response.ok || result.data === undefined) {
     throwAPIError(result.response, result.error);
   }
@@ -67,7 +97,8 @@ export async function deleteNodeEgress(
       headers: { "X-CSRF-Token": csrfToken },
     },
   );
-  if (!result.response.ok) {
+  if (!result.response.ok || result.data === undefined) {
     throwAPIError(result.response, result.error);
   }
+  return result.data;
 }

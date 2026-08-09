@@ -11,6 +11,7 @@ import (
 	"fmt"
 	"io"
 	"net/netip"
+	"net/url"
 	"os"
 	"path/filepath"
 	"strings"
@@ -23,7 +24,7 @@ import (
 
 const (
 	masterKeySize         = 32
-	localSchemaVersion    = 2
+	localSchemaVersion    = 3
 	secretEnvelopeVersion = 1
 )
 
@@ -33,6 +34,9 @@ var (
 	metaBucket                = []byte("meta")
 	identityBucket            = []byte("identity")
 	configurationBucket       = []byte("configuration")
+	addressCurrentBucket      = []byte("address-current")
+	addressEventsBucket       = []byte("address-events")
+	addressGapsBucket         = []byte("address-gaps")
 	schemaVersionKey          = []byte("schema-version")
 	centerURLKey              = []byte("center-url")
 	nodeIDKey                 = []byte("node-id")
@@ -54,12 +58,18 @@ type Identity struct {
 }
 
 type Configuration struct {
-	SchemaVersion     int      `json:"schemaVersion"`
-	Revision          int64    `json:"revision"`
-	Enabled           bool     `json:"enabled"`
-	HistoryGeneration string   `json:"historyGeneration"`
-	Egresses          []Egress `json:"egresses,omitempty"`
-	Proxies           []Proxy  `json:"proxies,omitempty"`
+	SchemaVersion     int               `json:"schemaVersion"`
+	Revision          int64             `json:"revision"`
+	Enabled           bool              `json:"enabled"`
+	HistoryGeneration string            `json:"historyGeneration"`
+	Egresses          []Egress          `json:"egresses,omitempty"`
+	Proxies           []Proxy           `json:"proxies,omitempty"`
+	DiscoveryServices DiscoveryServices `json:"discoveryServices"`
+}
+
+type DiscoveryServices struct {
+	IPv4 []string `json:"ipv4Services"`
+	IPv6 []string `json:"ipv6Services"`
 }
 
 type Egress struct {
@@ -84,12 +94,13 @@ type Proxy struct {
 }
 
 type storedConfiguration struct {
-	SchemaVersion     int           `json:"schemaVersion"`
-	Revision          int64         `json:"revision"`
-	Enabled           bool          `json:"enabled"`
-	HistoryGeneration string        `json:"historyGeneration"`
-	Egresses          []Egress      `json:"egresses,omitempty"`
-	Proxies           []storedProxy `json:"proxies,omitempty"`
+	SchemaVersion     int               `json:"schemaVersion"`
+	Revision          int64             `json:"revision"`
+	Enabled           bool              `json:"enabled"`
+	HistoryGeneration string            `json:"historyGeneration"`
+	Egresses          []Egress          `json:"egresses,omitempty"`
+	Proxies           []storedProxy     `json:"proxies,omitempty"`
+	DiscoveryServices DiscoveryServices `json:"discoveryServices"`
 }
 
 type storedProxy struct {
@@ -276,8 +287,8 @@ func (s *Store) ApplyConfiguration(configuration Configuration) error {
 	if err := validateConfiguration(configuration); err != nil {
 		return err
 	}
-	if configuration.SchemaVersion != 3 {
-		return errors.New("new Agent configuration must use schema version 3")
+	if configuration.SchemaVersion != 4 {
+		return errors.New("new Agent configuration must use schema version 4")
 	}
 	encoded, err := encodeStoredConfiguration(s.masterKey, configuration)
 	if err != nil {
@@ -296,12 +307,23 @@ func (s *Store) ApplyConfiguration(configuration Configuration) error {
 			return errors.New("Agent configuration revision must advance")
 		}
 		bucket := transaction.Bucket(configurationBucket)
+		var previousGeneration string
+		if current := bucket.Get(configurationKey); current != nil {
+			previous, err := decodeStoredConfiguration(s.masterKey, current)
+			if err != nil {
+				return err
+			}
+			previousGeneration = previous.HistoryGeneration
+		}
 		if err := bucket.Put(configurationKey, encoded); err != nil {
 			return err
 		}
 		revision := make([]byte, 8)
 		binary.BigEndian.PutUint64(revision, uint64(configuration.Revision))
 		if err := identity.Put(appliedRevisionKey, revision); err != nil {
+			return err
+		}
+		if err := reconcileAddressBuckets(transaction, configuration, previousGeneration); err != nil {
 			return err
 		}
 		if err := bucket.Delete(configurationErrorKey); err != nil {
@@ -373,8 +395,12 @@ func (s *Store) initialize() error {
 		if _, err = transaction.CreateBucketIfNotExists(identityBucket); err != nil {
 			return err
 		}
-		_, err = transaction.CreateBucketIfNotExists(configurationBucket)
-		return err
+		for _, name := range [][]byte{configurationBucket, addressCurrentBucket, addressEventsBucket, addressGapsBucket} {
+			if _, err = transaction.CreateBucketIfNotExists(name); err != nil {
+				return err
+			}
+		}
+		return nil
 	})
 }
 
@@ -400,7 +426,7 @@ func (s *Store) validateCurrentConfiguration() error {
 }
 
 func validateConfiguration(configuration Configuration) error {
-	if (configuration.SchemaVersion != 1 && configuration.SchemaVersion != 2 && configuration.SchemaVersion != 3) || configuration.Revision < 1 {
+	if (configuration.SchemaVersion < 1 || configuration.SchemaVersion > 4) || configuration.Revision < 1 {
 		return errors.New("unsupported Agent configuration snapshot")
 	}
 	generation, err := hex.DecodeString(configuration.HistoryGeneration)
@@ -415,6 +441,13 @@ func validateConfiguration(configuration Configuration) error {
 	}
 	if configuration.SchemaVersion == 2 && len(configuration.Proxies) != 0 {
 		return errors.New("schema version 2 configuration contains network proxies")
+	}
+	if configuration.SchemaVersion < 4 {
+		if len(configuration.DiscoveryServices.IPv4) != 0 || len(configuration.DiscoveryServices.IPv6) != 0 {
+			return errors.New("older Agent configuration contains discovery services")
+		}
+	} else if !validDiscoveryServiceList(configuration.DiscoveryServices.IPv4) || !validDiscoveryServiceList(configuration.DiscoveryServices.IPv6) {
+		return errors.New("Agent configuration contains invalid discovery services")
 	}
 	if len(configuration.Egresses) > 64 {
 		return errors.New("Agent configuration contains too many network egresses")
@@ -465,7 +498,7 @@ func validateConfiguration(configuration Configuration) error {
 				return errors.New("source network egress contains an invalid address")
 			}
 		case "proxy":
-			if configuration.SchemaVersion != 3 || egress.InterfaceName != nil || egress.SourceAddress != nil || egress.ProxyID == nil {
+			if configuration.SchemaVersion < 3 || egress.InterfaceName != nil || egress.SourceAddress != nil || egress.ProxyID == nil {
 				return errors.New("proxy network egress contains an invalid selector")
 			}
 			if _, exists := proxies[*egress.ProxyID]; !exists {
@@ -478,6 +511,29 @@ func validateConfiguration(configuration Configuration) error {
 		return errors.New("Agent configuration contains an unreferenced network proxy")
 	}
 	return nil
+}
+
+func validDiscoveryServiceList(values []string) bool {
+	if len(values) < 2 || len(values) > 8 {
+		return false
+	}
+	hosts := make(map[string]struct{}, len(values))
+	for _, value := range values {
+		if value != strings.TrimSpace(value) || len(value) < 8 || len(value) > 2048 {
+			return false
+		}
+		parsed, err := url.Parse(value)
+		if err != nil || (parsed.Scheme != "http" && parsed.Scheme != "https") || parsed.Host == "" ||
+			parsed.User != nil || parsed.Fragment != "" || parsed.Hostname() == "" {
+			return false
+		}
+		host := strings.ToLower(parsed.Hostname())
+		if _, exists := hosts[host]; exists {
+			return false
+		}
+		hosts[host] = struct{}{}
+	}
+	return true
 }
 
 func validStoredInterface(value *string) bool {
@@ -516,6 +572,7 @@ func encodeStoredConfiguration(masterKey [masterKeySize]byte, configuration Conf
 		SchemaVersion: configuration.SchemaVersion, Revision: configuration.Revision,
 		Enabled: configuration.Enabled, HistoryGeneration: configuration.HistoryGeneration,
 		Egresses: configuration.Egresses, Proxies: make([]storedProxy, 0, len(configuration.Proxies)),
+		DiscoveryServices: configuration.DiscoveryServices,
 	}
 	for _, proxy := range configuration.Proxies {
 		item := storedProxy{
@@ -558,6 +615,7 @@ func decodeStoredConfiguration(masterKey [masterKeySize]byte, encoded []byte) (C
 	configuration := Configuration{
 		SchemaVersion: stored.SchemaVersion, Revision: stored.Revision, Enabled: stored.Enabled,
 		HistoryGeneration: stored.HistoryGeneration, Egresses: stored.Egresses,
+		DiscoveryServices: stored.DiscoveryServices,
 	}
 	if len(stored.Proxies) != 0 {
 		configuration.Proxies = make([]Proxy, 0, len(stored.Proxies))

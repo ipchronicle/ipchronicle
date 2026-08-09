@@ -64,7 +64,7 @@ func TestAdministratorLoginStatusAndLogout(t *testing.T) {
 	if err := json.NewDecoder(statusResponse.Body).Decode(&status); err != nil {
 		t.Fatal(err)
 	}
-	if status.Service != api.IpchronicleCenter || status.Status != api.Ok || !status.TransportWarning || status.ConfigSchemaVersion != 6 || status.HistorySchemaVersion != 1 {
+	if status.Service != api.IpchronicleCenter || status.Status != api.Ok || !status.TransportWarning || status.ConfigSchemaVersion != 8 || status.HistorySchemaVersion != 2 {
 		t.Fatalf("unexpected status response: %#v", status)
 	}
 
@@ -122,6 +122,119 @@ func TestNetworkProxyAPINeverRevealsStoredPassword(t *testing.T) {
 	listed := performRequest(handler, http.MethodGet, "/api/v1/network-proxies", nil, "", cookie)
 	if listed.Code != http.StatusOK || bytes.Contains(listed.Body.Bytes(), []byte(secret)) || bytes.Contains(listed.Body.Bytes(), []byte(`"password"`)) {
 		t.Fatalf("list proxy response = %d %s", listed.Code, listed.Body.String())
+	}
+}
+
+func TestNetworkObservationAndEgressAPIWorkflow(t *testing.T) {
+	handler, nodeService, _ := newTestHTTPHandlerWithNodes(t, nil)
+	login := performRequest(handler, http.MethodPost, "/api/v1/auth/login", loginBody(), "http://example.test", nil)
+	if login.Code != http.StatusOK {
+		t.Fatalf("login status = %d, body = %s", login.Code, login.Body.String())
+	}
+	var session api.AuthenticatedSession
+	if err := json.NewDecoder(login.Body).Decode(&session); err != nil {
+		t.Fatal(err)
+	}
+	cookie := login.Result().Cookies()[0]
+
+	settings := performRequest(handler, http.MethodGet, "/api/v1/network-observation-settings", nil, "", cookie)
+	if settings.Code != http.StatusOK {
+		t.Fatalf("settings status = %d, body = %s", settings.Code, settings.Body.String())
+	}
+	invalidSettings := []byte(`{"ipv4Services":["https://one.example/ip","https://one.example/other"],"ipv6Services":["https://six-one.example/ip","https://six-two.example/ip"]}`)
+	invalid := performRequestWithCSRF(
+		handler, http.MethodPut, "/api/v1/network-observation-settings", invalidSettings,
+		"http://example.test", cookie, session.CsrfToken,
+	)
+	assertErrorCode(t, invalid, http.StatusBadRequest, api.InvalidObservationSettings)
+	validSettings := []byte(`{"ipv4Services":["https://one.example/ip","https://two.example/ip"],"ipv6Services":["https://six-one.example/ip","https://six-two.example/ip"]}`)
+	updated := performRequestWithCSRF(
+		handler, http.MethodPut, "/api/v1/network-observation-settings", validSettings,
+		"http://example.test", cookie, session.CsrfToken,
+	)
+	if updated.Code != http.StatusOK || !bytes.Contains(updated.Body.Bytes(), []byte("https://two.example/ip")) {
+		t.Fatalf("settings update = %d %s", updated.Code, updated.Body.String())
+	}
+
+	ctx := context.Background()
+	enrollment, err := nodeService.RotateEnrollmentKey(ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
+	registration, err := nodeService.Register(ctx, enrollment.Key, nodes.Metadata{
+		Hostname: "api-edge.example", AgentVersion: "0.1.0", OperatingSystem: "linux",
+		Architecture: "amd64", Capabilities: []string{"control-v1"},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	gateway := "10.0.0.1"
+	inventory := nodes.NetworkInventory{
+		CapturedAt: time.Date(2026, 8, 9, 14, 0, 0, 0, time.UTC),
+		Interfaces: []nodes.NetworkInterface{{Name: "eth0", Index: 2, Up: true}},
+		Addresses: []nodes.NetworkAddress{{
+			InterfaceName: "eth0", Address: "10.0.0.5", PrefixLength: 24, Family: "ipv4", Scope: "private",
+		}},
+		Routes: []nodes.NetworkRoute{{
+			InterfaceName: "eth0", Family: "ipv4", Destination: "0.0.0.0/0", Gateway: &gateway, Metric: 100, Default: true,
+		}},
+	}
+	if _, err := nodeService.Poll(ctx, registration.Credential, nodes.Metadata{
+		Hostname: "api-edge.example", AgentVersion: "0.1.0", OperatingSystem: "linux",
+		Architecture: "amd64", Capabilities: []string{"control-v1"},
+	}, 0, nil, nil, &inventory, nil); err != nil {
+		t.Fatal(err)
+	}
+	networkResponse := performRequest(
+		handler, http.MethodGet, "/api/v1/nodes/"+registration.NodeID.String()+"/network", nil, "", cookie,
+	)
+	if networkResponse.Code != http.StatusOK {
+		t.Fatalf("network status = %d, body = %s", networkResponse.Code, networkResponse.Body.String())
+	}
+	var network api.NodeNetworkState
+	if err := json.NewDecoder(networkResponse.Body).Decode(&network); err != nil {
+		t.Fatal(err)
+	}
+	if len(network.Egresses) != 1 {
+		t.Fatalf("network egresses = %#v", network.Egresses)
+	}
+	egress := network.Egresses[0]
+	updateBody := []byte(`{"enabled":false,"lightweightIntervalSeconds":15,"probeOnAddressChange":false}`)
+	patched := performRequestWithCSRF(
+		handler, http.MethodPatch,
+		"/api/v1/nodes/"+registration.NodeID.String()+"/egresses/"+egress.Id.String(), updateBody,
+		"http://example.test", cookie, session.CsrfToken,
+	)
+	if patched.Code != http.StatusOK || !bytes.Contains(patched.Body.Bytes(), []byte(`"lightweightIntervalSeconds":15`)) {
+		t.Fatalf("egress update = %d %s", patched.Code, patched.Body.String())
+	}
+	queued := performRequestWithCSRF(
+		handler, http.MethodDelete,
+		"/api/v1/nodes/"+registration.NodeID.String()+"/egresses/"+egress.Id.String(), nil,
+		"http://example.test", cookie, session.CsrfToken,
+	)
+	if queued.Code != http.StatusAccepted {
+		t.Fatalf("egress deletion = %d %s", queued.Code, queued.Body.String())
+	}
+	var deletion api.EgressDeletion
+	if err := json.NewDecoder(queued.Body).Decode(&deletion); err != nil {
+		t.Fatal(err)
+	}
+	if deletion.EgressId != egress.Id || deletion.Status != api.EgressDeletionStatusPending {
+		t.Fatalf("egress deletion response = %#v", deletion)
+	}
+	pendingResponse := performRequest(
+		handler, http.MethodGet, "/api/v1/nodes/"+registration.NodeID.String()+"/network", nil, "", cookie,
+	)
+	if pendingResponse.Code != http.StatusOK {
+		t.Fatalf("pending network status = %d, body = %s", pendingResponse.Code, pendingResponse.Body.String())
+	}
+	if err := json.NewDecoder(pendingResponse.Body).Decode(&network); err != nil {
+		t.Fatal(err)
+	}
+	if len(network.Egresses) != 1 || network.Egresses[0].DeletionStatus == nil ||
+		*network.Egresses[0].DeletionStatus != api.EgressDeletionStatusPending {
+		t.Fatalf("pending network egress = %#v", network.Egresses)
 	}
 }
 

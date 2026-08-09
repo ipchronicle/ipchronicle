@@ -199,6 +199,20 @@ export const en = {
       loadFailed: "Network proxy settings could not be loaded",
       empty: "No centrally managed proxies are configured.",
       save: "Save settings",
+      discovery: {
+        title: "Public address discovery",
+        detail:
+          "The Agent tries these independent services in order. First observations and suspected changes require agreement from two services.",
+        ipv4: "IPv4 services",
+        ipv6: "IPv6 services",
+        format:
+          "Enter one HTTP or HTTPS URL per line. Each list requires 2 to 8 distinct hosts.",
+        save: "Save discovery services",
+        updated: "Updated {{value}}",
+        httpTitle: "A discovery service uses HTTP",
+        httpDetail:
+          "An unencrypted response can be changed in transit and may create a false address event. Saving remains allowed.",
+      },
       create: {
         title: "Add proxy",
         detail:
@@ -257,11 +271,53 @@ export const en = {
         proxy: "Proxy · {{name}}",
         missingProxy: "Missing proxy",
         enabledLabel: "Enable or disable {{name}}",
+        interval: "Address check interval (seconds)",
+        saveInterval: "Save address check interval",
+        probeOnChange: "Probe after a confirmed address change",
+        probeOnChangeDetail:
+          "The first confirmed address does not start a complete probe.",
         delete: "Permanently delete egress",
         deleteTitle: "Permanently delete this network egress?",
         deleteDetail:
           "The egress configuration and its owned data will be irreversibly deleted. An automatic egress may be created with a new identity while its default route remains usable; use the switch to pause it instead.",
         deleteConfirm: "Permanently delete",
+        deletionPending: "Deletion pending",
+        deletionFailed: "Deletion failed",
+        retryDeletion: "Retry permanent deletion",
+      },
+      observation: {
+        waiting: "Waiting for the first lightweight address observation.",
+        unknown: "No confirmed public address",
+        proxy: "Proxy path",
+        nat: "Likely NAT",
+        temporary: "Temporary IPv6 source",
+        natDetail:
+          "The local source differs from the observed public address. Some upstream DNS or raw mail checks may use the default route or fail to bind.",
+        status: { confirmed: "Confirmed", failed: "Check failed" },
+        failure: {
+          "selector-unavailable":
+            "The configured local selector is unavailable.",
+          "no-valid-response": "No discovery service returned a valid address.",
+          "confirmation-unavailable":
+            "A second independent service could not confirm the address.",
+          "conflicting-responses":
+            "Independent discovery services returned different addresses.",
+        },
+      },
+      addressHistory: {
+        title: "Address transitions",
+        detail:
+          "Only first observations, confirmed changes, failure boundaries, recoveries, and reported gaps are retained.",
+        empty: "No address transition has been reported.",
+        kind: {
+          "first-observation": "First observation",
+          "address-change": "Address changed",
+          "check-failure": "Check failed",
+          recovery: "Recovered",
+        },
+        gap: "History gap",
+        gapDetail:
+          "{{count}} offline events were discarded (sequence {{first}} to {{last}}).",
       },
       proxyEgress: {
         title: "Add proxy egress",
@@ -378,6 +434,8 @@ export const en = {
       egress_limit_reached:
         "This node has reached the maximum of 64 configured network egresses.",
       egress_not_found: "The network egress does not exist or was deleted.",
+      egress_deletion_pending:
+        "The network egress is being permanently deleted and cannot accept other changes.",
       invalid_network_proxy: "The network proxy settings are invalid.",
       network_proxy_not_found:
         "The network proxy does not exist or was deleted.",
@@ -387,6 +445,8 @@ export const en = {
         "The installation has reached the maximum of 64 network proxies.",
       network_proxy_in_use:
         "This proxy is still referenced by a network egress and cannot be deleted.",
+      invalid_observation_settings:
+        "Use 2 to 8 valid HTTP or HTTPS URLs with distinct hosts for each address family.",
       internal_error: "The center could not complete the request.",
     },
   },
