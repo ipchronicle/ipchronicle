@@ -43,6 +43,17 @@ type EgressDeletionOperation struct {
 	LastError   *string
 }
 
+type HistoryRetentionSetting struct {
+	ID                      int64
+	Mode                    string
+	MaxAgeDays              *int64
+	MaxLogicalBytes         *int64
+	UpdatedAt               int64
+	LastCleanupAt           *int64
+	LastCleanupDeletedItems int64
+	LastCleanupError        *string
+}
+
 type NetworkEgress struct {
 	ID                         string
 	NodeID                     string

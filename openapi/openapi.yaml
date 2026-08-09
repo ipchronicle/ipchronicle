@@ -499,6 +499,47 @@ paths:
           $ref: "#/components/responses/Unauthorized"
         "404":
           $ref: "#/components/responses/NotFound"
+  /api/v1/probe-snapshots/{snapshotId}/star:
+    parameters:
+      - $ref: "#/components/parameters/SnapshotId"
+    put:
+      operationId: starProbeSnapshot
+      summary: Protect a probe snapshot from automatic retention cleanup
+      tags: [history]
+      parameters:
+        - $ref: "#/components/parameters/CSRFToken"
+      responses:
+        "200":
+          description: The snapshot is starred.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ProbeSnapshot"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+    delete:
+      operationId: unstarProbeSnapshot
+      summary: Remove automatic retention protection from a probe snapshot
+      tags: [history]
+      parameters:
+        - $ref: "#/components/parameters/CSRFToken"
+      responses:
+        "200":
+          description: The snapshot is no longer starred.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ProbeSnapshot"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
   /api/v1/history:
     get:
       operationId: getHistoryState
@@ -526,6 +567,172 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/HistoryState"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+  /api/v1/history/probe-snapshots:
+    get:
+      operationId: listHistoryProbeSnapshots
+      summary: List retained complete-probe snapshots across nodes
+      tags: [history]
+      parameters:
+        - $ref: "#/components/parameters/HistoryNodeFilter"
+        - $ref: "#/components/parameters/HistoryEgressFilter"
+        - $ref: "#/components/parameters/HistoryFrom"
+        - $ref: "#/components/parameters/HistoryTo"
+        - $ref: "#/components/parameters/HistoryProbeRunStatus"
+        - $ref: "#/components/parameters/HistoryProbeTrigger"
+        - $ref: "#/components/parameters/HistoryProbeChanged"
+        - $ref: "#/components/parameters/HistoryProbeFormatStatus"
+        - $ref: "#/components/parameters/HistoryPage"
+        - $ref: "#/components/parameters/HistoryPageSize"
+      responses:
+        "200":
+          description: A filtered page of retained probe snapshots.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ProbeSnapshotHistoryPage"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+  /api/v1/history/address-events:
+    get:
+      operationId: listHistoryAddressEvents
+      summary: List retained confirmed address events and reported gaps
+      tags: [history]
+      parameters:
+        - $ref: "#/components/parameters/HistoryNodeFilter"
+        - $ref: "#/components/parameters/HistoryEgressFilter"
+        - $ref: "#/components/parameters/HistoryFrom"
+        - $ref: "#/components/parameters/HistoryTo"
+        - $ref: "#/components/parameters/HistoryAddressEventKind"
+        - $ref: "#/components/parameters/HistoryAddressFamily"
+        - $ref: "#/components/parameters/HistoryPage"
+        - $ref: "#/components/parameters/HistoryGapPage"
+        - $ref: "#/components/parameters/HistoryPageSize"
+      responses:
+        "200":
+          description: A filtered page of address events and explicit gaps.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AddressHistoryPage"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+  /api/v1/history/probe-gaps:
+    get:
+      operationId: listHistoryProbeGaps
+      summary: List explicit complete-probe history gaps
+      tags: [history]
+      parameters:
+        - $ref: "#/components/parameters/HistoryNodeFilter"
+        - $ref: "#/components/parameters/HistoryEgressFilter"
+        - $ref: "#/components/parameters/HistoryFrom"
+        - $ref: "#/components/parameters/HistoryTo"
+        - $ref: "#/components/parameters/HistoryPage"
+        - $ref: "#/components/parameters/HistoryPageSize"
+      responses:
+        "200":
+          description: Explicit complete-probe gaps.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ProbeHistoryGapPage"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+  /api/v1/history/format-events:
+    get:
+      operationId: listHistoryFormatEvents
+      summary: List upstream complete-report format events
+      tags: [history]
+      parameters:
+        - $ref: "#/components/parameters/HistoryNodeFilter"
+        - $ref: "#/components/parameters/HistoryEgressFilter"
+        - $ref: "#/components/parameters/HistoryFrom"
+        - $ref: "#/components/parameters/HistoryTo"
+        - $ref: "#/components/parameters/HistoryPage"
+        - $ref: "#/components/parameters/HistoryPageSize"
+      responses:
+        "200":
+          description: Upstream format mismatch, change, and recovery events.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ProbeFormatEventPage"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+  /api/v1/history/comparison:
+    get:
+      operationId: compareProbeSnapshots
+      summary: Compare two retained snapshots from the same network egress
+      tags: [history]
+      parameters:
+        - name: beforeSnapshotId
+          in: query
+          required: true
+          schema:
+            type: string
+            format: uuid
+        - name: afterSnapshotId
+          in: query
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        "200":
+          description: A direct typed comparison of every known field.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ProbeSnapshotComparison"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "409":
+          $ref: "#/components/responses/Conflict"
+  /api/v1/history/retention:
+    put:
+      operationId: updateHistoryRetention
+      summary: Replace the global history retention policy and apply it
+      tags: [history]
+      parameters:
+        - $ref: "#/components/parameters/CSRFToken"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/HistoryRetentionUpdate"
+      responses:
+        "200":
+          description: The retention policy was saved and cleanup completed.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/HistoryState"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+  /api/v1/history/cleanup:
+    post:
+      operationId: cleanupHistory
+      summary: Apply the saved history retention policy now
+      tags: [history]
+      parameters:
+        - $ref: "#/components/parameters/CSRFToken"
+      responses:
+        "200":
+          description: Retention cleanup completed.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/HistoryCleanupResult"
         "401":
           $ref: "#/components/responses/Unauthorized"
         "403":
@@ -970,6 +1177,98 @@ components:
       schema:
         type: string
         format: uuid
+    HistoryNodeFilter:
+      name: nodeId
+      in: query
+      required: false
+      schema:
+        type: string
+        format: uuid
+    HistoryEgressFilter:
+      name: egressId
+      in: query
+      required: false
+      schema:
+        type: string
+        format: uuid
+    HistoryFrom:
+      name: from
+      in: query
+      required: false
+      schema:
+        type: string
+        format: date-time
+    HistoryTo:
+      name: to
+      in: query
+      required: false
+      schema:
+        type: string
+        format: date-time
+    HistoryProbeRunStatus:
+      name: runStatus
+      in: query
+      required: false
+      schema:
+        $ref: "#/components/schemas/ProbeRunStatus"
+    HistoryProbeTrigger:
+      name: trigger
+      in: query
+      required: false
+      schema:
+        $ref: "#/components/schemas/ProbeTrigger"
+    HistoryProbeChanged:
+      name: changed
+      in: query
+      required: false
+      schema:
+        type: boolean
+    HistoryProbeFormatStatus:
+      name: formatStatus
+      in: query
+      required: false
+      schema:
+        $ref: "#/components/schemas/ProbeFormatStatus"
+    HistoryAddressEventKind:
+      name: eventKind
+      in: query
+      required: false
+      schema:
+        $ref: "#/components/schemas/AddressEventKind"
+    HistoryAddressFamily:
+      name: family
+      in: query
+      required: false
+      schema:
+        $ref: "#/components/schemas/AddressFamily"
+    HistoryPage:
+      name: page
+      in: query
+      required: false
+      schema:
+        type: integer
+        format: int64
+        minimum: 1
+        default: 1
+    HistoryPageSize:
+      name: pageSize
+      in: query
+      required: false
+      schema:
+        type: integer
+        format: int64
+        minimum: 1
+        maximum: 100
+        default: 50
+    HistoryGapPage:
+      name: gapPage
+      in: query
+      required: false
+      schema:
+        type: integer
+        format: int64
+        minimum: 1
+        default: 1
   responses:
     BadRequest:
       description: The request failed validation.
@@ -1181,6 +1480,7 @@ components:
         - no_enabled_egress
         - probe_run_not_found
         - probe_snapshot_not_found
+        - snapshot_egress_mismatch
         - internal_error
     ErrorResponse:
       type: object
@@ -2540,7 +2840,7 @@ components:
     ProbeSnapshot:
       type: object
       additionalProperties: false
-      required: [id, executionId, egressId, sequence, observedAt, rawResult]
+      required: [id, executionId, egressId, sequence, observedAt, rawResult, starred, fields, formatIssues, changes]
       properties:
         id:
           type: string
@@ -2561,10 +2861,503 @@ components:
         rawResult:
           type: string
           format: byte
+        starred:
+          type: boolean
+        baseline:
+          type: boolean
+        fields:
+          type: array
+          maxItems: 256
+          items:
+            $ref: "#/components/schemas/KnownProbeField"
+        formatIssues:
+          type: array
+          maxItems: 512
+          items:
+            $ref: "#/components/schemas/ProbeFormatIssue"
+        changes:
+          type: array
+          maxItems: 256
+          items:
+            $ref: "#/components/schemas/ProbeFieldChange"
+        previousSnapshotId:
+          type: string
+          format: uuid
+    ProbeJSONType:
+      type: string
+      enum: [string, number, boolean, "null", object, array]
+    KnownProbeFieldStatus:
+      type: string
+      enum: [available, missing, incompatible]
+    KnownProbeField:
+      type: object
+      additionalProperties: false
+      required: [id, group, path, expectedTypes, status]
+      properties:
+        id:
+          type: string
+          minLength: 1
+          maxLength: 256
+        group:
+          type: string
+          minLength: 1
+          maxLength: 64
+        path:
+          type: string
+          minLength: 1
+          maxLength: 256
+        expectedTypes:
+          type: array
+          minItems: 1
+          maxItems: 4
+          items:
+            $ref: "#/components/schemas/ProbeJSONType"
+        status:
+          $ref: "#/components/schemas/KnownProbeFieldStatus"
+        actualType:
+          $ref: "#/components/schemas/ProbeJSONType"
+        value:
+          type: string
+          maxLength: 65536
+    ProbeFormatIssueKind:
+      type: string
+      enum: [missing, incompatible, unknown]
+    ProbeFormatIssue:
+      type: object
+      additionalProperties: false
+      required: [path, kind, expectedTypes]
+      properties:
+        path:
+          type: string
+          minLength: 1
+          maxLength: 256
+        kind:
+          $ref: "#/components/schemas/ProbeFormatIssueKind"
+        expectedTypes:
+          type: array
+          maxItems: 4
+          items:
+            $ref: "#/components/schemas/ProbeJSONType"
+        actualType:
+          $ref: "#/components/schemas/ProbeJSONType"
+    ProbeFieldChange:
+      type: object
+      additionalProperties: false
+      required: [fieldId, group, path, valueType, before, after]
+      properties:
+        fieldId:
+          type: string
+          minLength: 1
+          maxLength: 256
+        group:
+          type: string
+          minLength: 1
+          maxLength: 64
+        path:
+          type: string
+          minLength: 1
+          maxLength: 256
+        valueType:
+          $ref: "#/components/schemas/ProbeJSONType"
+        before:
+          type: string
+          maxLength: 65536
+        after:
+          type: string
+          maxLength: 65536
+    HistoryOwner:
+      type: object
+      additionalProperties: false
+      properties:
+        nodeName:
+          type: string
+          minLength: 1
+          maxLength: 128
+        egressName:
+          type: string
+          minLength: 1
+          maxLength: 128
+    ProbeFormatStatus:
+      type: string
+      enum: [compatible, mismatch]
+    ProbeSnapshotSummary:
+      type: object
+      additionalProperties: false
+      required: [id, executionId, runId, nodeId, egressId, owner, sequence, trigger, runStatus, observedAt, receivedAt, encodedSize, starred, current, processed, baseline, changeCount, formatStatus, formatIssueCount]
+      properties:
+        id:
+          type: string
+          format: uuid
+        executionId:
+          type: string
+          format: uuid
+        runId:
+          type: string
+          format: uuid
+        nodeId:
+          type: string
+          format: uuid
+        egressId:
+          type: string
+          format: uuid
+        owner:
+          $ref: "#/components/schemas/HistoryOwner"
+        sequence:
+          type: integer
+          format: int64
+          minimum: 1
+        trigger:
+          $ref: "#/components/schemas/ProbeTrigger"
+        runStatus:
+          $ref: "#/components/schemas/ProbeRunStatus"
+        observedAt:
+          type: string
+          format: date-time
+        receivedAt:
+          type: string
+          format: date-time
+        encodedSize:
+          type: integer
+          format: int64
+          minimum: 1
+        starred:
+          type: boolean
+        current:
+          type: boolean
+        processed:
+          type: boolean
+        baseline:
+          type: boolean
+        changeCount:
+          type: integer
+          format: int64
+          minimum: 0
+        formatStatus:
+          $ref: "#/components/schemas/ProbeFormatStatus"
+        formatIssueCount:
+          type: integer
+          format: int64
+          minimum: 0
+        previousSnapshotId:
+          type: string
+          format: uuid
+    ProbeSnapshotHistoryPage:
+      type: object
+      additionalProperties: false
+      required: [items, total]
+      properties:
+        items:
+          type: array
+          maxItems: 100
+          items:
+            $ref: "#/components/schemas/ProbeSnapshotSummary"
+        total:
+          type: integer
+          format: int64
+          minimum: 0
+    HistoryAddressEvent:
+      type: object
+      additionalProperties: false
+      required: [nodeId, owner, event]
+      properties:
+        nodeId:
+          type: string
+          format: uuid
+        owner:
+          $ref: "#/components/schemas/HistoryOwner"
+        event:
+          $ref: "#/components/schemas/AgentAddressEvent"
+    HistoryAddressGap:
+      type: object
+      additionalProperties: false
+      required: [nodeId, owner, gap]
+      properties:
+        nodeId:
+          type: string
+          format: uuid
+        owner:
+          $ref: "#/components/schemas/HistoryOwner"
+        gap:
+          $ref: "#/components/schemas/AgentAddressGap"
+    AddressHistoryPage:
+      type: object
+      additionalProperties: false
+      required: [events, gaps, total, gapTotal]
+      properties:
+        events:
+          type: array
+          maxItems: 100
+          items:
+            $ref: "#/components/schemas/HistoryAddressEvent"
+        gaps:
+          type: array
+          maxItems: 100
+          items:
+            $ref: "#/components/schemas/HistoryAddressGap"
+        total:
+          type: integer
+          format: int64
+          minimum: 0
+        gapTotal:
+          type: integer
+          format: int64
+          minimum: 0
+    ProbeHistoryGap:
+      type: object
+      additionalProperties: false
+      required: [id, nodeId, egressId, owner, droppedCount, firstSequence, lastSequence, firstObservedAt, lastObservedAt]
+      properties:
+        id:
+          type: string
+          format: uuid
+        nodeId:
+          type: string
+          format: uuid
+        egressId:
+          type: string
+          format: uuid
+        owner:
+          $ref: "#/components/schemas/HistoryOwner"
+        droppedCount:
+          type: integer
+          format: int64
+          minimum: 1
+        firstSequence:
+          type: integer
+          format: int64
+          minimum: 1
+        lastSequence:
+          type: integer
+          format: int64
+          minimum: 1
+        firstObservedAt:
+          type: string
+          format: date-time
+        lastObservedAt:
+          type: string
+          format: date-time
+    ProbeHistoryGapPage:
+      type: object
+      additionalProperties: false
+      required: [items, total]
+      properties:
+        items:
+          type: array
+          maxItems: 100
+          items:
+            $ref: "#/components/schemas/ProbeHistoryGap"
+        total:
+          type: integer
+          format: int64
+          minimum: 0
+    ProbeFormatEventKind:
+      type: string
+      enum: [mismatch, changed, recovered]
+    ProbeFormatEvent:
+      type: object
+      additionalProperties: false
+      required: [id, nodeId, egressId, executionId, snapshotId, owner, sequence, kind, issues, observedAt, recordedAt]
+      properties:
+        id:
+          type: string
+          format: uuid
+        nodeId:
+          type: string
+          format: uuid
+        egressId:
+          type: string
+          format: uuid
+        executionId:
+          type: string
+          format: uuid
+        snapshotId:
+          type: string
+          format: uuid
+        owner:
+          $ref: "#/components/schemas/HistoryOwner"
+        sequence:
+          type: integer
+          format: int64
+          minimum: 1
+        kind:
+          $ref: "#/components/schemas/ProbeFormatEventKind"
+        issues:
+          type: array
+          maxItems: 512
+          items:
+            $ref: "#/components/schemas/ProbeFormatIssue"
+        observedAt:
+          type: string
+          format: date-time
+        recordedAt:
+          type: string
+          format: date-time
+    ProbeFormatEventPage:
+      type: object
+      additionalProperties: false
+      required: [items, total]
+      properties:
+        items:
+          type: array
+          maxItems: 100
+          items:
+            $ref: "#/components/schemas/ProbeFormatEvent"
+        total:
+          type: integer
+          format: int64
+          minimum: 0
+    ComparedProbeField:
+      type: object
+      additionalProperties: false
+      required: [id, group, path, expectedTypes, before, after, changed]
+      properties:
+        id:
+          type: string
+          minLength: 1
+          maxLength: 256
+        group:
+          type: string
+          minLength: 1
+          maxLength: 64
+        path:
+          type: string
+          minLength: 1
+          maxLength: 256
+        expectedTypes:
+          type: array
+          minItems: 1
+          maxItems: 4
+          items:
+            $ref: "#/components/schemas/ProbeJSONType"
+        before:
+          $ref: "#/components/schemas/KnownProbeField"
+        after:
+          $ref: "#/components/schemas/KnownProbeField"
+        changed:
+          type: boolean
+    ProbeSnapshotComparison:
+      type: object
+      additionalProperties: false
+      required: [beforeId, afterId, egressId, fields]
+      properties:
+        beforeId:
+          type: string
+          format: uuid
+        afterId:
+          type: string
+          format: uuid
+        egressId:
+          type: string
+          format: uuid
+        fields:
+          type: array
+          maxItems: 256
+          items:
+            $ref: "#/components/schemas/ComparedProbeField"
+    HistoryRetentionMode:
+      type: string
+      enum: [indefinite, age, size]
+    HistoryRetentionSettings:
+      type: object
+      additionalProperties: false
+      required: [mode, updatedAt, lastCleanupDeletedItems]
+      properties:
+        mode:
+          $ref: "#/components/schemas/HistoryRetentionMode"
+        maxAgeDays:
+          type: integer
+          format: int64
+          minimum: 1
+          maximum: 36500
+        maxLogicalBytes:
+          type: integer
+          format: int64
+          minimum: 1048576
+          maximum: 1099511627776
+        updatedAt:
+          type: string
+          format: date-time
+        lastCleanupAt:
+          type: string
+          format: date-time
+        lastCleanupDeletedItems:
+          type: integer
+          format: int64
+          minimum: 0
+        lastCleanupError:
+          type: string
+          minLength: 1
+          maxLength: 4096
+    HistoryRetentionUpdate:
+      type: object
+      additionalProperties: false
+      required: [mode]
+      properties:
+        mode:
+          $ref: "#/components/schemas/HistoryRetentionMode"
+        maxAgeDays:
+          type: integer
+          format: int64
+          minimum: 1
+          maximum: 36500
+        maxLogicalBytes:
+          type: integer
+          format: int64
+          minimum: 1048576
+          maximum: 1099511627776
+    HistoryUsage:
+      type: object
+      additionalProperties: false
+      required: [logicalBytes, protectedLogicalBytes, recordCount, databaseBytes, walBytes, sharedMemoryBytes, overBudget, overageBytes]
+      properties:
+        logicalBytes:
+          type: integer
+          format: int64
+          minimum: 0
+        protectedLogicalBytes:
+          type: integer
+          format: int64
+          minimum: 0
+        recordCount:
+          type: integer
+          format: int64
+          minimum: 0
+        databaseBytes:
+          type: integer
+          format: int64
+          minimum: 0
+        walBytes:
+          type: integer
+          format: int64
+          minimum: 0
+        sharedMemoryBytes:
+          type: integer
+          format: int64
+          minimum: 0
+        overBudget:
+          type: boolean
+        overageBytes:
+          type: integer
+          format: int64
+          minimum: 0
+    HistoryCleanupResult:
+      type: object
+      additionalProperties: false
+      required: [deletedItems, completedAt, usage]
+      properties:
+        deletedItems:
+          type: integer
+          format: int64
+          minimum: 0
+        completedAt:
+          type: string
+          format: date-time
+        usage:
+          $ref: "#/components/schemas/HistoryUsage"
     HistoryState:
       type: object
       additionalProperties: false
-      required: [generation]
+      required: [generation, retention, usage]
       properties:
         generation:
           type: string
@@ -2572,6 +3365,10 @@ components:
         resetAt:
           type: string
           format: date-time
+        retention:
+          $ref: "#/components/schemas/HistoryRetentionSettings"
+        usage:
+          $ref: "#/components/schemas/HistoryUsage"
     NodeStatus:
       type: string
       enum: [online, offline, disabled, revoked]

@@ -312,6 +312,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/probe-snapshots/{snapshotId}/star": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                snapshotId: components["parameters"]["SnapshotId"];
+            };
+            cookie?: never;
+        };
+        get?: never;
+        /** Protect a probe snapshot from automatic retention cleanup */
+        put: operations["starProbeSnapshot"];
+        post?: never;
+        /** Remove automatic retention protection from a probe snapshot */
+        delete: operations["unstarProbeSnapshot"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/history": {
         parameters: {
             query?: never;
@@ -325,6 +345,125 @@ export interface paths {
         post?: never;
         /** Delete all observed history and advance its generation */
         delete: operations["resetHistory"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/history/probe-snapshots": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List retained complete-probe snapshots across nodes */
+        get: operations["listHistoryProbeSnapshots"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/history/address-events": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List retained confirmed address events and reported gaps */
+        get: operations["listHistoryAddressEvents"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/history/probe-gaps": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List explicit complete-probe history gaps */
+        get: operations["listHistoryProbeGaps"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/history/format-events": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List upstream complete-report format events */
+        get: operations["listHistoryFormatEvents"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/history/comparison": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Compare two retained snapshots from the same network egress */
+        get: operations["compareProbeSnapshots"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/history/retention": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /** Replace the global history retention policy and apply it */
+        put: operations["updateHistoryRetention"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/history/cleanup": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Apply the saved history retention policy now */
+        post: operations["cleanupHistory"];
+        delete?: never;
         options?: never;
         head?: never;
         patch?: never;
@@ -599,7 +738,7 @@ export interface components {
             provisioningUri: string;
         };
         /** @enum {string} */
-        ErrorCode: "invalid_request" | "invalid_credentials" | "totp_required" | "rate_limited" | "unauthenticated" | "csrf_failed" | "origin_not_allowed" | "current_password_invalid" | "invalid_totp" | "totp_already_enabled" | "totp_not_enabled" | "totp_enrollment_not_started" | "no_account_change" | "registration_key_not_initialized" | "registration_key_invalid" | "registration_disabled" | "agent_unauthenticated" | "agent_revoked" | "node_not_found" | "node_revoked" | "node_disabled" | "node_deletion_pending" | "node_sync_unsupported" | "sync_session_unavailable" | "network_inventory_unavailable" | "invalid_egress_candidate" | "egress_already_exists" | "egress_limit_reached" | "egress_not_found" | "egress_deletion_pending" | "invalid_network_proxy" | "network_proxy_not_found" | "network_proxy_already_exists" | "network_proxy_limit_reached" | "network_proxy_in_use" | "invalid_observation_settings" | "invalid_probe_settings" | "node_offline" | "probe_task_slot_occupied" | "probe_already_running" | "probe_paused_low_memory" | "no_enabled_egress" | "probe_run_not_found" | "probe_snapshot_not_found" | "internal_error";
+        ErrorCode: "invalid_request" | "invalid_credentials" | "totp_required" | "rate_limited" | "unauthenticated" | "csrf_failed" | "origin_not_allowed" | "current_password_invalid" | "invalid_totp" | "totp_already_enabled" | "totp_not_enabled" | "totp_enrollment_not_started" | "no_account_change" | "registration_key_not_initialized" | "registration_key_invalid" | "registration_disabled" | "agent_unauthenticated" | "agent_revoked" | "node_not_found" | "node_revoked" | "node_disabled" | "node_deletion_pending" | "node_sync_unsupported" | "sync_session_unavailable" | "network_inventory_unavailable" | "invalid_egress_candidate" | "egress_already_exists" | "egress_limit_reached" | "egress_not_found" | "egress_deletion_pending" | "invalid_network_proxy" | "network_proxy_not_found" | "network_proxy_already_exists" | "network_proxy_limit_reached" | "network_proxy_in_use" | "invalid_observation_settings" | "invalid_probe_settings" | "node_offline" | "probe_task_slot_occupied" | "probe_already_running" | "probe_paused_low_memory" | "no_enabled_egress" | "probe_run_not_found" | "probe_snapshot_not_found" | "snapshot_egress_mismatch" | "internal_error";
         ErrorResponse: {
             code: components["schemas"]["ErrorCode"];
             parameters?: {
@@ -1216,11 +1355,231 @@ export interface components {
             observedAt: string;
             /** Format: byte */
             rawResult: string;
+            starred: boolean;
+            baseline?: boolean;
+            fields: components["schemas"]["KnownProbeField"][];
+            formatIssues: components["schemas"]["ProbeFormatIssue"][];
+            changes: components["schemas"]["ProbeFieldChange"][];
+            /** Format: uuid */
+            previousSnapshotId?: string;
+        };
+        /** @enum {string} */
+        ProbeJSONType: "string" | "number" | "boolean" | "null" | "object" | "array";
+        /** @enum {string} */
+        KnownProbeFieldStatus: "available" | "missing" | "incompatible";
+        KnownProbeField: {
+            id: string;
+            group: string;
+            path: string;
+            expectedTypes: components["schemas"]["ProbeJSONType"][];
+            status: components["schemas"]["KnownProbeFieldStatus"];
+            actualType?: components["schemas"]["ProbeJSONType"];
+            value?: string;
+        };
+        /** @enum {string} */
+        ProbeFormatIssueKind: "missing" | "incompatible" | "unknown";
+        ProbeFormatIssue: {
+            path: string;
+            kind: components["schemas"]["ProbeFormatIssueKind"];
+            expectedTypes: components["schemas"]["ProbeJSONType"][];
+            actualType?: components["schemas"]["ProbeJSONType"];
+        };
+        ProbeFieldChange: {
+            fieldId: string;
+            group: string;
+            path: string;
+            valueType: components["schemas"]["ProbeJSONType"];
+            before: string;
+            after: string;
+        };
+        HistoryOwner: {
+            nodeName?: string;
+            egressName?: string;
+        };
+        /** @enum {string} */
+        ProbeFormatStatus: "compatible" | "mismatch";
+        ProbeSnapshotSummary: {
+            /** Format: uuid */
+            id: string;
+            /** Format: uuid */
+            executionId: string;
+            /** Format: uuid */
+            runId: string;
+            /** Format: uuid */
+            nodeId: string;
+            /** Format: uuid */
+            egressId: string;
+            owner: components["schemas"]["HistoryOwner"];
+            /** Format: int64 */
+            sequence: number;
+            trigger: components["schemas"]["ProbeTrigger"];
+            runStatus: components["schemas"]["ProbeRunStatus"];
+            /** Format: date-time */
+            observedAt: string;
+            /** Format: date-time */
+            receivedAt: string;
+            /** Format: int64 */
+            encodedSize: number;
+            starred: boolean;
+            current: boolean;
+            processed: boolean;
+            baseline: boolean;
+            /** Format: int64 */
+            changeCount: number;
+            formatStatus: components["schemas"]["ProbeFormatStatus"];
+            /** Format: int64 */
+            formatIssueCount: number;
+            /** Format: uuid */
+            previousSnapshotId?: string;
+        };
+        ProbeSnapshotHistoryPage: {
+            items: components["schemas"]["ProbeSnapshotSummary"][];
+            /** Format: int64 */
+            total: number;
+        };
+        HistoryAddressEvent: {
+            /** Format: uuid */
+            nodeId: string;
+            owner: components["schemas"]["HistoryOwner"];
+            event: components["schemas"]["AgentAddressEvent"];
+        };
+        HistoryAddressGap: {
+            /** Format: uuid */
+            nodeId: string;
+            owner: components["schemas"]["HistoryOwner"];
+            gap: components["schemas"]["AgentAddressGap"];
+        };
+        AddressHistoryPage: {
+            events: components["schemas"]["HistoryAddressEvent"][];
+            gaps: components["schemas"]["HistoryAddressGap"][];
+            /** Format: int64 */
+            total: number;
+            /** Format: int64 */
+            gapTotal: number;
+        };
+        ProbeHistoryGap: {
+            /** Format: uuid */
+            id: string;
+            /** Format: uuid */
+            nodeId: string;
+            /** Format: uuid */
+            egressId: string;
+            owner: components["schemas"]["HistoryOwner"];
+            /** Format: int64 */
+            droppedCount: number;
+            /** Format: int64 */
+            firstSequence: number;
+            /** Format: int64 */
+            lastSequence: number;
+            /** Format: date-time */
+            firstObservedAt: string;
+            /** Format: date-time */
+            lastObservedAt: string;
+        };
+        ProbeHistoryGapPage: {
+            items: components["schemas"]["ProbeHistoryGap"][];
+            /** Format: int64 */
+            total: number;
+        };
+        /** @enum {string} */
+        ProbeFormatEventKind: "mismatch" | "changed" | "recovered";
+        ProbeFormatEvent: {
+            /** Format: uuid */
+            id: string;
+            /** Format: uuid */
+            nodeId: string;
+            /** Format: uuid */
+            egressId: string;
+            /** Format: uuid */
+            executionId: string;
+            /** Format: uuid */
+            snapshotId: string;
+            owner: components["schemas"]["HistoryOwner"];
+            /** Format: int64 */
+            sequence: number;
+            kind: components["schemas"]["ProbeFormatEventKind"];
+            issues: components["schemas"]["ProbeFormatIssue"][];
+            /** Format: date-time */
+            observedAt: string;
+            /** Format: date-time */
+            recordedAt: string;
+        };
+        ProbeFormatEventPage: {
+            items: components["schemas"]["ProbeFormatEvent"][];
+            /** Format: int64 */
+            total: number;
+        };
+        ComparedProbeField: {
+            id: string;
+            group: string;
+            path: string;
+            expectedTypes: components["schemas"]["ProbeJSONType"][];
+            before: components["schemas"]["KnownProbeField"];
+            after: components["schemas"]["KnownProbeField"];
+            changed: boolean;
+        };
+        ProbeSnapshotComparison: {
+            /** Format: uuid */
+            beforeId: string;
+            /** Format: uuid */
+            afterId: string;
+            /** Format: uuid */
+            egressId: string;
+            fields: components["schemas"]["ComparedProbeField"][];
+        };
+        /** @enum {string} */
+        HistoryRetentionMode: "indefinite" | "age" | "size";
+        HistoryRetentionSettings: {
+            mode: components["schemas"]["HistoryRetentionMode"];
+            /** Format: int64 */
+            maxAgeDays?: number;
+            /** Format: int64 */
+            maxLogicalBytes?: number;
+            /** Format: date-time */
+            updatedAt: string;
+            /** Format: date-time */
+            lastCleanupAt?: string;
+            /** Format: int64 */
+            lastCleanupDeletedItems: number;
+            lastCleanupError?: string;
+        };
+        HistoryRetentionUpdate: {
+            mode: components["schemas"]["HistoryRetentionMode"];
+            /** Format: int64 */
+            maxAgeDays?: number;
+            /** Format: int64 */
+            maxLogicalBytes?: number;
+        };
+        HistoryUsage: {
+            /** Format: int64 */
+            logicalBytes: number;
+            /** Format: int64 */
+            protectedLogicalBytes: number;
+            /** Format: int64 */
+            recordCount: number;
+            /** Format: int64 */
+            databaseBytes: number;
+            /** Format: int64 */
+            walBytes: number;
+            /** Format: int64 */
+            sharedMemoryBytes: number;
+            overBudget: boolean;
+            /** Format: int64 */
+            overageBytes: number;
+        };
+        HistoryCleanupResult: {
+            /** Format: int64 */
+            deletedItems: number;
+            /** Format: date-time */
+            completedAt: string;
+            usage: components["schemas"]["HistoryUsage"];
         };
         HistoryState: {
             generation: string;
             /** Format: date-time */
             resetAt?: string;
+            retention: components["schemas"]["HistoryRetentionSettings"];
+            usage: components["schemas"]["HistoryUsage"];
         };
         /** @enum {string} */
         NodeStatus: "online" | "offline" | "disabled" | "revoked";
@@ -1344,6 +1703,19 @@ export interface components {
         ProxyId: string;
         RunId: string;
         SnapshotId: string;
+        HistoryNodeFilter: string;
+        HistoryEgressFilter: string;
+        HistoryFrom: string;
+        HistoryTo: string;
+        HistoryProbeRunStatus: components["schemas"]["ProbeRunStatus"];
+        HistoryProbeTrigger: components["schemas"]["ProbeTrigger"];
+        HistoryProbeChanged: boolean;
+        HistoryProbeFormatStatus: components["schemas"]["ProbeFormatStatus"];
+        HistoryAddressEventKind: components["schemas"]["AddressEventKind"];
+        HistoryAddressFamily: components["schemas"]["AddressFamily"];
+        HistoryPage: number;
+        HistoryPageSize: number;
+        HistoryGapPage: number;
     };
     requestBodies: never;
     headers: never;
@@ -1942,6 +2314,60 @@ export interface operations {
             404: components["responses"]["NotFound"];
         };
     };
+    starProbeSnapshot: {
+        parameters: {
+            query?: never;
+            header?: {
+                "X-CSRF-Token"?: components["parameters"]["CSRFToken"];
+            };
+            path: {
+                snapshotId: components["parameters"]["SnapshotId"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The snapshot is starred. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProbeSnapshot"];
+                };
+            };
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+        };
+    };
+    unstarProbeSnapshot: {
+        parameters: {
+            query?: never;
+            header?: {
+                "X-CSRF-Token"?: components["parameters"]["CSRFToken"];
+            };
+            path: {
+                snapshotId: components["parameters"]["SnapshotId"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The snapshot is no longer starred. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProbeSnapshot"];
+                };
+            };
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+        };
+    };
     getHistoryState: {
         parameters: {
             query?: never;
@@ -1981,6 +2407,204 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["HistoryState"];
+                };
+            };
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+        };
+    };
+    listHistoryProbeSnapshots: {
+        parameters: {
+            query?: {
+                nodeId?: components["parameters"]["HistoryNodeFilter"];
+                egressId?: components["parameters"]["HistoryEgressFilter"];
+                from?: components["parameters"]["HistoryFrom"];
+                to?: components["parameters"]["HistoryTo"];
+                runStatus?: components["parameters"]["HistoryProbeRunStatus"];
+                trigger?: components["parameters"]["HistoryProbeTrigger"];
+                changed?: components["parameters"]["HistoryProbeChanged"];
+                formatStatus?: components["parameters"]["HistoryProbeFormatStatus"];
+                page?: components["parameters"]["HistoryPage"];
+                pageSize?: components["parameters"]["HistoryPageSize"];
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description A filtered page of retained probe snapshots. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProbeSnapshotHistoryPage"];
+                };
+            };
+            401: components["responses"]["Unauthorized"];
+        };
+    };
+    listHistoryAddressEvents: {
+        parameters: {
+            query?: {
+                nodeId?: components["parameters"]["HistoryNodeFilter"];
+                egressId?: components["parameters"]["HistoryEgressFilter"];
+                from?: components["parameters"]["HistoryFrom"];
+                to?: components["parameters"]["HistoryTo"];
+                eventKind?: components["parameters"]["HistoryAddressEventKind"];
+                family?: components["parameters"]["HistoryAddressFamily"];
+                page?: components["parameters"]["HistoryPage"];
+                gapPage?: components["parameters"]["HistoryGapPage"];
+                pageSize?: components["parameters"]["HistoryPageSize"];
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description A filtered page of address events and explicit gaps. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AddressHistoryPage"];
+                };
+            };
+            401: components["responses"]["Unauthorized"];
+        };
+    };
+    listHistoryProbeGaps: {
+        parameters: {
+            query?: {
+                nodeId?: components["parameters"]["HistoryNodeFilter"];
+                egressId?: components["parameters"]["HistoryEgressFilter"];
+                from?: components["parameters"]["HistoryFrom"];
+                to?: components["parameters"]["HistoryTo"];
+                page?: components["parameters"]["HistoryPage"];
+                pageSize?: components["parameters"]["HistoryPageSize"];
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Explicit complete-probe gaps. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProbeHistoryGapPage"];
+                };
+            };
+            401: components["responses"]["Unauthorized"];
+        };
+    };
+    listHistoryFormatEvents: {
+        parameters: {
+            query?: {
+                nodeId?: components["parameters"]["HistoryNodeFilter"];
+                egressId?: components["parameters"]["HistoryEgressFilter"];
+                from?: components["parameters"]["HistoryFrom"];
+                to?: components["parameters"]["HistoryTo"];
+                page?: components["parameters"]["HistoryPage"];
+                pageSize?: components["parameters"]["HistoryPageSize"];
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Upstream format mismatch, change, and recovery events. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProbeFormatEventPage"];
+                };
+            };
+            401: components["responses"]["Unauthorized"];
+        };
+    };
+    compareProbeSnapshots: {
+        parameters: {
+            query: {
+                beforeSnapshotId: string;
+                afterSnapshotId: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description A direct typed comparison of every known field. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProbeSnapshotComparison"];
+                };
+            };
+            401: components["responses"]["Unauthorized"];
+            404: components["responses"]["NotFound"];
+            409: components["responses"]["Conflict"];
+        };
+    };
+    updateHistoryRetention: {
+        parameters: {
+            query?: never;
+            header?: {
+                "X-CSRF-Token"?: components["parameters"]["CSRFToken"];
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["HistoryRetentionUpdate"];
+            };
+        };
+        responses: {
+            /** @description The retention policy was saved and cleanup completed. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HistoryState"];
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+        };
+    };
+    cleanupHistory: {
+        parameters: {
+            query?: never;
+            header?: {
+                "X-CSRF-Token"?: components["parameters"]["CSRFToken"];
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Retention cleanup completed. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HistoryCleanupResult"];
                 };
             };
             401: components["responses"]["Unauthorized"];

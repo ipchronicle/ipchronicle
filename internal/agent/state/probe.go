@@ -1046,6 +1046,9 @@ func reconcileProbeGeneration(transaction *bolt.Tx, configuration Configuration,
 	if previousGeneration == "" || previousGeneration == configuration.HistoryGeneration {
 		return 0, nil
 	}
+	if err := clearBucket(transaction.Bucket(probeSequencesBucket)); err != nil {
+		return 0, fmt.Errorf("reset complete-probe sequences: %w", err)
+	}
 	queue := transaction.Bucket(probeArtifactsBucket)
 	var discarded int64
 

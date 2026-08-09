@@ -16,6 +16,82 @@ async function signIn(page: import("@playwright/test").Page) {
   ).toBeVisible();
 }
 
+async function expectNoPageOverflow(page: import("@playwright/test").Page) {
+  await expect
+    .poll(() =>
+      page.evaluate(
+        () =>
+          document.documentElement.scrollWidth <=
+          document.documentElement.clientWidth,
+      ),
+    )
+    .toBe(true);
+}
+
+async function uploadSucceededProbeSnapshot(
+  page: import("@playwright/test").Page,
+  input: {
+    credential: string;
+    configurationRevision: number;
+    historyGeneration: string;
+    egressId: string;
+    runId: string;
+    executionId: string;
+    sequence: number;
+    startedAt: string;
+    completedAt: string;
+    raw: unknown;
+  },
+) {
+  const runningRun = {
+    id: input.runId,
+    nodeConfigurationRevision: input.configurationRevision,
+    historyGeneration: input.historyGeneration,
+    trigger: "schedule",
+    startedAt: input.startedAt,
+    status: "running",
+    executions: [
+      {
+        id: input.executionId,
+        egressId: input.egressId,
+        ordinal: 0,
+        sequence: input.sequence,
+      },
+    ],
+  };
+  const runUpload = await page.request.post("/api/v1/agent/probe-artifacts", {
+    headers: { Authorization: `Bearer ${input.credential}` },
+    data: { artifactId: input.runId, revision: 1, run: runningRun },
+  });
+  expect(runUpload.status()).toBe(200);
+  const executionUpload = await page.request.post(
+    "/api/v1/agent/probe-artifacts",
+    {
+      headers: { Authorization: `Bearer ${input.credential}` },
+      data: {
+        artifactId: input.executionId,
+        revision: 2,
+        run: {
+          ...runningRun,
+          status: "succeeded",
+          completedAt: input.completedAt,
+        },
+        execution: {
+          id: input.executionId,
+          egressId: input.egressId,
+          ordinal: 0,
+          sequence: input.sequence,
+          status: "succeeded",
+          startedAt: input.startedAt,
+          completedAt: input.completedAt,
+          rawResult: Buffer.from(JSON.stringify(input.raw)).toString("base64"),
+        },
+      },
+    },
+  );
+  expect(executionUpload.status()).toBe(200);
+}
+
 test("authenticates and shows status warnings in both languages", async ({
   page,
 }, testInfo) => {
@@ -530,7 +606,10 @@ test("generates an Agent installation command from the nodes page", async ({
           startedAt,
           completedAt,
           rawResult: Buffer.from(
-            JSON.stringify({ ip: "8.8.8.8", quality: { score: 92 } }),
+            JSON.stringify({
+              Head: { IP: "8.8.8.8", Version: "e2e-1" },
+              Info: { ASN: "AS15169" },
+            }),
           ).toString("base64"),
         },
       },
@@ -572,6 +651,27 @@ test("generates an Agent installation command from the nodes page", async ({
     },
   });
   expect(terminalReport.status()).toBe(200);
+  const secondStartedAt = new Date(
+    Date.parse(completedAt) + 1000,
+  ).toISOString();
+  const secondCompletedAt = new Date(
+    Date.parse(completedAt) + 2000,
+  ).toISOString();
+  await uploadSucceededProbeSnapshot(page, {
+    credential: registered.credential,
+    configurationRevision: probeConfiguration.revision,
+    historyGeneration: probeConfiguration.historyGeneration,
+    egressId: probeEgress?.id ?? "",
+    runId: "2d6b34bf-4d3d-452f-a6a3-c2b94c5cb990",
+    executionId: "54087de0-787a-4a99-8b75-4f321852e755",
+    sequence: 2,
+    startedAt: secondStartedAt,
+    completedAt: secondCompletedAt,
+    raw: {
+      Head: { IP: "8.8.4.4", Version: "e2e-2" },
+      Info: { ASN: "AS15169" },
+    },
+  });
   await page.reload();
   await expect(page.getByText("Succeeded").first()).toBeVisible();
   await page.getByRole("link", { name: "Open run" }).click();
@@ -579,20 +679,66 @@ test("generates an Agent installation command from the nodes page", async ({
     page.getByRole("heading", { name: "Complete-probe run" }),
   ).toBeVisible();
   await page.getByRole("link", { name: "Open report snapshot" }).click();
-  await expect(page.getByText(/8\.8\.8\.8/)).toBeVisible();
-  await expect
-    .poll(() =>
-      page.evaluate(
-        () =>
-          document.documentElement.scrollWidth <=
-          document.documentElement.clientWidth,
-      ),
-    )
-    .toBe(true);
+  await expect(
+    page.getByRole("tab", { name: "Structured fields" }),
+  ).toHaveAttribute("aria-selected", "true");
+  await expect(page.getByText("IP address").first()).toBeVisible();
+  await expect(page.getByText("Head.IP").first()).toBeVisible();
+  await expect(page.getByText("8.8.8.8", { exact: true })).toBeVisible();
+  await expect(page.getByText("Missing").first()).toBeVisible();
+  await page.getByRole("button", { name: "Star snapshot" }).click();
+  await expect(
+    page.getByRole("button", { name: "Unstar snapshot" }),
+  ).toBeVisible();
+  await page.getByRole("tab", { name: "Raw JSON" }).click();
+  await expect(page.locator("pre")).toContainText('"IP": "8.8.8.8"');
+  await expectNoPageOverflow(page);
   await page.screenshot({
     path: testInfo.outputPath("probe-snapshot.png"),
     fullPage: true,
   });
+
+  const historyLink = page.getByRole("link", {
+    name: "History",
+    exact: true,
+  });
+  if (!(await historyLink.isVisible())) {
+    await page.getByRole("button", { name: "Toggle sidebar" }).click();
+  }
+  await historyLink.click();
+  await expect(page.getByRole("heading", { name: "History" })).toBeVisible();
+  await expect(page.getByText("2 retained snapshots")).toBeVisible();
+  await expect(responsiveItem(/Default IPv4/)).toBeVisible();
+  await page.getByRole("tab", { name: "Address changes" }).click();
+  await expect(responsiveItem("First observation")).toBeVisible();
+  await expect(responsiveItem("eth0 · 10.0.0.5 -> 8.8.8.8")).toBeVisible();
+  await page.getByRole("tab", { name: "Probe reports" }).click();
+  const comparePrevious = page.getByRole("link", {
+    name: "Compare with previous",
+  });
+  await (
+    testInfo.project.name === "mobile-chromium"
+      ? comparePrevious.last()
+      : comparePrevious.first()
+  ).click();
+  await expect(
+    page.getByRole("heading", { name: "Snapshot comparison" }),
+  ).toBeVisible();
+  await expect(page.getByText("IP address").first()).toBeVisible();
+  await expect(page.getByText("Head.IP").first()).toBeVisible();
+  await expect(page.getByText("8.8.8.8", { exact: true })).toBeVisible();
+  await expect(page.getByText("8.8.4.4", { exact: true })).toBeVisible();
+  await page
+    .getByRole("button", { name: "Switch to Simplified Chinese" })
+    .click();
+  await expect(page.getByRole("heading", { name: "快照比较" })).toBeVisible();
+  await expect(page.getByText("IP 地址").first()).toBeVisible();
+  await expectNoPageOverflow(page);
+  await page.screenshot({
+    path: testInfo.outputPath("history-comparison.png"),
+    fullPage: true,
+  });
+  await page.getByRole("button", { name: "切换到英文" }).click();
 
   const historySettingsLink = page.getByRole("link", {
     name: "History and storage",
@@ -605,6 +751,22 @@ test("generates an Agent installation command from the nodes page", async ({
   await expect(
     page.getByRole("heading", { name: "History and storage" }),
   ).toBeVisible();
+  await page.getByLabel("Policy").click();
+  await page.getByRole("option", { name: "Keep by age" }).click();
+  await page.getByLabel("Retention days").fill("30");
+  await page.getByRole("button", { name: "Save and apply" }).click();
+  await expect(
+    page.getByText("The retention policy was saved and applied."),
+  ).toBeVisible();
+  await page.getByRole("button", { name: "Clean now" }).click();
+  await expect(
+    page.getByText(/Cleanup completed and removed \d+ items/),
+  ).toBeVisible();
+  await expectNoPageOverflow(page);
+  await page.screenshot({
+    path: testInfo.outputPath("history-retention.png"),
+    fullPage: true,
+  });
   await page.getByRole("button", { name: "Clear history" }).click();
   await page
     .getByRole("alertdialog")

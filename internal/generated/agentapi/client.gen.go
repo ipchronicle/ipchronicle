@@ -320,6 +320,7 @@ const (
 	RegistrationDisabled          ErrorCode = "registration_disabled"
 	RegistrationKeyInvalid        ErrorCode = "registration_key_invalid"
 	RegistrationKeyNotInitialized ErrorCode = "registration_key_not_initialized"
+	SnapshotEgressMismatch        ErrorCode = "snapshot_egress_mismatch"
 	SyncSessionUnavailable        ErrorCode = "sync_session_unavailable"
 	TotpAlreadyEnabled            ErrorCode = "totp_already_enabled"
 	TotpEnrollmentNotStarted      ErrorCode = "totp_enrollment_not_started"
@@ -409,6 +410,8 @@ func (e ErrorCode) Valid() bool {
 		return true
 	case RegistrationKeyNotInitialized:
 		return true
+	case SnapshotEgressMismatch:
+		return true
 	case SyncSessionUnavailable:
 		return true
 	case TotpAlreadyEnabled:
@@ -420,6 +423,48 @@ func (e ErrorCode) Valid() bool {
 	case TotpRequired:
 		return true
 	case Unauthenticated:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for HistoryRetentionMode.
+const (
+	Age        HistoryRetentionMode = "age"
+	Indefinite HistoryRetentionMode = "indefinite"
+	Size       HistoryRetentionMode = "size"
+)
+
+// Valid indicates whether the value is a known member of the HistoryRetentionMode enum.
+func (e HistoryRetentionMode) Valid() bool {
+	switch e {
+	case Age:
+		return true
+	case Indefinite:
+		return true
+	case Size:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for KnownProbeFieldStatus.
+const (
+	KnownProbeFieldStatusAvailable    KnownProbeFieldStatus = "available"
+	KnownProbeFieldStatusIncompatible KnownProbeFieldStatus = "incompatible"
+	KnownProbeFieldStatusMissing      KnownProbeFieldStatus = "missing"
+)
+
+// Valid indicates whether the value is a known member of the KnownProbeFieldStatus enum.
+func (e KnownProbeFieldStatus) Valid() bool {
+	switch e {
+	case KnownProbeFieldStatusAvailable:
+		return true
+	case KnownProbeFieldStatusIncompatible:
+		return true
+	case KnownProbeFieldStatusMissing:
 		return true
 	default:
 		return false
@@ -741,6 +786,96 @@ func (e ProbeFailureStage) Valid() bool {
 	}
 }
 
+// Defines values for ProbeFormatEventKind.
+const (
+	ProbeFormatEventKindChanged   ProbeFormatEventKind = "changed"
+	ProbeFormatEventKindMismatch  ProbeFormatEventKind = "mismatch"
+	ProbeFormatEventKindRecovered ProbeFormatEventKind = "recovered"
+)
+
+// Valid indicates whether the value is a known member of the ProbeFormatEventKind enum.
+func (e ProbeFormatEventKind) Valid() bool {
+	switch e {
+	case ProbeFormatEventKindChanged:
+		return true
+	case ProbeFormatEventKindMismatch:
+		return true
+	case ProbeFormatEventKindRecovered:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for ProbeFormatIssueKind.
+const (
+	ProbeFormatIssueKindIncompatible ProbeFormatIssueKind = "incompatible"
+	ProbeFormatIssueKindMissing      ProbeFormatIssueKind = "missing"
+	ProbeFormatIssueKindUnknown      ProbeFormatIssueKind = "unknown"
+)
+
+// Valid indicates whether the value is a known member of the ProbeFormatIssueKind enum.
+func (e ProbeFormatIssueKind) Valid() bool {
+	switch e {
+	case ProbeFormatIssueKindIncompatible:
+		return true
+	case ProbeFormatIssueKindMissing:
+		return true
+	case ProbeFormatIssueKindUnknown:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for ProbeFormatStatus.
+const (
+	ProbeFormatStatusCompatible ProbeFormatStatus = "compatible"
+	ProbeFormatStatusMismatch   ProbeFormatStatus = "mismatch"
+)
+
+// Valid indicates whether the value is a known member of the ProbeFormatStatus enum.
+func (e ProbeFormatStatus) Valid() bool {
+	switch e {
+	case ProbeFormatStatusCompatible:
+		return true
+	case ProbeFormatStatusMismatch:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for ProbeJSONType.
+const (
+	Array   ProbeJSONType = "array"
+	Boolean ProbeJSONType = "boolean"
+	Null    ProbeJSONType = "null"
+	Number  ProbeJSONType = "number"
+	Object  ProbeJSONType = "object"
+	String  ProbeJSONType = "string"
+)
+
+// Valid indicates whether the value is a known member of the ProbeJSONType enum.
+func (e ProbeJSONType) Valid() bool {
+	switch e {
+	case Array:
+		return true
+	case Boolean:
+		return true
+	case Null:
+		return true
+	case Number:
+		return true
+	case Object:
+		return true
+	case String:
+		return true
+	default:
+		return false
+	}
+}
+
 // Defines values for ProbeRunStatus.
 const (
 	ProbeRunStatusFailed    ProbeRunStatus = "failed"
@@ -917,6 +1052,14 @@ type AddressFailureReason string
 
 // AddressFamily defines model for AddressFamily.
 type AddressFamily string
+
+// AddressHistoryPage defines model for AddressHistoryPage.
+type AddressHistoryPage struct {
+	Events   []HistoryAddressEvent `json:"events"`
+	GapTotal int64                 `json:"gapTotal"`
+	Gaps     []HistoryAddressGap   `json:"gaps"`
+	Total    int64                 `json:"total"`
+}
 
 // AddressObservationStatus defines model for AddressObservationStatus.
 type AddressObservationStatus string
@@ -1219,6 +1362,17 @@ type AuthenticatedSession struct {
 	ExpiresAt time.Time `json:"expiresAt"`
 }
 
+// ComparedProbeField defines model for ComparedProbeField.
+type ComparedProbeField struct {
+	After         KnownProbeField `json:"after"`
+	Before        KnownProbeField `json:"before"`
+	Changed       bool            `json:"changed"`
+	ExpectedTypes []ProbeJSONType `json:"expectedTypes"`
+	Group         string          `json:"group"`
+	Id            string          `json:"id"`
+	Path          string          `json:"path"`
+}
+
 // CurrentPasswordRequest defines model for CurrentPasswordRequest.
 type CurrentPasswordRequest struct {
 	CurrentPassword string `json:"currentPassword"`
@@ -1254,11 +1408,87 @@ type ErrorResponse struct {
 	Parameters *map[string]string `json:"parameters,omitempty"`
 }
 
+// HistoryAddressEvent defines model for HistoryAddressEvent.
+type HistoryAddressEvent struct {
+	Event  AgentAddressEvent  `json:"event"`
+	NodeId openapi_types.UUID `json:"nodeId"`
+	Owner  HistoryOwner       `json:"owner"`
+}
+
+// HistoryAddressGap defines model for HistoryAddressGap.
+type HistoryAddressGap struct {
+	Gap    AgentAddressGap    `json:"gap"`
+	NodeId openapi_types.UUID `json:"nodeId"`
+	Owner  HistoryOwner       `json:"owner"`
+}
+
+// HistoryCleanupResult defines model for HistoryCleanupResult.
+type HistoryCleanupResult struct {
+	CompletedAt  time.Time    `json:"completedAt"`
+	DeletedItems int64        `json:"deletedItems"`
+	Usage        HistoryUsage `json:"usage"`
+}
+
+// HistoryOwner defines model for HistoryOwner.
+type HistoryOwner struct {
+	EgressName *string `json:"egressName,omitempty"`
+	NodeName   *string `json:"nodeName,omitempty"`
+}
+
+// HistoryRetentionMode defines model for HistoryRetentionMode.
+type HistoryRetentionMode string
+
+// HistoryRetentionSettings defines model for HistoryRetentionSettings.
+type HistoryRetentionSettings struct {
+	LastCleanupAt           *time.Time           `json:"lastCleanupAt,omitempty"`
+	LastCleanupDeletedItems int64                `json:"lastCleanupDeletedItems"`
+	LastCleanupError        *string              `json:"lastCleanupError,omitempty"`
+	MaxAgeDays              *int64               `json:"maxAgeDays,omitempty"`
+	MaxLogicalBytes         *int64               `json:"maxLogicalBytes,omitempty"`
+	Mode                    HistoryRetentionMode `json:"mode"`
+	UpdatedAt               time.Time            `json:"updatedAt"`
+}
+
+// HistoryRetentionUpdate defines model for HistoryRetentionUpdate.
+type HistoryRetentionUpdate struct {
+	MaxAgeDays      *int64               `json:"maxAgeDays,omitempty"`
+	MaxLogicalBytes *int64               `json:"maxLogicalBytes,omitempty"`
+	Mode            HistoryRetentionMode `json:"mode"`
+}
+
 // HistoryState defines model for HistoryState.
 type HistoryState struct {
-	Generation string     `json:"generation"`
-	ResetAt    *time.Time `json:"resetAt,omitempty"`
+	Generation string                   `json:"generation"`
+	ResetAt    *time.Time               `json:"resetAt,omitempty"`
+	Retention  HistoryRetentionSettings `json:"retention"`
+	Usage      HistoryUsage             `json:"usage"`
 }
+
+// HistoryUsage defines model for HistoryUsage.
+type HistoryUsage struct {
+	DatabaseBytes         int64 `json:"databaseBytes"`
+	LogicalBytes          int64 `json:"logicalBytes"`
+	OverBudget            bool  `json:"overBudget"`
+	OverageBytes          int64 `json:"overageBytes"`
+	ProtectedLogicalBytes int64 `json:"protectedLogicalBytes"`
+	RecordCount           int64 `json:"recordCount"`
+	SharedMemoryBytes     int64 `json:"sharedMemoryBytes"`
+	WalBytes              int64 `json:"walBytes"`
+}
+
+// KnownProbeField defines model for KnownProbeField.
+type KnownProbeField struct {
+	ActualType    *ProbeJSONType        `json:"actualType,omitempty"`
+	ExpectedTypes []ProbeJSONType       `json:"expectedTypes"`
+	Group         string                `json:"group"`
+	Id            string                `json:"id"`
+	Path          string                `json:"path"`
+	Status        KnownProbeFieldStatus `json:"status"`
+	Value         *string               `json:"value,omitempty"`
+}
+
+// KnownProbeFieldStatus defines model for KnownProbeFieldStatus.
+type KnownProbeFieldStatus string
 
 // LocaleUpdateRequest defines model for LocaleUpdateRequest.
 type LocaleUpdateRequest struct {
@@ -1536,6 +1766,76 @@ type ProbeExecutionStatus string
 // ProbeFailureStage defines model for ProbeFailureStage.
 type ProbeFailureStage string
 
+// ProbeFieldChange defines model for ProbeFieldChange.
+type ProbeFieldChange struct {
+	After     string        `json:"after"`
+	Before    string        `json:"before"`
+	FieldId   string        `json:"fieldId"`
+	Group     string        `json:"group"`
+	Path      string        `json:"path"`
+	ValueType ProbeJSONType `json:"valueType"`
+}
+
+// ProbeFormatEvent defines model for ProbeFormatEvent.
+type ProbeFormatEvent struct {
+	EgressId    openapi_types.UUID   `json:"egressId"`
+	ExecutionId openapi_types.UUID   `json:"executionId"`
+	Id          openapi_types.UUID   `json:"id"`
+	Issues      []ProbeFormatIssue   `json:"issues"`
+	Kind        ProbeFormatEventKind `json:"kind"`
+	NodeId      openapi_types.UUID   `json:"nodeId"`
+	ObservedAt  time.Time            `json:"observedAt"`
+	Owner       HistoryOwner         `json:"owner"`
+	RecordedAt  time.Time            `json:"recordedAt"`
+	Sequence    int64                `json:"sequence"`
+	SnapshotId  openapi_types.UUID   `json:"snapshotId"`
+}
+
+// ProbeFormatEventKind defines model for ProbeFormatEventKind.
+type ProbeFormatEventKind string
+
+// ProbeFormatEventPage defines model for ProbeFormatEventPage.
+type ProbeFormatEventPage struct {
+	Items []ProbeFormatEvent `json:"items"`
+	Total int64              `json:"total"`
+}
+
+// ProbeFormatIssue defines model for ProbeFormatIssue.
+type ProbeFormatIssue struct {
+	ActualType    *ProbeJSONType       `json:"actualType,omitempty"`
+	ExpectedTypes []ProbeJSONType      `json:"expectedTypes"`
+	Kind          ProbeFormatIssueKind `json:"kind"`
+	Path          string               `json:"path"`
+}
+
+// ProbeFormatIssueKind defines model for ProbeFormatIssueKind.
+type ProbeFormatIssueKind string
+
+// ProbeFormatStatus defines model for ProbeFormatStatus.
+type ProbeFormatStatus string
+
+// ProbeHistoryGap defines model for ProbeHistoryGap.
+type ProbeHistoryGap struct {
+	DroppedCount    int64              `json:"droppedCount"`
+	EgressId        openapi_types.UUID `json:"egressId"`
+	FirstObservedAt time.Time          `json:"firstObservedAt"`
+	FirstSequence   int64              `json:"firstSequence"`
+	Id              openapi_types.UUID `json:"id"`
+	LastObservedAt  time.Time          `json:"lastObservedAt"`
+	LastSequence    int64              `json:"lastSequence"`
+	NodeId          openapi_types.UUID `json:"nodeId"`
+	Owner           HistoryOwner       `json:"owner"`
+}
+
+// ProbeHistoryGapPage defines model for ProbeHistoryGapPage.
+type ProbeHistoryGapPage struct {
+	Items []ProbeHistoryGap `json:"items"`
+	Total int64             `json:"total"`
+}
+
+// ProbeJSONType defines model for ProbeJSONType.
+type ProbeJSONType string
+
 // ProbeRun defines model for ProbeRun.
 type ProbeRun struct {
 	CompletedAt           *time.Time          `json:"completedAt,omitempty"`
@@ -1578,12 +1878,56 @@ type ProbeSchedule struct {
 
 // ProbeSnapshot defines model for ProbeSnapshot.
 type ProbeSnapshot struct {
-	EgressId    openapi_types.UUID `json:"egressId"`
-	ExecutionId openapi_types.UUID `json:"executionId"`
-	Id          openapi_types.UUID `json:"id"`
-	ObservedAt  time.Time          `json:"observedAt"`
-	RawResult   []byte             `json:"rawResult"`
-	Sequence    int64              `json:"sequence"`
+	Baseline           *bool               `json:"baseline,omitempty"`
+	Changes            []ProbeFieldChange  `json:"changes"`
+	EgressId           openapi_types.UUID  `json:"egressId"`
+	ExecutionId        openapi_types.UUID  `json:"executionId"`
+	Fields             []KnownProbeField   `json:"fields"`
+	FormatIssues       []ProbeFormatIssue  `json:"formatIssues"`
+	Id                 openapi_types.UUID  `json:"id"`
+	ObservedAt         time.Time           `json:"observedAt"`
+	PreviousSnapshotId *openapi_types.UUID `json:"previousSnapshotId,omitempty"`
+	RawResult          []byte              `json:"rawResult"`
+	Sequence           int64               `json:"sequence"`
+	Starred            bool                `json:"starred"`
+}
+
+// ProbeSnapshotComparison defines model for ProbeSnapshotComparison.
+type ProbeSnapshotComparison struct {
+	AfterId  openapi_types.UUID   `json:"afterId"`
+	BeforeId openapi_types.UUID   `json:"beforeId"`
+	EgressId openapi_types.UUID   `json:"egressId"`
+	Fields   []ComparedProbeField `json:"fields"`
+}
+
+// ProbeSnapshotHistoryPage defines model for ProbeSnapshotHistoryPage.
+type ProbeSnapshotHistoryPage struct {
+	Items []ProbeSnapshotSummary `json:"items"`
+	Total int64                  `json:"total"`
+}
+
+// ProbeSnapshotSummary defines model for ProbeSnapshotSummary.
+type ProbeSnapshotSummary struct {
+	Baseline           bool                `json:"baseline"`
+	ChangeCount        int64               `json:"changeCount"`
+	Current            bool                `json:"current"`
+	EgressId           openapi_types.UUID  `json:"egressId"`
+	EncodedSize        int64               `json:"encodedSize"`
+	ExecutionId        openapi_types.UUID  `json:"executionId"`
+	FormatIssueCount   int64               `json:"formatIssueCount"`
+	FormatStatus       ProbeFormatStatus   `json:"formatStatus"`
+	Id                 openapi_types.UUID  `json:"id"`
+	NodeId             openapi_types.UUID  `json:"nodeId"`
+	ObservedAt         time.Time           `json:"observedAt"`
+	Owner              HistoryOwner        `json:"owner"`
+	PreviousSnapshotId *openapi_types.UUID `json:"previousSnapshotId,omitempty"`
+	Processed          bool                `json:"processed"`
+	ReceivedAt         time.Time           `json:"receivedAt"`
+	RunId              openapi_types.UUID  `json:"runId"`
+	RunStatus          ProbeRunStatus      `json:"runStatus"`
+	Sequence           int64               `json:"sequence"`
+	Starred            bool                `json:"starred"`
+	Trigger            ProbeTrigger        `json:"trigger"`
 }
 
 // ProbeTask defines model for ProbeTask.
@@ -1648,6 +1992,45 @@ type CSRFToken = string
 
 // EgressId defines model for EgressId.
 type EgressId = openapi_types.UUID
+
+// HistoryAddressEventKind defines model for HistoryAddressEventKind.
+type HistoryAddressEventKind = AddressEventKind
+
+// HistoryAddressFamily defines model for HistoryAddressFamily.
+type HistoryAddressFamily = AddressFamily
+
+// HistoryEgressFilter defines model for HistoryEgressFilter.
+type HistoryEgressFilter = openapi_types.UUID
+
+// HistoryFrom defines model for HistoryFrom.
+type HistoryFrom = time.Time
+
+// HistoryGapPage defines model for HistoryGapPage.
+type HistoryGapPage = int64
+
+// HistoryNodeFilter defines model for HistoryNodeFilter.
+type HistoryNodeFilter = openapi_types.UUID
+
+// HistoryPage defines model for HistoryPage.
+type HistoryPage = int64
+
+// HistoryPageSize defines model for HistoryPageSize.
+type HistoryPageSize = int64
+
+// HistoryProbeChanged defines model for HistoryProbeChanged.
+type HistoryProbeChanged = bool
+
+// HistoryProbeFormatStatus defines model for HistoryProbeFormatStatus.
+type HistoryProbeFormatStatus = ProbeFormatStatus
+
+// HistoryProbeRunStatus defines model for HistoryProbeRunStatus.
+type HistoryProbeRunStatus = ProbeRunStatus
+
+// HistoryProbeTrigger defines model for HistoryProbeTrigger.
+type HistoryProbeTrigger = ProbeTrigger
+
+// HistoryTo defines model for HistoryTo.
+type HistoryTo = time.Time
 
 // NodeId defines model for NodeId.
 type NodeId = openapi_types.UUID
@@ -1732,6 +2115,69 @@ type ResetHistoryParams struct {
 	XCSRFToken *CSRFToken `json:"X-CSRF-Token,omitempty"`
 }
 
+// ListHistoryAddressEventsParams defines parameters for ListHistoryAddressEvents.
+type ListHistoryAddressEventsParams struct {
+	NodeId    *HistoryNodeFilter       `form:"nodeId,omitempty" json:"nodeId,omitempty"`
+	EgressId  *HistoryEgressFilter     `form:"egressId,omitempty" json:"egressId,omitempty"`
+	From      *HistoryFrom             `form:"from,omitempty" json:"from,omitempty"`
+	To        *HistoryTo               `form:"to,omitempty" json:"to,omitempty"`
+	EventKind *HistoryAddressEventKind `form:"eventKind,omitempty" json:"eventKind,omitempty"`
+	Family    *HistoryAddressFamily    `form:"family,omitempty" json:"family,omitempty"`
+	Page      *HistoryPage             `form:"page,omitempty" json:"page,omitempty"`
+	GapPage   *HistoryGapPage          `form:"gapPage,omitempty" json:"gapPage,omitempty"`
+	PageSize  *HistoryPageSize         `form:"pageSize,omitempty" json:"pageSize,omitempty"`
+}
+
+// CleanupHistoryParams defines parameters for CleanupHistory.
+type CleanupHistoryParams struct {
+	XCSRFToken *CSRFToken `json:"X-CSRF-Token,omitempty"`
+}
+
+// CompareProbeSnapshotsParams defines parameters for CompareProbeSnapshots.
+type CompareProbeSnapshotsParams struct {
+	BeforeSnapshotId openapi_types.UUID `form:"beforeSnapshotId" json:"beforeSnapshotId"`
+	AfterSnapshotId  openapi_types.UUID `form:"afterSnapshotId" json:"afterSnapshotId"`
+}
+
+// ListHistoryFormatEventsParams defines parameters for ListHistoryFormatEvents.
+type ListHistoryFormatEventsParams struct {
+	NodeId   *HistoryNodeFilter   `form:"nodeId,omitempty" json:"nodeId,omitempty"`
+	EgressId *HistoryEgressFilter `form:"egressId,omitempty" json:"egressId,omitempty"`
+	From     *HistoryFrom         `form:"from,omitempty" json:"from,omitempty"`
+	To       *HistoryTo           `form:"to,omitempty" json:"to,omitempty"`
+	Page     *HistoryPage         `form:"page,omitempty" json:"page,omitempty"`
+	PageSize *HistoryPageSize     `form:"pageSize,omitempty" json:"pageSize,omitempty"`
+}
+
+// ListHistoryProbeGapsParams defines parameters for ListHistoryProbeGaps.
+type ListHistoryProbeGapsParams struct {
+	NodeId   *HistoryNodeFilter   `form:"nodeId,omitempty" json:"nodeId,omitempty"`
+	EgressId *HistoryEgressFilter `form:"egressId,omitempty" json:"egressId,omitempty"`
+	From     *HistoryFrom         `form:"from,omitempty" json:"from,omitempty"`
+	To       *HistoryTo           `form:"to,omitempty" json:"to,omitempty"`
+	Page     *HistoryPage         `form:"page,omitempty" json:"page,omitempty"`
+	PageSize *HistoryPageSize     `form:"pageSize,omitempty" json:"pageSize,omitempty"`
+}
+
+// ListHistoryProbeSnapshotsParams defines parameters for ListHistoryProbeSnapshots.
+type ListHistoryProbeSnapshotsParams struct {
+	NodeId       *HistoryNodeFilter        `form:"nodeId,omitempty" json:"nodeId,omitempty"`
+	EgressId     *HistoryEgressFilter      `form:"egressId,omitempty" json:"egressId,omitempty"`
+	From         *HistoryFrom              `form:"from,omitempty" json:"from,omitempty"`
+	To           *HistoryTo                `form:"to,omitempty" json:"to,omitempty"`
+	RunStatus    *HistoryProbeRunStatus    `form:"runStatus,omitempty" json:"runStatus,omitempty"`
+	Trigger      *HistoryProbeTrigger      `form:"trigger,omitempty" json:"trigger,omitempty"`
+	Changed      *HistoryProbeChanged      `form:"changed,omitempty" json:"changed,omitempty"`
+	FormatStatus *HistoryProbeFormatStatus `form:"formatStatus,omitempty" json:"formatStatus,omitempty"`
+	Page         *HistoryPage              `form:"page,omitempty" json:"page,omitempty"`
+	PageSize     *HistoryPageSize          `form:"pageSize,omitempty" json:"pageSize,omitempty"`
+}
+
+// UpdateHistoryRetentionParams defines parameters for UpdateHistoryRetention.
+type UpdateHistoryRetentionParams struct {
+	XCSRFToken *CSRFToken `json:"X-CSRF-Token,omitempty"`
+}
+
 // UpdateNetworkObservationSettingsParams defines parameters for UpdateNetworkObservationSettings.
 type UpdateNetworkObservationSettingsParams struct {
 	XCSRFToken *CSRFToken `json:"X-CSRF-Token,omitempty"`
@@ -1802,6 +2248,16 @@ type StartNodeSyncSessionParams struct {
 	XCSRFToken *CSRFToken `json:"X-CSRF-Token,omitempty"`
 }
 
+// UnstarProbeSnapshotParams defines parameters for UnstarProbeSnapshot.
+type UnstarProbeSnapshotParams struct {
+	XCSRFToken *CSRFToken `json:"X-CSRF-Token,omitempty"`
+}
+
+// StarProbeSnapshotParams defines parameters for StarProbeSnapshot.
+type StarProbeSnapshotParams struct {
+	XCSRFToken *CSRFToken `json:"X-CSRF-Token,omitempty"`
+}
+
 // UpdateAccountJSONRequestBody defines body for UpdateAccount for application/json ContentType.
 type UpdateAccountJSONRequestBody = AccountUpdateRequest
 
@@ -1831,6 +2287,9 @@ type UploadProbeArtifactJSONRequestBody = AgentProbeArtifact
 
 // LoginJSONRequestBody defines body for Login for application/json ContentType.
 type LoginJSONRequestBody = LoginRequest
+
+// UpdateHistoryRetentionJSONRequestBody defines body for UpdateHistoryRetention for application/json ContentType.
+type UpdateHistoryRetentionJSONRequestBody = HistoryRetentionUpdate
 
 // UpdateNetworkObservationSettingsJSONRequestBody defines body for UpdateNetworkObservationSettings for application/json ContentType.
 type UpdateNetworkObservationSettingsJSONRequestBody = NetworkObservationSettingsUpdate
@@ -2112,6 +2571,50 @@ type ClientInterface interface {
 	// Corresponds with GET /api/v1/history (the `GetHistoryState` operationId).
 	GetHistoryState(ctx context.Context, reqEditors ...RequestEditorFn) (*http.Response, error)
 
+	// ListHistoryAddressEvents List retained confirmed address events and reported gaps
+	//
+	// Corresponds with GET /api/v1/history/address-events (the `ListHistoryAddressEvents` operationId).
+	ListHistoryAddressEvents(ctx context.Context, params *ListHistoryAddressEventsParams, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// CleanupHistory Apply the saved history retention policy now
+	//
+	// Corresponds with POST /api/v1/history/cleanup (the `CleanupHistory` operationId).
+	CleanupHistory(ctx context.Context, params *CleanupHistoryParams, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// CompareProbeSnapshots Compare two retained snapshots from the same network egress
+	//
+	// Corresponds with GET /api/v1/history/comparison (the `CompareProbeSnapshots` operationId).
+	CompareProbeSnapshots(ctx context.Context, params *CompareProbeSnapshotsParams, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// ListHistoryFormatEvents List upstream complete-report format events
+	//
+	// Corresponds with GET /api/v1/history/format-events (the `ListHistoryFormatEvents` operationId).
+	ListHistoryFormatEvents(ctx context.Context, params *ListHistoryFormatEventsParams, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// ListHistoryProbeGaps List explicit complete-probe history gaps
+	//
+	// Corresponds with GET /api/v1/history/probe-gaps (the `ListHistoryProbeGaps` operationId).
+	ListHistoryProbeGaps(ctx context.Context, params *ListHistoryProbeGapsParams, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// ListHistoryProbeSnapshots List retained complete-probe snapshots across nodes
+	//
+	// Corresponds with GET /api/v1/history/probe-snapshots (the `ListHistoryProbeSnapshots` operationId).
+	ListHistoryProbeSnapshots(ctx context.Context, params *ListHistoryProbeSnapshotsParams, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// UpdateHistoryRetentionWithBody Replace the global history retention policy and apply it
+	//
+	// Takes any type of body and a specified content type.
+	//
+	// Corresponds with PUT /api/v1/history/retention (the `UpdateHistoryRetention` operationId).
+	UpdateHistoryRetentionWithBody(ctx context.Context, params *UpdateHistoryRetentionParams, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// UpdateHistoryRetention Replace the global history retention policy and apply it
+	//
+	// Takes a body of the `application/json` content type.
+	//
+	// Corresponds with PUT /api/v1/history/retention (the `UpdateHistoryRetention` operationId).
+	UpdateHistoryRetention(ctx context.Context, params *UpdateHistoryRetentionParams, body UpdateHistoryRetentionJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
+
 	// GetNetworkObservationSettings Read global lightweight address discovery services
 	//
 	// Corresponds with GET /api/v1/network-observation-settings (the `GetNetworkObservationSettings` operationId).
@@ -2279,6 +2782,16 @@ type ClientInterface interface {
 	//
 	// Corresponds with GET /api/v1/probe-snapshots/{snapshotId} (the `GetProbeSnapshot` operationId).
 	GetProbeSnapshot(ctx context.Context, snapshotId SnapshotId, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// UnstarProbeSnapshot Remove automatic retention protection from a probe snapshot
+	//
+	// Corresponds with DELETE /api/v1/probe-snapshots/{snapshotId}/star (the `UnstarProbeSnapshot` operationId).
+	UnstarProbeSnapshot(ctx context.Context, snapshotId SnapshotId, params *UnstarProbeSnapshotParams, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// StarProbeSnapshot Protect a probe snapshot from automatic retention cleanup
+	//
+	// Corresponds with PUT /api/v1/probe-snapshots/{snapshotId}/star (the `StarProbeSnapshot` operationId).
+	StarProbeSnapshot(ctx context.Context, snapshotId SnapshotId, params *StarProbeSnapshotParams, reqEditors ...RequestEditorFn) (*http.Response, error)
 
 	// GetSystemStatus Read center status
 	//
@@ -2761,6 +3274,130 @@ func (c *Client) GetHistoryState(ctx context.Context, reqEditors ...RequestEdito
 	return c.Client.Do(req)
 }
 
+// ListHistoryAddressEvents List retained confirmed address events and reported gaps
+//
+// Corresponds with GET /api/v1/history/address-events (the `ListHistoryAddressEvents` operationId).
+func (c *Client) ListHistoryAddressEvents(ctx context.Context, params *ListHistoryAddressEventsParams, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewListHistoryAddressEventsRequest(c.Server, params)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+// CleanupHistory Apply the saved history retention policy now
+//
+// Corresponds with POST /api/v1/history/cleanup (the `CleanupHistory` operationId).
+func (c *Client) CleanupHistory(ctx context.Context, params *CleanupHistoryParams, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewCleanupHistoryRequest(c.Server, params)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+// CompareProbeSnapshots Compare two retained snapshots from the same network egress
+//
+// Corresponds with GET /api/v1/history/comparison (the `CompareProbeSnapshots` operationId).
+func (c *Client) CompareProbeSnapshots(ctx context.Context, params *CompareProbeSnapshotsParams, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewCompareProbeSnapshotsRequest(c.Server, params)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+// ListHistoryFormatEvents List upstream complete-report format events
+//
+// Corresponds with GET /api/v1/history/format-events (the `ListHistoryFormatEvents` operationId).
+func (c *Client) ListHistoryFormatEvents(ctx context.Context, params *ListHistoryFormatEventsParams, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewListHistoryFormatEventsRequest(c.Server, params)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+// ListHistoryProbeGaps List explicit complete-probe history gaps
+//
+// Corresponds with GET /api/v1/history/probe-gaps (the `ListHistoryProbeGaps` operationId).
+func (c *Client) ListHistoryProbeGaps(ctx context.Context, params *ListHistoryProbeGapsParams, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewListHistoryProbeGapsRequest(c.Server, params)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+// ListHistoryProbeSnapshots List retained complete-probe snapshots across nodes
+//
+// Corresponds with GET /api/v1/history/probe-snapshots (the `ListHistoryProbeSnapshots` operationId).
+func (c *Client) ListHistoryProbeSnapshots(ctx context.Context, params *ListHistoryProbeSnapshotsParams, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewListHistoryProbeSnapshotsRequest(c.Server, params)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+// UpdateHistoryRetentionWithBody Replace the global history retention policy and apply it
+//
+// Takes any type of body and a specified content type.
+//
+// Corresponds with PUT /api/v1/history/retention (the `UpdateHistoryRetention` operationId).
+func (c *Client) UpdateHistoryRetentionWithBody(ctx context.Context, params *UpdateHistoryRetentionParams, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewUpdateHistoryRetentionRequestWithBody(c.Server, params, contentType, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+// UpdateHistoryRetention Replace the global history retention policy and apply it
+//
+// Takes a body of the `application/json` content type.
+//
+// Corresponds with PUT /api/v1/history/retention (the `UpdateHistoryRetention` operationId).
+func (c *Client) UpdateHistoryRetention(ctx context.Context, params *UpdateHistoryRetentionParams, body UpdateHistoryRetentionJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewUpdateHistoryRetentionRequest(c.Server, params, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
 // GetNetworkObservationSettings Read global lightweight address discovery services
 //
 // Corresponds with GET /api/v1/network-observation-settings (the `GetNetworkObservationSettings` operationId).
@@ -3199,6 +3836,36 @@ func (c *Client) GetProbeRun(ctx context.Context, runId RunId, reqEditors ...Req
 // Corresponds with GET /api/v1/probe-snapshots/{snapshotId} (the `GetProbeSnapshot` operationId).
 func (c *Client) GetProbeSnapshot(ctx context.Context, snapshotId SnapshotId, reqEditors ...RequestEditorFn) (*http.Response, error) {
 	req, err := NewGetProbeSnapshotRequest(c.Server, snapshotId)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+// UnstarProbeSnapshot Remove automatic retention protection from a probe snapshot
+//
+// Corresponds with DELETE /api/v1/probe-snapshots/{snapshotId}/star (the `UnstarProbeSnapshot` operationId).
+func (c *Client) UnstarProbeSnapshot(ctx context.Context, snapshotId SnapshotId, params *UnstarProbeSnapshotParams, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewUnstarProbeSnapshotRequest(c.Server, snapshotId, params)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+// StarProbeSnapshot Protect a probe snapshot from automatic retention cleanup
+//
+// Corresponds with PUT /api/v1/probe-snapshots/{snapshotId}/star (the `StarProbeSnapshot` operationId).
+func (c *Client) StarProbeSnapshot(ctx context.Context, snapshotId SnapshotId, params *StarProbeSnapshotParams, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewStarProbeSnapshotRequest(c.Server, snapshotId, params)
 	if err != nil {
 		return nil, err
 	}
@@ -4012,6 +4679,701 @@ func NewGetHistoryStateRequest(server string) (*http.Request, error) {
 	req, err := http.NewRequest(http.MethodGet, queryURL.String(), nil)
 	if err != nil {
 		return nil, err
+	}
+
+	return req, nil
+}
+
+// NewListHistoryAddressEventsRequest constructs an http.Request for the ListHistoryAddressEvents method
+func NewListHistoryAddressEventsRequest(server string, params *ListHistoryAddressEventsParams) (*http.Request, error) {
+	var err error
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/api/v1/history/address-events")
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	if params != nil {
+		// queryValues collects non-styled parameters (passthrough, JSON)
+		// that are safe to round-trip through url.Values.Encode().
+		queryValues := queryURL.Query()
+		// rawQueryFragments collects pre-encoded query fragments from
+		// styled parameters, preserving literal commas as delimiters
+		// per the OpenAPI spec (e.g. "color=blue,black,brown").
+		var rawQueryFragments []string
+
+		if params.NodeId != nil {
+
+			if queryFrag, err := runtime.StyleParamWithOptions("form", true, "nodeId", *params.NodeId, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationQuery, Type: "string", Format: "uuid"}); err != nil {
+				return nil, err
+			} else {
+				for _, qp := range strings.Split(queryFrag, "&") {
+					rawQueryFragments = append(rawQueryFragments, qp)
+				}
+			}
+
+		}
+
+		if params.EgressId != nil {
+
+			if queryFrag, err := runtime.StyleParamWithOptions("form", true, "egressId", *params.EgressId, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationQuery, Type: "string", Format: "uuid"}); err != nil {
+				return nil, err
+			} else {
+				for _, qp := range strings.Split(queryFrag, "&") {
+					rawQueryFragments = append(rawQueryFragments, qp)
+				}
+			}
+
+		}
+
+		if params.From != nil {
+
+			if queryFrag, err := runtime.StyleParamWithOptions("form", true, "from", *params.From, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationQuery, Type: "string", Format: "date-time"}); err != nil {
+				return nil, err
+			} else {
+				for _, qp := range strings.Split(queryFrag, "&") {
+					rawQueryFragments = append(rawQueryFragments, qp)
+				}
+			}
+
+		}
+
+		if params.To != nil {
+
+			if queryFrag, err := runtime.StyleParamWithOptions("form", true, "to", *params.To, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationQuery, Type: "string", Format: "date-time"}); err != nil {
+				return nil, err
+			} else {
+				for _, qp := range strings.Split(queryFrag, "&") {
+					rawQueryFragments = append(rawQueryFragments, qp)
+				}
+			}
+
+		}
+
+		if params.EventKind != nil {
+
+			if queryFrag, err := runtime.StyleParamWithOptions("form", true, "eventKind", *params.EventKind, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationQuery, Type: "string", Format: ""}); err != nil {
+				return nil, err
+			} else {
+				for _, qp := range strings.Split(queryFrag, "&") {
+					rawQueryFragments = append(rawQueryFragments, qp)
+				}
+			}
+
+		}
+
+		if params.Family != nil {
+
+			if queryFrag, err := runtime.StyleParamWithOptions("form", true, "family", *params.Family, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationQuery, Type: "string", Format: ""}); err != nil {
+				return nil, err
+			} else {
+				for _, qp := range strings.Split(queryFrag, "&") {
+					rawQueryFragments = append(rawQueryFragments, qp)
+				}
+			}
+
+		}
+
+		if params.Page != nil {
+
+			if queryFrag, err := runtime.StyleParamWithOptions("form", true, "page", *params.Page, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationQuery, Type: "integer", Format: "int64"}); err != nil {
+				return nil, err
+			} else {
+				for _, qp := range strings.Split(queryFrag, "&") {
+					rawQueryFragments = append(rawQueryFragments, qp)
+				}
+			}
+
+		}
+
+		if params.GapPage != nil {
+
+			if queryFrag, err := runtime.StyleParamWithOptions("form", true, "gapPage", *params.GapPage, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationQuery, Type: "integer", Format: "int64"}); err != nil {
+				return nil, err
+			} else {
+				for _, qp := range strings.Split(queryFrag, "&") {
+					rawQueryFragments = append(rawQueryFragments, qp)
+				}
+			}
+
+		}
+
+		if params.PageSize != nil {
+
+			if queryFrag, err := runtime.StyleParamWithOptions("form", true, "pageSize", *params.PageSize, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationQuery, Type: "integer", Format: "int64"}); err != nil {
+				return nil, err
+			} else {
+				for _, qp := range strings.Split(queryFrag, "&") {
+					rawQueryFragments = append(rawQueryFragments, qp)
+				}
+			}
+
+		}
+
+		if encoded := queryValues.Encode(); encoded != "" {
+			rawQueryFragments = append(rawQueryFragments, encoded)
+		}
+		queryURL.RawQuery = strings.Join(rawQueryFragments, "&")
+	}
+
+	req, err := http.NewRequest(http.MethodGet, queryURL.String(), nil)
+	if err != nil {
+		return nil, err
+	}
+
+	return req, nil
+}
+
+// NewCleanupHistoryRequest constructs an http.Request for the CleanupHistory method
+func NewCleanupHistoryRequest(server string, params *CleanupHistoryParams) (*http.Request, error) {
+	var err error
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/api/v1/history/cleanup")
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest(http.MethodPost, queryURL.String(), nil)
+	if err != nil {
+		return nil, err
+	}
+
+	if params != nil {
+
+		if params.XCSRFToken != nil {
+			var headerParam0 string
+
+			headerParam0, err = runtime.StyleParamWithOptions("simple", false, "X-CSRF-Token", *params.XCSRFToken, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationHeader, Type: "string", Format: ""})
+			if err != nil {
+				return nil, err
+			}
+
+			req.Header.Set("X-CSRF-Token", headerParam0)
+		}
+
+	}
+
+	return req, nil
+}
+
+// NewCompareProbeSnapshotsRequest constructs an http.Request for the CompareProbeSnapshots method
+func NewCompareProbeSnapshotsRequest(server string, params *CompareProbeSnapshotsParams) (*http.Request, error) {
+	var err error
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/api/v1/history/comparison")
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	if params != nil {
+		// queryValues collects non-styled parameters (passthrough, JSON)
+		// that are safe to round-trip through url.Values.Encode().
+		queryValues := queryURL.Query()
+		// rawQueryFragments collects pre-encoded query fragments from
+		// styled parameters, preserving literal commas as delimiters
+		// per the OpenAPI spec (e.g. "color=blue,black,brown").
+		var rawQueryFragments []string
+
+		if queryFrag, err := runtime.StyleParamWithOptions("form", true, "beforeSnapshotId", params.BeforeSnapshotId, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationQuery, Type: "string", Format: "uuid"}); err != nil {
+			return nil, err
+		} else {
+			for _, qp := range strings.Split(queryFrag, "&") {
+				rawQueryFragments = append(rawQueryFragments, qp)
+			}
+		}
+
+		if queryFrag, err := runtime.StyleParamWithOptions("form", true, "afterSnapshotId", params.AfterSnapshotId, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationQuery, Type: "string", Format: "uuid"}); err != nil {
+			return nil, err
+		} else {
+			for _, qp := range strings.Split(queryFrag, "&") {
+				rawQueryFragments = append(rawQueryFragments, qp)
+			}
+		}
+
+		if encoded := queryValues.Encode(); encoded != "" {
+			rawQueryFragments = append(rawQueryFragments, encoded)
+		}
+		queryURL.RawQuery = strings.Join(rawQueryFragments, "&")
+	}
+
+	req, err := http.NewRequest(http.MethodGet, queryURL.String(), nil)
+	if err != nil {
+		return nil, err
+	}
+
+	return req, nil
+}
+
+// NewListHistoryFormatEventsRequest constructs an http.Request for the ListHistoryFormatEvents method
+func NewListHistoryFormatEventsRequest(server string, params *ListHistoryFormatEventsParams) (*http.Request, error) {
+	var err error
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/api/v1/history/format-events")
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	if params != nil {
+		// queryValues collects non-styled parameters (passthrough, JSON)
+		// that are safe to round-trip through url.Values.Encode().
+		queryValues := queryURL.Query()
+		// rawQueryFragments collects pre-encoded query fragments from
+		// styled parameters, preserving literal commas as delimiters
+		// per the OpenAPI spec (e.g. "color=blue,black,brown").
+		var rawQueryFragments []string
+
+		if params.NodeId != nil {
+
+			if queryFrag, err := runtime.StyleParamWithOptions("form", true, "nodeId", *params.NodeId, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationQuery, Type: "string", Format: "uuid"}); err != nil {
+				return nil, err
+			} else {
+				for _, qp := range strings.Split(queryFrag, "&") {
+					rawQueryFragments = append(rawQueryFragments, qp)
+				}
+			}
+
+		}
+
+		if params.EgressId != nil {
+
+			if queryFrag, err := runtime.StyleParamWithOptions("form", true, "egressId", *params.EgressId, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationQuery, Type: "string", Format: "uuid"}); err != nil {
+				return nil, err
+			} else {
+				for _, qp := range strings.Split(queryFrag, "&") {
+					rawQueryFragments = append(rawQueryFragments, qp)
+				}
+			}
+
+		}
+
+		if params.From != nil {
+
+			if queryFrag, err := runtime.StyleParamWithOptions("form", true, "from", *params.From, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationQuery, Type: "string", Format: "date-time"}); err != nil {
+				return nil, err
+			} else {
+				for _, qp := range strings.Split(queryFrag, "&") {
+					rawQueryFragments = append(rawQueryFragments, qp)
+				}
+			}
+
+		}
+
+		if params.To != nil {
+
+			if queryFrag, err := runtime.StyleParamWithOptions("form", true, "to", *params.To, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationQuery, Type: "string", Format: "date-time"}); err != nil {
+				return nil, err
+			} else {
+				for _, qp := range strings.Split(queryFrag, "&") {
+					rawQueryFragments = append(rawQueryFragments, qp)
+				}
+			}
+
+		}
+
+		if params.Page != nil {
+
+			if queryFrag, err := runtime.StyleParamWithOptions("form", true, "page", *params.Page, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationQuery, Type: "integer", Format: "int64"}); err != nil {
+				return nil, err
+			} else {
+				for _, qp := range strings.Split(queryFrag, "&") {
+					rawQueryFragments = append(rawQueryFragments, qp)
+				}
+			}
+
+		}
+
+		if params.PageSize != nil {
+
+			if queryFrag, err := runtime.StyleParamWithOptions("form", true, "pageSize", *params.PageSize, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationQuery, Type: "integer", Format: "int64"}); err != nil {
+				return nil, err
+			} else {
+				for _, qp := range strings.Split(queryFrag, "&") {
+					rawQueryFragments = append(rawQueryFragments, qp)
+				}
+			}
+
+		}
+
+		if encoded := queryValues.Encode(); encoded != "" {
+			rawQueryFragments = append(rawQueryFragments, encoded)
+		}
+		queryURL.RawQuery = strings.Join(rawQueryFragments, "&")
+	}
+
+	req, err := http.NewRequest(http.MethodGet, queryURL.String(), nil)
+	if err != nil {
+		return nil, err
+	}
+
+	return req, nil
+}
+
+// NewListHistoryProbeGapsRequest constructs an http.Request for the ListHistoryProbeGaps method
+func NewListHistoryProbeGapsRequest(server string, params *ListHistoryProbeGapsParams) (*http.Request, error) {
+	var err error
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/api/v1/history/probe-gaps")
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	if params != nil {
+		// queryValues collects non-styled parameters (passthrough, JSON)
+		// that are safe to round-trip through url.Values.Encode().
+		queryValues := queryURL.Query()
+		// rawQueryFragments collects pre-encoded query fragments from
+		// styled parameters, preserving literal commas as delimiters
+		// per the OpenAPI spec (e.g. "color=blue,black,brown").
+		var rawQueryFragments []string
+
+		if params.NodeId != nil {
+
+			if queryFrag, err := runtime.StyleParamWithOptions("form", true, "nodeId", *params.NodeId, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationQuery, Type: "string", Format: "uuid"}); err != nil {
+				return nil, err
+			} else {
+				for _, qp := range strings.Split(queryFrag, "&") {
+					rawQueryFragments = append(rawQueryFragments, qp)
+				}
+			}
+
+		}
+
+		if params.EgressId != nil {
+
+			if queryFrag, err := runtime.StyleParamWithOptions("form", true, "egressId", *params.EgressId, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationQuery, Type: "string", Format: "uuid"}); err != nil {
+				return nil, err
+			} else {
+				for _, qp := range strings.Split(queryFrag, "&") {
+					rawQueryFragments = append(rawQueryFragments, qp)
+				}
+			}
+
+		}
+
+		if params.From != nil {
+
+			if queryFrag, err := runtime.StyleParamWithOptions("form", true, "from", *params.From, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationQuery, Type: "string", Format: "date-time"}); err != nil {
+				return nil, err
+			} else {
+				for _, qp := range strings.Split(queryFrag, "&") {
+					rawQueryFragments = append(rawQueryFragments, qp)
+				}
+			}
+
+		}
+
+		if params.To != nil {
+
+			if queryFrag, err := runtime.StyleParamWithOptions("form", true, "to", *params.To, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationQuery, Type: "string", Format: "date-time"}); err != nil {
+				return nil, err
+			} else {
+				for _, qp := range strings.Split(queryFrag, "&") {
+					rawQueryFragments = append(rawQueryFragments, qp)
+				}
+			}
+
+		}
+
+		if params.Page != nil {
+
+			if queryFrag, err := runtime.StyleParamWithOptions("form", true, "page", *params.Page, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationQuery, Type: "integer", Format: "int64"}); err != nil {
+				return nil, err
+			} else {
+				for _, qp := range strings.Split(queryFrag, "&") {
+					rawQueryFragments = append(rawQueryFragments, qp)
+				}
+			}
+
+		}
+
+		if params.PageSize != nil {
+
+			if queryFrag, err := runtime.StyleParamWithOptions("form", true, "pageSize", *params.PageSize, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationQuery, Type: "integer", Format: "int64"}); err != nil {
+				return nil, err
+			} else {
+				for _, qp := range strings.Split(queryFrag, "&") {
+					rawQueryFragments = append(rawQueryFragments, qp)
+				}
+			}
+
+		}
+
+		if encoded := queryValues.Encode(); encoded != "" {
+			rawQueryFragments = append(rawQueryFragments, encoded)
+		}
+		queryURL.RawQuery = strings.Join(rawQueryFragments, "&")
+	}
+
+	req, err := http.NewRequest(http.MethodGet, queryURL.String(), nil)
+	if err != nil {
+		return nil, err
+	}
+
+	return req, nil
+}
+
+// NewListHistoryProbeSnapshotsRequest constructs an http.Request for the ListHistoryProbeSnapshots method
+func NewListHistoryProbeSnapshotsRequest(server string, params *ListHistoryProbeSnapshotsParams) (*http.Request, error) {
+	var err error
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/api/v1/history/probe-snapshots")
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	if params != nil {
+		// queryValues collects non-styled parameters (passthrough, JSON)
+		// that are safe to round-trip through url.Values.Encode().
+		queryValues := queryURL.Query()
+		// rawQueryFragments collects pre-encoded query fragments from
+		// styled parameters, preserving literal commas as delimiters
+		// per the OpenAPI spec (e.g. "color=blue,black,brown").
+		var rawQueryFragments []string
+
+		if params.NodeId != nil {
+
+			if queryFrag, err := runtime.StyleParamWithOptions("form", true, "nodeId", *params.NodeId, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationQuery, Type: "string", Format: "uuid"}); err != nil {
+				return nil, err
+			} else {
+				for _, qp := range strings.Split(queryFrag, "&") {
+					rawQueryFragments = append(rawQueryFragments, qp)
+				}
+			}
+
+		}
+
+		if params.EgressId != nil {
+
+			if queryFrag, err := runtime.StyleParamWithOptions("form", true, "egressId", *params.EgressId, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationQuery, Type: "string", Format: "uuid"}); err != nil {
+				return nil, err
+			} else {
+				for _, qp := range strings.Split(queryFrag, "&") {
+					rawQueryFragments = append(rawQueryFragments, qp)
+				}
+			}
+
+		}
+
+		if params.From != nil {
+
+			if queryFrag, err := runtime.StyleParamWithOptions("form", true, "from", *params.From, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationQuery, Type: "string", Format: "date-time"}); err != nil {
+				return nil, err
+			} else {
+				for _, qp := range strings.Split(queryFrag, "&") {
+					rawQueryFragments = append(rawQueryFragments, qp)
+				}
+			}
+
+		}
+
+		if params.To != nil {
+
+			if queryFrag, err := runtime.StyleParamWithOptions("form", true, "to", *params.To, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationQuery, Type: "string", Format: "date-time"}); err != nil {
+				return nil, err
+			} else {
+				for _, qp := range strings.Split(queryFrag, "&") {
+					rawQueryFragments = append(rawQueryFragments, qp)
+				}
+			}
+
+		}
+
+		if params.RunStatus != nil {
+
+			if queryFrag, err := runtime.StyleParamWithOptions("form", true, "runStatus", *params.RunStatus, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationQuery, Type: "string", Format: ""}); err != nil {
+				return nil, err
+			} else {
+				for _, qp := range strings.Split(queryFrag, "&") {
+					rawQueryFragments = append(rawQueryFragments, qp)
+				}
+			}
+
+		}
+
+		if params.Trigger != nil {
+
+			if queryFrag, err := runtime.StyleParamWithOptions("form", true, "trigger", *params.Trigger, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationQuery, Type: "string", Format: ""}); err != nil {
+				return nil, err
+			} else {
+				for _, qp := range strings.Split(queryFrag, "&") {
+					rawQueryFragments = append(rawQueryFragments, qp)
+				}
+			}
+
+		}
+
+		if params.Changed != nil {
+
+			if queryFrag, err := runtime.StyleParamWithOptions("form", true, "changed", *params.Changed, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationQuery, Type: "boolean", Format: ""}); err != nil {
+				return nil, err
+			} else {
+				for _, qp := range strings.Split(queryFrag, "&") {
+					rawQueryFragments = append(rawQueryFragments, qp)
+				}
+			}
+
+		}
+
+		if params.FormatStatus != nil {
+
+			if queryFrag, err := runtime.StyleParamWithOptions("form", true, "formatStatus", *params.FormatStatus, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationQuery, Type: "string", Format: ""}); err != nil {
+				return nil, err
+			} else {
+				for _, qp := range strings.Split(queryFrag, "&") {
+					rawQueryFragments = append(rawQueryFragments, qp)
+				}
+			}
+
+		}
+
+		if params.Page != nil {
+
+			if queryFrag, err := runtime.StyleParamWithOptions("form", true, "page", *params.Page, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationQuery, Type: "integer", Format: "int64"}); err != nil {
+				return nil, err
+			} else {
+				for _, qp := range strings.Split(queryFrag, "&") {
+					rawQueryFragments = append(rawQueryFragments, qp)
+				}
+			}
+
+		}
+
+		if params.PageSize != nil {
+
+			if queryFrag, err := runtime.StyleParamWithOptions("form", true, "pageSize", *params.PageSize, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationQuery, Type: "integer", Format: "int64"}); err != nil {
+				return nil, err
+			} else {
+				for _, qp := range strings.Split(queryFrag, "&") {
+					rawQueryFragments = append(rawQueryFragments, qp)
+				}
+			}
+
+		}
+
+		if encoded := queryValues.Encode(); encoded != "" {
+			rawQueryFragments = append(rawQueryFragments, encoded)
+		}
+		queryURL.RawQuery = strings.Join(rawQueryFragments, "&")
+	}
+
+	req, err := http.NewRequest(http.MethodGet, queryURL.String(), nil)
+	if err != nil {
+		return nil, err
+	}
+
+	return req, nil
+}
+
+// NewUpdateHistoryRetentionRequest calls the generic UpdateHistoryRetention builder with application/json body
+func NewUpdateHistoryRetentionRequest(server string, params *UpdateHistoryRetentionParams, body UpdateHistoryRetentionJSONRequestBody) (*http.Request, error) {
+	var bodyReader io.Reader
+	buf, err := json.Marshal(body)
+	if err != nil {
+		return nil, err
+	}
+	bodyReader = bytes.NewReader(buf)
+	return NewUpdateHistoryRetentionRequestWithBody(server, params, "application/json", bodyReader)
+}
+
+// NewUpdateHistoryRetentionRequestWithBody constructs an http.Request for the UpdateHistoryRetention method, with any body, and a specified content type
+func NewUpdateHistoryRetentionRequestWithBody(server string, params *UpdateHistoryRetentionParams, contentType string, body io.Reader) (*http.Request, error) {
+	var err error
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/api/v1/history/retention")
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest(http.MethodPut, queryURL.String(), body)
+	if err != nil {
+		return nil, err
+	}
+
+	req.Header.Add("Content-Type", contentType)
+
+	if params != nil {
+
+		if params.XCSRFToken != nil {
+			var headerParam0 string
+
+			headerParam0, err = runtime.StyleParamWithOptions("simple", false, "X-CSRF-Token", *params.XCSRFToken, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationHeader, Type: "string", Format: ""})
+			if err != nil {
+				return nil, err
+			}
+
+			req.Header.Set("X-CSRF-Token", headerParam0)
+		}
+
 	}
 
 	return req, nil
@@ -5011,6 +6373,104 @@ func NewGetProbeSnapshotRequest(server string, snapshotId SnapshotId) (*http.Req
 	return req, nil
 }
 
+// NewUnstarProbeSnapshotRequest constructs an http.Request for the UnstarProbeSnapshot method
+func NewUnstarProbeSnapshotRequest(server string, snapshotId SnapshotId, params *UnstarProbeSnapshotParams) (*http.Request, error) {
+	var err error
+
+	var pathParam0 string
+
+	pathParam0, err = runtime.StyleParamWithOptions("simple", false, "snapshotId", snapshotId, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationPath, Type: "string", Format: "uuid"})
+	if err != nil {
+		return nil, err
+	}
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/api/v1/probe-snapshots/%s/star", pathParam0)
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest(http.MethodDelete, queryURL.String(), nil)
+	if err != nil {
+		return nil, err
+	}
+
+	if params != nil {
+
+		if params.XCSRFToken != nil {
+			var headerParam0 string
+
+			headerParam0, err = runtime.StyleParamWithOptions("simple", false, "X-CSRF-Token", *params.XCSRFToken, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationHeader, Type: "string", Format: ""})
+			if err != nil {
+				return nil, err
+			}
+
+			req.Header.Set("X-CSRF-Token", headerParam0)
+		}
+
+	}
+
+	return req, nil
+}
+
+// NewStarProbeSnapshotRequest constructs an http.Request for the StarProbeSnapshot method
+func NewStarProbeSnapshotRequest(server string, snapshotId SnapshotId, params *StarProbeSnapshotParams) (*http.Request, error) {
+	var err error
+
+	var pathParam0 string
+
+	pathParam0, err = runtime.StyleParamWithOptions("simple", false, "snapshotId", snapshotId, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationPath, Type: "string", Format: "uuid"})
+	if err != nil {
+		return nil, err
+	}
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/api/v1/probe-snapshots/%s/star", pathParam0)
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest(http.MethodPut, queryURL.String(), nil)
+	if err != nil {
+		return nil, err
+	}
+
+	if params != nil {
+
+		if params.XCSRFToken != nil {
+			var headerParam0 string
+
+			headerParam0, err = runtime.StyleParamWithOptions("simple", false, "X-CSRF-Token", *params.XCSRFToken, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationHeader, Type: "string", Format: ""})
+			if err != nil {
+				return nil, err
+			}
+
+			req.Header.Set("X-CSRF-Token", headerParam0)
+		}
+
+	}
+
+	return req, nil
+}
+
 // NewGetSystemStatusRequest constructs an http.Request for the GetSystemStatus method
 func NewGetSystemStatusRequest(server string) (*http.Request, error) {
 	var err error
@@ -5285,6 +6745,62 @@ type ClientWithResponsesInterface interface {
 	// Corresponds with GET /api/v1/history (the `GetHistoryState` operationId).
 	GetHistoryStateWithResponse(ctx context.Context, reqEditors ...RequestEditorFn) (*GetHistoryStateResponse, error)
 
+	// ListHistoryAddressEventsWithResponse List retained confirmed address events and reported gaps
+	//
+	// Returns a wrapper object for the known response body format(s).
+	//
+	// Corresponds with GET /api/v1/history/address-events (the `ListHistoryAddressEvents` operationId).
+	ListHistoryAddressEventsWithResponse(ctx context.Context, params *ListHistoryAddressEventsParams, reqEditors ...RequestEditorFn) (*ListHistoryAddressEventsResponse, error)
+
+	// CleanupHistoryWithResponse Apply the saved history retention policy now
+	//
+	// Returns a wrapper object for the known response body format(s).
+	//
+	// Corresponds with POST /api/v1/history/cleanup (the `CleanupHistory` operationId).
+	CleanupHistoryWithResponse(ctx context.Context, params *CleanupHistoryParams, reqEditors ...RequestEditorFn) (*CleanupHistoryResponse, error)
+
+	// CompareProbeSnapshotsWithResponse Compare two retained snapshots from the same network egress
+	//
+	// Returns a wrapper object for the known response body format(s).
+	//
+	// Corresponds with GET /api/v1/history/comparison (the `CompareProbeSnapshots` operationId).
+	CompareProbeSnapshotsWithResponse(ctx context.Context, params *CompareProbeSnapshotsParams, reqEditors ...RequestEditorFn) (*CompareProbeSnapshotsResponse, error)
+
+	// ListHistoryFormatEventsWithResponse List upstream complete-report format events
+	//
+	// Returns a wrapper object for the known response body format(s).
+	//
+	// Corresponds with GET /api/v1/history/format-events (the `ListHistoryFormatEvents` operationId).
+	ListHistoryFormatEventsWithResponse(ctx context.Context, params *ListHistoryFormatEventsParams, reqEditors ...RequestEditorFn) (*ListHistoryFormatEventsResponse, error)
+
+	// ListHistoryProbeGapsWithResponse List explicit complete-probe history gaps
+	//
+	// Returns a wrapper object for the known response body format(s).
+	//
+	// Corresponds with GET /api/v1/history/probe-gaps (the `ListHistoryProbeGaps` operationId).
+	ListHistoryProbeGapsWithResponse(ctx context.Context, params *ListHistoryProbeGapsParams, reqEditors ...RequestEditorFn) (*ListHistoryProbeGapsResponse, error)
+
+	// ListHistoryProbeSnapshotsWithResponse List retained complete-probe snapshots across nodes
+	//
+	// Returns a wrapper object for the known response body format(s).
+	//
+	// Corresponds with GET /api/v1/history/probe-snapshots (the `ListHistoryProbeSnapshots` operationId).
+	ListHistoryProbeSnapshotsWithResponse(ctx context.Context, params *ListHistoryProbeSnapshotsParams, reqEditors ...RequestEditorFn) (*ListHistoryProbeSnapshotsResponse, error)
+
+	// UpdateHistoryRetentionWithBodyWithResponse Replace the global history retention policy and apply it
+	//
+	// Takes any type of body and a specified content type, and returns a wrapper object for the known response body format(s).
+	//
+	// Corresponds with PUT /api/v1/history/retention (the `UpdateHistoryRetention` operationId).
+	UpdateHistoryRetentionWithBodyWithResponse(ctx context.Context, params *UpdateHistoryRetentionParams, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*UpdateHistoryRetentionResponse, error)
+
+	// UpdateHistoryRetentionWithResponse Replace the global history retention policy and apply it
+	//
+	// Takes a body of the `application/json` content type, and returns a wrapper object for the known response body format(s).
+	//
+	// Corresponds with PUT /api/v1/history/retention (the `UpdateHistoryRetention` operationId).
+	UpdateHistoryRetentionWithResponse(ctx context.Context, params *UpdateHistoryRetentionParams, body UpdateHistoryRetentionJSONRequestBody, reqEditors ...RequestEditorFn) (*UpdateHistoryRetentionResponse, error)
+
 	// GetNetworkObservationSettingsWithResponse Read global lightweight address discovery services
 	//
 	// Returns a wrapper object for the known response body format(s).
@@ -5480,6 +6996,20 @@ type ClientWithResponsesInterface interface {
 	//
 	// Corresponds with GET /api/v1/probe-snapshots/{snapshotId} (the `GetProbeSnapshot` operationId).
 	GetProbeSnapshotWithResponse(ctx context.Context, snapshotId SnapshotId, reqEditors ...RequestEditorFn) (*GetProbeSnapshotResponse, error)
+
+	// UnstarProbeSnapshotWithResponse Remove automatic retention protection from a probe snapshot
+	//
+	// Returns a wrapper object for the known response body format(s).
+	//
+	// Corresponds with DELETE /api/v1/probe-snapshots/{snapshotId}/star (the `UnstarProbeSnapshot` operationId).
+	UnstarProbeSnapshotWithResponse(ctx context.Context, snapshotId SnapshotId, params *UnstarProbeSnapshotParams, reqEditors ...RequestEditorFn) (*UnstarProbeSnapshotResponse, error)
+
+	// StarProbeSnapshotWithResponse Protect a probe snapshot from automatic retention cleanup
+	//
+	// Returns a wrapper object for the known response body format(s).
+	//
+	// Corresponds with PUT /api/v1/probe-snapshots/{snapshotId}/star (the `StarProbeSnapshot` operationId).
+	StarProbeSnapshotWithResponse(ctx context.Context, snapshotId SnapshotId, params *StarProbeSnapshotParams, reqEditors ...RequestEditorFn) (*StarProbeSnapshotResponse, error)
 
 	// GetSystemStatusWithResponse Read center status
 	//
@@ -6619,6 +8149,377 @@ func (r GetHistoryStateResponse) StatusCode() int {
 
 // ContentType is a convenience method to retrieve the Content-Type value from the HTTP response headers
 func (r GetHistoryStateResponse) ContentType() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Header.Get("Content-Type")
+	}
+	return ""
+}
+
+type ListHistoryAddressEventsResponse struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	// JSON200 the response for an HTTP 200 `application/json` response
+	JSON200 *AddressHistoryPage
+	// JSON401 the response for an HTTP 401 `application/json` response
+	JSON401 *Unauthorized
+}
+
+// GetJSON200 returns the response for an HTTP 200 `application/json` response
+func (r ListHistoryAddressEventsResponse) GetJSON200() *AddressHistoryPage {
+	return r.JSON200
+}
+
+// GetJSON401 returns the response for an HTTP 401 `application/json` response
+func (r ListHistoryAddressEventsResponse) GetJSON401() *Unauthorized {
+	return r.JSON401
+}
+
+// GetBody returns the raw response body bytes
+func (r ListHistoryAddressEventsResponse) GetBody() []byte {
+	return r.Body
+}
+
+// Status returns HTTPResponse.Status
+func (r ListHistoryAddressEventsResponse) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r ListHistoryAddressEventsResponse) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+// ContentType is a convenience method to retrieve the Content-Type value from the HTTP response headers
+func (r ListHistoryAddressEventsResponse) ContentType() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Header.Get("Content-Type")
+	}
+	return ""
+}
+
+type CleanupHistoryResponse struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	// JSON200 the response for an HTTP 200 `application/json` response
+	JSON200 *HistoryCleanupResult
+	// JSON401 the response for an HTTP 401 `application/json` response
+	JSON401 *Unauthorized
+	// JSON403 the response for an HTTP 403 `application/json` response
+	JSON403 *Forbidden
+}
+
+// GetJSON200 returns the response for an HTTP 200 `application/json` response
+func (r CleanupHistoryResponse) GetJSON200() *HistoryCleanupResult {
+	return r.JSON200
+}
+
+// GetJSON401 returns the response for an HTTP 401 `application/json` response
+func (r CleanupHistoryResponse) GetJSON401() *Unauthorized {
+	return r.JSON401
+}
+
+// GetJSON403 returns the response for an HTTP 403 `application/json` response
+func (r CleanupHistoryResponse) GetJSON403() *Forbidden {
+	return r.JSON403
+}
+
+// GetBody returns the raw response body bytes
+func (r CleanupHistoryResponse) GetBody() []byte {
+	return r.Body
+}
+
+// Status returns HTTPResponse.Status
+func (r CleanupHistoryResponse) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r CleanupHistoryResponse) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+// ContentType is a convenience method to retrieve the Content-Type value from the HTTP response headers
+func (r CleanupHistoryResponse) ContentType() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Header.Get("Content-Type")
+	}
+	return ""
+}
+
+type CompareProbeSnapshotsResponse struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	// JSON200 the response for an HTTP 200 `application/json` response
+	JSON200 *ProbeSnapshotComparison
+	// JSON401 the response for an HTTP 401 `application/json` response
+	JSON401 *Unauthorized
+	// JSON404 the response for an HTTP 404 `application/json` response
+	JSON404 *NotFound
+	// JSON409 the response for an HTTP 409 `application/json` response
+	JSON409 *Conflict
+}
+
+// GetJSON200 returns the response for an HTTP 200 `application/json` response
+func (r CompareProbeSnapshotsResponse) GetJSON200() *ProbeSnapshotComparison {
+	return r.JSON200
+}
+
+// GetJSON401 returns the response for an HTTP 401 `application/json` response
+func (r CompareProbeSnapshotsResponse) GetJSON401() *Unauthorized {
+	return r.JSON401
+}
+
+// GetJSON404 returns the response for an HTTP 404 `application/json` response
+func (r CompareProbeSnapshotsResponse) GetJSON404() *NotFound {
+	return r.JSON404
+}
+
+// GetJSON409 returns the response for an HTTP 409 `application/json` response
+func (r CompareProbeSnapshotsResponse) GetJSON409() *Conflict {
+	return r.JSON409
+}
+
+// GetBody returns the raw response body bytes
+func (r CompareProbeSnapshotsResponse) GetBody() []byte {
+	return r.Body
+}
+
+// Status returns HTTPResponse.Status
+func (r CompareProbeSnapshotsResponse) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r CompareProbeSnapshotsResponse) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+// ContentType is a convenience method to retrieve the Content-Type value from the HTTP response headers
+func (r CompareProbeSnapshotsResponse) ContentType() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Header.Get("Content-Type")
+	}
+	return ""
+}
+
+type ListHistoryFormatEventsResponse struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	// JSON200 the response for an HTTP 200 `application/json` response
+	JSON200 *ProbeFormatEventPage
+	// JSON401 the response for an HTTP 401 `application/json` response
+	JSON401 *Unauthorized
+}
+
+// GetJSON200 returns the response for an HTTP 200 `application/json` response
+func (r ListHistoryFormatEventsResponse) GetJSON200() *ProbeFormatEventPage {
+	return r.JSON200
+}
+
+// GetJSON401 returns the response for an HTTP 401 `application/json` response
+func (r ListHistoryFormatEventsResponse) GetJSON401() *Unauthorized {
+	return r.JSON401
+}
+
+// GetBody returns the raw response body bytes
+func (r ListHistoryFormatEventsResponse) GetBody() []byte {
+	return r.Body
+}
+
+// Status returns HTTPResponse.Status
+func (r ListHistoryFormatEventsResponse) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r ListHistoryFormatEventsResponse) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+// ContentType is a convenience method to retrieve the Content-Type value from the HTTP response headers
+func (r ListHistoryFormatEventsResponse) ContentType() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Header.Get("Content-Type")
+	}
+	return ""
+}
+
+type ListHistoryProbeGapsResponse struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	// JSON200 the response for an HTTP 200 `application/json` response
+	JSON200 *ProbeHistoryGapPage
+	// JSON401 the response for an HTTP 401 `application/json` response
+	JSON401 *Unauthorized
+}
+
+// GetJSON200 returns the response for an HTTP 200 `application/json` response
+func (r ListHistoryProbeGapsResponse) GetJSON200() *ProbeHistoryGapPage {
+	return r.JSON200
+}
+
+// GetJSON401 returns the response for an HTTP 401 `application/json` response
+func (r ListHistoryProbeGapsResponse) GetJSON401() *Unauthorized {
+	return r.JSON401
+}
+
+// GetBody returns the raw response body bytes
+func (r ListHistoryProbeGapsResponse) GetBody() []byte {
+	return r.Body
+}
+
+// Status returns HTTPResponse.Status
+func (r ListHistoryProbeGapsResponse) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r ListHistoryProbeGapsResponse) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+// ContentType is a convenience method to retrieve the Content-Type value from the HTTP response headers
+func (r ListHistoryProbeGapsResponse) ContentType() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Header.Get("Content-Type")
+	}
+	return ""
+}
+
+type ListHistoryProbeSnapshotsResponse struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	// JSON200 the response for an HTTP 200 `application/json` response
+	JSON200 *ProbeSnapshotHistoryPage
+	// JSON401 the response for an HTTP 401 `application/json` response
+	JSON401 *Unauthorized
+}
+
+// GetJSON200 returns the response for an HTTP 200 `application/json` response
+func (r ListHistoryProbeSnapshotsResponse) GetJSON200() *ProbeSnapshotHistoryPage {
+	return r.JSON200
+}
+
+// GetJSON401 returns the response for an HTTP 401 `application/json` response
+func (r ListHistoryProbeSnapshotsResponse) GetJSON401() *Unauthorized {
+	return r.JSON401
+}
+
+// GetBody returns the raw response body bytes
+func (r ListHistoryProbeSnapshotsResponse) GetBody() []byte {
+	return r.Body
+}
+
+// Status returns HTTPResponse.Status
+func (r ListHistoryProbeSnapshotsResponse) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r ListHistoryProbeSnapshotsResponse) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+// ContentType is a convenience method to retrieve the Content-Type value from the HTTP response headers
+func (r ListHistoryProbeSnapshotsResponse) ContentType() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Header.Get("Content-Type")
+	}
+	return ""
+}
+
+type UpdateHistoryRetentionResponse struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	// JSON200 the response for an HTTP 200 `application/json` response
+	JSON200 *HistoryState
+	// JSON400 the response for an HTTP 400 `application/json` response
+	JSON400 *BadRequest
+	// JSON401 the response for an HTTP 401 `application/json` response
+	JSON401 *Unauthorized
+	// JSON403 the response for an HTTP 403 `application/json` response
+	JSON403 *Forbidden
+}
+
+// GetJSON200 returns the response for an HTTP 200 `application/json` response
+func (r UpdateHistoryRetentionResponse) GetJSON200() *HistoryState {
+	return r.JSON200
+}
+
+// GetJSON400 returns the response for an HTTP 400 `application/json` response
+func (r UpdateHistoryRetentionResponse) GetJSON400() *BadRequest {
+	return r.JSON400
+}
+
+// GetJSON401 returns the response for an HTTP 401 `application/json` response
+func (r UpdateHistoryRetentionResponse) GetJSON401() *Unauthorized {
+	return r.JSON401
+}
+
+// GetJSON403 returns the response for an HTTP 403 `application/json` response
+func (r UpdateHistoryRetentionResponse) GetJSON403() *Forbidden {
+	return r.JSON403
+}
+
+// GetBody returns the raw response body bytes
+func (r UpdateHistoryRetentionResponse) GetBody() []byte {
+	return r.Body
+}
+
+// Status returns HTTPResponse.Status
+func (r UpdateHistoryRetentionResponse) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r UpdateHistoryRetentionResponse) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+// ContentType is a convenience method to retrieve the Content-Type value from the HTTP response headers
+func (r UpdateHistoryRetentionResponse) ContentType() string {
 	if r.HTTPResponse != nil {
 		return r.HTTPResponse.Header.Get("Content-Type")
 	}
@@ -7962,6 +9863,130 @@ func (r GetProbeSnapshotResponse) ContentType() string {
 	return ""
 }
 
+type UnstarProbeSnapshotResponse struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	// JSON200 the response for an HTTP 200 `application/json` response
+	JSON200 *ProbeSnapshot
+	// JSON401 the response for an HTTP 401 `application/json` response
+	JSON401 *Unauthorized
+	// JSON403 the response for an HTTP 403 `application/json` response
+	JSON403 *Forbidden
+	// JSON404 the response for an HTTP 404 `application/json` response
+	JSON404 *NotFound
+}
+
+// GetJSON200 returns the response for an HTTP 200 `application/json` response
+func (r UnstarProbeSnapshotResponse) GetJSON200() *ProbeSnapshot {
+	return r.JSON200
+}
+
+// GetJSON401 returns the response for an HTTP 401 `application/json` response
+func (r UnstarProbeSnapshotResponse) GetJSON401() *Unauthorized {
+	return r.JSON401
+}
+
+// GetJSON403 returns the response for an HTTP 403 `application/json` response
+func (r UnstarProbeSnapshotResponse) GetJSON403() *Forbidden {
+	return r.JSON403
+}
+
+// GetJSON404 returns the response for an HTTP 404 `application/json` response
+func (r UnstarProbeSnapshotResponse) GetJSON404() *NotFound {
+	return r.JSON404
+}
+
+// GetBody returns the raw response body bytes
+func (r UnstarProbeSnapshotResponse) GetBody() []byte {
+	return r.Body
+}
+
+// Status returns HTTPResponse.Status
+func (r UnstarProbeSnapshotResponse) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r UnstarProbeSnapshotResponse) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+// ContentType is a convenience method to retrieve the Content-Type value from the HTTP response headers
+func (r UnstarProbeSnapshotResponse) ContentType() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Header.Get("Content-Type")
+	}
+	return ""
+}
+
+type StarProbeSnapshotResponse struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	// JSON200 the response for an HTTP 200 `application/json` response
+	JSON200 *ProbeSnapshot
+	// JSON401 the response for an HTTP 401 `application/json` response
+	JSON401 *Unauthorized
+	// JSON403 the response for an HTTP 403 `application/json` response
+	JSON403 *Forbidden
+	// JSON404 the response for an HTTP 404 `application/json` response
+	JSON404 *NotFound
+}
+
+// GetJSON200 returns the response for an HTTP 200 `application/json` response
+func (r StarProbeSnapshotResponse) GetJSON200() *ProbeSnapshot {
+	return r.JSON200
+}
+
+// GetJSON401 returns the response for an HTTP 401 `application/json` response
+func (r StarProbeSnapshotResponse) GetJSON401() *Unauthorized {
+	return r.JSON401
+}
+
+// GetJSON403 returns the response for an HTTP 403 `application/json` response
+func (r StarProbeSnapshotResponse) GetJSON403() *Forbidden {
+	return r.JSON403
+}
+
+// GetJSON404 returns the response for an HTTP 404 `application/json` response
+func (r StarProbeSnapshotResponse) GetJSON404() *NotFound {
+	return r.JSON404
+}
+
+// GetBody returns the raw response body bytes
+func (r StarProbeSnapshotResponse) GetBody() []byte {
+	return r.Body
+}
+
+// Status returns HTTPResponse.Status
+func (r StarProbeSnapshotResponse) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r StarProbeSnapshotResponse) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+// ContentType is a convenience method to retrieve the Content-Type value from the HTTP response headers
+func (r StarProbeSnapshotResponse) ContentType() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Header.Get("Content-Type")
+	}
+	return ""
+}
+
 type GetSystemStatusResponse struct {
 	Body         []byte
 	HTTPResponse *http.Response
@@ -8387,6 +10412,110 @@ func (c *ClientWithResponses) GetHistoryStateWithResponse(ctx context.Context, r
 	return ParseGetHistoryStateResponse(rsp)
 }
 
+// ListHistoryAddressEventsWithResponse List retained confirmed address events and reported gaps
+//
+// Returns a wrapper object for the known response body format(s).
+//
+// Corresponds with GET /api/v1/history/address-events (the `ListHistoryAddressEvents` operationId).
+func (c *ClientWithResponses) ListHistoryAddressEventsWithResponse(ctx context.Context, params *ListHistoryAddressEventsParams, reqEditors ...RequestEditorFn) (*ListHistoryAddressEventsResponse, error) {
+	rsp, err := c.ListHistoryAddressEvents(ctx, params, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseListHistoryAddressEventsResponse(rsp)
+}
+
+// CleanupHistoryWithResponse Apply the saved history retention policy now
+//
+// Returns a wrapper object for the known response body format(s).
+//
+// Corresponds with POST /api/v1/history/cleanup (the `CleanupHistory` operationId).
+func (c *ClientWithResponses) CleanupHistoryWithResponse(ctx context.Context, params *CleanupHistoryParams, reqEditors ...RequestEditorFn) (*CleanupHistoryResponse, error) {
+	rsp, err := c.CleanupHistory(ctx, params, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseCleanupHistoryResponse(rsp)
+}
+
+// CompareProbeSnapshotsWithResponse Compare two retained snapshots from the same network egress
+//
+// Returns a wrapper object for the known response body format(s).
+//
+// Corresponds with GET /api/v1/history/comparison (the `CompareProbeSnapshots` operationId).
+func (c *ClientWithResponses) CompareProbeSnapshotsWithResponse(ctx context.Context, params *CompareProbeSnapshotsParams, reqEditors ...RequestEditorFn) (*CompareProbeSnapshotsResponse, error) {
+	rsp, err := c.CompareProbeSnapshots(ctx, params, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseCompareProbeSnapshotsResponse(rsp)
+}
+
+// ListHistoryFormatEventsWithResponse List upstream complete-report format events
+//
+// Returns a wrapper object for the known response body format(s).
+//
+// Corresponds with GET /api/v1/history/format-events (the `ListHistoryFormatEvents` operationId).
+func (c *ClientWithResponses) ListHistoryFormatEventsWithResponse(ctx context.Context, params *ListHistoryFormatEventsParams, reqEditors ...RequestEditorFn) (*ListHistoryFormatEventsResponse, error) {
+	rsp, err := c.ListHistoryFormatEvents(ctx, params, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseListHistoryFormatEventsResponse(rsp)
+}
+
+// ListHistoryProbeGapsWithResponse List explicit complete-probe history gaps
+//
+// Returns a wrapper object for the known response body format(s).
+//
+// Corresponds with GET /api/v1/history/probe-gaps (the `ListHistoryProbeGaps` operationId).
+func (c *ClientWithResponses) ListHistoryProbeGapsWithResponse(ctx context.Context, params *ListHistoryProbeGapsParams, reqEditors ...RequestEditorFn) (*ListHistoryProbeGapsResponse, error) {
+	rsp, err := c.ListHistoryProbeGaps(ctx, params, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseListHistoryProbeGapsResponse(rsp)
+}
+
+// ListHistoryProbeSnapshotsWithResponse List retained complete-probe snapshots across nodes
+//
+// Returns a wrapper object for the known response body format(s).
+//
+// Corresponds with GET /api/v1/history/probe-snapshots (the `ListHistoryProbeSnapshots` operationId).
+func (c *ClientWithResponses) ListHistoryProbeSnapshotsWithResponse(ctx context.Context, params *ListHistoryProbeSnapshotsParams, reqEditors ...RequestEditorFn) (*ListHistoryProbeSnapshotsResponse, error) {
+	rsp, err := c.ListHistoryProbeSnapshots(ctx, params, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseListHistoryProbeSnapshotsResponse(rsp)
+}
+
+// UpdateHistoryRetentionWithBodyWithResponse Replace the global history retention policy and apply it
+//
+// Takes any type of body and a specified content type, and returns a wrapper object for the known response body format(s).
+//
+// Corresponds with PUT /api/v1/history/retention (the `UpdateHistoryRetention` operationId).
+func (c *ClientWithResponses) UpdateHistoryRetentionWithBodyWithResponse(ctx context.Context, params *UpdateHistoryRetentionParams, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*UpdateHistoryRetentionResponse, error) {
+	rsp, err := c.UpdateHistoryRetentionWithBody(ctx, params, contentType, body, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseUpdateHistoryRetentionResponse(rsp)
+}
+
+// UpdateHistoryRetentionWithResponse Replace the global history retention policy and apply it
+//
+// Takes a body of the `application/json` content type, and returns a wrapper object for the known response body format(s).
+//
+// Corresponds with PUT /api/v1/history/retention (the `UpdateHistoryRetention` operationId).
+func (c *ClientWithResponses) UpdateHistoryRetentionWithResponse(ctx context.Context, params *UpdateHistoryRetentionParams, body UpdateHistoryRetentionJSONRequestBody, reqEditors ...RequestEditorFn) (*UpdateHistoryRetentionResponse, error) {
+	rsp, err := c.UpdateHistoryRetention(ctx, params, body, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseUpdateHistoryRetentionResponse(rsp)
+}
+
 // GetNetworkObservationSettingsWithResponse Read global lightweight address discovery services
 //
 // Returns a wrapper object for the known response body format(s).
@@ -8749,6 +10878,32 @@ func (c *ClientWithResponses) GetProbeSnapshotWithResponse(ctx context.Context, 
 		return nil, err
 	}
 	return ParseGetProbeSnapshotResponse(rsp)
+}
+
+// UnstarProbeSnapshotWithResponse Remove automatic retention protection from a probe snapshot
+//
+// Returns a wrapper object for the known response body format(s).
+//
+// Corresponds with DELETE /api/v1/probe-snapshots/{snapshotId}/star (the `UnstarProbeSnapshot` operationId).
+func (c *ClientWithResponses) UnstarProbeSnapshotWithResponse(ctx context.Context, snapshotId SnapshotId, params *UnstarProbeSnapshotParams, reqEditors ...RequestEditorFn) (*UnstarProbeSnapshotResponse, error) {
+	rsp, err := c.UnstarProbeSnapshot(ctx, snapshotId, params, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseUnstarProbeSnapshotResponse(rsp)
+}
+
+// StarProbeSnapshotWithResponse Protect a probe snapshot from automatic retention cleanup
+//
+// Returns a wrapper object for the known response body format(s).
+//
+// Corresponds with PUT /api/v1/probe-snapshots/{snapshotId}/star (the `StarProbeSnapshot` operationId).
+func (c *ClientWithResponses) StarProbeSnapshotWithResponse(ctx context.Context, snapshotId SnapshotId, params *StarProbeSnapshotParams, reqEditors ...RequestEditorFn) (*StarProbeSnapshotResponse, error) {
+	rsp, err := c.StarProbeSnapshot(ctx, snapshotId, params, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseStarProbeSnapshotResponse(rsp)
 }
 
 // GetSystemStatusWithResponse Read center status
@@ -9648,6 +11803,272 @@ func ParseGetHistoryStateResponse(rsp *http.Response) (*GetHistoryStateResponse,
 			return nil, err
 		}
 		response.JSON401 = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseListHistoryAddressEventsResponse parses an HTTP response from a ListHistoryAddressEventsWithResponse call
+func ParseListHistoryAddressEventsResponse(rsp *http.Response) (*ListHistoryAddressEventsResponse, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &ListHistoryAddressEventsResponse{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest AddressHistoryPage
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 401:
+		var dest Unauthorized
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON401 = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseCleanupHistoryResponse parses an HTTP response from a CleanupHistoryWithResponse call
+func ParseCleanupHistoryResponse(rsp *http.Response) (*CleanupHistoryResponse, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &CleanupHistoryResponse{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest HistoryCleanupResult
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 401:
+		var dest Unauthorized
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON401 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 403:
+		var dest Forbidden
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON403 = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseCompareProbeSnapshotsResponse parses an HTTP response from a CompareProbeSnapshotsWithResponse call
+func ParseCompareProbeSnapshotsResponse(rsp *http.Response) (*CompareProbeSnapshotsResponse, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &CompareProbeSnapshotsResponse{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest ProbeSnapshotComparison
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 401:
+		var dest Unauthorized
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON401 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 404:
+		var dest NotFound
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON404 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 409:
+		var dest Conflict
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON409 = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseListHistoryFormatEventsResponse parses an HTTP response from a ListHistoryFormatEventsWithResponse call
+func ParseListHistoryFormatEventsResponse(rsp *http.Response) (*ListHistoryFormatEventsResponse, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &ListHistoryFormatEventsResponse{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest ProbeFormatEventPage
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 401:
+		var dest Unauthorized
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON401 = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseListHistoryProbeGapsResponse parses an HTTP response from a ListHistoryProbeGapsWithResponse call
+func ParseListHistoryProbeGapsResponse(rsp *http.Response) (*ListHistoryProbeGapsResponse, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &ListHistoryProbeGapsResponse{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest ProbeHistoryGapPage
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 401:
+		var dest Unauthorized
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON401 = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseListHistoryProbeSnapshotsResponse parses an HTTP response from a ListHistoryProbeSnapshotsWithResponse call
+func ParseListHistoryProbeSnapshotsResponse(rsp *http.Response) (*ListHistoryProbeSnapshotsResponse, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &ListHistoryProbeSnapshotsResponse{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest ProbeSnapshotHistoryPage
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 401:
+		var dest Unauthorized
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON401 = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseUpdateHistoryRetentionResponse parses an HTTP response from a UpdateHistoryRetentionWithResponse call
+func ParseUpdateHistoryRetentionResponse(rsp *http.Response) (*UpdateHistoryRetentionResponse, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &UpdateHistoryRetentionResponse{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest HistoryState
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 400:
+		var dest BadRequest
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON400 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 401:
+		var dest Unauthorized
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON401 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 403:
+		var dest Forbidden
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON403 = &dest
 
 	}
 
@@ -10666,6 +13087,100 @@ func ParseGetProbeSnapshotResponse(rsp *http.Response) (*GetProbeSnapshotRespons
 			return nil, err
 		}
 		response.JSON401 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 404:
+		var dest NotFound
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON404 = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseUnstarProbeSnapshotResponse parses an HTTP response from a UnstarProbeSnapshotWithResponse call
+func ParseUnstarProbeSnapshotResponse(rsp *http.Response) (*UnstarProbeSnapshotResponse, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &UnstarProbeSnapshotResponse{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest ProbeSnapshot
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 401:
+		var dest Unauthorized
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON401 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 403:
+		var dest Forbidden
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON403 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 404:
+		var dest NotFound
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON404 = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseStarProbeSnapshotResponse parses an HTTP response from a StarProbeSnapshotWithResponse call
+func ParseStarProbeSnapshotResponse(rsp *http.Response) (*StarProbeSnapshotResponse, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &StarProbeSnapshotResponse{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest ProbeSnapshot
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 401:
+		var dest Unauthorized
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON401 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 403:
+		var dest Forbidden
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON403 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 404:
 		var dest NotFound

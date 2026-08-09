@@ -8,11 +8,13 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"net/netip"
+	"net/url"
 	"strings"
 	"testing"
 	"time"
 
 	"github.com/coder/websocket"
+	"github.com/google/uuid"
 	"github.com/ipchronicle/ipchronicle/internal/center/admin"
 	"github.com/ipchronicle/ipchronicle/internal/center/database"
 	"github.com/ipchronicle/ipchronicle/internal/center/nodes"
@@ -64,7 +66,7 @@ func TestAdministratorLoginStatusAndLogout(t *testing.T) {
 	if err := json.NewDecoder(statusResponse.Body).Decode(&status); err != nil {
 		t.Fatal(err)
 	}
-	if status.Service != api.IpchronicleCenter || status.Status != api.Ok || !status.TransportWarning || status.ConfigSchemaVersion != 9 || status.HistorySchemaVersion != 3 {
+	if status.Service != api.IpchronicleCenter || status.Status != api.Ok || !status.TransportWarning || status.ConfigSchemaVersion != 10 || status.HistorySchemaVersion != 4 {
 		t.Fatalf("unexpected status response: %#v", status)
 	}
 
@@ -84,6 +86,220 @@ func TestMalformedJSONUsesStructuredError(t *testing.T) {
 	handler := newTestHTTPHandler(t, nil)
 	response := performRequest(handler, http.MethodPost, "/api/v1/auth/login", []byte("{"), "http://example.test", nil)
 	assertErrorCode(t, response, http.StatusBadRequest, api.InvalidRequest)
+}
+
+func TestHistoryAPIAuthorizationMutationAndRetention(t *testing.T) {
+	handler, nodeService, _ := newTestHTTPHandlerWithNodes(t, nil)
+	fixture := seedHTTPHistory(t, nodeService)
+
+	unauthenticated := performRequest(handler, http.MethodGet, "/api/v1/history/probe-snapshots", nil, "", nil)
+	assertErrorCode(t, unauthenticated, http.StatusUnauthorized, api.Unauthenticated)
+	cookie, session := loginTestAdministrator(t, handler)
+
+	state := performRequest(handler, http.MethodGet, "/api/v1/history", nil, "", cookie)
+	if state.Code != http.StatusOK {
+		t.Fatalf("history state status = %d, body = %s", state.Code, state.Body.String())
+	}
+
+	retentionBody := []byte(`{"mode":"age","maxAgeDays":1}`)
+	missingRetentionCSRF := performRequest(
+		handler, http.MethodPut, "/api/v1/history/retention", retentionBody,
+		"http://example.test", cookie,
+	)
+	assertErrorCode(t, missingRetentionCSRF, http.StatusForbidden, api.CsrfFailed)
+	invalidRetention := performRequestWithCSRF(
+		handler, http.MethodPut, "/api/v1/history/retention",
+		[]byte(`{"mode":"age","maxAgeDays":0}`), "http://example.test", cookie, session.CsrfToken,
+	)
+	assertErrorCode(t, invalidRetention, http.StatusBadRequest, api.InvalidRequest)
+	retention := performRequestWithCSRF(
+		handler, http.MethodPut, "/api/v1/history/retention", retentionBody,
+		"http://example.test", cookie, session.CsrfToken,
+	)
+	if retention.Code != http.StatusOK {
+		t.Fatalf("retention update status = %d, body = %s", retention.Code, retention.Body.String())
+	}
+
+	starPath := "/api/v1/probe-snapshots/" + fixture.latestSnapshot.String() + "/star"
+	missingStarCSRF := performRequest(handler, http.MethodPut, starPath, nil, "http://example.test", cookie)
+	assertErrorCode(t, missingStarCSRF, http.StatusForbidden, api.CsrfFailed)
+	for attempt := 0; attempt < 2; attempt++ {
+		starred := performRequestWithCSRF(
+			handler, http.MethodPut, starPath, nil, "http://example.test", cookie, session.CsrfToken,
+		)
+		if starred.Code != http.StatusOK {
+			t.Fatalf("star attempt %d status = %d, body = %s", attempt, starred.Code, starred.Body.String())
+		}
+		var snapshot api.ProbeSnapshot
+		if err := json.NewDecoder(starred.Body).Decode(&snapshot); err != nil {
+			t.Fatal(err)
+		}
+		if !snapshot.Starred {
+			t.Fatalf("star attempt %d returned unstarred snapshot", attempt)
+		}
+	}
+	unstarred := performRequestWithCSRF(
+		handler, http.MethodDelete, starPath, nil, "http://example.test", cookie, session.CsrfToken,
+	)
+	if unstarred.Code != http.StatusOK {
+		t.Fatalf("unstar status = %d, body = %s", unstarred.Code, unstarred.Body.String())
+	}
+	var snapshot api.ProbeSnapshot
+	if err := json.NewDecoder(unstarred.Body).Decode(&snapshot); err != nil {
+		t.Fatal(err)
+	}
+	if snapshot.Starred {
+		t.Fatal("unstar returned a starred snapshot")
+	}
+
+	missingCleanupCSRF := performRequest(
+		handler, http.MethodPost, "/api/v1/history/cleanup", nil,
+		"http://example.test", cookie,
+	)
+	assertErrorCode(t, missingCleanupCSRF, http.StatusForbidden, api.CsrfFailed)
+	cleanup := performRequestWithCSRF(
+		handler, http.MethodPost, "/api/v1/history/cleanup", nil,
+		"http://example.test", cookie, session.CsrfToken,
+	)
+	if cleanup.Code != http.StatusOK {
+		t.Fatalf("history cleanup status = %d, body = %s", cleanup.Code, cleanup.Body.String())
+	}
+}
+
+func TestHistoryAPIFiltersOrderingAndComparison(t *testing.T) {
+	handler, nodeService, _ := newTestHTTPHandlerWithNodes(t, nil)
+	fixture := seedHTTPHistory(t, nodeService)
+	cookie, _ := loginTestAdministrator(t, handler)
+
+	reportQuery := url.Values{
+		"nodeId":       []string{fixture.nodeID.String()},
+		"egressId":     []string{fixture.otherEgress.String()},
+		"from":         []string{fixture.from.Format(time.RFC3339)},
+		"to":           []string{fixture.to.Format(time.RFC3339)},
+		"runStatus":    []string{"succeeded"},
+		"trigger":      []string{"schedule"},
+		"changed":      []string{"false"},
+		"formatStatus": []string{"mismatch"},
+		"page":         []string{"1"},
+		"pageSize":     []string{"10"},
+	}
+	reports := performRequest(
+		handler, http.MethodGet, "/api/v1/history/probe-snapshots?"+reportQuery.Encode(), nil, "", cookie,
+	)
+	if reports.Code != http.StatusOK {
+		t.Fatalf("filtered reports status = %d, body = %s", reports.Code, reports.Body.String())
+	}
+	var reportPage api.ProbeSnapshotHistoryPage
+	if err := json.NewDecoder(reports.Body).Decode(&reportPage); err != nil {
+		t.Fatal(err)
+	}
+	if reportPage.Total != 1 || len(reportPage.Items) != 1 || reportPage.Items[0].Id != fixture.otherSnapshot {
+		t.Fatalf("filtered reports = %#v", reportPage)
+	}
+
+	addressQuery := url.Values{
+		"nodeId":    []string{fixture.nodeID.String()},
+		"egressId":  []string{fixture.primaryEgress.String()},
+		"from":      []string{fixture.from.Format(time.RFC3339)},
+		"to":        []string{fixture.to.Format(time.RFC3339)},
+		"eventKind": []string{"first-observation"},
+		"family":    []string{"ipv4"},
+		"page":      []string{"1"},
+		"pageSize":  []string{"10"},
+	}
+	addresses := performRequest(
+		handler, http.MethodGet, "/api/v1/history/address-events?"+addressQuery.Encode(), nil, "", cookie,
+	)
+	if addresses.Code != http.StatusOK {
+		t.Fatalf("filtered addresses status = %d, body = %s", addresses.Code, addresses.Body.String())
+	}
+	var addressPage api.AddressHistoryPage
+	if err := json.NewDecoder(addresses.Body).Decode(&addressPage); err != nil {
+		t.Fatal(err)
+	}
+	if addressPage.Total != 1 || len(addressPage.Events) != 1 || addressPage.Events[0].Event.Id != fixture.addressEvent {
+		t.Fatalf("filtered addresses = %#v", addressPage)
+	}
+
+	addressQuery.Set("page", "2")
+	addressQuery.Set("gapPage", "2")
+	addressQuery.Set("pageSize", "1")
+	addresses = performRequest(
+		handler, http.MethodGet, "/api/v1/history/address-events?"+addressQuery.Encode(), nil, "", cookie,
+	)
+	if addresses.Code != http.StatusOK {
+		t.Fatalf("independently paged addresses status = %d, body = %s", addresses.Code, addresses.Body.String())
+	}
+	if err := json.NewDecoder(addresses.Body).Decode(&addressPage); err != nil {
+		t.Fatal(err)
+	}
+	if addressPage.Total != 1 || len(addressPage.Events) != 0 || addressPage.GapTotal != 2 || len(addressPage.Gaps) != 1 {
+		t.Fatalf("independently paged addresses = %#v", addressPage)
+	}
+
+	for path, target := range map[string]any{
+		"/api/v1/history/probe-gaps?page=2&pageSize=1":    &api.ProbeHistoryGapPage{},
+		"/api/v1/history/format-events?page=2&pageSize=1": &api.ProbeFormatEventPage{},
+	} {
+		response := performRequest(handler, http.MethodGet, path, nil, "", cookie)
+		if response.Code != http.StatusOK {
+			t.Fatalf("paged history %s status = %d, body = %s", path, response.Code, response.Body.String())
+		}
+		if err := json.NewDecoder(response.Body).Decode(target); err != nil {
+			t.Fatal(err)
+		}
+		switch page := target.(type) {
+		case *api.ProbeHistoryGapPage:
+			if page.Total != 2 || len(page.Items) != 1 {
+				t.Fatalf("probe gap page = %#v", page)
+			}
+		case *api.ProbeFormatEventPage:
+			if page.Total != 2 || len(page.Items) != 1 {
+				t.Fatalf("format event page = %#v", page)
+			}
+		}
+	}
+
+	latest := performRequest(
+		handler, http.MethodGet, "/api/v1/probe-snapshots/"+fixture.latestSnapshot.String(), nil, "", cookie,
+	)
+	if latest.Code != http.StatusOK {
+		t.Fatalf("latest snapshot status = %d, body = %s", latest.Code, latest.Body.String())
+	}
+	var latestSnapshot api.ProbeSnapshot
+	if err := json.NewDecoder(latest.Body).Decode(&latestSnapshot); err != nil {
+		t.Fatal(err)
+	}
+	if latestSnapshot.PreviousSnapshotId == nil || *latestSnapshot.PreviousSnapshotId != fixture.firstSnapshot {
+		t.Fatalf("latest previous snapshot = %#v", latestSnapshot.PreviousSnapshotId)
+	}
+
+	sameEgressQuery := url.Values{
+		"beforeSnapshotId": []string{fixture.firstSnapshot.String()},
+		"afterSnapshotId":  []string{fixture.latestSnapshot.String()},
+	}
+	comparison := performRequest(
+		handler, http.MethodGet, "/api/v1/history/comparison?"+sameEgressQuery.Encode(), nil, "", cookie,
+	)
+	if comparison.Code != http.StatusOK {
+		t.Fatalf("comparison status = %d, body = %s", comparison.Code, comparison.Body.String())
+	}
+	var compared api.ProbeSnapshotComparison
+	if err := json.NewDecoder(comparison.Body).Decode(&compared); err != nil {
+		t.Fatal(err)
+	}
+	if compared.BeforeId != fixture.firstSnapshot || compared.AfterId != fixture.latestSnapshot || compared.EgressId != fixture.primaryEgress {
+		t.Fatalf("comparison = %#v", compared)
+	}
+
+	differentEgressQuery := url.Values{
+		"beforeSnapshotId": []string{fixture.firstSnapshot.String()},
+		"afterSnapshotId":  []string{fixture.otherSnapshot.String()},
+	}
+	conflict := performRequest(
+		handler, http.MethodGet, "/api/v1/history/comparison?"+differentEgressQuery.Encode(), nil, "", cookie,
+	)
+	assertErrorCode(t, conflict, http.StatusConflict, api.SnapshotEgressMismatch)
 }
 
 func TestNetworkProxyAPINeverRevealsStoredPassword(t *testing.T) {
@@ -542,6 +758,203 @@ func newTestHTTPHandlerWithNodes(t *testing.T, trustedProxies []netip.Prefix) (h
 		Administrator: administrator, Nodes: nodeService, SyncHub: syncHub,
 		Store: store, TrustedProxies: trustedProxies,
 	}), nodeService, syncHub
+}
+
+type httpHistoryFixture struct {
+	nodeID         uuid.UUID
+	primaryEgress  uuid.UUID
+	otherEgress    uuid.UUID
+	firstSnapshot  uuid.UUID
+	latestSnapshot uuid.UUID
+	otherSnapshot  uuid.UUID
+	addressEvent   uuid.UUID
+	from           time.Time
+	to             time.Time
+}
+
+func seedHTTPHistory(t *testing.T, service *nodes.Service) httpHistoryFixture {
+	t.Helper()
+	ctx := context.Background()
+	now := time.Now().UTC().Truncate(time.Second)
+	metadata := nodes.Metadata{
+		Hostname: "history-edge", AgentVersion: "0.1.0", OperatingSystem: "linux", Architecture: "amd64",
+		Capabilities:        []string{"control-v1", "configuration-v5", "complete-probe-v1"},
+		PhysicalMemoryBytes: 512 * 1024 * 1024,
+	}
+	enrollment, err := service.RotateEnrollmentKey(ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
+	registration, err := service.Register(ctx, enrollment.Key, metadata)
+	if err != nil {
+		t.Fatal(err)
+	}
+	gateway4 := "10.0.0.1"
+	gateway6 := "fe80::1"
+	inventory := nodes.NetworkInventory{
+		CapturedAt: now,
+		Interfaces: []nodes.NetworkInterface{{Name: "eth0", Index: 2, Up: true}},
+		Addresses: []nodes.NetworkAddress{
+			{InterfaceName: "eth0", Address: "10.0.0.5", PrefixLength: 24, Family: "ipv4", Scope: "private"},
+			{InterfaceName: "eth0", Address: "2001:4860::5", PrefixLength: 64, Family: "ipv6", Scope: "global"},
+		},
+		Routes: []nodes.NetworkRoute{
+			{InterfaceName: "eth0", Family: "ipv4", Destination: "0.0.0.0/0", Gateway: &gateway4, Metric: 100, Default: true},
+			{InterfaceName: "eth0", Family: "ipv6", Destination: "::/0", Gateway: &gateway6, Metric: 100, Default: true},
+		},
+	}
+	if _, err := service.Poll(ctx, registration.Credential, metadata, 0, nil, nil, &inventory, nil); err != nil {
+		t.Fatal(err)
+	}
+	configuration, err := service.Configuration(ctx, registration.Credential)
+	if err != nil {
+		t.Fatal(err)
+	}
+	network, err := service.Network(ctx, registration.NodeID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(network.Egresses) < 2 {
+		t.Fatalf("history fixture egresses = %d, want at least 2", len(network.Egresses))
+	}
+	var primary, other nodes.NetworkEgress
+	for _, egress := range network.Egresses {
+		switch egress.Family {
+		case "ipv4":
+			primary = egress
+		case "ipv6":
+			other = egress
+		}
+	}
+	if primary.ID == uuid.Nil || other.ID == uuid.Nil {
+		t.Fatalf("history fixture egress families = %#v", network.Egresses)
+	}
+
+	firstObserved := now.Add(-3 * time.Minute)
+	latestObserved := now.Add(-2 * time.Minute)
+	otherObserved := now.Add(-time.Minute)
+	firstSnapshot := uploadHTTPProbeSnapshot(
+		t, service, registration.Credential, configuration, primary.ID, 1, firstObserved,
+		[]byte(`{"Head":{"IP":"198.51.100.1"}}`),
+	)
+	latestSnapshot := uploadHTTPProbeSnapshot(
+		t, service, registration.Credential, configuration, primary.ID, 2, latestObserved,
+		[]byte(`{"Head":{"IP":"198.51.100.2"}}`),
+	)
+	otherSnapshot := uploadHTTPProbeSnapshot(
+		t, service, registration.Credential, configuration, other.ID, 1, otherObserved,
+		[]byte(`{"Head":{"IP":"2001:db8::1"}}`),
+	)
+	publicAddress := "203.0.113.10"
+	localInterface := "eth0"
+	localAddress := "10.0.0.5"
+	addressEvent := uuid.New()
+	if _, err := service.Poll(
+		ctx, registration.Credential, metadata, 0, nil, nil, nil, nil,
+		nodes.AddressUpload{Events: []nodes.AddressEvent{{
+			ID: addressEvent, EgressID: primary.ID, HistoryGeneration: configuration.HistoryGeneration,
+			Sequence: 1, Kind: "first-observation", Family: "ipv4", PublicAddress: &publicAddress,
+			LocalInterface: &localInterface, LocalAddress: &localAddress, LikelyNAT: true, ObservedAt: now.Add(-30 * time.Second),
+		}}},
+	); err != nil {
+		t.Fatal(err)
+	}
+	addressGaps := make([]nodes.AddressGap, 0, 2)
+	for index := int64(0); index < 2; index++ {
+		observedAt := now.Add(time.Duration(index) * time.Second)
+		addressGaps = append(addressGaps, nodes.AddressGap{
+			ID: uuid.New(), EgressID: primary.ID, HistoryGeneration: configuration.HistoryGeneration,
+			DroppedCount: 1, FirstSequence: index + 2, LastSequence: index + 2,
+			FirstObservedAt: observedAt, LastObservedAt: observedAt,
+		})
+	}
+	if _, err := service.Poll(
+		ctx, registration.Credential, metadata, 0, nil, nil, nil, nil,
+		nodes.AddressUpload{Gaps: addressGaps},
+	); err != nil {
+		t.Fatal(err)
+	}
+	for index := int64(0); index < 2; index++ {
+		observedAt := now.Add(time.Duration(index) * time.Second)
+		gap := nodes.ProbeGapArtifact{
+			ID: uuid.New(), EgressID: primary.ID, HistoryGeneration: configuration.HistoryGeneration,
+			DroppedCount: 1, FirstSequence: index + 3, LastSequence: index + 3,
+			FirstObservedAt: observedAt, LastObservedAt: observedAt,
+		}
+		if _, err := service.UploadProbeArtifact(ctx, registration.Credential, nodes.ProbeArtifact{
+			ID: gap.ID, Revision: 1, Gap: &gap,
+		}); err != nil {
+			t.Fatal(err)
+		}
+	}
+	return httpHistoryFixture{
+		nodeID: registration.NodeID, primaryEgress: primary.ID, otherEgress: other.ID,
+		firstSnapshot: firstSnapshot, latestSnapshot: latestSnapshot, otherSnapshot: otherSnapshot,
+		addressEvent: addressEvent, from: now.Add(-5 * time.Minute), to: now.Add(time.Minute),
+	}
+}
+
+func uploadHTTPProbeSnapshot(
+	t *testing.T,
+	service *nodes.Service,
+	credential string,
+	configuration nodes.Configuration,
+	egressID uuid.UUID,
+	sequence int64,
+	observedAt time.Time,
+	raw []byte,
+) uuid.UUID {
+	t.Helper()
+	runID := uuid.New()
+	executionID := uuid.New()
+	runStartedAt := observedAt.Add(-2 * time.Second)
+	executionStartedAt := observedAt.Add(-time.Second)
+	running := nodes.ProbeRunArtifact{
+		ID: runID, ConfigurationRevision: configuration.Revision, HistoryGeneration: configuration.HistoryGeneration,
+		Trigger: "schedule", StartedAt: runStartedAt, Status: "running",
+		Executions: []nodes.ProbeExecutionManifest{{ID: executionID, EgressID: egressID, Sequence: sequence}},
+	}
+	if _, err := service.UploadProbeArtifact(context.Background(), credential, nodes.ProbeArtifact{
+		ID: runID, Revision: 1, Run: &running,
+	}); err != nil {
+		t.Fatal(err)
+	}
+	execution := nodes.ProbeExecutionArtifact{
+		ID: executionID, EgressID: egressID, Sequence: sequence, Status: "succeeded",
+		StartedAt: &executionStartedAt, CompletedAt: &observedAt, RawResult: raw,
+	}
+	if _, err := service.UploadProbeArtifact(context.Background(), credential, nodes.ProbeArtifact{
+		ID: executionID, Revision: 1, Run: &running, Execution: &execution,
+	}); err != nil {
+		t.Fatal(err)
+	}
+	terminal := running
+	completedAt := observedAt.Add(time.Second)
+	terminal.CompletedAt = &completedAt
+	terminal.Status = "succeeded"
+	if _, err := service.UploadProbeArtifact(context.Background(), credential, nodes.ProbeArtifact{
+		ID: runID, Revision: 2, Run: &terminal,
+	}); err != nil {
+		t.Fatal(err)
+	}
+	return executionID
+}
+
+func loginTestAdministrator(t *testing.T, handler http.Handler) (*http.Cookie, api.AuthenticatedSession) {
+	t.Helper()
+	login := performRequest(handler, http.MethodPost, "/api/v1/auth/login", loginBody(), "http://example.test", nil)
+	if login.Code != http.StatusOK {
+		t.Fatalf("login status = %d, body = %s", login.Code, login.Body.String())
+	}
+	var session api.AuthenticatedSession
+	if err := json.NewDecoder(login.Body).Decode(&session); err != nil {
+		t.Fatal(err)
+	}
+	cookies := login.Result().Cookies()
+	if len(cookies) != 1 {
+		t.Fatalf("session cookies = %#v, want exactly one", cookies)
+	}
+	return cookies[0], session
 }
 
 func loginBody() []byte {

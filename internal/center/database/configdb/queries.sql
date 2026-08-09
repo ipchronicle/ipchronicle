@@ -88,6 +88,22 @@ SELECT id, history_generation, pending_history_generation, history_reset_at
 FROM system_state
 WHERE id = 1;
 
+-- name: GetHistoryRetentionSettings :one
+SELECT id, mode, max_age_days, max_logical_bytes, updated_at
+       , last_cleanup_at, last_cleanup_deleted_items, last_cleanup_error
+FROM history_retention_settings
+WHERE id = 1;
+
+-- name: UpdateHistoryRetentionSettings :execrows
+UPDATE history_retention_settings
+SET mode = ?, max_age_days = ?, max_logical_bytes = ?, updated_at = ?
+WHERE id = 1;
+
+-- name: RecordHistoryRetentionCleanup :exec
+UPDATE history_retention_settings
+SET last_cleanup_at = ?, last_cleanup_deleted_items = ?, last_cleanup_error = ?
+WHERE id = 1;
+
 -- name: CreateSystemState :exec
 INSERT INTO system_state (id, history_generation)
 VALUES (1, ?);

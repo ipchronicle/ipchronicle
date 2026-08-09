@@ -83,6 +83,7 @@ func serve() error {
 	shutdownContext, stop := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
 	defer stop()
 	go nodeService.RunDeletionWorker(shutdownContext, log.Default())
+	go nodeService.RunRetentionWorker(shutdownContext, log.Default())
 	go func() {
 		<-shutdownContext.Done()
 		syncHub.CloseAll()

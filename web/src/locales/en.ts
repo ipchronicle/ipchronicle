@@ -10,6 +10,7 @@ export const en = {
       toggleSidebar: "Toggle sidebar",
       systemStatus: "System status",
       nodes: "Nodes",
+      history: "History",
       account: "Account",
       settings: "Settings",
       networkSettings: "Network probes",
@@ -536,13 +537,412 @@ export const en = {
         snapshotPending: "The successful snapshot is still arriving.",
       },
     },
+    history: {
+      section: "Cross-node index",
+      title: "History",
+      detail:
+        "Browse complete-probe reports and address transitions by node, network egress, and time.",
+      retry: "Retry",
+      loadFailed: "History could not be loaded",
+      tabs: {
+        label: "History type",
+        reports: "Probe reports",
+        addresses: "Address changes",
+      },
+      filters: {
+        title: "Filters",
+        detail: "Active filters are retained in the current address.",
+        clear: "Clear filters",
+        node: "Node",
+        allNodes: "All nodes",
+        egress: "Network egress",
+        allEgresses: "All egresses",
+        from: "From",
+        to: "To",
+        runStatus: "Run result",
+        allResults: "All results",
+        trigger: "Trigger",
+        allTriggers: "All triggers",
+        changes: "Field changes",
+        allChanges: "All",
+        changed: "Changed",
+        unchanged: "Unchanged",
+        format: "Upstream format",
+        allFormats: "All formats",
+        eventKind: "Event type",
+        allEvents: "All events",
+        family: "Address family",
+        allFamilies: "All families",
+      },
+      format: { compatible: "Compatible", mismatch: "Format mismatch" },
+      reports: {
+        title: "Complete-probe reports",
+        count: "{{count}} retained snapshots",
+        open: "Open report",
+        comparePrevious: "Compare with previous",
+        baseline: "First baseline",
+        changeCount: "{{count}} changes",
+        noChanges: "No field changes",
+        formatIssues: "{{count}} format issues",
+        current: "Current snapshot",
+      },
+      addresses: {
+        title: "Address changes",
+        count: "{{count}} events",
+        previous: "Previous: {{value}}",
+      },
+      columns: {
+        owner: "Node and egress",
+        result: "Run result",
+        interpretation: "Interpretation",
+        time: "Observed",
+        actions: "Actions",
+        event: "Event",
+        path: "Local to public",
+      },
+      starred: "Starred",
+      compareSelection: {
+        title: "First snapshot selected",
+        detail: "The list is now limited to the same network egress.",
+        clear: "Clear selection",
+        selected: "Selected",
+        compare: "Compare",
+        differentEgress: "Different egress",
+        select: "Select to compare",
+      },
+      gaps: {
+        probeTitle: "Probe history gaps",
+        addressTitle: "Address history gaps",
+        detail:
+          "Data dropped from a bounded Agent queue is never presented as continuous history.",
+        probeItem: "{{count}} results missing, sequence {{first}} to {{last}}",
+        addressItem: "{{count}} events missing, sequence {{first}} to {{last}}",
+      },
+      formatEvents: {
+        title: "Upstream format events",
+        detail:
+          "Format mismatches, changes, and recoveries found by the fixed field catalog.",
+        issueCount: "{{count}} issues",
+        kind: {
+          mismatch: "Format mismatch detected",
+          changed: "Mismatch changed",
+          recovered: "Format recovered",
+        },
+      },
+      pagination: {
+        previous: "Previous",
+        next: "Next",
+        page: "Page {{current}} of {{total}}",
+      },
+      empty: { filtered: "No matching records", none: "No history yet" },
+    },
+    comparison: {
+      back: "Back to history",
+      section: "Probe reports",
+      title: "Snapshot comparison",
+      detail: "Compare two retained snapshots from the same network egress.",
+      invalid: "Snapshots to compare were not provided",
+      notFound: "A snapshot does not exist or was removed",
+      egressMismatch: "The snapshots belong to different network egresses",
+      loadFailed: "The comparison could not be loaded",
+      retry: "Retry",
+      before: "Before",
+      after: "After",
+      summary: {
+        title: "Comparison scope",
+        egress: "Network egress {{value}}",
+      },
+      changed: {
+        title: "Changed fields",
+        count: "{{count}} semantic changes",
+        empty: "No compatible field changed",
+        badge: "Changed",
+      },
+      unchanged: {
+        title: "Unchanged fields",
+        count: "{{count}} fields",
+        show: "Show unchanged fields",
+      },
+    },
     snapshot: {
       section: "Probe report",
-      title: "Raw snapshot",
-      back: "Back to probe run",
+      title: "Report snapshot",
+      back: "Back",
       retry: "Retry",
       notFound: "The snapshot does not exist or was removed",
       loadFailed: "The snapshot could not be loaded",
+      star: "Star snapshot",
+      unstar: "Unstar snapshot",
+      comparePrevious: "Compare with previous",
+      unavailable: "Unavailable",
+      actualType: "Actual type {{actual}}; expected {{expected}}",
+      summary: {
+        title: "Interpretation summary",
+        baseline: "First baseline",
+        changes: "{{count}} changes",
+        noChanges: "No field changes",
+        formatIssues: "{{count}} format issues",
+        compatible: "Format compatible",
+      },
+      format: {
+        title: "Upstream output format mismatch",
+        detail:
+          "Incompatible fields are not coerced. Unknown fields remain available in the raw JSON.",
+      },
+      views: {
+        label: "Report view",
+        structured: "Structured fields",
+        raw: "Raw JSON",
+      },
+      structured: { fieldCount: "{{count}} known fields" },
+      fieldStatus: {
+        available: "Available",
+        missing: "Missing",
+        incompatible: "Incompatible type",
+      },
+      issueKind: {
+        missing: "Missing field",
+        incompatible: "Incompatible type",
+        unknown: "Unknown field",
+      },
+      changes: {
+        title: "Changes in this snapshot",
+        detail:
+          "Only semantic changes with compatible types on both sides are shown.",
+      },
+      fieldCatalog: {
+        unmappedDescription:
+          "Known upstream field without a localized description.",
+        groups: {
+          head: {
+            name: "Report metadata",
+            description:
+              "Identity and generation details from the upstream report.",
+          },
+          info: {
+            name: "IP information",
+            description:
+              "Network ownership and geographic information for the address.",
+          },
+          type: {
+            name: "Network classification",
+            description:
+              "Usage and organization classifications from IP databases.",
+          },
+          score: {
+            name: "Risk scores",
+            description: "Risk scores reported by upstream data providers.",
+          },
+          factor: {
+            name: "Risk indicators",
+            description:
+              "Country and risk signals reported by upstream data providers.",
+          },
+          media: {
+            name: "Media services",
+            description:
+              "Service availability, region, and result classifications.",
+          },
+          mail: {
+            name: "Mail connectivity",
+            description: "Outbound mail reachability and DNS blocklist checks.",
+          },
+        },
+        fields: {
+          head: {
+            ip: {
+              name: "IP address",
+              description: "Public IP address reported by the upstream probe.",
+            },
+            command: {
+              name: "Probe command",
+              description: "Command recorded by the upstream probe.",
+            },
+            github: {
+              name: "Upstream source",
+              description: "Source reference recorded by the upstream probe.",
+            },
+            time: {
+              name: "Report time",
+              description: "Generation time recorded in the upstream report.",
+            },
+            version: {
+              name: "Probe version",
+              description: "Version reported by the upstream probe.",
+            },
+          },
+          info: {
+            asn: {
+              name: "Autonomous system number",
+              description:
+                "Autonomous system number associated with the address.",
+            },
+            organization: {
+              name: "Organization",
+              description: "Organization associated with the address.",
+            },
+            latitude: {
+              name: "Latitude",
+              description: "Reported geographic latitude.",
+            },
+            longitude: {
+              name: "Longitude",
+              description: "Reported geographic longitude.",
+            },
+            dms: {
+              name: "DMS coordinates",
+              description: "Location in degrees, minutes, and seconds.",
+            },
+            map: {
+              name: "Map reference",
+              description: "Upstream map reference for the reported location.",
+            },
+            timeZone: {
+              name: "Time zone",
+              description: "Time zone associated with the address.",
+            },
+            cityName: {
+              name: "City",
+              description: "Reported city or locality name.",
+            },
+            cityPostalCode: {
+              name: "Postal code",
+              description: "Reported postal code for the city or locality.",
+            },
+            citySubCode: {
+              name: "City subdivision code",
+              description:
+                "Reported subdivision code within the city or locality.",
+            },
+            citySubdivisions: {
+              name: "City subdivisions",
+              description: "Reported subdivisions within the city or locality.",
+            },
+            regionCode: {
+              name: "Region code",
+              description: "Code of the reported geographic region.",
+            },
+            regionName: {
+              name: "Region",
+              description: "Name of the reported geographic region.",
+            },
+            continentCode: {
+              name: "Continent code",
+              description: "Code of the reported continent.",
+            },
+            continentName: {
+              name: "Continent",
+              description: "Name of the reported continent.",
+            },
+            registeredRegionCode: {
+              name: "Registered-region code",
+              description:
+                "Code of the region where the address is registered.",
+            },
+            registeredRegionName: {
+              name: "Registered region",
+              description:
+                "Name of the region where the address is registered.",
+            },
+            type: {
+              name: "Address type",
+              description: "Network or address type reported upstream.",
+            },
+          },
+          classification: {
+            usage: {
+              name: "Usage classification ({{provider}})",
+              description:
+                "Address usage classification reported by {{provider}}.",
+            },
+            company: {
+              name: "Company classification ({{provider}})",
+              description:
+                "Organization classification reported by {{provider}}.",
+            },
+          },
+          score: {
+            risk: {
+              name: "Risk score ({{provider}})",
+              description: "Address risk score reported by {{provider}}.",
+            },
+          },
+          factor: {
+            countryCode: {
+              name: "Country code ({{provider}})",
+              description: "Address country code reported by {{provider}}.",
+            },
+            proxy: {
+              name: "Proxy indicator ({{provider}})",
+              description:
+                "Whether {{provider}} identifies the address as a proxy.",
+            },
+            tor: {
+              name: "Tor indicator ({{provider}})",
+              description:
+                "Whether {{provider}} identifies the address as a Tor exit.",
+            },
+            vpn: {
+              name: "VPN indicator ({{provider}})",
+              description:
+                "Whether {{provider}} identifies the address as a VPN.",
+            },
+            server: {
+              name: "Server indicator ({{provider}})",
+              description:
+                "Whether {{provider}} identifies the address as a server.",
+            },
+            abuser: {
+              name: "Abuse indicator ({{provider}})",
+              description:
+                "Whether {{provider}} associates the address with abuse.",
+            },
+            robot: {
+              name: "Automation indicator ({{provider}})",
+              description:
+                "Whether {{provider}} associates the address with automation.",
+            },
+          },
+          media: {
+            status: {
+              name: "{{service}} availability",
+              description: "Availability result reported for {{service}}.",
+            },
+            region: {
+              name: "{{service}} region",
+              description: "Service region reported for {{service}}.",
+            },
+            type: {
+              name: "{{service}} result type",
+              description: "Result classification reported for {{service}}.",
+            },
+          },
+          mail: {
+            connectivity: {
+              name: "{{service}} connectivity",
+              description: "Outbound mail connectivity result for {{service}}.",
+            },
+            dnsTotal: {
+              name: "DNS blocklists checked",
+              description: "Total number of DNS blocklists checked.",
+            },
+            dnsClean: {
+              name: "Clean DNS blocklists",
+              description:
+                "Number of DNS blocklists that did not list the address.",
+            },
+            dnsMarked: {
+              name: "Marked DNS blocklists",
+              description: "Number of DNS blocklists that marked the address.",
+            },
+            dnsBlacklisted: {
+              name: "Blacklisted DNS blocklists",
+              description:
+                "Number of DNS blocklists that blacklisted the address.",
+            },
+          },
+        },
+      },
       raw: {
         title: "IPQuality JSON",
         detail: "Egress sequence {{sequence}}, observed {{value}}",
@@ -555,9 +955,42 @@ export const en = {
     historySettings: {
       title: "History and storage",
       detail:
-        "Inspect the current history boundary and remove observed data without changing configuration.",
+        "Manage retention, inspect logical and physical usage, and clean observed data.",
       retry: "Retry",
       loadFailed: "History state could not be loaded",
+      usage: {
+        title: "Storage usage",
+        detail:
+          "Logical usage drives retention. Physical usage includes the SQLite database, WAL, and shared-memory files.",
+        logical: "Logical usage",
+        protected: "Protected usage",
+        records: "History records",
+        physical: "Physical usage",
+        overBudget: "History usage exceeds the configured limit",
+        overage:
+          "Usage is {{value}} over budget. Stars, current snapshots, or active runs may prevent further cleanup.",
+      },
+      retention: {
+        title: "Retention policy",
+        detail:
+          "Starred snapshots, current snapshots, current format state, and active runs are never removed automatically.",
+        mode: "Policy",
+        indefinite: "Keep indefinitely",
+        age: "Keep by age",
+        size: "Keep by logical usage",
+        days: "Retention days",
+        mib: "Logical limit (MiB)",
+        updated: "Last updated: {{value}}",
+        save: "Save and apply",
+        invalid: "The retention policy values are invalid.",
+      },
+      cleanup: {
+        action: "Clean now",
+        lastRun: "Last cleanup",
+        never: "Not yet run",
+        lastDeleted: "Last deleted items",
+        failed: "The last cleanup failed",
+      },
       state: {
         title: "History state",
         detail:
@@ -565,6 +998,11 @@ export const en = {
         generation: "Current generation",
         resetAt: "Last cleared",
         never: "Never cleared",
+      },
+      feedback: {
+        saved: "The retention policy was saved and applied.",
+        cleaned: "Cleanup completed and removed {{count}} items.",
+        cleared: "Observed history was cleared.",
       },
       danger: {
         title: "Clear observed history",
@@ -643,6 +1081,8 @@ export const en = {
         "The complete-probe run does not exist or was removed.",
       probe_snapshot_not_found:
         "The report snapshot does not exist or was removed.",
+      snapshot_egress_mismatch:
+        "The snapshots belong to different network egresses.",
       internal_error: "The center could not complete the request.",
     },
   },

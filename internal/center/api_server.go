@@ -11,6 +11,7 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/ipchronicle/ipchronicle/internal/center/admin"
+	centerhistory "github.com/ipchronicle/ipchronicle/internal/center/history"
 	"github.com/ipchronicle/ipchronicle/internal/center/nodes"
 	"github.com/ipchronicle/ipchronicle/internal/generated/api"
 )
@@ -586,6 +587,48 @@ func (s apiServer) GetProbeSnapshot(ctx context.Context, request api.GetProbeSna
 	return api.GetProbeSnapshot200JSONResponse(probeSnapshotResponse(snapshot)), nil
 }
 
+func (s apiServer) StarProbeSnapshot(ctx context.Context, request api.StarProbeSnapshotRequestObject) (api.StarProbeSnapshotResponseObject, error) {
+	_, failure, err := s.authorize(ctx, true, csrfValue(request.Params.XCSRFToken))
+	if err != nil {
+		return nil, err
+	}
+	if failure == api.Unauthenticated {
+		return api.StarProbeSnapshot401JSONResponse{UnauthorizedJSONResponse: unauthorized(failure)}, nil
+	}
+	if failure != "" {
+		return api.StarProbeSnapshot403JSONResponse{ForbiddenJSONResponse: forbidden(failure)}, nil
+	}
+	snapshot, err := s.nodes.SetProbeSnapshotStarred(ctx, request.SnapshotId, true)
+	if errors.Is(err, nodes.ErrProbeSnapshotNotFound) {
+		return api.StarProbeSnapshot404JSONResponse{NotFoundJSONResponse: notFound(api.ProbeSnapshotNotFound)}, nil
+	}
+	if err != nil {
+		return nil, err
+	}
+	return api.StarProbeSnapshot200JSONResponse(probeSnapshotResponse(snapshot)), nil
+}
+
+func (s apiServer) UnstarProbeSnapshot(ctx context.Context, request api.UnstarProbeSnapshotRequestObject) (api.UnstarProbeSnapshotResponseObject, error) {
+	_, failure, err := s.authorize(ctx, true, csrfValue(request.Params.XCSRFToken))
+	if err != nil {
+		return nil, err
+	}
+	if failure == api.Unauthenticated {
+		return api.UnstarProbeSnapshot401JSONResponse{UnauthorizedJSONResponse: unauthorized(failure)}, nil
+	}
+	if failure != "" {
+		return api.UnstarProbeSnapshot403JSONResponse{ForbiddenJSONResponse: forbidden(failure)}, nil
+	}
+	snapshot, err := s.nodes.SetProbeSnapshotStarred(ctx, request.SnapshotId, false)
+	if errors.Is(err, nodes.ErrProbeSnapshotNotFound) {
+		return api.UnstarProbeSnapshot404JSONResponse{NotFoundJSONResponse: notFound(api.ProbeSnapshotNotFound)}, nil
+	}
+	if err != nil {
+		return nil, err
+	}
+	return api.UnstarProbeSnapshot200JSONResponse(probeSnapshotResponse(snapshot)), nil
+}
+
 func (s apiServer) GetHistoryState(ctx context.Context, _ api.GetHistoryStateRequestObject) (api.GetHistoryStateResponseObject, error) {
 	_, failure, err := s.authorize(ctx, false, "")
 	if err != nil {
@@ -617,6 +660,164 @@ func (s apiServer) ResetHistory(ctx context.Context, request api.ResetHistoryReq
 		return nil, err
 	}
 	return api.ResetHistory200JSONResponse(historyStateResponse(state)), nil
+}
+
+func (s apiServer) ListHistoryProbeSnapshots(ctx context.Context, request api.ListHistoryProbeSnapshotsRequestObject) (api.ListHistoryProbeSnapshotsResponseObject, error) {
+	_, failure, err := s.authorize(ctx, false, "")
+	if err != nil {
+		return nil, err
+	}
+	if failure != "" {
+		return api.ListHistoryProbeSnapshots401JSONResponse{UnauthorizedJSONResponse: unauthorized(failure)}, nil
+	}
+	filter := historyFilter(
+		request.Params.NodeId, request.Params.EgressId, request.Params.From, request.Params.To,
+		request.Params.Page, request.Params.PageSize,
+	)
+	if request.Params.RunStatus != nil {
+		filter.RunStatus = string(*request.Params.RunStatus)
+	}
+	if request.Params.Trigger != nil {
+		filter.Trigger = string(*request.Params.Trigger)
+	}
+	filter.Changed = request.Params.Changed
+	if request.Params.FormatStatus != nil {
+		filter.FormatStatus = string(*request.Params.FormatStatus)
+	}
+	page, err := s.nodes.ListHistoryProbeSnapshots(ctx, filter)
+	if err != nil {
+		return nil, err
+	}
+	return api.ListHistoryProbeSnapshots200JSONResponse(probeSnapshotHistoryPageResponse(page)), nil
+}
+
+func (s apiServer) ListHistoryAddressEvents(ctx context.Context, request api.ListHistoryAddressEventsRequestObject) (api.ListHistoryAddressEventsResponseObject, error) {
+	_, failure, err := s.authorize(ctx, false, "")
+	if err != nil {
+		return nil, err
+	}
+	if failure != "" {
+		return api.ListHistoryAddressEvents401JSONResponse{UnauthorizedJSONResponse: unauthorized(failure)}, nil
+	}
+	filter := historyFilter(
+		request.Params.NodeId, request.Params.EgressId, request.Params.From, request.Params.To,
+		request.Params.Page, request.Params.PageSize,
+	)
+	if request.Params.EventKind != nil {
+		filter.EventKind = string(*request.Params.EventKind)
+	}
+	if request.Params.Family != nil {
+		filter.Family = string(*request.Params.Family)
+	}
+	if request.Params.GapPage != nil {
+		filter.GapPage = *request.Params.GapPage
+	}
+	page, err := s.nodes.ListHistoryAddressEvents(ctx, filter)
+	if err != nil {
+		return nil, err
+	}
+	return api.ListHistoryAddressEvents200JSONResponse(addressHistoryPageResponse(page)), nil
+}
+
+func (s apiServer) ListHistoryProbeGaps(ctx context.Context, request api.ListHistoryProbeGapsRequestObject) (api.ListHistoryProbeGapsResponseObject, error) {
+	_, failure, err := s.authorize(ctx, false, "")
+	if err != nil {
+		return nil, err
+	}
+	if failure != "" {
+		return api.ListHistoryProbeGaps401JSONResponse{UnauthorizedJSONResponse: unauthorized(failure)}, nil
+	}
+	page, err := s.nodes.ListHistoryProbeGaps(ctx, historyFilter(
+		request.Params.NodeId, request.Params.EgressId, request.Params.From, request.Params.To,
+		request.Params.Page, request.Params.PageSize,
+	))
+	if err != nil {
+		return nil, err
+	}
+	return api.ListHistoryProbeGaps200JSONResponse(probeHistoryGapPageResponse(page)), nil
+}
+
+func (s apiServer) ListHistoryFormatEvents(ctx context.Context, request api.ListHistoryFormatEventsRequestObject) (api.ListHistoryFormatEventsResponseObject, error) {
+	_, failure, err := s.authorize(ctx, false, "")
+	if err != nil {
+		return nil, err
+	}
+	if failure != "" {
+		return api.ListHistoryFormatEvents401JSONResponse{UnauthorizedJSONResponse: unauthorized(failure)}, nil
+	}
+	page, err := s.nodes.ListHistoryFormatEvents(ctx, historyFilter(
+		request.Params.NodeId, request.Params.EgressId, request.Params.From, request.Params.To,
+		request.Params.Page, request.Params.PageSize,
+	))
+	if err != nil {
+		return nil, err
+	}
+	return api.ListHistoryFormatEvents200JSONResponse(probeFormatEventPageResponse(page)), nil
+}
+
+func (s apiServer) CompareProbeSnapshots(ctx context.Context, request api.CompareProbeSnapshotsRequestObject) (api.CompareProbeSnapshotsResponseObject, error) {
+	_, failure, err := s.authorize(ctx, false, "")
+	if err != nil {
+		return nil, err
+	}
+	if failure != "" {
+		return api.CompareProbeSnapshots401JSONResponse{UnauthorizedJSONResponse: unauthorized(failure)}, nil
+	}
+	comparison, err := s.nodes.CompareProbeSnapshots(ctx, request.Params.BeforeSnapshotId, request.Params.AfterSnapshotId)
+	switch {
+	case errors.Is(err, nodes.ErrProbeSnapshotNotFound):
+		return api.CompareProbeSnapshots404JSONResponse{NotFoundJSONResponse: notFound(api.ProbeSnapshotNotFound)}, nil
+	case errors.Is(err, nodes.ErrSnapshotEgressMismatch):
+		return api.CompareProbeSnapshots409JSONResponse{ConflictJSONResponse: conflict(api.SnapshotEgressMismatch)}, nil
+	case err != nil:
+		return nil, err
+	}
+	return api.CompareProbeSnapshots200JSONResponse(probeSnapshotComparisonResponse(comparison)), nil
+}
+
+func (s apiServer) UpdateHistoryRetention(ctx context.Context, request api.UpdateHistoryRetentionRequestObject) (api.UpdateHistoryRetentionResponseObject, error) {
+	_, failure, err := s.authorize(ctx, true, csrfValue(request.Params.XCSRFToken))
+	if err != nil {
+		return nil, err
+	}
+	if failure == api.Unauthenticated {
+		return api.UpdateHistoryRetention401JSONResponse{UnauthorizedJSONResponse: unauthorized(failure)}, nil
+	}
+	if failure != "" {
+		return api.UpdateHistoryRetention403JSONResponse{ForbiddenJSONResponse: forbidden(failure)}, nil
+	}
+	if request.Body == nil {
+		return api.UpdateHistoryRetention400JSONResponse{BadRequestJSONResponse: badRequest(api.InvalidRequest)}, nil
+	}
+	state, err := s.nodes.UpdateHistoryRetention(ctx, nodes.HistoryRetentionUpdate{
+		Mode: string(request.Body.Mode), MaxAgeDays: request.Body.MaxAgeDays,
+		MaxLogicalBytes: request.Body.MaxLogicalBytes,
+	})
+	if errors.Is(err, nodes.ErrInvalidHistoryRetention) {
+		return api.UpdateHistoryRetention400JSONResponse{BadRequestJSONResponse: badRequest(api.InvalidRequest)}, nil
+	}
+	if err != nil {
+		return nil, err
+	}
+	return api.UpdateHistoryRetention200JSONResponse(historyStateResponse(state)), nil
+}
+
+func (s apiServer) CleanupHistory(ctx context.Context, request api.CleanupHistoryRequestObject) (api.CleanupHistoryResponseObject, error) {
+	_, failure, err := s.authorize(ctx, true, csrfValue(request.Params.XCSRFToken))
+	if err != nil {
+		return nil, err
+	}
+	if failure == api.Unauthenticated {
+		return api.CleanupHistory401JSONResponse{UnauthorizedJSONResponse: unauthorized(failure)}, nil
+	}
+	if failure != "" {
+		return api.CleanupHistory403JSONResponse{ForbiddenJSONResponse: forbidden(failure)}, nil
+	}
+	result, err := s.nodes.CleanupHistory(ctx)
+	if err != nil {
+		return nil, err
+	}
+	return api.CleanupHistory200JSONResponse(historyCleanupResponse(result)), nil
 }
 
 func (s apiServer) GetNetworkObservationSettings(ctx context.Context, _ api.GetNetworkObservationSettingsRequestObject) (api.GetNetworkObservationSettingsResponseObject, error) {
@@ -1294,14 +1495,218 @@ func probeRunResponse(run nodes.ProbeRun) api.ProbeRun {
 }
 
 func probeSnapshotResponse(snapshot nodes.ProbeSnapshot) api.ProbeSnapshot {
-	return api.ProbeSnapshot{
+	response := api.ProbeSnapshot{
 		Id: snapshot.ID, ExecutionId: snapshot.ExecutionID, EgressId: snapshot.EgressID,
 		Sequence: snapshot.Sequence, ObservedAt: snapshot.ObservedAt, RawResult: snapshot.RawResult,
+		Starred: snapshot.Starred, Baseline: snapshot.Baseline,
+		Fields:             make([]api.KnownProbeField, 0, len(snapshot.Fields)),
+		FormatIssues:       make([]api.ProbeFormatIssue, 0, len(snapshot.FormatIssues)),
+		Changes:            make([]api.ProbeFieldChange, 0, len(snapshot.Changes)),
+		PreviousSnapshotId: snapshot.PreviousSnapshotID,
 	}
+	for _, field := range snapshot.Fields {
+		response.Fields = append(response.Fields, knownProbeFieldResponse(field))
+	}
+	for _, issue := range snapshot.FormatIssues {
+		response.FormatIssues = append(response.FormatIssues, probeFormatIssueResponse(issue))
+	}
+	for _, change := range snapshot.Changes {
+		response.Changes = append(response.Changes, probeFieldChangeResponse(change))
+	}
+	return response
 }
 
 func historyStateResponse(state nodes.HistoryState) api.HistoryState {
-	return api.HistoryState{Generation: state.Generation, ResetAt: state.ResetAt}
+	return api.HistoryState{
+		Generation: state.Generation, ResetAt: state.ResetAt,
+		Retention: historyRetentionResponse(state.Retention), Usage: historyUsageResponse(state.Usage),
+	}
+}
+
+func knownProbeFieldResponse(field centerhistory.FieldValue) api.KnownProbeField {
+	response := api.KnownProbeField{
+		Id: field.ID, Group: field.Group, Path: field.Path,
+		ExpectedTypes: probeJSONTypes(field.ExpectedTypes),
+		Status:        api.KnownProbeFieldStatus(field.Status), Value: field.Value,
+	}
+	if field.ActualType != nil {
+		value := api.ProbeJSONType(*field.ActualType)
+		response.ActualType = &value
+	}
+	return response
+}
+
+func probeFormatIssueResponse(issue centerhistory.FormatIssue) api.ProbeFormatIssue {
+	response := api.ProbeFormatIssue{
+		Path: issue.Path, Kind: api.ProbeFormatIssueKind(issue.Kind),
+		ExpectedTypes: probeJSONTypes(issue.ExpectedTypes),
+	}
+	if issue.ActualType != nil {
+		value := api.ProbeJSONType(*issue.ActualType)
+		response.ActualType = &value
+	}
+	return response
+}
+
+func probeFieldChangeResponse(change centerhistory.FieldChange) api.ProbeFieldChange {
+	return api.ProbeFieldChange{
+		FieldId: change.FieldID, Group: change.Group, Path: change.Path,
+		ValueType: api.ProbeJSONType(change.ValueType), Before: change.Before, After: change.After,
+	}
+}
+
+func probeJSONTypes(values []centerhistory.JSONType) []api.ProbeJSONType {
+	result := make([]api.ProbeJSONType, 0, len(values))
+	for _, value := range values {
+		result = append(result, api.ProbeJSONType(value))
+	}
+	return result
+}
+
+func historyRetentionResponse(settings nodes.HistoryRetentionSettings) api.HistoryRetentionSettings {
+	return api.HistoryRetentionSettings{
+		Mode: api.HistoryRetentionMode(settings.Mode), MaxAgeDays: settings.MaxAgeDays,
+		MaxLogicalBytes: settings.MaxLogicalBytes, UpdatedAt: settings.UpdatedAt,
+		LastCleanupAt: settings.LastCleanupAt, LastCleanupDeletedItems: settings.LastCleanupDeletedItems,
+		LastCleanupError: settings.LastCleanupError,
+	}
+}
+
+func historyUsageResponse(usage nodes.HistoryUsage) api.HistoryUsage {
+	return api.HistoryUsage{
+		LogicalBytes: usage.LogicalBytes, ProtectedLogicalBytes: usage.ProtectedLogicalBytes,
+		RecordCount: usage.RecordCount, DatabaseBytes: usage.DatabaseBytes,
+		WalBytes: usage.WALBytes, SharedMemoryBytes: usage.SharedMemoryBytes,
+		OverBudget: usage.OverBudget, OverageBytes: usage.OverageBytes,
+	}
+}
+
+func historyCleanupResponse(result nodes.HistoryCleanupResult) api.HistoryCleanupResult {
+	return api.HistoryCleanupResult{
+		DeletedItems: result.DeletedItems, CompletedAt: result.CompletedAt,
+		Usage: historyUsageResponse(result.Usage),
+	}
+}
+
+func historyFilter(
+	nodeID *api.HistoryNodeFilter,
+	egressID *api.HistoryEgressFilter,
+	from *api.HistoryFrom,
+	to *api.HistoryTo,
+	page *api.HistoryPage,
+	pageSize *api.HistoryPageSize,
+) nodes.HistoryFilter {
+	result := nodes.HistoryFilter{
+		NodeID: nodeID, EgressID: egressID, From: from, To: to, Page: 1, PageSize: 50,
+	}
+	if page != nil {
+		result.Page = *page
+	}
+	if pageSize != nil {
+		result.PageSize = *pageSize
+	}
+	return result
+}
+
+func historyOwnerResponse(owner nodes.HistoryOwner) api.HistoryOwner {
+	return api.HistoryOwner{NodeName: owner.NodeName, EgressName: owner.EgressName}
+}
+
+func probeSnapshotHistoryPageResponse(page nodes.ProbeSnapshotPage) api.ProbeSnapshotHistoryPage {
+	response := api.ProbeSnapshotHistoryPage{
+		Items: make([]api.ProbeSnapshotSummary, 0, len(page.Items)), Total: page.Total,
+	}
+	for _, item := range page.Items {
+		response.Items = append(response.Items, api.ProbeSnapshotSummary{
+			Id: item.ID, ExecutionId: item.ExecutionID, RunId: item.RunID,
+			NodeId: item.NodeID, EgressId: item.EgressID, Owner: historyOwnerResponse(item.Owner),
+			Sequence: item.Sequence, Trigger: api.ProbeTrigger(item.Trigger), RunStatus: api.ProbeRunStatus(item.RunStatus),
+			ObservedAt: item.ObservedAt, ReceivedAt: item.ReceivedAt, EncodedSize: item.EncodedSize,
+			Starred: item.Starred, Current: item.Current, Processed: item.Processed,
+			Baseline: item.Baseline, ChangeCount: item.ChangeCount,
+			FormatStatus:       api.ProbeFormatStatus(item.FormatStatus),
+			FormatIssueCount:   item.FormatIssueCount,
+			PreviousSnapshotId: item.PreviousSnapshotID,
+		})
+	}
+	return response
+}
+
+func addressHistoryPageResponse(page nodes.AddressHistoryPage) api.AddressHistoryPage {
+	response := api.AddressHistoryPage{
+		Events: make([]api.HistoryAddressEvent, 0, len(page.Events)),
+		Gaps:   make([]api.HistoryAddressGap, 0, len(page.Gaps)), Total: page.Total, GapTotal: page.GapTotal,
+	}
+	for _, item := range page.Events {
+		response.Events = append(response.Events, api.HistoryAddressEvent{
+			NodeId: item.NodeID, Owner: historyOwnerResponse(item.Owner), Event: addressEventResponse(item.Event),
+		})
+	}
+	for _, item := range page.Gaps {
+		response.Gaps = append(response.Gaps, api.HistoryAddressGap{
+			NodeId: item.NodeID, Owner: historyOwnerResponse(item.Owner), Gap: addressGapResponse(item.Gap),
+		})
+	}
+	return response
+}
+
+func probeHistoryGapPageResponse(page nodes.ProbeHistoryGapPage) api.ProbeHistoryGapPage {
+	response := api.ProbeHistoryGapPage{
+		Items: make([]api.ProbeHistoryGap, 0, len(page.Items)), Total: page.Total,
+	}
+	for _, item := range page.Items {
+		response.Items = append(response.Items, probeHistoryGapResponse(item))
+	}
+	return response
+}
+
+func probeHistoryGapResponse(item nodes.ProbeHistoryGap) api.ProbeHistoryGap {
+	return api.ProbeHistoryGap{
+		Id: item.ID, NodeId: item.NodeID, EgressId: item.EgressID, Owner: historyOwnerResponse(item.Owner),
+		DroppedCount: item.DroppedCount, FirstSequence: item.FirstSequence, LastSequence: item.LastSequence,
+		FirstObservedAt: item.FirstObservedAt, LastObservedAt: item.LastObservedAt,
+	}
+}
+
+func probeFormatEventResponse(item nodes.FormatEvent) api.ProbeFormatEvent {
+	response := api.ProbeFormatEvent{
+		Id: item.ID, NodeId: item.NodeID, EgressId: item.EgressID,
+		ExecutionId: item.ExecutionID, SnapshotId: item.SnapshotID,
+		Owner: historyOwnerResponse(item.Owner), Sequence: item.Sequence,
+		Kind:       api.ProbeFormatEventKind(item.Kind),
+		Issues:     make([]api.ProbeFormatIssue, 0, len(item.Issues)),
+		ObservedAt: item.ObservedAt, RecordedAt: item.RecordedAt,
+	}
+	for _, issue := range item.Issues {
+		response.Issues = append(response.Issues, probeFormatIssueResponse(issue))
+	}
+	return response
+}
+
+func probeFormatEventPageResponse(page nodes.FormatEventPage) api.ProbeFormatEventPage {
+	response := api.ProbeFormatEventPage{
+		Items: make([]api.ProbeFormatEvent, 0, len(page.Items)), Total: page.Total,
+	}
+	for _, item := range page.Items {
+		response.Items = append(response.Items, probeFormatEventResponse(item))
+	}
+	return response
+}
+
+func probeSnapshotComparisonResponse(comparison nodes.ProbeSnapshotComparison) api.ProbeSnapshotComparison {
+	response := api.ProbeSnapshotComparison{
+		BeforeId: comparison.BeforeID, AfterId: comparison.AfterID, EgressId: comparison.EgressID,
+		Fields: make([]api.ComparedProbeField, 0, len(comparison.Fields)),
+	}
+	for _, field := range comparison.Fields {
+		response.Fields = append(response.Fields, api.ComparedProbeField{
+			Id: field.ID, Group: field.Group, Path: field.Path,
+			ExpectedTypes: probeJSONTypes(field.ExpectedTypes),
+			Before:        knownProbeFieldResponse(field.Before), After: knownProbeFieldResponse(field.After),
+			Changed: field.Changed,
+		})
+	}
+	return response
 }
 
 func probeStatusFromAPI(status *api.AgentProbeStatus) *nodes.ProbeStatus {

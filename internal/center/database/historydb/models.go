@@ -73,6 +73,28 @@ type HistoryMetadatum struct {
 	CreatedAt  int64
 }
 
+type ProbeChangeSet struct {
+	ID                 string
+	ExecutionID        string
+	SnapshotID         string
+	EgressID           string
+	Sequence           int64
+	PreviousSnapshotID *string
+	Baseline           int64
+	ChangeCount        int64
+	ObservedAt         int64
+	RecordedAt         int64
+}
+
+type ProbeComparisonProgress struct {
+	EgressID              string
+	NodeID                string
+	HistoryGeneration     string
+	NextSequence          int64
+	LastSuccessSnapshotID *string
+	UpdatedAt             int64
+}
+
 type ProbeExecution struct {
 	ID           string
 	RunID        string
@@ -85,6 +107,44 @@ type ProbeExecution struct {
 	FailureStage *string
 	Diagnostic   *string
 	ReceivedAt   int64
+}
+
+type ProbeFieldChange struct {
+	ChangeSetID string
+	FieldID     string
+	GroupName   string
+	JsonPath    string
+	ValueType   string
+	BeforeValue string
+	AfterValue  string
+}
+
+type ProbeFormatEvent struct {
+	ID                string
+	ExecutionID       string
+	SnapshotID        string
+	EgressID          string
+	Sequence          int64
+	Kind              string
+	PreviousSignature *string
+	CurrentSignature  string
+	IssueCount        int64
+	IssuesJson        []byte
+	ObservedAt        int64
+	RecordedAt        int64
+}
+
+type ProbeFormatState struct {
+	EgressID        string
+	SnapshotID      string
+	Sequence        int64
+	Status          string
+	Signature       string
+	IssueCount      int64
+	IssuesJson      []byte
+	FirstObservedAt int64
+	LastObservedAt  int64
+	UpdatedAt       int64
 }
 
 type ProbeGap struct {
@@ -124,4 +184,17 @@ type ProbeSnapshot struct {
 	RawResult   []byte
 	EncodedSize int64
 	ReceivedAt  int64
+}
+
+type ProbeSnapshotFormat struct {
+	SnapshotID string
+	Status     string
+	Signature  string
+	IssueCount int64
+	IssuesJson []byte
+}
+
+type ProbeSnapshotStar struct {
+	SnapshotID string
+	StarredAt  int64
 }

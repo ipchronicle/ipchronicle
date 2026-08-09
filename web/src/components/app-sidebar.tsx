@@ -2,6 +2,7 @@ import {
   CircleUserRound,
   Database,
   Gauge,
+  History,
   Network,
   Radar,
   Server,
@@ -97,6 +98,29 @@ export function AppSidebar() {
                     >
                       <Server aria-hidden="true" />
                       <span>{t("navigation.nodes")}</span>
+                    </SidebarLink>
+                  </SidebarMenuButton>
+                </SidebarMenuItem>
+                <SidebarMenuItem>
+                  <SidebarMenuButton
+                    asChild
+                    isActive={
+                      location.pathname === "/history" ||
+                      location.pathname.startsWith("/history/")
+                    }
+                    tooltip={t("navigation.history")}
+                  >
+                    <SidebarLink
+                      to="/history"
+                      aria-current={
+                        location.pathname === "/history" ||
+                        location.pathname.startsWith("/history/")
+                          ? "page"
+                          : undefined
+                      }
+                    >
+                      <History aria-hidden="true" />
+                      <span>{t("navigation.history")}</span>
                     </SidebarLink>
                   </SidebarMenuButton>
                 </SidebarMenuItem>

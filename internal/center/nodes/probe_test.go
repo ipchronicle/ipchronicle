@@ -384,6 +384,14 @@ func TestProbeHistoryResetInvalidatesOldGenerationAndAdvancesConfiguration(t *te
 	uploadProbeRun(t, fixture, running)
 	uploadProbeExecution(t, fixture, running, executions[0])
 	uploadProbeRun(t, fixture, terminal)
+	secondRunning, secondTerminal, secondExecutions := probeArtifacts(fixture, []string{"succeeded"})
+	secondRunning.Executions[0].Sequence = 2
+	secondTerminal.Executions[0].Sequence = 2
+	secondExecutions[0].Sequence = 2
+	secondExecutions[0].RawResult = []byte(`{"ip":"203.0.113.11"}`)
+	uploadProbeRun(t, fixture, secondRunning)
+	uploadProbeExecution(t, fixture, secondRunning, secondExecutions[0])
+	uploadProbeRun(t, fixture, secondTerminal)
 	nodeBefore, err := fixture.store.ConfigQueries.GetNodeByID(fixture.ctx, fixture.registration.NodeID.String())
 	if err != nil {
 		t.Fatal(err)

@@ -35,6 +35,173 @@ func (q *Queries) CompleteProbeRun(ctx context.Context, arg CompleteProbeRunPara
 	return result.RowsAffected()
 }
 
+const countGlobalAddressEvents = `-- name: CountGlobalAddressEvents :one
+SELECT COUNT(*) FROM address_events
+WHERE (?1 = '' OR node_id = ?1)
+  AND (?2 = '' OR egress_id = ?2)
+  AND (?3 IS NULL OR observed_at >= ?3)
+  AND (?4 IS NULL OR observed_at <= ?4)
+  AND (?5 = '' OR kind = ?5)
+  AND (?6 = '' OR family = ?6)
+`
+
+type CountGlobalAddressEventsParams struct {
+	NodeID         interface{}
+	EgressID       interface{}
+	FromObservedAt interface{}
+	ToObservedAt   interface{}
+	EventKind      interface{}
+	Family         interface{}
+}
+
+func (q *Queries) CountGlobalAddressEvents(ctx context.Context, arg CountGlobalAddressEventsParams) (int64, error) {
+	row := q.db.QueryRowContext(ctx, countGlobalAddressEvents,
+		arg.NodeID,
+		arg.EgressID,
+		arg.FromObservedAt,
+		arg.ToObservedAt,
+		arg.EventKind,
+		arg.Family,
+	)
+	var count int64
+	err := row.Scan(&count)
+	return count, err
+}
+
+const countGlobalAddressGaps = `-- name: CountGlobalAddressGaps :one
+SELECT COUNT(*) FROM history_gaps
+WHERE (?1 = '' OR node_id = ?1)
+  AND (?2 = '' OR egress_id = ?2)
+  AND (?3 IS NULL OR last_observed_at >= ?3)
+  AND (?4 IS NULL OR last_observed_at <= ?4)
+`
+
+type CountGlobalAddressGapsParams struct {
+	NodeID         interface{}
+	EgressID       interface{}
+	FromObservedAt interface{}
+	ToObservedAt   interface{}
+}
+
+func (q *Queries) CountGlobalAddressGaps(ctx context.Context, arg CountGlobalAddressGapsParams) (int64, error) {
+	row := q.db.QueryRowContext(ctx, countGlobalAddressGaps,
+		arg.NodeID,
+		arg.EgressID,
+		arg.FromObservedAt,
+		arg.ToObservedAt,
+	)
+	var count int64
+	err := row.Scan(&count)
+	return count, err
+}
+
+const countGlobalFormatEvents = `-- name: CountGlobalFormatEvents :one
+SELECT COUNT(*)
+FROM probe_format_events f
+JOIN probe_executions e ON e.id = f.execution_id
+JOIN probe_runs r ON r.id = e.run_id
+WHERE (?1 = '' OR r.node_id = ?1)
+  AND (?2 = '' OR f.egress_id = ?2)
+  AND (?3 IS NULL OR f.observed_at >= ?3)
+  AND (?4 IS NULL OR f.observed_at <= ?4)
+`
+
+type CountGlobalFormatEventsParams struct {
+	NodeID         interface{}
+	EgressID       interface{}
+	FromObservedAt interface{}
+	ToObservedAt   interface{}
+}
+
+func (q *Queries) CountGlobalFormatEvents(ctx context.Context, arg CountGlobalFormatEventsParams) (int64, error) {
+	row := q.db.QueryRowContext(ctx, countGlobalFormatEvents,
+		arg.NodeID,
+		arg.EgressID,
+		arg.FromObservedAt,
+		arg.ToObservedAt,
+	)
+	var count int64
+	err := row.Scan(&count)
+	return count, err
+}
+
+const countGlobalProbeGaps = `-- name: CountGlobalProbeGaps :one
+SELECT COUNT(*) FROM probe_gaps
+WHERE (?1 = '' OR node_id = ?1)
+  AND (?2 = '' OR egress_id = ?2)
+  AND (?3 IS NULL OR last_observed_at >= ?3)
+  AND (?4 IS NULL OR last_observed_at <= ?4)
+`
+
+type CountGlobalProbeGapsParams struct {
+	NodeID         interface{}
+	EgressID       interface{}
+	FromObservedAt interface{}
+	ToObservedAt   interface{}
+}
+
+func (q *Queries) CountGlobalProbeGaps(ctx context.Context, arg CountGlobalProbeGapsParams) (int64, error) {
+	row := q.db.QueryRowContext(ctx, countGlobalProbeGaps,
+		arg.NodeID,
+		arg.EgressID,
+		arg.FromObservedAt,
+		arg.ToObservedAt,
+	)
+	var count int64
+	err := row.Scan(&count)
+	return count, err
+}
+
+const countProbeSnapshots = `-- name: CountProbeSnapshots :one
+SELECT COUNT(*)
+FROM probe_snapshots s
+JOIN probe_executions e ON e.id = s.execution_id
+JOIN probe_runs r ON r.id = e.run_id
+LEFT JOIN probe_change_sets changes ON changes.snapshot_id = s.id
+LEFT JOIN probe_snapshot_formats format ON format.snapshot_id = s.id
+WHERE (?1 = '' OR r.node_id = ?1)
+  AND (?2 = '' OR s.egress_id = ?2)
+  AND (?3 IS NULL OR s.observed_at >= ?3)
+  AND (?4 IS NULL OR s.observed_at <= ?4)
+  AND (?5 = '' OR r.status = ?5)
+  AND (?6 = '' OR r.trigger = ?6)
+  AND (
+      ?7 IS NULL OR
+      (COALESCE(changes.change_count, 0) > 0) = ?7
+  )
+  AND (
+      ?8 = '' OR
+      COALESCE(format.status, 'mismatch') = ?8
+  )
+`
+
+type CountProbeSnapshotsParams struct {
+	NodeID         interface{}
+	EgressID       interface{}
+	FromObservedAt interface{}
+	ToObservedAt   interface{}
+	RunStatus      interface{}
+	Trigger        interface{}
+	Changed        interface{}
+	FormatStatus   interface{}
+}
+
+func (q *Queries) CountProbeSnapshots(ctx context.Context, arg CountProbeSnapshotsParams) (int64, error) {
+	row := q.db.QueryRowContext(ctx, countProbeSnapshots,
+		arg.NodeID,
+		arg.EgressID,
+		arg.FromObservedAt,
+		arg.ToObservedAt,
+		arg.RunStatus,
+		arg.Trigger,
+		arg.Changed,
+		arg.FormatStatus,
+	)
+	var count int64
+	err := row.Scan(&count)
+	return count, err
+}
+
 const createAddressEvent = `-- name: CreateAddressEvent :execrows
 INSERT INTO address_events (
     id, egress_id, node_id, history_generation, sequence, kind, family,
@@ -105,6 +272,46 @@ func (q *Queries) CreateHistoryMetadata(ctx context.Context, arg CreateHistoryMe
 	return err
 }
 
+const createProbeChangeSet = `-- name: CreateProbeChangeSet :execrows
+INSERT INTO probe_change_sets (
+    id, execution_id, snapshot_id, egress_id, sequence,
+    previous_snapshot_id, baseline, change_count, observed_at, recorded_at
+) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+ON CONFLICT (execution_id) DO NOTHING
+`
+
+type CreateProbeChangeSetParams struct {
+	ID                 string
+	ExecutionID        string
+	SnapshotID         string
+	EgressID           string
+	Sequence           int64
+	PreviousSnapshotID *string
+	Baseline           int64
+	ChangeCount        int64
+	ObservedAt         int64
+	RecordedAt         int64
+}
+
+func (q *Queries) CreateProbeChangeSet(ctx context.Context, arg CreateProbeChangeSetParams) (int64, error) {
+	result, err := q.db.ExecContext(ctx, createProbeChangeSet,
+		arg.ID,
+		arg.ExecutionID,
+		arg.SnapshotID,
+		arg.EgressID,
+		arg.Sequence,
+		arg.PreviousSnapshotID,
+		arg.Baseline,
+		arg.ChangeCount,
+		arg.ObservedAt,
+		arg.RecordedAt,
+	)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected()
+}
+
 const createProbeExecution = `-- name: CreateProbeExecution :execrows
 INSERT INTO probe_executions (
     id, run_id, egress_id, ordinal, sequence, status, started_at,
@@ -140,6 +347,85 @@ func (q *Queries) CreateProbeExecution(ctx context.Context, arg CreateProbeExecu
 		arg.FailureStage,
 		arg.Diagnostic,
 		arg.ReceivedAt,
+	)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected()
+}
+
+const createProbeFieldChange = `-- name: CreateProbeFieldChange :execrows
+INSERT INTO probe_field_changes (
+    change_set_id, field_id, group_name, json_path, value_type,
+    before_value, after_value
+) VALUES (?, ?, ?, ?, ?, ?, ?)
+ON CONFLICT (change_set_id, field_id) DO NOTHING
+`
+
+type CreateProbeFieldChangeParams struct {
+	ChangeSetID string
+	FieldID     string
+	GroupName   string
+	JsonPath    string
+	ValueType   string
+	BeforeValue string
+	AfterValue  string
+}
+
+func (q *Queries) CreateProbeFieldChange(ctx context.Context, arg CreateProbeFieldChangeParams) (int64, error) {
+	result, err := q.db.ExecContext(ctx, createProbeFieldChange,
+		arg.ChangeSetID,
+		arg.FieldID,
+		arg.GroupName,
+		arg.JsonPath,
+		arg.ValueType,
+		arg.BeforeValue,
+		arg.AfterValue,
+	)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected()
+}
+
+const createProbeFormatEvent = `-- name: CreateProbeFormatEvent :execrows
+INSERT INTO probe_format_events (
+    id, execution_id, snapshot_id, egress_id, sequence, kind,
+    previous_signature, current_signature, issue_count, issues_json,
+    observed_at, recorded_at
+) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+ON CONFLICT (execution_id) DO NOTHING
+`
+
+type CreateProbeFormatEventParams struct {
+	ID                string
+	ExecutionID       string
+	SnapshotID        string
+	EgressID          string
+	Sequence          int64
+	Kind              string
+	PreviousSignature *string
+	CurrentSignature  string
+	IssueCount        int64
+	IssuesJson        []byte
+	ObservedAt        int64
+	RecordedAt        int64
+}
+
+func (q *Queries) CreateProbeFormatEvent(ctx context.Context, arg CreateProbeFormatEventParams) (int64, error) {
+	result, err := q.db.ExecContext(ctx, createProbeFormatEvent,
+		arg.ID,
+		arg.ExecutionID,
+		arg.SnapshotID,
+		arg.EgressID,
+		arg.Sequence,
+		arg.Kind,
+		arg.PreviousSignature,
+		arg.CurrentSignature,
+		arg.IssueCount,
+		arg.IssuesJson,
+		arg.ObservedAt,
+		arg.RecordedAt,
 	)
 	if err != nil {
 		return 0, err
@@ -228,6 +514,35 @@ func (q *Queries) CreateProbeSnapshot(ctx context.Context, arg CreateProbeSnapsh
 	return result.RowsAffected()
 }
 
+const createProbeSnapshotFormat = `-- name: CreateProbeSnapshotFormat :execrows
+INSERT INTO probe_snapshot_formats (
+    snapshot_id, status, signature, issue_count, issues_json
+) VALUES (?, ?, ?, ?, ?)
+ON CONFLICT (snapshot_id) DO NOTHING
+`
+
+type CreateProbeSnapshotFormatParams struct {
+	SnapshotID string
+	Status     string
+	Signature  string
+	IssueCount int64
+	IssuesJson []byte
+}
+
+func (q *Queries) CreateProbeSnapshotFormat(ctx context.Context, arg CreateProbeSnapshotFormatParams) (int64, error) {
+	result, err := q.db.ExecContext(ctx, createProbeSnapshotFormat,
+		arg.SnapshotID,
+		arg.Status,
+		arg.Signature,
+		arg.IssueCount,
+		arg.IssuesJson,
+	)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected()
+}
+
 const deleteEgressAddressEvents = `-- name: DeleteEgressAddressEvents :exec
 DELETE FROM address_events WHERE egress_id = ?
 `
@@ -252,6 +567,15 @@ DELETE FROM address_states WHERE egress_id = ?
 
 func (q *Queries) DeleteEgressAddressStates(ctx context.Context, egressID string) error {
 	_, err := q.db.ExecContext(ctx, deleteEgressAddressStates, egressID)
+	return err
+}
+
+const deleteEgressProbeComparisonProgress = `-- name: DeleteEgressProbeComparisonProgress :exec
+DELETE FROM probe_comparison_progress WHERE egress_id = ?
+`
+
+func (q *Queries) DeleteEgressProbeComparisonProgress(ctx context.Context, egressID string) error {
+	_, err := q.db.ExecContext(ctx, deleteEgressProbeComparisonProgress, egressID)
 	return err
 }
 
@@ -321,6 +645,15 @@ func (q *Queries) DeleteNodeAddressStates(ctx context.Context, nodeID string) er
 	return err
 }
 
+const deleteNodeProbeComparisonProgress = `-- name: DeleteNodeProbeComparisonProgress :exec
+DELETE FROM probe_comparison_progress WHERE node_id = ?
+`
+
+func (q *Queries) DeleteNodeProbeComparisonProgress(ctx context.Context, nodeID string) error {
+	_, err := q.db.ExecContext(ctx, deleteNodeProbeComparisonProgress, nodeID)
+	return err
+}
+
 const deleteNodeProbeGaps = `-- name: DeleteNodeProbeGaps :exec
 DELETE FROM probe_gaps WHERE node_id = ?
 `
@@ -337,6 +670,79 @@ DELETE FROM probe_runs WHERE node_id = ?
 func (q *Queries) DeleteNodeProbeHistory(ctx context.Context, nodeID string) error {
 	_, err := q.db.ExecContext(ctx, deleteNodeProbeHistory, nodeID)
 	return err
+}
+
+const deleteRetentionAddressEvent = `-- name: DeleteRetentionAddressEvent :execrows
+DELETE FROM address_events WHERE id = ?
+`
+
+func (q *Queries) DeleteRetentionAddressEvent(ctx context.Context, id string) (int64, error) {
+	result, err := q.db.ExecContext(ctx, deleteRetentionAddressEvent, id)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected()
+}
+
+const deleteRetentionAddressGap = `-- name: DeleteRetentionAddressGap :execrows
+DELETE FROM history_gaps WHERE id = ?
+`
+
+func (q *Queries) DeleteRetentionAddressGap(ctx context.Context, id string) (int64, error) {
+	result, err := q.db.ExecContext(ctx, deleteRetentionAddressGap, id)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected()
+}
+
+const deleteRetentionExecution = `-- name: DeleteRetentionExecution :execrows
+DELETE FROM probe_executions
+WHERE probe_executions.id = ? AND probe_executions.status NOT IN ('pending', 'running')
+  AND EXISTS(
+      SELECT 1 FROM probe_runs run
+      WHERE run.id = probe_executions.run_id AND run.status != 'running'
+  )
+  AND NOT EXISTS(
+      SELECT 1 FROM probe_snapshots s
+      JOIN probe_snapshot_stars star ON star.snapshot_id = s.id
+      WHERE s.execution_id = probe_executions.id
+  )
+  AND NOT EXISTS(
+      SELECT 1 FROM probe_snapshots s
+      JOIN current_probe_snapshots current ON current.snapshot_id = s.id
+      WHERE s.execution_id = probe_executions.id
+  )
+  AND NOT EXISTS(
+      SELECT 1 FROM probe_snapshots s
+      JOIN probe_format_states state ON state.snapshot_id = s.id
+      WHERE s.execution_id = probe_executions.id
+  )
+  AND NOT EXISTS(
+      SELECT 1 FROM probe_snapshots s
+      JOIN probe_comparison_progress progress ON progress.last_success_snapshot_id = s.id
+      WHERE s.execution_id = probe_executions.id
+  )
+`
+
+func (q *Queries) DeleteRetentionExecution(ctx context.Context, id string) (int64, error) {
+	result, err := q.db.ExecContext(ctx, deleteRetentionExecution, id)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected()
+}
+
+const deleteRetentionProbeGap = `-- name: DeleteRetentionProbeGap :execrows
+DELETE FROM probe_gaps WHERE id = ?
+`
+
+func (q *Queries) DeleteRetentionProbeGap(ctx context.Context, id string) (int64, error) {
+	result, err := q.db.ExecContext(ctx, deleteRetentionProbeGap, id)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected()
 }
 
 const getAddressEvent = `-- name: GetAddressEvent :one
@@ -413,6 +819,60 @@ func (q *Queries) GetAddressEventBySequence(ctx context.Context, arg GetAddressE
 	return i, err
 }
 
+const getHistoryLogicalUsage = `-- name: GetHistoryLogicalUsage :one
+SELECT
+    CAST(COALESCE(SUM(logical_bytes), 0) AS INTEGER) AS logical_bytes,
+    CAST(COALESCE(SUM(record_count), 0) AS INTEGER) AS record_count
+FROM (
+    SELECT SUM(encoded_size + 160) AS logical_bytes, COUNT(*) AS record_count FROM probe_snapshots
+    UNION ALL SELECT SUM(
+        256 + length(id) + length(run_id) + length(egress_id) +
+        COALESCE(length(failure_stage), 0) + COALESCE(length(CAST(diagnostic AS BLOB)), 0)
+    ), COUNT(*) FROM probe_executions
+    UNION ALL SELECT SUM(
+        256 + length(id) + length(node_id) + length(history_generation) +
+        length(trigger) + COALESCE(length(task_id), 0) +
+        COALESCE(length(triggering_egress_id), 0)
+    ), COUNT(*) FROM probe_runs
+    UNION ALL SELECT SUM(
+        256 + length(id) + length(egress_id) + length(node_id) +
+        COALESCE(length(previous_address), 0) + COALESCE(length(public_address), 0) +
+        COALESCE(length(local_interface), 0) + COALESCE(length(local_address), 0) +
+        COALESCE(length(proxy_path), 0) + COALESCE(length(failure_reason), 0)
+    ), COUNT(*) FROM address_events
+    UNION ALL SELECT COUNT(*) * 224, COUNT(*) FROM history_gaps
+    UNION ALL SELECT COUNT(*) * 224, COUNT(*) FROM probe_gaps
+    UNION ALL SELECT SUM(192 + length(issues_json)), COUNT(*) FROM probe_snapshot_formats
+    UNION ALL SELECT SUM(256 + length(issues_json)), COUNT(*) FROM probe_format_states
+    UNION ALL SELECT SUM(256 + length(issues_json)), COUNT(*) FROM probe_format_events
+    UNION ALL SELECT COUNT(*) * 256, COUNT(*) FROM probe_change_sets
+    UNION ALL SELECT SUM(
+        160 + length(field_id) + length(group_name) + length(json_path) +
+        length(CAST(before_value AS BLOB)) + length(CAST(after_value AS BLOB))
+    ), COUNT(*) FROM probe_field_changes
+    UNION ALL SELECT COUNT(*) * 96, COUNT(*) FROM probe_snapshot_stars
+    UNION ALL SELECT COUNT(*) * 192, COUNT(*) FROM probe_comparison_progress
+    UNION ALL SELECT COUNT(*) * 160, COUNT(*) FROM current_probe_snapshots
+    UNION ALL SELECT SUM(
+        256 + COALESCE(length(public_address), 0) + COALESCE(length(local_interface), 0) +
+        COALESCE(length(local_address), 0) + COALESCE(length(proxy_path), 0) +
+        COALESCE(length(failure_reason), 0)
+    ), COUNT(*) FROM address_states
+)
+`
+
+type GetHistoryLogicalUsageRow struct {
+	LogicalBytes int64
+	RecordCount  int64
+}
+
+func (q *Queries) GetHistoryLogicalUsage(ctx context.Context) (GetHistoryLogicalUsageRow, error) {
+	row := q.db.QueryRowContext(ctx, getHistoryLogicalUsage)
+	var i GetHistoryLogicalUsageRow
+	err := row.Scan(&i.LogicalBytes, &i.RecordCount)
+	return i, err
+}
+
 const getHistoryMetadata = `-- name: GetHistoryMetadata :one
 SELECT id, generation, created_at
 FROM history_metadata
@@ -423,6 +883,72 @@ func (q *Queries) GetHistoryMetadata(ctx context.Context) (HistoryMetadatum, err
 	row := q.db.QueryRowContext(ctx, getHistoryMetadata)
 	var i HistoryMetadatum
 	err := row.Scan(&i.ID, &i.Generation, &i.CreatedAt)
+	return i, err
+}
+
+const getPreviousProbeSnapshotID = `-- name: GetPreviousProbeSnapshotID :one
+SELECT id
+FROM probe_snapshots
+WHERE egress_id = ? AND sequence < ?
+ORDER BY sequence DESC
+LIMIT 1
+`
+
+type GetPreviousProbeSnapshotIDParams struct {
+	EgressID string
+	Sequence int64
+}
+
+func (q *Queries) GetPreviousProbeSnapshotID(ctx context.Context, arg GetPreviousProbeSnapshotIDParams) (string, error) {
+	row := q.db.QueryRowContext(ctx, getPreviousProbeSnapshotID, arg.EgressID, arg.Sequence)
+	var id string
+	err := row.Scan(&id)
+	return id, err
+}
+
+const getProbeChangeSetBySnapshot = `-- name: GetProbeChangeSetBySnapshot :one
+SELECT id, execution_id, snapshot_id, egress_id, sequence,
+       previous_snapshot_id, baseline, change_count, observed_at, recorded_at
+FROM probe_change_sets
+WHERE snapshot_id = ?
+`
+
+func (q *Queries) GetProbeChangeSetBySnapshot(ctx context.Context, snapshotID string) (ProbeChangeSet, error) {
+	row := q.db.QueryRowContext(ctx, getProbeChangeSetBySnapshot, snapshotID)
+	var i ProbeChangeSet
+	err := row.Scan(
+		&i.ID,
+		&i.ExecutionID,
+		&i.SnapshotID,
+		&i.EgressID,
+		&i.Sequence,
+		&i.PreviousSnapshotID,
+		&i.Baseline,
+		&i.ChangeCount,
+		&i.ObservedAt,
+		&i.RecordedAt,
+	)
+	return i, err
+}
+
+const getProbeComparisonProgress = `-- name: GetProbeComparisonProgress :one
+SELECT egress_id, node_id, history_generation, next_sequence,
+       last_success_snapshot_id, updated_at
+FROM probe_comparison_progress
+WHERE egress_id = ?
+`
+
+func (q *Queries) GetProbeComparisonProgress(ctx context.Context, egressID string) (ProbeComparisonProgress, error) {
+	row := q.db.QueryRowContext(ctx, getProbeComparisonProgress, egressID)
+	var i ProbeComparisonProgress
+	err := row.Scan(
+		&i.EgressID,
+		&i.NodeID,
+		&i.HistoryGeneration,
+		&i.NextSequence,
+		&i.LastSuccessSnapshotID,
+		&i.UpdatedAt,
+	)
 	return i, err
 }
 
@@ -447,6 +973,103 @@ func (q *Queries) GetProbeExecution(ctx context.Context, id string) (ProbeExecut
 		&i.CompletedAt,
 		&i.FailureStage,
 		&i.Diagnostic,
+		&i.ReceivedAt,
+	)
+	return i, err
+}
+
+const getProbeExecutionByEgressSequence = `-- name: GetProbeExecutionByEgressSequence :one
+SELECT id, run_id, egress_id, ordinal, sequence, status, started_at,
+       completed_at, failure_stage, diagnostic, received_at
+FROM probe_executions
+WHERE egress_id = ? AND sequence = ?
+`
+
+type GetProbeExecutionByEgressSequenceParams struct {
+	EgressID string
+	Sequence int64
+}
+
+func (q *Queries) GetProbeExecutionByEgressSequence(ctx context.Context, arg GetProbeExecutionByEgressSequenceParams) (ProbeExecution, error) {
+	row := q.db.QueryRowContext(ctx, getProbeExecutionByEgressSequence, arg.EgressID, arg.Sequence)
+	var i ProbeExecution
+	err := row.Scan(
+		&i.ID,
+		&i.RunID,
+		&i.EgressID,
+		&i.Ordinal,
+		&i.Sequence,
+		&i.Status,
+		&i.StartedAt,
+		&i.CompletedAt,
+		&i.FailureStage,
+		&i.Diagnostic,
+		&i.ReceivedAt,
+	)
+	return i, err
+}
+
+const getProbeFormatState = `-- name: GetProbeFormatState :one
+SELECT egress_id, snapshot_id, sequence, status, signature, issue_count,
+       issues_json, first_observed_at, last_observed_at, updated_at
+FROM probe_format_states
+WHERE egress_id = ?
+`
+
+func (q *Queries) GetProbeFormatState(ctx context.Context, egressID string) (ProbeFormatState, error) {
+	row := q.db.QueryRowContext(ctx, getProbeFormatState, egressID)
+	var i ProbeFormatState
+	err := row.Scan(
+		&i.EgressID,
+		&i.SnapshotID,
+		&i.Sequence,
+		&i.Status,
+		&i.Signature,
+		&i.IssueCount,
+		&i.IssuesJson,
+		&i.FirstObservedAt,
+		&i.LastObservedAt,
+		&i.UpdatedAt,
+	)
+	return i, err
+}
+
+const getProbeGapCoveringSequence = `-- name: GetProbeGapCoveringSequence :one
+SELECT id, egress_id, node_id, history_generation, dropped_count,
+       first_sequence, last_sequence, first_observed_at, last_observed_at,
+       received_at
+FROM probe_gaps
+WHERE egress_id = ? AND history_generation = ?
+  AND first_sequence <= ? AND last_sequence >= ?
+ORDER BY last_sequence DESC, id
+LIMIT 1
+`
+
+type GetProbeGapCoveringSequenceParams struct {
+	EgressID          string
+	HistoryGeneration string
+	FirstSequence     int64
+	LastSequence      int64
+}
+
+func (q *Queries) GetProbeGapCoveringSequence(ctx context.Context, arg GetProbeGapCoveringSequenceParams) (ProbeGap, error) {
+	row := q.db.QueryRowContext(ctx, getProbeGapCoveringSequence,
+		arg.EgressID,
+		arg.HistoryGeneration,
+		arg.FirstSequence,
+		arg.LastSequence,
+	)
+	var i ProbeGap
+	err := row.Scan(
+		&i.ID,
+		&i.EgressID,
+		&i.NodeID,
+		&i.HistoryGeneration,
+		&i.DroppedCount,
+		&i.FirstSequence,
+		&i.LastSequence,
+		&i.FirstObservedAt,
+		&i.LastObservedAt,
 		&i.ReceivedAt,
 	)
 	return i, err
@@ -524,6 +1147,413 @@ func (q *Queries) GetProbeSnapshotByExecution(ctx context.Context, executionID s
 		&i.ReceivedAt,
 	)
 	return i, err
+}
+
+const getProbeSnapshotFormat = `-- name: GetProbeSnapshotFormat :one
+SELECT snapshot_id, status, signature, issue_count, issues_json
+FROM probe_snapshot_formats
+WHERE snapshot_id = ?
+`
+
+func (q *Queries) GetProbeSnapshotFormat(ctx context.Context, snapshotID string) (ProbeSnapshotFormat, error) {
+	row := q.db.QueryRowContext(ctx, getProbeSnapshotFormat, snapshotID)
+	var i ProbeSnapshotFormat
+	err := row.Scan(
+		&i.SnapshotID,
+		&i.Status,
+		&i.Signature,
+		&i.IssueCount,
+		&i.IssuesJson,
+	)
+	return i, err
+}
+
+const getProtectedHistoryLogicalBytes = `-- name: GetProtectedHistoryLogicalBytes :one
+WITH protected_snapshots AS (
+    SELECT s.id, s.execution_id, s.encoded_size
+    FROM probe_snapshots s
+    JOIN probe_executions e ON e.id = s.execution_id
+    JOIN probe_runs r ON r.id = e.run_id
+    WHERE r.status = 'running'
+       OR e.status IN ('pending', 'running')
+       OR EXISTS(SELECT 1 FROM probe_snapshot_stars star WHERE star.snapshot_id = s.id)
+       OR EXISTS(SELECT 1 FROM current_probe_snapshots current WHERE current.snapshot_id = s.id)
+       OR EXISTS(SELECT 1 FROM probe_format_states state WHERE state.snapshot_id = s.id)
+       OR EXISTS(
+           SELECT 1 FROM probe_comparison_progress progress
+           WHERE progress.last_success_snapshot_id = s.id
+       )
+), protected_executions AS (
+    SELECT e.id, e.run_id, e.egress_id, e.failure_stage, e.diagnostic
+    FROM probe_executions e
+    JOIN probe_runs r ON r.id = e.run_id
+    WHERE r.status = 'running'
+       OR e.status IN ('pending', 'running')
+       OR EXISTS(SELECT 1 FROM protected_snapshots snapshot WHERE snapshot.execution_id = e.id)
+), protected_runs AS (
+    SELECT r.id, r.node_id, r.history_generation, r.trigger,
+           r.task_id, r.triggering_egress_id
+    FROM probe_runs r
+    WHERE r.status = 'running'
+       OR EXISTS(SELECT 1 FROM protected_executions execution WHERE execution.run_id = r.id)
+)
+SELECT CAST(COALESCE(SUM(logical_bytes), 0) AS INTEGER) AS logical_bytes
+FROM (
+    SELECT SUM(encoded_size + 160) AS logical_bytes FROM protected_snapshots
+    UNION ALL
+    SELECT SUM(
+        256 + length(id) + length(run_id) + length(egress_id) +
+        COALESCE(length(failure_stage), 0) + COALESCE(length(CAST(diagnostic AS BLOB)), 0)
+    ) FROM protected_executions
+    UNION ALL
+    SELECT SUM(
+        256 + length(id) + length(node_id) + length(history_generation) +
+        length(trigger) + COALESCE(length(task_id), 0) +
+        COALESCE(length(triggering_egress_id), 0)
+    ) FROM protected_runs
+    UNION ALL
+    SELECT SUM(192 + length(format.issues_json))
+    FROM probe_snapshot_formats format
+    JOIN protected_snapshots snapshot ON snapshot.id = format.snapshot_id
+    UNION ALL
+    SELECT SUM(256 + length(event.issues_json))
+    FROM probe_format_events event
+    JOIN protected_snapshots snapshot ON snapshot.id = event.snapshot_id
+    UNION ALL
+    SELECT COUNT(*) * 256
+    FROM probe_change_sets change_set
+    JOIN protected_snapshots snapshot ON snapshot.id = change_set.snapshot_id
+    UNION ALL
+    SELECT SUM(
+        160 + length(change.field_id) + length(change.group_name) + length(change.json_path) +
+        length(CAST(change.before_value AS BLOB)) + length(CAST(change.after_value AS BLOB))
+    )
+    FROM probe_field_changes change
+    JOIN probe_change_sets change_set ON change_set.id = change.change_set_id
+    JOIN protected_snapshots snapshot ON snapshot.id = change_set.snapshot_id
+    UNION ALL
+    SELECT COUNT(*) * 96 FROM probe_snapshot_stars
+    UNION ALL
+    SELECT COUNT(*) * 160 FROM current_probe_snapshots
+    UNION ALL
+    SELECT SUM(256 + length(issues_json)) FROM probe_format_states
+    UNION ALL
+    SELECT SUM(
+        256 + COALESCE(length(public_address), 0) + COALESCE(length(local_interface), 0) +
+        COALESCE(length(local_address), 0) + COALESCE(length(proxy_path), 0) +
+        COALESCE(length(failure_reason), 0)
+    ) FROM address_states
+    UNION ALL
+    SELECT COUNT(*) * 192 FROM probe_comparison_progress
+)
+`
+
+func (q *Queries) GetProtectedHistoryLogicalBytes(ctx context.Context) (int64, error) {
+	row := q.db.QueryRowContext(ctx, getProtectedHistoryLogicalBytes)
+	var logical_bytes int64
+	err := row.Scan(&logical_bytes)
+	return logical_bytes, err
+}
+
+const isProbeSnapshotStarred = `-- name: IsProbeSnapshotStarred :one
+SELECT EXISTS(
+    SELECT 1 FROM probe_snapshot_stars WHERE snapshot_id = ?
+) AS starred
+`
+
+func (q *Queries) IsProbeSnapshotStarred(ctx context.Context, snapshotID string) (bool, error) {
+	row := q.db.QueryRowContext(ctx, isProbeSnapshotStarred, snapshotID)
+	var starred bool
+	err := row.Scan(&starred)
+	return starred, err
+}
+
+const listGlobalAddressEvents = `-- name: ListGlobalAddressEvents :many
+SELECT id, egress_id, node_id, history_generation, sequence, kind, family,
+       previous_address, public_address, local_interface, local_address,
+       proxy_path, likely_nat, temporary, failure_reason, observed_at,
+       received_at
+FROM address_events
+WHERE (?1 = '' OR node_id = ?1)
+  AND (?2 = '' OR egress_id = ?2)
+  AND (?3 IS NULL OR observed_at >= ?3)
+  AND (?4 IS NULL OR observed_at <= ?4)
+  AND (?5 = '' OR kind = ?5)
+  AND (?6 = '' OR family = ?6)
+ORDER BY observed_at DESC, id DESC
+LIMIT ?8 OFFSET ?7
+`
+
+type ListGlobalAddressEventsParams struct {
+	NodeID         interface{}
+	EgressID       interface{}
+	FromObservedAt interface{}
+	ToObservedAt   interface{}
+	EventKind      interface{}
+	Family         interface{}
+	PageOffset     int64
+	PageSize       int64
+}
+
+func (q *Queries) ListGlobalAddressEvents(ctx context.Context, arg ListGlobalAddressEventsParams) ([]AddressEvent, error) {
+	rows, err := q.db.QueryContext(ctx, listGlobalAddressEvents,
+		arg.NodeID,
+		arg.EgressID,
+		arg.FromObservedAt,
+		arg.ToObservedAt,
+		arg.EventKind,
+		arg.Family,
+		arg.PageOffset,
+		arg.PageSize,
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []AddressEvent{}
+	for rows.Next() {
+		var i AddressEvent
+		if err := rows.Scan(
+			&i.ID,
+			&i.EgressID,
+			&i.NodeID,
+			&i.HistoryGeneration,
+			&i.Sequence,
+			&i.Kind,
+			&i.Family,
+			&i.PreviousAddress,
+			&i.PublicAddress,
+			&i.LocalInterface,
+			&i.LocalAddress,
+			&i.ProxyPath,
+			&i.LikelyNat,
+			&i.Temporary,
+			&i.FailureReason,
+			&i.ObservedAt,
+			&i.ReceivedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listGlobalAddressGaps = `-- name: ListGlobalAddressGaps :many
+SELECT id, egress_id, node_id, history_generation, kind, dropped_count,
+       first_sequence, last_sequence, first_observed_at, last_observed_at,
+       received_at
+FROM history_gaps
+WHERE (?1 = '' OR node_id = ?1)
+  AND (?2 = '' OR egress_id = ?2)
+  AND (?3 IS NULL OR last_observed_at >= ?3)
+  AND (?4 IS NULL OR last_observed_at <= ?4)
+ORDER BY last_observed_at DESC, id DESC
+LIMIT ?6 OFFSET ?5
+`
+
+type ListGlobalAddressGapsParams struct {
+	NodeID         interface{}
+	EgressID       interface{}
+	FromObservedAt interface{}
+	ToObservedAt   interface{}
+	PageOffset     int64
+	PageSize       int64
+}
+
+func (q *Queries) ListGlobalAddressGaps(ctx context.Context, arg ListGlobalAddressGapsParams) ([]HistoryGap, error) {
+	rows, err := q.db.QueryContext(ctx, listGlobalAddressGaps,
+		arg.NodeID,
+		arg.EgressID,
+		arg.FromObservedAt,
+		arg.ToObservedAt,
+		arg.PageOffset,
+		arg.PageSize,
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []HistoryGap{}
+	for rows.Next() {
+		var i HistoryGap
+		if err := rows.Scan(
+			&i.ID,
+			&i.EgressID,
+			&i.NodeID,
+			&i.HistoryGeneration,
+			&i.Kind,
+			&i.DroppedCount,
+			&i.FirstSequence,
+			&i.LastSequence,
+			&i.FirstObservedAt,
+			&i.LastObservedAt,
+			&i.ReceivedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listGlobalFormatEvents = `-- name: ListGlobalFormatEvents :many
+SELECT f.id, f.execution_id, f.snapshot_id, f.egress_id, f.sequence, f.kind,
+       f.previous_signature, f.current_signature, f.issue_count, f.issues_json,
+       f.observed_at, f.recorded_at, r.node_id
+FROM probe_format_events f
+JOIN probe_executions e ON e.id = f.execution_id
+JOIN probe_runs r ON r.id = e.run_id
+WHERE (?1 = '' OR r.node_id = ?1)
+  AND (?2 = '' OR f.egress_id = ?2)
+  AND (?3 IS NULL OR f.observed_at >= ?3)
+  AND (?4 IS NULL OR f.observed_at <= ?4)
+ORDER BY f.observed_at DESC, f.id DESC
+LIMIT ?6 OFFSET ?5
+`
+
+type ListGlobalFormatEventsParams struct {
+	NodeID         interface{}
+	EgressID       interface{}
+	FromObservedAt interface{}
+	ToObservedAt   interface{}
+	PageOffset     int64
+	PageSize       int64
+}
+
+type ListGlobalFormatEventsRow struct {
+	ID                string
+	ExecutionID       string
+	SnapshotID        string
+	EgressID          string
+	Sequence          int64
+	Kind              string
+	PreviousSignature *string
+	CurrentSignature  string
+	IssueCount        int64
+	IssuesJson        []byte
+	ObservedAt        int64
+	RecordedAt        int64
+	NodeID            string
+}
+
+func (q *Queries) ListGlobalFormatEvents(ctx context.Context, arg ListGlobalFormatEventsParams) ([]ListGlobalFormatEventsRow, error) {
+	rows, err := q.db.QueryContext(ctx, listGlobalFormatEvents,
+		arg.NodeID,
+		arg.EgressID,
+		arg.FromObservedAt,
+		arg.ToObservedAt,
+		arg.PageOffset,
+		arg.PageSize,
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []ListGlobalFormatEventsRow{}
+	for rows.Next() {
+		var i ListGlobalFormatEventsRow
+		if err := rows.Scan(
+			&i.ID,
+			&i.ExecutionID,
+			&i.SnapshotID,
+			&i.EgressID,
+			&i.Sequence,
+			&i.Kind,
+			&i.PreviousSignature,
+			&i.CurrentSignature,
+			&i.IssueCount,
+			&i.IssuesJson,
+			&i.ObservedAt,
+			&i.RecordedAt,
+			&i.NodeID,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listGlobalProbeGaps = `-- name: ListGlobalProbeGaps :many
+SELECT id, egress_id, node_id, history_generation, dropped_count,
+       first_sequence, last_sequence, first_observed_at, last_observed_at,
+       received_at
+FROM probe_gaps
+WHERE (?1 = '' OR node_id = ?1)
+  AND (?2 = '' OR egress_id = ?2)
+  AND (?3 IS NULL OR last_observed_at >= ?3)
+  AND (?4 IS NULL OR last_observed_at <= ?4)
+ORDER BY last_observed_at DESC, id DESC
+LIMIT ?6 OFFSET ?5
+`
+
+type ListGlobalProbeGapsParams struct {
+	NodeID         interface{}
+	EgressID       interface{}
+	FromObservedAt interface{}
+	ToObservedAt   interface{}
+	PageOffset     int64
+	PageSize       int64
+}
+
+func (q *Queries) ListGlobalProbeGaps(ctx context.Context, arg ListGlobalProbeGapsParams) ([]ProbeGap, error) {
+	rows, err := q.db.QueryContext(ctx, listGlobalProbeGaps,
+		arg.NodeID,
+		arg.EgressID,
+		arg.FromObservedAt,
+		arg.ToObservedAt,
+		arg.PageOffset,
+		arg.PageSize,
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []ProbeGap{}
+	for rows.Next() {
+		var i ProbeGap
+		if err := rows.Scan(
+			&i.ID,
+			&i.EgressID,
+			&i.NodeID,
+			&i.HistoryGeneration,
+			&i.DroppedCount,
+			&i.FirstSequence,
+			&i.LastSequence,
+			&i.FirstObservedAt,
+			&i.LastObservedAt,
+			&i.ReceivedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
 }
 
 const listNodeAddressEvents = `-- name: ListNodeAddressEvents :many
@@ -735,6 +1765,45 @@ func (q *Queries) ListNodeProbeRuns(ctx context.Context, arg ListNodeProbeRunsPa
 	return items, nil
 }
 
+const listProbeFieldChanges = `-- name: ListProbeFieldChanges :many
+SELECT change_set_id, field_id, group_name, json_path, value_type,
+       before_value, after_value
+FROM probe_field_changes
+WHERE change_set_id = ?
+ORDER BY group_name, json_path
+`
+
+func (q *Queries) ListProbeFieldChanges(ctx context.Context, changeSetID string) ([]ProbeFieldChange, error) {
+	rows, err := q.db.QueryContext(ctx, listProbeFieldChanges, changeSetID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []ProbeFieldChange{}
+	for rows.Next() {
+		var i ProbeFieldChange
+		if err := rows.Scan(
+			&i.ChangeSetID,
+			&i.FieldID,
+			&i.GroupName,
+			&i.JsonPath,
+			&i.ValueType,
+			&i.BeforeValue,
+			&i.AfterValue,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const listProbeRunExecutions = `-- name: ListProbeRunExecutions :many
 SELECT id, run_id, egress_id, ordinal, sequence, status, started_at,
        completed_at, failure_stage, diagnostic, received_at
@@ -778,6 +1847,212 @@ func (q *Queries) ListProbeRunExecutions(ctx context.Context, runID string) ([]P
 	return items, nil
 }
 
+const listProbeSnapshots = `-- name: ListProbeSnapshots :many
+SELECT s.id, s.execution_id, s.egress_id, s.sequence, s.observed_at,
+       s.encoded_size, s.received_at, e.run_id, r.node_id, r.trigger, r.status AS run_status,
+       CAST(COALESCE((
+           SELECT previous.id
+           FROM probe_snapshots previous
+           WHERE previous.egress_id = s.egress_id AND previous.sequence < s.sequence
+           ORDER BY previous.sequence DESC
+           LIMIT 1
+       ), '') AS TEXT) AS previous_snapshot_id,
+       EXISTS(SELECT 1 FROM probe_snapshot_stars star WHERE star.snapshot_id = s.id) AS starred,
+       EXISTS(
+           SELECT 1 FROM current_probe_snapshots current_snapshot
+           WHERE current_snapshot.snapshot_id = s.id
+       ) AS is_current,
+       changes.id IS NOT NULL AS processed,
+       COALESCE(changes.baseline, 0) AS baseline,
+       COALESCE(changes.change_count, 0) AS change_count,
+       COALESCE(format.status, 'mismatch') AS format_status,
+       COALESCE(format.issue_count, 1) AS format_issue_count
+FROM probe_snapshots s
+JOIN probe_executions e ON e.id = s.execution_id
+JOIN probe_runs r ON r.id = e.run_id
+LEFT JOIN probe_change_sets changes ON changes.snapshot_id = s.id
+LEFT JOIN probe_snapshot_formats format ON format.snapshot_id = s.id
+WHERE (?1 = '' OR r.node_id = ?1)
+  AND (?2 = '' OR s.egress_id = ?2)
+  AND (?3 IS NULL OR s.observed_at >= ?3)
+  AND (?4 IS NULL OR s.observed_at <= ?4)
+  AND (?5 = '' OR r.status = ?5)
+  AND (?6 = '' OR r.trigger = ?6)
+  AND (
+      ?7 IS NULL OR
+      (COALESCE(changes.change_count, 0) > 0) = ?7
+  )
+  AND (
+      ?8 = '' OR
+      COALESCE(format.status, 'mismatch') = ?8
+  )
+ORDER BY s.observed_at DESC, s.id DESC
+LIMIT ?10 OFFSET ?9
+`
+
+type ListProbeSnapshotsParams struct {
+	NodeID         interface{}
+	EgressID       interface{}
+	FromObservedAt interface{}
+	ToObservedAt   interface{}
+	RunStatus      interface{}
+	Trigger        interface{}
+	Changed        interface{}
+	FormatStatus   interface{}
+	PageOffset     int64
+	PageSize       int64
+}
+
+type ListProbeSnapshotsRow struct {
+	ID                 string
+	ExecutionID        string
+	EgressID           string
+	Sequence           int64
+	ObservedAt         int64
+	EncodedSize        int64
+	ReceivedAt         int64
+	RunID              string
+	NodeID             string
+	Trigger            string
+	RunStatus          string
+	PreviousSnapshotID string
+	Starred            bool
+	IsCurrent          bool
+	Processed          bool
+	Baseline           int64
+	ChangeCount        int64
+	FormatStatus       string
+	FormatIssueCount   int64
+}
+
+func (q *Queries) ListProbeSnapshots(ctx context.Context, arg ListProbeSnapshotsParams) ([]ListProbeSnapshotsRow, error) {
+	rows, err := q.db.QueryContext(ctx, listProbeSnapshots,
+		arg.NodeID,
+		arg.EgressID,
+		arg.FromObservedAt,
+		arg.ToObservedAt,
+		arg.RunStatus,
+		arg.Trigger,
+		arg.Changed,
+		arg.FormatStatus,
+		arg.PageOffset,
+		arg.PageSize,
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []ListProbeSnapshotsRow{}
+	for rows.Next() {
+		var i ListProbeSnapshotsRow
+		if err := rows.Scan(
+			&i.ID,
+			&i.ExecutionID,
+			&i.EgressID,
+			&i.Sequence,
+			&i.ObservedAt,
+			&i.EncodedSize,
+			&i.ReceivedAt,
+			&i.RunID,
+			&i.NodeID,
+			&i.Trigger,
+			&i.RunStatus,
+			&i.PreviousSnapshotID,
+			&i.Starred,
+			&i.IsCurrent,
+			&i.Processed,
+			&i.Baseline,
+			&i.ChangeCount,
+			&i.FormatStatus,
+			&i.FormatIssueCount,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listRetentionCandidates = `-- name: ListRetentionCandidates :many
+SELECT category, id, observed_at, logical_bytes
+FROM (
+    SELECT 'execution' AS category, e.id AS id,
+           COALESCE(e.completed_at, e.started_at, e.received_at) AS observed_at,
+           256 + length(e.id) + length(e.run_id) + length(e.egress_id) +
+           COALESCE(length(e.failure_stage), 0) + COALESCE(length(CAST(e.diagnostic AS BLOB)), 0) +
+           COALESCE(s.encoded_size + 160, 0) AS logical_bytes
+    FROM probe_executions e
+    JOIN probe_runs r ON r.id = e.run_id
+    LEFT JOIN probe_snapshots s ON s.execution_id = e.id
+    WHERE e.status NOT IN ('pending', 'running') AND r.status != 'running'
+      AND NOT EXISTS(SELECT 1 FROM probe_snapshot_stars star WHERE star.snapshot_id = s.id)
+      AND NOT EXISTS(SELECT 1 FROM current_probe_snapshots current WHERE current.snapshot_id = s.id)
+      AND NOT EXISTS(SELECT 1 FROM probe_format_states state WHERE state.snapshot_id = s.id)
+      AND NOT EXISTS(
+          SELECT 1 FROM probe_comparison_progress progress
+          WHERE progress.last_success_snapshot_id = s.id
+      )
+    UNION ALL
+    SELECT 'address-event', id, observed_at,
+           256 + length(id) + length(egress_id) + length(node_id) +
+           COALESCE(length(previous_address), 0) + COALESCE(length(public_address), 0) +
+           COALESCE(length(local_interface), 0) + COALESCE(length(local_address), 0) +
+           COALESCE(length(proxy_path), 0) + COALESCE(length(failure_reason), 0)
+    FROM address_events
+    UNION ALL SELECT 'address-gap', id, last_observed_at, 224 FROM history_gaps
+    UNION ALL SELECT 'probe-gap', id, last_observed_at, 224 FROM probe_gaps
+)
+WHERE (?1 IS NULL OR observed_at < ?1)
+ORDER BY observed_at, category, id
+LIMIT ?2
+`
+
+type ListRetentionCandidatesParams struct {
+	OlderThan interface{}
+	PageSize  int64
+}
+
+type ListRetentionCandidatesRow struct {
+	Category     string
+	ID           string
+	ObservedAt   int64
+	LogicalBytes int64
+}
+
+func (q *Queries) ListRetentionCandidates(ctx context.Context, arg ListRetentionCandidatesParams) ([]ListRetentionCandidatesRow, error) {
+	rows, err := q.db.QueryContext(ctx, listRetentionCandidates, arg.OlderThan, arg.PageSize)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []ListRetentionCandidatesRow{}
+	for rows.Next() {
+		var i ListRetentionCandidatesRow
+		if err := rows.Scan(
+			&i.Category,
+			&i.ID,
+			&i.ObservedAt,
+			&i.LogicalBytes,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const resetAddressGaps = `-- name: ResetAddressGaps :exec
 DELETE FROM history_gaps
 `
@@ -805,6 +2080,15 @@ func (q *Queries) ResetAddressStates(ctx context.Context) error {
 	return err
 }
 
+const resetProbeComparisonProgress = `-- name: ResetProbeComparisonProgress :exec
+DELETE FROM probe_comparison_progress
+`
+
+func (q *Queries) ResetProbeComparisonProgress(ctx context.Context) error {
+	_, err := q.db.ExecContext(ctx, resetProbeComparisonProgress)
+	return err
+}
+
 const resetProbeGaps = `-- name: ResetProbeGaps :exec
 DELETE FROM probe_gaps
 `
@@ -821,6 +2105,37 @@ DELETE FROM probe_runs
 func (q *Queries) ResetProbeHistory(ctx context.Context) error {
 	_, err := q.db.ExecContext(ctx, resetProbeHistory)
 	return err
+}
+
+const starProbeSnapshot = `-- name: StarProbeSnapshot :execrows
+INSERT INTO probe_snapshot_stars (snapshot_id, starred_at)
+VALUES (?, ?)
+ON CONFLICT (snapshot_id) DO NOTHING
+`
+
+type StarProbeSnapshotParams struct {
+	SnapshotID string
+	StarredAt  int64
+}
+
+func (q *Queries) StarProbeSnapshot(ctx context.Context, arg StarProbeSnapshotParams) (int64, error) {
+	result, err := q.db.ExecContext(ctx, starProbeSnapshot, arg.SnapshotID, arg.StarredAt)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected()
+}
+
+const unstarProbeSnapshot = `-- name: UnstarProbeSnapshot :execrows
+DELETE FROM probe_snapshot_stars WHERE snapshot_id = ?
+`
+
+func (q *Queries) UnstarProbeSnapshot(ctx context.Context, snapshotID string) (int64, error) {
+	result, err := q.db.ExecContext(ctx, unstarProbeSnapshot, snapshotID)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected()
 }
 
 const updateHistoryGeneration = `-- name: UpdateHistoryGeneration :execrows
@@ -1030,6 +2345,87 @@ func (q *Queries) UpsertCurrentProbeSnapshot(ctx context.Context, arg UpsertCurr
 		arg.Sequence,
 		arg.ObservedAt,
 		arg.ReceivedAt,
+	)
+	return err
+}
+
+const upsertProbeComparisonProgress = `-- name: UpsertProbeComparisonProgress :exec
+INSERT INTO probe_comparison_progress (
+    egress_id, node_id, history_generation, next_sequence,
+    last_success_snapshot_id, updated_at
+) VALUES (?, ?, ?, ?, ?, ?)
+ON CONFLICT (egress_id) DO UPDATE SET
+    node_id = excluded.node_id,
+    history_generation = excluded.history_generation,
+    next_sequence = excluded.next_sequence,
+    last_success_snapshot_id = excluded.last_success_snapshot_id,
+    updated_at = excluded.updated_at
+`
+
+type UpsertProbeComparisonProgressParams struct {
+	EgressID              string
+	NodeID                string
+	HistoryGeneration     string
+	NextSequence          int64
+	LastSuccessSnapshotID *string
+	UpdatedAt             int64
+}
+
+func (q *Queries) UpsertProbeComparisonProgress(ctx context.Context, arg UpsertProbeComparisonProgressParams) error {
+	_, err := q.db.ExecContext(ctx, upsertProbeComparisonProgress,
+		arg.EgressID,
+		arg.NodeID,
+		arg.HistoryGeneration,
+		arg.NextSequence,
+		arg.LastSuccessSnapshotID,
+		arg.UpdatedAt,
+	)
+	return err
+}
+
+const upsertProbeFormatState = `-- name: UpsertProbeFormatState :exec
+INSERT INTO probe_format_states (
+    egress_id, snapshot_id, sequence, status, signature, issue_count,
+    issues_json, first_observed_at, last_observed_at, updated_at
+) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+ON CONFLICT (egress_id) DO UPDATE SET
+    snapshot_id = excluded.snapshot_id,
+    sequence = excluded.sequence,
+    status = excluded.status,
+    signature = excluded.signature,
+    issue_count = excluded.issue_count,
+    issues_json = excluded.issues_json,
+    first_observed_at = excluded.first_observed_at,
+    last_observed_at = excluded.last_observed_at,
+    updated_at = excluded.updated_at
+WHERE excluded.sequence > probe_format_states.sequence
+`
+
+type UpsertProbeFormatStateParams struct {
+	EgressID        string
+	SnapshotID      string
+	Sequence        int64
+	Status          string
+	Signature       string
+	IssueCount      int64
+	IssuesJson      []byte
+	FirstObservedAt int64
+	LastObservedAt  int64
+	UpdatedAt       int64
+}
+
+func (q *Queries) UpsertProbeFormatState(ctx context.Context, arg UpsertProbeFormatStateParams) error {
+	_, err := q.db.ExecContext(ctx, upsertProbeFormatState,
+		arg.EgressID,
+		arg.SnapshotID,
+		arg.Sequence,
+		arg.Status,
+		arg.Signature,
+		arg.IssueCount,
+		arg.IssuesJson,
+		arg.FirstObservedAt,
+		arg.LastObservedAt,
+		arg.UpdatedAt,
 	)
 	return err
 }

@@ -772,6 +772,29 @@ func (q *Queries) GetEgressDeletion(ctx context.Context, arg GetEgressDeletionPa
 	return i, err
 }
 
+const getHistoryRetentionSettings = `-- name: GetHistoryRetentionSettings :one
+SELECT id, mode, max_age_days, max_logical_bytes, updated_at
+       , last_cleanup_at, last_cleanup_deleted_items, last_cleanup_error
+FROM history_retention_settings
+WHERE id = 1
+`
+
+func (q *Queries) GetHistoryRetentionSettings(ctx context.Context) (HistoryRetentionSetting, error) {
+	row := q.db.QueryRowContext(ctx, getHistoryRetentionSettings)
+	var i HistoryRetentionSetting
+	err := row.Scan(
+		&i.ID,
+		&i.Mode,
+		&i.MaxAgeDays,
+		&i.MaxLogicalBytes,
+		&i.UpdatedAt,
+		&i.LastCleanupAt,
+		&i.LastCleanupDeletedItems,
+		&i.LastCleanupError,
+	)
+	return i, err
+}
+
 const getLatestProbeTask = `-- name: GetLatestProbeTask :one
 SELECT id, node_id, kind, status, created_at, expires_at, acknowledged_at,
        started_at, completed_at, run_id, rejection_reason,
@@ -1786,6 +1809,23 @@ func (q *Queries) PromotePendingHistoryGeneration(ctx context.Context, arg Promo
 	return result.RowsAffected()
 }
 
+const recordHistoryRetentionCleanup = `-- name: RecordHistoryRetentionCleanup :exec
+UPDATE history_retention_settings
+SET last_cleanup_at = ?, last_cleanup_deleted_items = ?, last_cleanup_error = ?
+WHERE id = 1
+`
+
+type RecordHistoryRetentionCleanupParams struct {
+	LastCleanupAt           *int64
+	LastCleanupDeletedItems int64
+	LastCleanupError        *string
+}
+
+func (q *Queries) RecordHistoryRetentionCleanup(ctx context.Context, arg RecordHistoryRetentionCleanupParams) error {
+	_, err := q.db.ExecContext(ctx, recordHistoryRetentionCleanup, arg.LastCleanupAt, arg.LastCleanupDeletedItems, arg.LastCleanupError)
+	return err
+}
+
 const recordNodeNetworkInventoryError = `-- name: RecordNodeNetworkInventoryError :exec
 INSERT INTO node_network_inventories (
     node_id, payload, captured_at, received_at, last_error
@@ -2035,6 +2075,32 @@ type UpdateAdministratorUsernameParams struct {
 func (q *Queries) UpdateAdministratorUsername(ctx context.Context, arg UpdateAdministratorUsernameParams) error {
 	_, err := q.db.ExecContext(ctx, updateAdministratorUsername, arg.Username, arg.UsesDefaultCredentials, arg.CredentialsUpdatedAt)
 	return err
+}
+
+const updateHistoryRetentionSettings = `-- name: UpdateHistoryRetentionSettings :execrows
+UPDATE history_retention_settings
+SET mode = ?, max_age_days = ?, max_logical_bytes = ?, updated_at = ?
+WHERE id = 1
+`
+
+type UpdateHistoryRetentionSettingsParams struct {
+	Mode            string
+	MaxAgeDays      *int64
+	MaxLogicalBytes *int64
+	UpdatedAt       int64
+}
+
+func (q *Queries) UpdateHistoryRetentionSettings(ctx context.Context, arg UpdateHistoryRetentionSettingsParams) (int64, error) {
+	result, err := q.db.ExecContext(ctx, updateHistoryRetentionSettings,
+		arg.Mode,
+		arg.MaxAgeDays,
+		arg.MaxLogicalBytes,
+		arg.UpdatedAt,
+	)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected()
 }
 
 const updateNetworkObservationSettings = `-- name: UpdateNetworkObservationSettings :exec

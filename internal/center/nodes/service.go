@@ -61,6 +61,7 @@ type Service struct {
 	deleteEgressHistory func(context.Context, string) error
 	sync                SyncConnections
 	historyMu           sync.Mutex
+	retentionMu         sync.Mutex
 }
 
 type Enrollment struct {
@@ -932,6 +933,9 @@ func (s *Service) deleteNodeHistory(ctx context.Context, nodeID string) error {
 	if err := queries.DeleteNodeProbeGaps(ctx, nodeID); err != nil {
 		return err
 	}
+	if err := queries.DeleteNodeProbeComparisonProgress(ctx, nodeID); err != nil {
+		return err
+	}
 	if err := queries.DeleteNodeAddressStates(ctx, nodeID); err != nil {
 		return err
 	}
@@ -960,6 +964,9 @@ func (s *Service) deleteNetworkEgressHistory(ctx context.Context, egressID strin
 		return err
 	}
 	if err := queries.DeleteEgressProbeGaps(ctx, egressID); err != nil {
+		return err
+	}
+	if err := queries.DeleteEgressProbeComparisonProgress(ctx, egressID); err != nil {
 		return err
 	}
 	if err := queries.DeleteEmptyProbeRuns(ctx); err != nil {

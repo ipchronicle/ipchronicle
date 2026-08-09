@@ -7,6 +7,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"net/http"
 	"time"
@@ -318,6 +319,7 @@ const (
 	RegistrationDisabled          ErrorCode = "registration_disabled"
 	RegistrationKeyInvalid        ErrorCode = "registration_key_invalid"
 	RegistrationKeyNotInitialized ErrorCode = "registration_key_not_initialized"
+	SnapshotEgressMismatch        ErrorCode = "snapshot_egress_mismatch"
 	SyncSessionUnavailable        ErrorCode = "sync_session_unavailable"
 	TotpAlreadyEnabled            ErrorCode = "totp_already_enabled"
 	TotpEnrollmentNotStarted      ErrorCode = "totp_enrollment_not_started"
@@ -407,6 +409,8 @@ func (e ErrorCode) Valid() bool {
 		return true
 	case RegistrationKeyNotInitialized:
 		return true
+	case SnapshotEgressMismatch:
+		return true
 	case SyncSessionUnavailable:
 		return true
 	case TotpAlreadyEnabled:
@@ -418,6 +422,48 @@ func (e ErrorCode) Valid() bool {
 	case TotpRequired:
 		return true
 	case Unauthenticated:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for HistoryRetentionMode.
+const (
+	Age        HistoryRetentionMode = "age"
+	Indefinite HistoryRetentionMode = "indefinite"
+	Size       HistoryRetentionMode = "size"
+)
+
+// Valid indicates whether the value is a known member of the HistoryRetentionMode enum.
+func (e HistoryRetentionMode) Valid() bool {
+	switch e {
+	case Age:
+		return true
+	case Indefinite:
+		return true
+	case Size:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for KnownProbeFieldStatus.
+const (
+	KnownProbeFieldStatusAvailable    KnownProbeFieldStatus = "available"
+	KnownProbeFieldStatusIncompatible KnownProbeFieldStatus = "incompatible"
+	KnownProbeFieldStatusMissing      KnownProbeFieldStatus = "missing"
+)
+
+// Valid indicates whether the value is a known member of the KnownProbeFieldStatus enum.
+func (e KnownProbeFieldStatus) Valid() bool {
+	switch e {
+	case KnownProbeFieldStatusAvailable:
+		return true
+	case KnownProbeFieldStatusIncompatible:
+		return true
+	case KnownProbeFieldStatusMissing:
 		return true
 	default:
 		return false
@@ -739,6 +785,96 @@ func (e ProbeFailureStage) Valid() bool {
 	}
 }
 
+// Defines values for ProbeFormatEventKind.
+const (
+	ProbeFormatEventKindChanged   ProbeFormatEventKind = "changed"
+	ProbeFormatEventKindMismatch  ProbeFormatEventKind = "mismatch"
+	ProbeFormatEventKindRecovered ProbeFormatEventKind = "recovered"
+)
+
+// Valid indicates whether the value is a known member of the ProbeFormatEventKind enum.
+func (e ProbeFormatEventKind) Valid() bool {
+	switch e {
+	case ProbeFormatEventKindChanged:
+		return true
+	case ProbeFormatEventKindMismatch:
+		return true
+	case ProbeFormatEventKindRecovered:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for ProbeFormatIssueKind.
+const (
+	ProbeFormatIssueKindIncompatible ProbeFormatIssueKind = "incompatible"
+	ProbeFormatIssueKindMissing      ProbeFormatIssueKind = "missing"
+	ProbeFormatIssueKindUnknown      ProbeFormatIssueKind = "unknown"
+)
+
+// Valid indicates whether the value is a known member of the ProbeFormatIssueKind enum.
+func (e ProbeFormatIssueKind) Valid() bool {
+	switch e {
+	case ProbeFormatIssueKindIncompatible:
+		return true
+	case ProbeFormatIssueKindMissing:
+		return true
+	case ProbeFormatIssueKindUnknown:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for ProbeFormatStatus.
+const (
+	ProbeFormatStatusCompatible ProbeFormatStatus = "compatible"
+	ProbeFormatStatusMismatch   ProbeFormatStatus = "mismatch"
+)
+
+// Valid indicates whether the value is a known member of the ProbeFormatStatus enum.
+func (e ProbeFormatStatus) Valid() bool {
+	switch e {
+	case ProbeFormatStatusCompatible:
+		return true
+	case ProbeFormatStatusMismatch:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for ProbeJSONType.
+const (
+	Array   ProbeJSONType = "array"
+	Boolean ProbeJSONType = "boolean"
+	Null    ProbeJSONType = "null"
+	Number  ProbeJSONType = "number"
+	Object  ProbeJSONType = "object"
+	String  ProbeJSONType = "string"
+)
+
+// Valid indicates whether the value is a known member of the ProbeJSONType enum.
+func (e ProbeJSONType) Valid() bool {
+	switch e {
+	case Array:
+		return true
+	case Boolean:
+		return true
+	case Null:
+		return true
+	case Number:
+		return true
+	case Object:
+		return true
+	case String:
+		return true
+	default:
+		return false
+	}
+}
+
 // Defines values for ProbeRunStatus.
 const (
 	ProbeRunStatusFailed    ProbeRunStatus = "failed"
@@ -915,6 +1051,14 @@ type AddressFailureReason string
 
 // AddressFamily defines model for AddressFamily.
 type AddressFamily string
+
+// AddressHistoryPage defines model for AddressHistoryPage.
+type AddressHistoryPage struct {
+	Events   []HistoryAddressEvent `json:"events"`
+	GapTotal int64                 `json:"gapTotal"`
+	Gaps     []HistoryAddressGap   `json:"gaps"`
+	Total    int64                 `json:"total"`
+}
 
 // AddressObservationStatus defines model for AddressObservationStatus.
 type AddressObservationStatus string
@@ -1217,6 +1361,17 @@ type AuthenticatedSession struct {
 	ExpiresAt time.Time `json:"expiresAt"`
 }
 
+// ComparedProbeField defines model for ComparedProbeField.
+type ComparedProbeField struct {
+	After         KnownProbeField `json:"after"`
+	Before        KnownProbeField `json:"before"`
+	Changed       bool            `json:"changed"`
+	ExpectedTypes []ProbeJSONType `json:"expectedTypes"`
+	Group         string          `json:"group"`
+	Id            string          `json:"id"`
+	Path          string          `json:"path"`
+}
+
 // CurrentPasswordRequest defines model for CurrentPasswordRequest.
 type CurrentPasswordRequest struct {
 	CurrentPassword string `json:"currentPassword"`
@@ -1252,11 +1407,87 @@ type ErrorResponse struct {
 	Parameters *map[string]string `json:"parameters,omitempty"`
 }
 
+// HistoryAddressEvent defines model for HistoryAddressEvent.
+type HistoryAddressEvent struct {
+	Event  AgentAddressEvent  `json:"event"`
+	NodeId openapi_types.UUID `json:"nodeId"`
+	Owner  HistoryOwner       `json:"owner"`
+}
+
+// HistoryAddressGap defines model for HistoryAddressGap.
+type HistoryAddressGap struct {
+	Gap    AgentAddressGap    `json:"gap"`
+	NodeId openapi_types.UUID `json:"nodeId"`
+	Owner  HistoryOwner       `json:"owner"`
+}
+
+// HistoryCleanupResult defines model for HistoryCleanupResult.
+type HistoryCleanupResult struct {
+	CompletedAt  time.Time    `json:"completedAt"`
+	DeletedItems int64        `json:"deletedItems"`
+	Usage        HistoryUsage `json:"usage"`
+}
+
+// HistoryOwner defines model for HistoryOwner.
+type HistoryOwner struct {
+	EgressName *string `json:"egressName,omitempty"`
+	NodeName   *string `json:"nodeName,omitempty"`
+}
+
+// HistoryRetentionMode defines model for HistoryRetentionMode.
+type HistoryRetentionMode string
+
+// HistoryRetentionSettings defines model for HistoryRetentionSettings.
+type HistoryRetentionSettings struct {
+	LastCleanupAt           *time.Time           `json:"lastCleanupAt,omitempty"`
+	LastCleanupDeletedItems int64                `json:"lastCleanupDeletedItems"`
+	LastCleanupError        *string              `json:"lastCleanupError,omitempty"`
+	MaxAgeDays              *int64               `json:"maxAgeDays,omitempty"`
+	MaxLogicalBytes         *int64               `json:"maxLogicalBytes,omitempty"`
+	Mode                    HistoryRetentionMode `json:"mode"`
+	UpdatedAt               time.Time            `json:"updatedAt"`
+}
+
+// HistoryRetentionUpdate defines model for HistoryRetentionUpdate.
+type HistoryRetentionUpdate struct {
+	MaxAgeDays      *int64               `json:"maxAgeDays,omitempty"`
+	MaxLogicalBytes *int64               `json:"maxLogicalBytes,omitempty"`
+	Mode            HistoryRetentionMode `json:"mode"`
+}
+
 // HistoryState defines model for HistoryState.
 type HistoryState struct {
-	Generation string     `json:"generation"`
-	ResetAt    *time.Time `json:"resetAt,omitempty"`
+	Generation string                   `json:"generation"`
+	ResetAt    *time.Time               `json:"resetAt,omitempty"`
+	Retention  HistoryRetentionSettings `json:"retention"`
+	Usage      HistoryUsage             `json:"usage"`
 }
+
+// HistoryUsage defines model for HistoryUsage.
+type HistoryUsage struct {
+	DatabaseBytes         int64 `json:"databaseBytes"`
+	LogicalBytes          int64 `json:"logicalBytes"`
+	OverBudget            bool  `json:"overBudget"`
+	OverageBytes          int64 `json:"overageBytes"`
+	ProtectedLogicalBytes int64 `json:"protectedLogicalBytes"`
+	RecordCount           int64 `json:"recordCount"`
+	SharedMemoryBytes     int64 `json:"sharedMemoryBytes"`
+	WalBytes              int64 `json:"walBytes"`
+}
+
+// KnownProbeField defines model for KnownProbeField.
+type KnownProbeField struct {
+	ActualType    *ProbeJSONType        `json:"actualType,omitempty"`
+	ExpectedTypes []ProbeJSONType       `json:"expectedTypes"`
+	Group         string                `json:"group"`
+	Id            string                `json:"id"`
+	Path          string                `json:"path"`
+	Status        KnownProbeFieldStatus `json:"status"`
+	Value         *string               `json:"value,omitempty"`
+}
+
+// KnownProbeFieldStatus defines model for KnownProbeFieldStatus.
+type KnownProbeFieldStatus string
 
 // LocaleUpdateRequest defines model for LocaleUpdateRequest.
 type LocaleUpdateRequest struct {
@@ -1534,6 +1765,76 @@ type ProbeExecutionStatus string
 // ProbeFailureStage defines model for ProbeFailureStage.
 type ProbeFailureStage string
 
+// ProbeFieldChange defines model for ProbeFieldChange.
+type ProbeFieldChange struct {
+	After     string        `json:"after"`
+	Before    string        `json:"before"`
+	FieldId   string        `json:"fieldId"`
+	Group     string        `json:"group"`
+	Path      string        `json:"path"`
+	ValueType ProbeJSONType `json:"valueType"`
+}
+
+// ProbeFormatEvent defines model for ProbeFormatEvent.
+type ProbeFormatEvent struct {
+	EgressId    openapi_types.UUID   `json:"egressId"`
+	ExecutionId openapi_types.UUID   `json:"executionId"`
+	Id          openapi_types.UUID   `json:"id"`
+	Issues      []ProbeFormatIssue   `json:"issues"`
+	Kind        ProbeFormatEventKind `json:"kind"`
+	NodeId      openapi_types.UUID   `json:"nodeId"`
+	ObservedAt  time.Time            `json:"observedAt"`
+	Owner       HistoryOwner         `json:"owner"`
+	RecordedAt  time.Time            `json:"recordedAt"`
+	Sequence    int64                `json:"sequence"`
+	SnapshotId  openapi_types.UUID   `json:"snapshotId"`
+}
+
+// ProbeFormatEventKind defines model for ProbeFormatEventKind.
+type ProbeFormatEventKind string
+
+// ProbeFormatEventPage defines model for ProbeFormatEventPage.
+type ProbeFormatEventPage struct {
+	Items []ProbeFormatEvent `json:"items"`
+	Total int64              `json:"total"`
+}
+
+// ProbeFormatIssue defines model for ProbeFormatIssue.
+type ProbeFormatIssue struct {
+	ActualType    *ProbeJSONType       `json:"actualType,omitempty"`
+	ExpectedTypes []ProbeJSONType      `json:"expectedTypes"`
+	Kind          ProbeFormatIssueKind `json:"kind"`
+	Path          string               `json:"path"`
+}
+
+// ProbeFormatIssueKind defines model for ProbeFormatIssueKind.
+type ProbeFormatIssueKind string
+
+// ProbeFormatStatus defines model for ProbeFormatStatus.
+type ProbeFormatStatus string
+
+// ProbeHistoryGap defines model for ProbeHistoryGap.
+type ProbeHistoryGap struct {
+	DroppedCount    int64              `json:"droppedCount"`
+	EgressId        openapi_types.UUID `json:"egressId"`
+	FirstObservedAt time.Time          `json:"firstObservedAt"`
+	FirstSequence   int64              `json:"firstSequence"`
+	Id              openapi_types.UUID `json:"id"`
+	LastObservedAt  time.Time          `json:"lastObservedAt"`
+	LastSequence    int64              `json:"lastSequence"`
+	NodeId          openapi_types.UUID `json:"nodeId"`
+	Owner           HistoryOwner       `json:"owner"`
+}
+
+// ProbeHistoryGapPage defines model for ProbeHistoryGapPage.
+type ProbeHistoryGapPage struct {
+	Items []ProbeHistoryGap `json:"items"`
+	Total int64             `json:"total"`
+}
+
+// ProbeJSONType defines model for ProbeJSONType.
+type ProbeJSONType string
+
 // ProbeRun defines model for ProbeRun.
 type ProbeRun struct {
 	CompletedAt           *time.Time          `json:"completedAt,omitempty"`
@@ -1576,12 +1877,56 @@ type ProbeSchedule struct {
 
 // ProbeSnapshot defines model for ProbeSnapshot.
 type ProbeSnapshot struct {
-	EgressId    openapi_types.UUID `json:"egressId"`
-	ExecutionId openapi_types.UUID `json:"executionId"`
-	Id          openapi_types.UUID `json:"id"`
-	ObservedAt  time.Time          `json:"observedAt"`
-	RawResult   []byte             `json:"rawResult"`
-	Sequence    int64              `json:"sequence"`
+	Baseline           *bool               `json:"baseline,omitempty"`
+	Changes            []ProbeFieldChange  `json:"changes"`
+	EgressId           openapi_types.UUID  `json:"egressId"`
+	ExecutionId        openapi_types.UUID  `json:"executionId"`
+	Fields             []KnownProbeField   `json:"fields"`
+	FormatIssues       []ProbeFormatIssue  `json:"formatIssues"`
+	Id                 openapi_types.UUID  `json:"id"`
+	ObservedAt         time.Time           `json:"observedAt"`
+	PreviousSnapshotId *openapi_types.UUID `json:"previousSnapshotId,omitempty"`
+	RawResult          []byte              `json:"rawResult"`
+	Sequence           int64               `json:"sequence"`
+	Starred            bool                `json:"starred"`
+}
+
+// ProbeSnapshotComparison defines model for ProbeSnapshotComparison.
+type ProbeSnapshotComparison struct {
+	AfterId  openapi_types.UUID   `json:"afterId"`
+	BeforeId openapi_types.UUID   `json:"beforeId"`
+	EgressId openapi_types.UUID   `json:"egressId"`
+	Fields   []ComparedProbeField `json:"fields"`
+}
+
+// ProbeSnapshotHistoryPage defines model for ProbeSnapshotHistoryPage.
+type ProbeSnapshotHistoryPage struct {
+	Items []ProbeSnapshotSummary `json:"items"`
+	Total int64                  `json:"total"`
+}
+
+// ProbeSnapshotSummary defines model for ProbeSnapshotSummary.
+type ProbeSnapshotSummary struct {
+	Baseline           bool                `json:"baseline"`
+	ChangeCount        int64               `json:"changeCount"`
+	Current            bool                `json:"current"`
+	EgressId           openapi_types.UUID  `json:"egressId"`
+	EncodedSize        int64               `json:"encodedSize"`
+	ExecutionId        openapi_types.UUID  `json:"executionId"`
+	FormatIssueCount   int64               `json:"formatIssueCount"`
+	FormatStatus       ProbeFormatStatus   `json:"formatStatus"`
+	Id                 openapi_types.UUID  `json:"id"`
+	NodeId             openapi_types.UUID  `json:"nodeId"`
+	ObservedAt         time.Time           `json:"observedAt"`
+	Owner              HistoryOwner        `json:"owner"`
+	PreviousSnapshotId *openapi_types.UUID `json:"previousSnapshotId,omitempty"`
+	Processed          bool                `json:"processed"`
+	ReceivedAt         time.Time           `json:"receivedAt"`
+	RunId              openapi_types.UUID  `json:"runId"`
+	RunStatus          ProbeRunStatus      `json:"runStatus"`
+	Sequence           int64               `json:"sequence"`
+	Starred            bool                `json:"starred"`
+	Trigger            ProbeTrigger        `json:"trigger"`
 }
 
 // ProbeTask defines model for ProbeTask.
@@ -1646,6 +1991,45 @@ type CSRFToken = string
 
 // EgressId defines model for EgressId.
 type EgressId = openapi_types.UUID
+
+// HistoryAddressEventKind defines model for HistoryAddressEventKind.
+type HistoryAddressEventKind = AddressEventKind
+
+// HistoryAddressFamily defines model for HistoryAddressFamily.
+type HistoryAddressFamily = AddressFamily
+
+// HistoryEgressFilter defines model for HistoryEgressFilter.
+type HistoryEgressFilter = openapi_types.UUID
+
+// HistoryFrom defines model for HistoryFrom.
+type HistoryFrom = time.Time
+
+// HistoryGapPage defines model for HistoryGapPage.
+type HistoryGapPage = int64
+
+// HistoryNodeFilter defines model for HistoryNodeFilter.
+type HistoryNodeFilter = openapi_types.UUID
+
+// HistoryPage defines model for HistoryPage.
+type HistoryPage = int64
+
+// HistoryPageSize defines model for HistoryPageSize.
+type HistoryPageSize = int64
+
+// HistoryProbeChanged defines model for HistoryProbeChanged.
+type HistoryProbeChanged = bool
+
+// HistoryProbeFormatStatus defines model for HistoryProbeFormatStatus.
+type HistoryProbeFormatStatus = ProbeFormatStatus
+
+// HistoryProbeRunStatus defines model for HistoryProbeRunStatus.
+type HistoryProbeRunStatus = ProbeRunStatus
+
+// HistoryProbeTrigger defines model for HistoryProbeTrigger.
+type HistoryProbeTrigger = ProbeTrigger
+
+// HistoryTo defines model for HistoryTo.
+type HistoryTo = time.Time
 
 // NodeId defines model for NodeId.
 type NodeId = openapi_types.UUID
@@ -1730,6 +2114,69 @@ type ResetHistoryParams struct {
 	XCSRFToken *CSRFToken `json:"X-CSRF-Token,omitempty"`
 }
 
+// ListHistoryAddressEventsParams defines parameters for ListHistoryAddressEvents.
+type ListHistoryAddressEventsParams struct {
+	NodeId    *HistoryNodeFilter       `form:"nodeId,omitempty" json:"nodeId,omitempty"`
+	EgressId  *HistoryEgressFilter     `form:"egressId,omitempty" json:"egressId,omitempty"`
+	From      *HistoryFrom             `form:"from,omitempty" json:"from,omitempty"`
+	To        *HistoryTo               `form:"to,omitempty" json:"to,omitempty"`
+	EventKind *HistoryAddressEventKind `form:"eventKind,omitempty" json:"eventKind,omitempty"`
+	Family    *HistoryAddressFamily    `form:"family,omitempty" json:"family,omitempty"`
+	Page      *HistoryPage             `form:"page,omitempty" json:"page,omitempty"`
+	GapPage   *HistoryGapPage          `form:"gapPage,omitempty" json:"gapPage,omitempty"`
+	PageSize  *HistoryPageSize         `form:"pageSize,omitempty" json:"pageSize,omitempty"`
+}
+
+// CleanupHistoryParams defines parameters for CleanupHistory.
+type CleanupHistoryParams struct {
+	XCSRFToken *CSRFToken `json:"X-CSRF-Token,omitempty"`
+}
+
+// CompareProbeSnapshotsParams defines parameters for CompareProbeSnapshots.
+type CompareProbeSnapshotsParams struct {
+	BeforeSnapshotId openapi_types.UUID `form:"beforeSnapshotId" json:"beforeSnapshotId"`
+	AfterSnapshotId  openapi_types.UUID `form:"afterSnapshotId" json:"afterSnapshotId"`
+}
+
+// ListHistoryFormatEventsParams defines parameters for ListHistoryFormatEvents.
+type ListHistoryFormatEventsParams struct {
+	NodeId   *HistoryNodeFilter   `form:"nodeId,omitempty" json:"nodeId,omitempty"`
+	EgressId *HistoryEgressFilter `form:"egressId,omitempty" json:"egressId,omitempty"`
+	From     *HistoryFrom         `form:"from,omitempty" json:"from,omitempty"`
+	To       *HistoryTo           `form:"to,omitempty" json:"to,omitempty"`
+	Page     *HistoryPage         `form:"page,omitempty" json:"page,omitempty"`
+	PageSize *HistoryPageSize     `form:"pageSize,omitempty" json:"pageSize,omitempty"`
+}
+
+// ListHistoryProbeGapsParams defines parameters for ListHistoryProbeGaps.
+type ListHistoryProbeGapsParams struct {
+	NodeId   *HistoryNodeFilter   `form:"nodeId,omitempty" json:"nodeId,omitempty"`
+	EgressId *HistoryEgressFilter `form:"egressId,omitempty" json:"egressId,omitempty"`
+	From     *HistoryFrom         `form:"from,omitempty" json:"from,omitempty"`
+	To       *HistoryTo           `form:"to,omitempty" json:"to,omitempty"`
+	Page     *HistoryPage         `form:"page,omitempty" json:"page,omitempty"`
+	PageSize *HistoryPageSize     `form:"pageSize,omitempty" json:"pageSize,omitempty"`
+}
+
+// ListHistoryProbeSnapshotsParams defines parameters for ListHistoryProbeSnapshots.
+type ListHistoryProbeSnapshotsParams struct {
+	NodeId       *HistoryNodeFilter        `form:"nodeId,omitempty" json:"nodeId,omitempty"`
+	EgressId     *HistoryEgressFilter      `form:"egressId,omitempty" json:"egressId,omitempty"`
+	From         *HistoryFrom              `form:"from,omitempty" json:"from,omitempty"`
+	To           *HistoryTo                `form:"to,omitempty" json:"to,omitempty"`
+	RunStatus    *HistoryProbeRunStatus    `form:"runStatus,omitempty" json:"runStatus,omitempty"`
+	Trigger      *HistoryProbeTrigger      `form:"trigger,omitempty" json:"trigger,omitempty"`
+	Changed      *HistoryProbeChanged      `form:"changed,omitempty" json:"changed,omitempty"`
+	FormatStatus *HistoryProbeFormatStatus `form:"formatStatus,omitempty" json:"formatStatus,omitempty"`
+	Page         *HistoryPage              `form:"page,omitempty" json:"page,omitempty"`
+	PageSize     *HistoryPageSize          `form:"pageSize,omitempty" json:"pageSize,omitempty"`
+}
+
+// UpdateHistoryRetentionParams defines parameters for UpdateHistoryRetention.
+type UpdateHistoryRetentionParams struct {
+	XCSRFToken *CSRFToken `json:"X-CSRF-Token,omitempty"`
+}
+
 // UpdateNetworkObservationSettingsParams defines parameters for UpdateNetworkObservationSettings.
 type UpdateNetworkObservationSettingsParams struct {
 	XCSRFToken *CSRFToken `json:"X-CSRF-Token,omitempty"`
@@ -1800,6 +2247,16 @@ type StartNodeSyncSessionParams struct {
 	XCSRFToken *CSRFToken `json:"X-CSRF-Token,omitempty"`
 }
 
+// UnstarProbeSnapshotParams defines parameters for UnstarProbeSnapshot.
+type UnstarProbeSnapshotParams struct {
+	XCSRFToken *CSRFToken `json:"X-CSRF-Token,omitempty"`
+}
+
+// StarProbeSnapshotParams defines parameters for StarProbeSnapshot.
+type StarProbeSnapshotParams struct {
+	XCSRFToken *CSRFToken `json:"X-CSRF-Token,omitempty"`
+}
+
 // UpdateAccountJSONRequestBody defines body for UpdateAccount for application/json ContentType.
 type UpdateAccountJSONRequestBody = AccountUpdateRequest
 
@@ -1829,6 +2286,9 @@ type UploadProbeArtifactJSONRequestBody = AgentProbeArtifact
 
 // LoginJSONRequestBody defines body for Login for application/json ContentType.
 type LoginJSONRequestBody = LoginRequest
+
+// UpdateHistoryRetentionJSONRequestBody defines body for UpdateHistoryRetention for application/json ContentType.
+type UpdateHistoryRetentionJSONRequestBody = HistoryRetentionUpdate
 
 // UpdateNetworkObservationSettingsJSONRequestBody defines body for UpdateNetworkObservationSettings for application/json ContentType.
 type UpdateNetworkObservationSettingsJSONRequestBody = NetworkObservationSettingsUpdate
@@ -1910,6 +2370,27 @@ type ServerInterface interface {
 	// GetHistoryState Read the current history generation and reset state
 	// (GET /api/v1/history)
 	GetHistoryState(w http.ResponseWriter, r *http.Request)
+	// ListHistoryAddressEvents List retained confirmed address events and reported gaps
+	// (GET /api/v1/history/address-events)
+	ListHistoryAddressEvents(w http.ResponseWriter, r *http.Request, params ListHistoryAddressEventsParams)
+	// CleanupHistory Apply the saved history retention policy now
+	// (POST /api/v1/history/cleanup)
+	CleanupHistory(w http.ResponseWriter, r *http.Request, params CleanupHistoryParams)
+	// CompareProbeSnapshots Compare two retained snapshots from the same network egress
+	// (GET /api/v1/history/comparison)
+	CompareProbeSnapshots(w http.ResponseWriter, r *http.Request, params CompareProbeSnapshotsParams)
+	// ListHistoryFormatEvents List upstream complete-report format events
+	// (GET /api/v1/history/format-events)
+	ListHistoryFormatEvents(w http.ResponseWriter, r *http.Request, params ListHistoryFormatEventsParams)
+	// ListHistoryProbeGaps List explicit complete-probe history gaps
+	// (GET /api/v1/history/probe-gaps)
+	ListHistoryProbeGaps(w http.ResponseWriter, r *http.Request, params ListHistoryProbeGapsParams)
+	// ListHistoryProbeSnapshots List retained complete-probe snapshots across nodes
+	// (GET /api/v1/history/probe-snapshots)
+	ListHistoryProbeSnapshots(w http.ResponseWriter, r *http.Request, params ListHistoryProbeSnapshotsParams)
+	// UpdateHistoryRetention Replace the global history retention policy and apply it
+	// (PUT /api/v1/history/retention)
+	UpdateHistoryRetention(w http.ResponseWriter, r *http.Request, params UpdateHistoryRetentionParams)
 	// GetNetworkObservationSettings Read global lightweight address discovery services
 	// (GET /api/v1/network-observation-settings)
 	GetNetworkObservationSettings(w http.ResponseWriter, r *http.Request)
@@ -1973,6 +2454,12 @@ type ServerInterface interface {
 	// GetProbeSnapshot Read one retained complete-probe source snapshot
 	// (GET /api/v1/probe-snapshots/{snapshotId})
 	GetProbeSnapshot(w http.ResponseWriter, r *http.Request, snapshotId SnapshotId)
+	// UnstarProbeSnapshot Remove automatic retention protection from a probe snapshot
+	// (DELETE /api/v1/probe-snapshots/{snapshotId}/star)
+	UnstarProbeSnapshot(w http.ResponseWriter, r *http.Request, snapshotId SnapshotId, params UnstarProbeSnapshotParams)
+	// StarProbeSnapshot Protect a probe snapshot from automatic retention cleanup
+	// (PUT /api/v1/probe-snapshots/{snapshotId}/star)
+	StarProbeSnapshot(w http.ResponseWriter, r *http.Request, snapshotId SnapshotId, params StarProbeSnapshotParams)
 	// GetSystemStatus Read center status
 	// (GET /api/v1/system/status)
 	GetSystemStatus(w http.ResponseWriter, r *http.Request)
@@ -2093,6 +2580,48 @@ func (_ Unimplemented) ResetHistory(w http.ResponseWriter, r *http.Request, para
 // GetHistoryState Read the current history generation and reset state
 // (GET /api/v1/history)
 func (_ Unimplemented) GetHistoryState(w http.ResponseWriter, r *http.Request) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
+// ListHistoryAddressEvents List retained confirmed address events and reported gaps
+// (GET /api/v1/history/address-events)
+func (_ Unimplemented) ListHistoryAddressEvents(w http.ResponseWriter, r *http.Request, params ListHistoryAddressEventsParams) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
+// CleanupHistory Apply the saved history retention policy now
+// (POST /api/v1/history/cleanup)
+func (_ Unimplemented) CleanupHistory(w http.ResponseWriter, r *http.Request, params CleanupHistoryParams) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
+// CompareProbeSnapshots Compare two retained snapshots from the same network egress
+// (GET /api/v1/history/comparison)
+func (_ Unimplemented) CompareProbeSnapshots(w http.ResponseWriter, r *http.Request, params CompareProbeSnapshotsParams) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
+// ListHistoryFormatEvents List upstream complete-report format events
+// (GET /api/v1/history/format-events)
+func (_ Unimplemented) ListHistoryFormatEvents(w http.ResponseWriter, r *http.Request, params ListHistoryFormatEventsParams) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
+// ListHistoryProbeGaps List explicit complete-probe history gaps
+// (GET /api/v1/history/probe-gaps)
+func (_ Unimplemented) ListHistoryProbeGaps(w http.ResponseWriter, r *http.Request, params ListHistoryProbeGapsParams) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
+// ListHistoryProbeSnapshots List retained complete-probe snapshots across nodes
+// (GET /api/v1/history/probe-snapshots)
+func (_ Unimplemented) ListHistoryProbeSnapshots(w http.ResponseWriter, r *http.Request, params ListHistoryProbeSnapshotsParams) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
+// UpdateHistoryRetention Replace the global history retention policy and apply it
+// (PUT /api/v1/history/retention)
+func (_ Unimplemented) UpdateHistoryRetention(w http.ResponseWriter, r *http.Request, params UpdateHistoryRetentionParams) {
 	w.WriteHeader(http.StatusNotImplemented)
 }
 
@@ -2219,6 +2748,18 @@ func (_ Unimplemented) GetProbeRun(w http.ResponseWriter, r *http.Request, runId
 // GetProbeSnapshot Read one retained complete-probe source snapshot
 // (GET /api/v1/probe-snapshots/{snapshotId})
 func (_ Unimplemented) GetProbeSnapshot(w http.ResponseWriter, r *http.Request, snapshotId SnapshotId) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
+// UnstarProbeSnapshot Remove automatic retention protection from a probe snapshot
+// (DELETE /api/v1/probe-snapshots/{snapshotId}/star)
+func (_ Unimplemented) UnstarProbeSnapshot(w http.ResponseWriter, r *http.Request, snapshotId SnapshotId, params UnstarProbeSnapshotParams) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
+// StarProbeSnapshot Protect a probe snapshot from automatic retention cleanup
+// (PUT /api/v1/probe-snapshots/{snapshotId}/star)
+func (_ Unimplemented) StarProbeSnapshot(w http.ResponseWriter, r *http.Request, snapshotId SnapshotId, params StarProbeSnapshotParams) {
 	w.WriteHeader(http.StatusNotImplemented)
 }
 
@@ -2764,6 +3305,617 @@ func (siw *ServerInterfaceWrapper) GetHistoryState(w http.ResponseWriter, r *htt
 
 	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		siw.Handler.GetHistoryState(w, r)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// ListHistoryAddressEvents operation middleware
+func (siw *ServerInterfaceWrapper) ListHistoryAddressEvents(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	// Parameter object where we will unmarshal all parameters from the context
+	var params ListHistoryAddressEventsParams
+
+	// ------------- Optional query parameter "nodeId" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "nodeId", r.URL.Query(), &params.NodeId, runtime.BindQueryParameterOptions{Type: "string", Format: "uuid"})
+	if err != nil {
+		var requiredError *runtime.RequiredParameterError
+		if errors.As(err, &requiredError) {
+			siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "nodeId"})
+		} else {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "nodeId", Err: err})
+		}
+		return
+	}
+
+	// ------------- Optional query parameter "egressId" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "egressId", r.URL.Query(), &params.EgressId, runtime.BindQueryParameterOptions{Type: "string", Format: "uuid"})
+	if err != nil {
+		var requiredError *runtime.RequiredParameterError
+		if errors.As(err, &requiredError) {
+			siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "egressId"})
+		} else {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "egressId", Err: err})
+		}
+		return
+	}
+
+	// ------------- Optional query parameter "from" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "from", r.URL.Query(), &params.From, runtime.BindQueryParameterOptions{Type: "string", Format: "date-time"})
+	if err != nil {
+		var requiredError *runtime.RequiredParameterError
+		if errors.As(err, &requiredError) {
+			siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "from"})
+		} else {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "from", Err: err})
+		}
+		return
+	}
+
+	// ------------- Optional query parameter "to" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "to", r.URL.Query(), &params.To, runtime.BindQueryParameterOptions{Type: "string", Format: "date-time"})
+	if err != nil {
+		var requiredError *runtime.RequiredParameterError
+		if errors.As(err, &requiredError) {
+			siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "to"})
+		} else {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "to", Err: err})
+		}
+		return
+	}
+
+	// ------------- Optional query parameter "eventKind" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "eventKind", r.URL.Query(), &params.EventKind, runtime.BindQueryParameterOptions{Type: "string", Format: ""})
+	if err != nil {
+		var requiredError *runtime.RequiredParameterError
+		if errors.As(err, &requiredError) {
+			siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "eventKind"})
+		} else {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "eventKind", Err: err})
+		}
+		return
+	}
+
+	// ------------- Optional query parameter "family" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "family", r.URL.Query(), &params.Family, runtime.BindQueryParameterOptions{Type: "string", Format: ""})
+	if err != nil {
+		var requiredError *runtime.RequiredParameterError
+		if errors.As(err, &requiredError) {
+			siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "family"})
+		} else {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "family", Err: err})
+		}
+		return
+	}
+
+	// ------------- Optional query parameter "page" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "page", r.URL.Query(), &params.Page, runtime.BindQueryParameterOptions{Type: "integer", Format: "int64"})
+	if err != nil {
+		var requiredError *runtime.RequiredParameterError
+		if errors.As(err, &requiredError) {
+			siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "page"})
+		} else {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "page", Err: err})
+		}
+		return
+	}
+
+	// ------------- Optional query parameter "gapPage" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "gapPage", r.URL.Query(), &params.GapPage, runtime.BindQueryParameterOptions{Type: "integer", Format: "int64"})
+	if err != nil {
+		var requiredError *runtime.RequiredParameterError
+		if errors.As(err, &requiredError) {
+			siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "gapPage"})
+		} else {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "gapPage", Err: err})
+		}
+		return
+	}
+
+	// ------------- Optional query parameter "pageSize" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "pageSize", r.URL.Query(), &params.PageSize, runtime.BindQueryParameterOptions{Type: "integer", Format: "int64"})
+	if err != nil {
+		var requiredError *runtime.RequiredParameterError
+		if errors.As(err, &requiredError) {
+			siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "pageSize"})
+		} else {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "pageSize", Err: err})
+		}
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.ListHistoryAddressEvents(w, r, params)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// CleanupHistory operation middleware
+func (siw *ServerInterfaceWrapper) CleanupHistory(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	// Parameter object where we will unmarshal all parameters from the context
+	var params CleanupHistoryParams
+
+	headers := r.Header
+
+	// ------------- Optional header parameter "X-CSRF-Token" -------------
+	if valueList, found := headers[http.CanonicalHeaderKey("X-CSRF-Token")]; found {
+		var XCSRFToken CSRFToken
+		n := len(valueList)
+		if n != 1 {
+			siw.ErrorHandlerFunc(w, r, &TooManyValuesForParamError{ParamName: "X-CSRF-Token", Count: n})
+			return
+		}
+
+		err = runtime.BindStyledParameterWithOptions("simple", "X-CSRF-Token", valueList[0], &XCSRFToken, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: false, Type: "string", Format: ""})
+		if err != nil {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "X-CSRF-Token", Err: err})
+			return
+		}
+
+		params.XCSRFToken = &XCSRFToken
+
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.CleanupHistory(w, r, params)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// CompareProbeSnapshots operation middleware
+func (siw *ServerInterfaceWrapper) CompareProbeSnapshots(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	// Parameter object where we will unmarshal all parameters from the context
+	var params CompareProbeSnapshotsParams
+
+	// ------------- Required query parameter "beforeSnapshotId" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, true, "beforeSnapshotId", r.URL.Query(), &params.BeforeSnapshotId, runtime.BindQueryParameterOptions{Type: "string", Format: "uuid"})
+	if err != nil {
+		var requiredError *runtime.RequiredParameterError
+		if errors.As(err, &requiredError) {
+			siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "beforeSnapshotId"})
+		} else {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "beforeSnapshotId", Err: err})
+		}
+		return
+	}
+
+	// ------------- Required query parameter "afterSnapshotId" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, true, "afterSnapshotId", r.URL.Query(), &params.AfterSnapshotId, runtime.BindQueryParameterOptions{Type: "string", Format: "uuid"})
+	if err != nil {
+		var requiredError *runtime.RequiredParameterError
+		if errors.As(err, &requiredError) {
+			siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "afterSnapshotId"})
+		} else {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "afterSnapshotId", Err: err})
+		}
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.CompareProbeSnapshots(w, r, params)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// ListHistoryFormatEvents operation middleware
+func (siw *ServerInterfaceWrapper) ListHistoryFormatEvents(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	// Parameter object where we will unmarshal all parameters from the context
+	var params ListHistoryFormatEventsParams
+
+	// ------------- Optional query parameter "nodeId" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "nodeId", r.URL.Query(), &params.NodeId, runtime.BindQueryParameterOptions{Type: "string", Format: "uuid"})
+	if err != nil {
+		var requiredError *runtime.RequiredParameterError
+		if errors.As(err, &requiredError) {
+			siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "nodeId"})
+		} else {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "nodeId", Err: err})
+		}
+		return
+	}
+
+	// ------------- Optional query parameter "egressId" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "egressId", r.URL.Query(), &params.EgressId, runtime.BindQueryParameterOptions{Type: "string", Format: "uuid"})
+	if err != nil {
+		var requiredError *runtime.RequiredParameterError
+		if errors.As(err, &requiredError) {
+			siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "egressId"})
+		} else {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "egressId", Err: err})
+		}
+		return
+	}
+
+	// ------------- Optional query parameter "from" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "from", r.URL.Query(), &params.From, runtime.BindQueryParameterOptions{Type: "string", Format: "date-time"})
+	if err != nil {
+		var requiredError *runtime.RequiredParameterError
+		if errors.As(err, &requiredError) {
+			siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "from"})
+		} else {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "from", Err: err})
+		}
+		return
+	}
+
+	// ------------- Optional query parameter "to" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "to", r.URL.Query(), &params.To, runtime.BindQueryParameterOptions{Type: "string", Format: "date-time"})
+	if err != nil {
+		var requiredError *runtime.RequiredParameterError
+		if errors.As(err, &requiredError) {
+			siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "to"})
+		} else {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "to", Err: err})
+		}
+		return
+	}
+
+	// ------------- Optional query parameter "page" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "page", r.URL.Query(), &params.Page, runtime.BindQueryParameterOptions{Type: "integer", Format: "int64"})
+	if err != nil {
+		var requiredError *runtime.RequiredParameterError
+		if errors.As(err, &requiredError) {
+			siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "page"})
+		} else {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "page", Err: err})
+		}
+		return
+	}
+
+	// ------------- Optional query parameter "pageSize" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "pageSize", r.URL.Query(), &params.PageSize, runtime.BindQueryParameterOptions{Type: "integer", Format: "int64"})
+	if err != nil {
+		var requiredError *runtime.RequiredParameterError
+		if errors.As(err, &requiredError) {
+			siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "pageSize"})
+		} else {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "pageSize", Err: err})
+		}
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.ListHistoryFormatEvents(w, r, params)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// ListHistoryProbeGaps operation middleware
+func (siw *ServerInterfaceWrapper) ListHistoryProbeGaps(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	// Parameter object where we will unmarshal all parameters from the context
+	var params ListHistoryProbeGapsParams
+
+	// ------------- Optional query parameter "nodeId" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "nodeId", r.URL.Query(), &params.NodeId, runtime.BindQueryParameterOptions{Type: "string", Format: "uuid"})
+	if err != nil {
+		var requiredError *runtime.RequiredParameterError
+		if errors.As(err, &requiredError) {
+			siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "nodeId"})
+		} else {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "nodeId", Err: err})
+		}
+		return
+	}
+
+	// ------------- Optional query parameter "egressId" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "egressId", r.URL.Query(), &params.EgressId, runtime.BindQueryParameterOptions{Type: "string", Format: "uuid"})
+	if err != nil {
+		var requiredError *runtime.RequiredParameterError
+		if errors.As(err, &requiredError) {
+			siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "egressId"})
+		} else {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "egressId", Err: err})
+		}
+		return
+	}
+
+	// ------------- Optional query parameter "from" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "from", r.URL.Query(), &params.From, runtime.BindQueryParameterOptions{Type: "string", Format: "date-time"})
+	if err != nil {
+		var requiredError *runtime.RequiredParameterError
+		if errors.As(err, &requiredError) {
+			siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "from"})
+		} else {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "from", Err: err})
+		}
+		return
+	}
+
+	// ------------- Optional query parameter "to" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "to", r.URL.Query(), &params.To, runtime.BindQueryParameterOptions{Type: "string", Format: "date-time"})
+	if err != nil {
+		var requiredError *runtime.RequiredParameterError
+		if errors.As(err, &requiredError) {
+			siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "to"})
+		} else {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "to", Err: err})
+		}
+		return
+	}
+
+	// ------------- Optional query parameter "page" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "page", r.URL.Query(), &params.Page, runtime.BindQueryParameterOptions{Type: "integer", Format: "int64"})
+	if err != nil {
+		var requiredError *runtime.RequiredParameterError
+		if errors.As(err, &requiredError) {
+			siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "page"})
+		} else {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "page", Err: err})
+		}
+		return
+	}
+
+	// ------------- Optional query parameter "pageSize" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "pageSize", r.URL.Query(), &params.PageSize, runtime.BindQueryParameterOptions{Type: "integer", Format: "int64"})
+	if err != nil {
+		var requiredError *runtime.RequiredParameterError
+		if errors.As(err, &requiredError) {
+			siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "pageSize"})
+		} else {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "pageSize", Err: err})
+		}
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.ListHistoryProbeGaps(w, r, params)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// ListHistoryProbeSnapshots operation middleware
+func (siw *ServerInterfaceWrapper) ListHistoryProbeSnapshots(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	// Parameter object where we will unmarshal all parameters from the context
+	var params ListHistoryProbeSnapshotsParams
+
+	// ------------- Optional query parameter "nodeId" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "nodeId", r.URL.Query(), &params.NodeId, runtime.BindQueryParameterOptions{Type: "string", Format: "uuid"})
+	if err != nil {
+		var requiredError *runtime.RequiredParameterError
+		if errors.As(err, &requiredError) {
+			siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "nodeId"})
+		} else {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "nodeId", Err: err})
+		}
+		return
+	}
+
+	// ------------- Optional query parameter "egressId" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "egressId", r.URL.Query(), &params.EgressId, runtime.BindQueryParameterOptions{Type: "string", Format: "uuid"})
+	if err != nil {
+		var requiredError *runtime.RequiredParameterError
+		if errors.As(err, &requiredError) {
+			siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "egressId"})
+		} else {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "egressId", Err: err})
+		}
+		return
+	}
+
+	// ------------- Optional query parameter "from" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "from", r.URL.Query(), &params.From, runtime.BindQueryParameterOptions{Type: "string", Format: "date-time"})
+	if err != nil {
+		var requiredError *runtime.RequiredParameterError
+		if errors.As(err, &requiredError) {
+			siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "from"})
+		} else {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "from", Err: err})
+		}
+		return
+	}
+
+	// ------------- Optional query parameter "to" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "to", r.URL.Query(), &params.To, runtime.BindQueryParameterOptions{Type: "string", Format: "date-time"})
+	if err != nil {
+		var requiredError *runtime.RequiredParameterError
+		if errors.As(err, &requiredError) {
+			siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "to"})
+		} else {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "to", Err: err})
+		}
+		return
+	}
+
+	// ------------- Optional query parameter "runStatus" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "runStatus", r.URL.Query(), &params.RunStatus, runtime.BindQueryParameterOptions{Type: "string", Format: ""})
+	if err != nil {
+		var requiredError *runtime.RequiredParameterError
+		if errors.As(err, &requiredError) {
+			siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "runStatus"})
+		} else {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "runStatus", Err: err})
+		}
+		return
+	}
+
+	// ------------- Optional query parameter "trigger" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "trigger", r.URL.Query(), &params.Trigger, runtime.BindQueryParameterOptions{Type: "string", Format: ""})
+	if err != nil {
+		var requiredError *runtime.RequiredParameterError
+		if errors.As(err, &requiredError) {
+			siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "trigger"})
+		} else {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "trigger", Err: err})
+		}
+		return
+	}
+
+	// ------------- Optional query parameter "changed" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "changed", r.URL.Query(), &params.Changed, runtime.BindQueryParameterOptions{Type: "boolean", Format: ""})
+	if err != nil {
+		var requiredError *runtime.RequiredParameterError
+		if errors.As(err, &requiredError) {
+			siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "changed"})
+		} else {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "changed", Err: err})
+		}
+		return
+	}
+
+	// ------------- Optional query parameter "formatStatus" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "formatStatus", r.URL.Query(), &params.FormatStatus, runtime.BindQueryParameterOptions{Type: "string", Format: ""})
+	if err != nil {
+		var requiredError *runtime.RequiredParameterError
+		if errors.As(err, &requiredError) {
+			siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "formatStatus"})
+		} else {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "formatStatus", Err: err})
+		}
+		return
+	}
+
+	// ------------- Optional query parameter "page" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "page", r.URL.Query(), &params.Page, runtime.BindQueryParameterOptions{Type: "integer", Format: "int64"})
+	if err != nil {
+		var requiredError *runtime.RequiredParameterError
+		if errors.As(err, &requiredError) {
+			siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "page"})
+		} else {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "page", Err: err})
+		}
+		return
+	}
+
+	// ------------- Optional query parameter "pageSize" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "pageSize", r.URL.Query(), &params.PageSize, runtime.BindQueryParameterOptions{Type: "integer", Format: "int64"})
+	if err != nil {
+		var requiredError *runtime.RequiredParameterError
+		if errors.As(err, &requiredError) {
+			siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "pageSize"})
+		} else {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "pageSize", Err: err})
+		}
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.ListHistoryProbeSnapshots(w, r, params)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// UpdateHistoryRetention operation middleware
+func (siw *ServerInterfaceWrapper) UpdateHistoryRetention(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	// Parameter object where we will unmarshal all parameters from the context
+	var params UpdateHistoryRetentionParams
+
+	headers := r.Header
+
+	// ------------- Optional header parameter "X-CSRF-Token" -------------
+	if valueList, found := headers[http.CanonicalHeaderKey("X-CSRF-Token")]; found {
+		var XCSRFToken CSRFToken
+		n := len(valueList)
+		if n != 1 {
+			siw.ErrorHandlerFunc(w, r, &TooManyValuesForParamError{ParamName: "X-CSRF-Token", Count: n})
+			return
+		}
+
+		err = runtime.BindStyledParameterWithOptions("simple", "X-CSRF-Token", valueList[0], &XCSRFToken, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: false, Type: "string", Format: ""})
+		if err != nil {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "X-CSRF-Token", Err: err})
+			return
+		}
+
+		params.XCSRFToken = &XCSRFToken
+
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.UpdateHistoryRetention(w, r, params)
 	}))
 
 	for _, middleware := range siw.HandlerMiddlewares {
@@ -3619,6 +4771,106 @@ func (siw *ServerInterfaceWrapper) GetProbeSnapshot(w http.ResponseWriter, r *ht
 	handler.ServeHTTP(w, r)
 }
 
+// UnstarProbeSnapshot operation middleware
+func (siw *ServerInterfaceWrapper) UnstarProbeSnapshot(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "snapshotId" -------------
+	var snapshotId SnapshotId
+
+	err = runtime.BindStyledParameterWithOptions("simple", "snapshotId", chi.URLParam(r, "snapshotId"), &snapshotId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "uuid", ValueIsUnescaped: r.URL.RawPath == ""})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "snapshotId", Err: err})
+		return
+	}
+
+	// Parameter object where we will unmarshal all parameters from the context
+	var params UnstarProbeSnapshotParams
+
+	headers := r.Header
+
+	// ------------- Optional header parameter "X-CSRF-Token" -------------
+	if valueList, found := headers[http.CanonicalHeaderKey("X-CSRF-Token")]; found {
+		var XCSRFToken CSRFToken
+		n := len(valueList)
+		if n != 1 {
+			siw.ErrorHandlerFunc(w, r, &TooManyValuesForParamError{ParamName: "X-CSRF-Token", Count: n})
+			return
+		}
+
+		err = runtime.BindStyledParameterWithOptions("simple", "X-CSRF-Token", valueList[0], &XCSRFToken, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: false, Type: "string", Format: ""})
+		if err != nil {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "X-CSRF-Token", Err: err})
+			return
+		}
+
+		params.XCSRFToken = &XCSRFToken
+
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.UnstarProbeSnapshot(w, r, snapshotId, params)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// StarProbeSnapshot operation middleware
+func (siw *ServerInterfaceWrapper) StarProbeSnapshot(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "snapshotId" -------------
+	var snapshotId SnapshotId
+
+	err = runtime.BindStyledParameterWithOptions("simple", "snapshotId", chi.URLParam(r, "snapshotId"), &snapshotId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "uuid", ValueIsUnescaped: r.URL.RawPath == ""})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "snapshotId", Err: err})
+		return
+	}
+
+	// Parameter object where we will unmarshal all parameters from the context
+	var params StarProbeSnapshotParams
+
+	headers := r.Header
+
+	// ------------- Optional header parameter "X-CSRF-Token" -------------
+	if valueList, found := headers[http.CanonicalHeaderKey("X-CSRF-Token")]; found {
+		var XCSRFToken CSRFToken
+		n := len(valueList)
+		if n != 1 {
+			siw.ErrorHandlerFunc(w, r, &TooManyValuesForParamError{ParamName: "X-CSRF-Token", Count: n})
+			return
+		}
+
+		err = runtime.BindStyledParameterWithOptions("simple", "X-CSRF-Token", valueList[0], &XCSRFToken, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: false, Type: "string", Format: ""})
+		if err != nil {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "X-CSRF-Token", Err: err})
+			return
+		}
+
+		params.XCSRFToken = &XCSRFToken
+
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.StarProbeSnapshot(w, r, snapshotId, params)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
 // GetSystemStatus operation middleware
 func (siw *ServerInterfaceWrapper) GetSystemStatus(w http.ResponseWriter, r *http.Request) {
 
@@ -3813,10 +5065,37 @@ func HandlerWithOptions(si ServerInterface, options ChiServerOptions) http.Handl
 		r.Get(options.BaseURL+"/api/v1/probe-snapshots/{snapshotId}", wrapper.GetProbeSnapshot)
 	})
 	r.Group(func(r chi.Router) {
+		r.Delete(options.BaseURL+"/api/v1/probe-snapshots/{snapshotId}/star", wrapper.UnstarProbeSnapshot)
+	})
+	r.Group(func(r chi.Router) {
+		r.Put(options.BaseURL+"/api/v1/probe-snapshots/{snapshotId}/star", wrapper.StarProbeSnapshot)
+	})
+	r.Group(func(r chi.Router) {
 		r.Delete(options.BaseURL+"/api/v1/history", wrapper.ResetHistory)
 	})
 	r.Group(func(r chi.Router) {
 		r.Get(options.BaseURL+"/api/v1/history", wrapper.GetHistoryState)
+	})
+	r.Group(func(r chi.Router) {
+		r.Get(options.BaseURL+"/api/v1/history/probe-snapshots", wrapper.ListHistoryProbeSnapshots)
+	})
+	r.Group(func(r chi.Router) {
+		r.Get(options.BaseURL+"/api/v1/history/address-events", wrapper.ListHistoryAddressEvents)
+	})
+	r.Group(func(r chi.Router) {
+		r.Get(options.BaseURL+"/api/v1/history/probe-gaps", wrapper.ListHistoryProbeGaps)
+	})
+	r.Group(func(r chi.Router) {
+		r.Get(options.BaseURL+"/api/v1/history/format-events", wrapper.ListHistoryFormatEvents)
+	})
+	r.Group(func(r chi.Router) {
+		r.Get(options.BaseURL+"/api/v1/history/comparison", wrapper.CompareProbeSnapshots)
+	})
+	r.Group(func(r chi.Router) {
+		r.Put(options.BaseURL+"/api/v1/history/retention", wrapper.UpdateHistoryRetention)
+	})
+	r.Group(func(r chi.Router) {
+		r.Post(options.BaseURL+"/api/v1/history/cleanup", wrapper.CleanupHistory)
 	})
 	r.Group(func(r chi.Router) {
 		r.Get(options.BaseURL+"/api/v1/nodes/{nodeId}/network", wrapper.GetNodeNetwork)
@@ -5014,6 +6293,329 @@ func (response GetHistoryState401JSONResponse) VisitGetHistoryStateResponse(w ht
 	}
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(401)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type ListHistoryAddressEventsRequestObject struct {
+	Params ListHistoryAddressEventsParams
+}
+
+type ListHistoryAddressEventsResponseObject interface {
+	VisitListHistoryAddressEventsResponse(w http.ResponseWriter) error
+}
+
+type ListHistoryAddressEvents200JSONResponse AddressHistoryPage
+
+func (response ListHistoryAddressEvents200JSONResponse) VisitListHistoryAddressEventsResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type ListHistoryAddressEvents401JSONResponse struct{ UnauthorizedJSONResponse }
+
+func (response ListHistoryAddressEvents401JSONResponse) VisitListHistoryAddressEventsResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(401)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type CleanupHistoryRequestObject struct {
+	Params CleanupHistoryParams
+}
+
+type CleanupHistoryResponseObject interface {
+	VisitCleanupHistoryResponse(w http.ResponseWriter) error
+}
+
+type CleanupHistory200JSONResponse HistoryCleanupResult
+
+func (response CleanupHistory200JSONResponse) VisitCleanupHistoryResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type CleanupHistory401JSONResponse struct{ UnauthorizedJSONResponse }
+
+func (response CleanupHistory401JSONResponse) VisitCleanupHistoryResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(401)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type CleanupHistory403JSONResponse struct{ ForbiddenJSONResponse }
+
+func (response CleanupHistory403JSONResponse) VisitCleanupHistoryResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(403)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type CompareProbeSnapshotsRequestObject struct {
+	Params CompareProbeSnapshotsParams
+}
+
+type CompareProbeSnapshotsResponseObject interface {
+	VisitCompareProbeSnapshotsResponse(w http.ResponseWriter) error
+}
+
+type CompareProbeSnapshots200JSONResponse ProbeSnapshotComparison
+
+func (response CompareProbeSnapshots200JSONResponse) VisitCompareProbeSnapshotsResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type CompareProbeSnapshots401JSONResponse struct{ UnauthorizedJSONResponse }
+
+func (response CompareProbeSnapshots401JSONResponse) VisitCompareProbeSnapshotsResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(401)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type CompareProbeSnapshots404JSONResponse struct{ NotFoundJSONResponse }
+
+func (response CompareProbeSnapshots404JSONResponse) VisitCompareProbeSnapshotsResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(404)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type CompareProbeSnapshots409JSONResponse struct{ ConflictJSONResponse }
+
+func (response CompareProbeSnapshots409JSONResponse) VisitCompareProbeSnapshotsResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(409)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type ListHistoryFormatEventsRequestObject struct {
+	Params ListHistoryFormatEventsParams
+}
+
+type ListHistoryFormatEventsResponseObject interface {
+	VisitListHistoryFormatEventsResponse(w http.ResponseWriter) error
+}
+
+type ListHistoryFormatEvents200JSONResponse ProbeFormatEventPage
+
+func (response ListHistoryFormatEvents200JSONResponse) VisitListHistoryFormatEventsResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type ListHistoryFormatEvents401JSONResponse struct{ UnauthorizedJSONResponse }
+
+func (response ListHistoryFormatEvents401JSONResponse) VisitListHistoryFormatEventsResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(401)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type ListHistoryProbeGapsRequestObject struct {
+	Params ListHistoryProbeGapsParams
+}
+
+type ListHistoryProbeGapsResponseObject interface {
+	VisitListHistoryProbeGapsResponse(w http.ResponseWriter) error
+}
+
+type ListHistoryProbeGaps200JSONResponse ProbeHistoryGapPage
+
+func (response ListHistoryProbeGaps200JSONResponse) VisitListHistoryProbeGapsResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type ListHistoryProbeGaps401JSONResponse struct{ UnauthorizedJSONResponse }
+
+func (response ListHistoryProbeGaps401JSONResponse) VisitListHistoryProbeGapsResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(401)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type ListHistoryProbeSnapshotsRequestObject struct {
+	Params ListHistoryProbeSnapshotsParams
+}
+
+type ListHistoryProbeSnapshotsResponseObject interface {
+	VisitListHistoryProbeSnapshotsResponse(w http.ResponseWriter) error
+}
+
+type ListHistoryProbeSnapshots200JSONResponse ProbeSnapshotHistoryPage
+
+func (response ListHistoryProbeSnapshots200JSONResponse) VisitListHistoryProbeSnapshotsResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type ListHistoryProbeSnapshots401JSONResponse struct{ UnauthorizedJSONResponse }
+
+func (response ListHistoryProbeSnapshots401JSONResponse) VisitListHistoryProbeSnapshotsResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(401)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type UpdateHistoryRetentionRequestObject struct {
+	Params UpdateHistoryRetentionParams
+	Body   *UpdateHistoryRetentionJSONRequestBody
+}
+
+type UpdateHistoryRetentionResponseObject interface {
+	VisitUpdateHistoryRetentionResponse(w http.ResponseWriter) error
+}
+
+type UpdateHistoryRetention200JSONResponse HistoryState
+
+func (response UpdateHistoryRetention200JSONResponse) VisitUpdateHistoryRetentionResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type UpdateHistoryRetention400JSONResponse struct{ BadRequestJSONResponse }
+
+func (response UpdateHistoryRetention400JSONResponse) VisitUpdateHistoryRetentionResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(400)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type UpdateHistoryRetention401JSONResponse struct{ UnauthorizedJSONResponse }
+
+func (response UpdateHistoryRetention401JSONResponse) VisitUpdateHistoryRetentionResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(401)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type UpdateHistoryRetention403JSONResponse struct{ ForbiddenJSONResponse }
+
+func (response UpdateHistoryRetention403JSONResponse) VisitUpdateHistoryRetentionResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(403)
 	_, err := buf.WriteTo(w)
 	return err
 }
@@ -6458,6 +8060,136 @@ func (response GetProbeSnapshot404JSONResponse) VisitGetProbeSnapshotResponse(w 
 	return err
 }
 
+type UnstarProbeSnapshotRequestObject struct {
+	SnapshotId SnapshotId `json:"snapshotId"`
+	Params     UnstarProbeSnapshotParams
+}
+
+type UnstarProbeSnapshotResponseObject interface {
+	VisitUnstarProbeSnapshotResponse(w http.ResponseWriter) error
+}
+
+type UnstarProbeSnapshot200JSONResponse ProbeSnapshot
+
+func (response UnstarProbeSnapshot200JSONResponse) VisitUnstarProbeSnapshotResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type UnstarProbeSnapshot401JSONResponse struct{ UnauthorizedJSONResponse }
+
+func (response UnstarProbeSnapshot401JSONResponse) VisitUnstarProbeSnapshotResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(401)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type UnstarProbeSnapshot403JSONResponse struct{ ForbiddenJSONResponse }
+
+func (response UnstarProbeSnapshot403JSONResponse) VisitUnstarProbeSnapshotResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(403)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type UnstarProbeSnapshot404JSONResponse struct{ NotFoundJSONResponse }
+
+func (response UnstarProbeSnapshot404JSONResponse) VisitUnstarProbeSnapshotResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(404)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type StarProbeSnapshotRequestObject struct {
+	SnapshotId SnapshotId `json:"snapshotId"`
+	Params     StarProbeSnapshotParams
+}
+
+type StarProbeSnapshotResponseObject interface {
+	VisitStarProbeSnapshotResponse(w http.ResponseWriter) error
+}
+
+type StarProbeSnapshot200JSONResponse ProbeSnapshot
+
+func (response StarProbeSnapshot200JSONResponse) VisitStarProbeSnapshotResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type StarProbeSnapshot401JSONResponse struct{ UnauthorizedJSONResponse }
+
+func (response StarProbeSnapshot401JSONResponse) VisitStarProbeSnapshotResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(401)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type StarProbeSnapshot403JSONResponse struct{ ForbiddenJSONResponse }
+
+func (response StarProbeSnapshot403JSONResponse) VisitStarProbeSnapshotResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(403)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type StarProbeSnapshot404JSONResponse struct{ NotFoundJSONResponse }
+
+func (response StarProbeSnapshot404JSONResponse) VisitStarProbeSnapshotResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(404)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
 type GetSystemStatusRequestObject struct {
 }
 
@@ -6552,6 +8284,27 @@ type StrictServerInterface interface {
 	// GetHistoryState Read the current history generation and reset state
 	// (GET /api/v1/history)
 	GetHistoryState(ctx context.Context, request GetHistoryStateRequestObject) (GetHistoryStateResponseObject, error)
+	// ListHistoryAddressEvents List retained confirmed address events and reported gaps
+	// (GET /api/v1/history/address-events)
+	ListHistoryAddressEvents(ctx context.Context, request ListHistoryAddressEventsRequestObject) (ListHistoryAddressEventsResponseObject, error)
+	// CleanupHistory Apply the saved history retention policy now
+	// (POST /api/v1/history/cleanup)
+	CleanupHistory(ctx context.Context, request CleanupHistoryRequestObject) (CleanupHistoryResponseObject, error)
+	// CompareProbeSnapshots Compare two retained snapshots from the same network egress
+	// (GET /api/v1/history/comparison)
+	CompareProbeSnapshots(ctx context.Context, request CompareProbeSnapshotsRequestObject) (CompareProbeSnapshotsResponseObject, error)
+	// ListHistoryFormatEvents List upstream complete-report format events
+	// (GET /api/v1/history/format-events)
+	ListHistoryFormatEvents(ctx context.Context, request ListHistoryFormatEventsRequestObject) (ListHistoryFormatEventsResponseObject, error)
+	// ListHistoryProbeGaps List explicit complete-probe history gaps
+	// (GET /api/v1/history/probe-gaps)
+	ListHistoryProbeGaps(ctx context.Context, request ListHistoryProbeGapsRequestObject) (ListHistoryProbeGapsResponseObject, error)
+	// ListHistoryProbeSnapshots List retained complete-probe snapshots across nodes
+	// (GET /api/v1/history/probe-snapshots)
+	ListHistoryProbeSnapshots(ctx context.Context, request ListHistoryProbeSnapshotsRequestObject) (ListHistoryProbeSnapshotsResponseObject, error)
+	// UpdateHistoryRetention Replace the global history retention policy and apply it
+	// (PUT /api/v1/history/retention)
+	UpdateHistoryRetention(ctx context.Context, request UpdateHistoryRetentionRequestObject) (UpdateHistoryRetentionResponseObject, error)
 	// GetNetworkObservationSettings Read global lightweight address discovery services
 	// (GET /api/v1/network-observation-settings)
 	GetNetworkObservationSettings(ctx context.Context, request GetNetworkObservationSettingsRequestObject) (GetNetworkObservationSettingsResponseObject, error)
@@ -6615,6 +8368,12 @@ type StrictServerInterface interface {
 	// GetProbeSnapshot Read one retained complete-probe source snapshot
 	// (GET /api/v1/probe-snapshots/{snapshotId})
 	GetProbeSnapshot(ctx context.Context, request GetProbeSnapshotRequestObject) (GetProbeSnapshotResponseObject, error)
+	// UnstarProbeSnapshot Remove automatic retention protection from a probe snapshot
+	// (DELETE /api/v1/probe-snapshots/{snapshotId}/star)
+	UnstarProbeSnapshot(ctx context.Context, request UnstarProbeSnapshotRequestObject) (UnstarProbeSnapshotResponseObject, error)
+	// StarProbeSnapshot Protect a probe snapshot from automatic retention cleanup
+	// (PUT /api/v1/probe-snapshots/{snapshotId}/star)
+	StarProbeSnapshot(ctx context.Context, request StarProbeSnapshotRequestObject) (StarProbeSnapshotResponseObject, error)
 	// GetSystemStatus Read center status
 	// (GET /api/v1/system/status)
 	GetSystemStatus(ctx context.Context, request GetSystemStatusRequestObject) (GetSystemStatusResponseObject, error)
@@ -7198,6 +8957,195 @@ func (sh *strictHandler) GetHistoryState(w http.ResponseWriter, r *http.Request)
 		sh.options.ResponseErrorHandlerFunc(w, r, err)
 	} else if validResponse, ok := response.(GetHistoryStateResponseObject); ok {
 		if err := validResponse.VisitGetHistoryStateResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// ListHistoryAddressEvents operation middleware
+func (sh *strictHandler) ListHistoryAddressEvents(w http.ResponseWriter, r *http.Request, params ListHistoryAddressEventsParams) {
+	var request ListHistoryAddressEventsRequestObject
+
+	request.Params = params
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.ListHistoryAddressEvents(ctx, request.(ListHistoryAddressEventsRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "ListHistoryAddressEvents")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(ListHistoryAddressEventsResponseObject); ok {
+		if err := validResponse.VisitListHistoryAddressEventsResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// CleanupHistory operation middleware
+func (sh *strictHandler) CleanupHistory(w http.ResponseWriter, r *http.Request, params CleanupHistoryParams) {
+	var request CleanupHistoryRequestObject
+
+	request.Params = params
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.CleanupHistory(ctx, request.(CleanupHistoryRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "CleanupHistory")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(CleanupHistoryResponseObject); ok {
+		if err := validResponse.VisitCleanupHistoryResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// CompareProbeSnapshots operation middleware
+func (sh *strictHandler) CompareProbeSnapshots(w http.ResponseWriter, r *http.Request, params CompareProbeSnapshotsParams) {
+	var request CompareProbeSnapshotsRequestObject
+
+	request.Params = params
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.CompareProbeSnapshots(ctx, request.(CompareProbeSnapshotsRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "CompareProbeSnapshots")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(CompareProbeSnapshotsResponseObject); ok {
+		if err := validResponse.VisitCompareProbeSnapshotsResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// ListHistoryFormatEvents operation middleware
+func (sh *strictHandler) ListHistoryFormatEvents(w http.ResponseWriter, r *http.Request, params ListHistoryFormatEventsParams) {
+	var request ListHistoryFormatEventsRequestObject
+
+	request.Params = params
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.ListHistoryFormatEvents(ctx, request.(ListHistoryFormatEventsRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "ListHistoryFormatEvents")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(ListHistoryFormatEventsResponseObject); ok {
+		if err := validResponse.VisitListHistoryFormatEventsResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// ListHistoryProbeGaps operation middleware
+func (sh *strictHandler) ListHistoryProbeGaps(w http.ResponseWriter, r *http.Request, params ListHistoryProbeGapsParams) {
+	var request ListHistoryProbeGapsRequestObject
+
+	request.Params = params
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.ListHistoryProbeGaps(ctx, request.(ListHistoryProbeGapsRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "ListHistoryProbeGaps")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(ListHistoryProbeGapsResponseObject); ok {
+		if err := validResponse.VisitListHistoryProbeGapsResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// ListHistoryProbeSnapshots operation middleware
+func (sh *strictHandler) ListHistoryProbeSnapshots(w http.ResponseWriter, r *http.Request, params ListHistoryProbeSnapshotsParams) {
+	var request ListHistoryProbeSnapshotsRequestObject
+
+	request.Params = params
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.ListHistoryProbeSnapshots(ctx, request.(ListHistoryProbeSnapshotsRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "ListHistoryProbeSnapshots")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(ListHistoryProbeSnapshotsResponseObject); ok {
+		if err := validResponse.VisitListHistoryProbeSnapshotsResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// UpdateHistoryRetention operation middleware
+func (sh *strictHandler) UpdateHistoryRetention(w http.ResponseWriter, r *http.Request, params UpdateHistoryRetentionParams) {
+	var request UpdateHistoryRetentionRequestObject
+
+	request.Params = params
+
+	var body UpdateHistoryRetentionJSONRequestBody
+	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+		sh.options.RequestErrorHandlerFunc(w, r, fmt.Errorf("can't decode JSON body: %w", err))
+		return
+	}
+	request.Body = &body
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.UpdateHistoryRetention(ctx, request.(UpdateHistoryRetentionRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "UpdateHistoryRetention")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(UpdateHistoryRetentionResponseObject); ok {
+		if err := validResponse.VisitUpdateHistoryRetentionResponse(w); err != nil {
 			sh.options.ResponseErrorHandlerFunc(w, r, err)
 		}
 	} else if response != nil {
@@ -7801,6 +9749,60 @@ func (sh *strictHandler) GetProbeSnapshot(w http.ResponseWriter, r *http.Request
 		sh.options.ResponseErrorHandlerFunc(w, r, err)
 	} else if validResponse, ok := response.(GetProbeSnapshotResponseObject); ok {
 		if err := validResponse.VisitGetProbeSnapshotResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// UnstarProbeSnapshot operation middleware
+func (sh *strictHandler) UnstarProbeSnapshot(w http.ResponseWriter, r *http.Request, snapshotId SnapshotId, params UnstarProbeSnapshotParams) {
+	var request UnstarProbeSnapshotRequestObject
+
+	request.SnapshotId = snapshotId
+	request.Params = params
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.UnstarProbeSnapshot(ctx, request.(UnstarProbeSnapshotRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "UnstarProbeSnapshot")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(UnstarProbeSnapshotResponseObject); ok {
+		if err := validResponse.VisitUnstarProbeSnapshotResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// StarProbeSnapshot operation middleware
+func (sh *strictHandler) StarProbeSnapshot(w http.ResponseWriter, r *http.Request, snapshotId SnapshotId, params StarProbeSnapshotParams) {
+	var request StarProbeSnapshotRequestObject
+
+	request.SnapshotId = snapshotId
+	request.Params = params
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.StarProbeSnapshot(ctx, request.(StarProbeSnapshotRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "StarProbeSnapshot")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(StarProbeSnapshotResponseObject); ok {
+		if err := validResponse.VisitStarProbeSnapshotResponse(w); err != nil {
 			sh.options.ResponseErrorHandlerFunc(w, r, err)
 		}
 	} else if response != nil {

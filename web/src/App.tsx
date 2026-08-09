@@ -8,12 +8,14 @@ import { SidebarInset, SidebarProvider } from "@/components/ui/sidebar";
 import { Skeleton } from "@/components/ui/skeleton";
 import { AccountPage } from "@/pages/account-page";
 import { HistorySettingsPage } from "@/pages/history-settings-page";
+import { HistoryPage } from "@/pages/history-page";
 import { LoginPage } from "@/pages/login-page";
 import { NodeNetworkPage } from "@/pages/node-network-page";
 import { NodeProbePage } from "@/pages/node-probe-page";
 import { NetworkSettingsPage } from "@/pages/network-settings-page";
 import { NodesPage } from "@/pages/nodes-page";
 import { ProbeRunPage } from "@/pages/probe-run-page";
+import { ProbeComparisonPage } from "@/pages/probe-comparison-page";
 import { ProbeSnapshotPage } from "@/pages/probe-snapshot-page";
 import { SystemStatusPage } from "@/pages/system-status-page";
 
@@ -52,6 +54,8 @@ function App() {
           <Route path="/nodes/:nodeId/network" element={<NodeNetworkPage />} />
           <Route path="/nodes/:nodeId/probe" element={<NodeProbePage />} />
           <Route path="/probe-runs/:runId" element={<ProbeRunPage />} />
+          <Route path="/history" element={<HistoryPage />} />
+          <Route path="/history/compare" element={<ProbeComparisonPage />} />
           <Route
             path="/probe-snapshots/:snapshotId"
             element={<ProbeSnapshotPage />}

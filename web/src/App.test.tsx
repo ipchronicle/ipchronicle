@@ -11,6 +11,16 @@ import {
 } from "@/api/auth";
 import { getSystemStatus } from "@/api/system";
 import {
+  cleanupHistory,
+  compareProbeSnapshots,
+  listHistoryAddressEvents,
+  listHistoryFormatEvents,
+  listHistoryProbeGaps,
+  listHistoryProbeSnapshots,
+  setProbeSnapshotStarred,
+  updateHistoryRetention,
+} from "@/api/history";
+import {
   createNodeEgress,
   deleteNodeEgress,
   getNetworkObservationSettings,
@@ -64,6 +74,17 @@ vi.mock("@/api/system", () => ({
   getSystemStatus: vi.fn(),
 }));
 
+vi.mock("@/api/history", () => ({
+  cleanupHistory: vi.fn(),
+  compareProbeSnapshots: vi.fn(),
+  listHistoryAddressEvents: vi.fn(),
+  listHistoryFormatEvents: vi.fn(),
+  listHistoryProbeGaps: vi.fn(),
+  listHistoryProbeSnapshots: vi.fn(),
+  setProbeSnapshotStarred: vi.fn(),
+  updateHistoryRetention: vi.fn(),
+}));
+
 vi.mock("@/api/network", () => ({
   createNodeEgress: vi.fn(),
   deleteNodeEgress: vi.fn(),
@@ -107,6 +128,14 @@ const loginMock = vi.mocked(login);
 const logoutMock = vi.mocked(logout);
 const updateLocaleMock = vi.mocked(updateAccountLocale);
 const getSystemStatusMock = vi.mocked(getSystemStatus);
+const cleanupHistoryMock = vi.mocked(cleanupHistory);
+const compareSnapshotsMock = vi.mocked(compareProbeSnapshots);
+const listHistoryAddressesMock = vi.mocked(listHistoryAddressEvents);
+const listHistoryFormatsMock = vi.mocked(listHistoryFormatEvents);
+const listHistoryGapsMock = vi.mocked(listHistoryProbeGaps);
+const listHistorySnapshotsMock = vi.mocked(listHistoryProbeSnapshots);
+const setSnapshotStarredMock = vi.mocked(setProbeSnapshotStarred);
+const updateRetentionMock = vi.mocked(updateHistoryRetention);
 const createEgressMock = vi.mocked(createNodeEgress);
 const deleteEgressMock = vi.mocked(deleteNodeEgress);
 const getObservationSettingsMock = vi.mocked(getNetworkObservationSettings);
@@ -169,6 +198,23 @@ describe("administrator application", () => {
     logoutMock.mockReset();
     updateLocaleMock.mockReset();
     getSystemStatusMock.mockReset();
+    cleanupHistoryMock.mockReset();
+    compareSnapshotsMock.mockReset();
+    listHistoryAddressesMock.mockReset();
+    listHistoryAddressesMock.mockResolvedValue({
+      events: [],
+      gaps: [],
+      total: 0,
+      gapTotal: 0,
+    });
+    listHistoryFormatsMock.mockReset();
+    listHistoryFormatsMock.mockResolvedValue({ items: [], total: 0 });
+    listHistoryGapsMock.mockReset();
+    listHistoryGapsMock.mockResolvedValue({ items: [], total: 0 });
+    listHistorySnapshotsMock.mockReset();
+    listHistorySnapshotsMock.mockResolvedValue({ items: [], total: 0 });
+    setSnapshotStarredMock.mockReset();
+    updateRetentionMock.mockReset();
     createEgressMock.mockReset();
     deleteEgressMock.mockReset();
     getObservationSettingsMock.mockReset();
@@ -720,18 +766,79 @@ describe("administrator application", () => {
 
   it("renders the exact decoded probe JSON", async () => {
     getSessionMock.mockResolvedValue(session);
-    getProbeSnapshotMock.mockResolvedValue({
+    const snapshot = {
       id: "cd6233d2-a600-443b-9cf5-a0bc3c241ea5",
       executionId: "cd6233d2-a600-443b-9cf5-a0bc3c241ea5",
       egressId: "a6a2f052-f9c4-4f37-88d5-4dc4c95d68d9",
       sequence: 1,
       observedAt: "2026-08-09T11:59:20Z",
       rawResult: window.btoa('{"ip":"203.0.113.10"}'),
-    });
+      starred: false,
+      fields: [
+        {
+          id: "Head.IP",
+          group: "Head",
+          path: "Head.IP",
+          expectedTypes: ["string" as const],
+          status: "missing" as const,
+        },
+        {
+          id: "Head.CountryCode",
+          group: "Head",
+          path: "Head.CountryCode",
+          expectedTypes: ["string" as const],
+          status: "incompatible" as const,
+          actualType: "number" as const,
+        },
+      ],
+      formatIssues: [
+        {
+          path: "Head.IP",
+          kind: "missing" as const,
+          expectedTypes: ["string" as const],
+        },
+        {
+          path: "Head.CountryCode",
+          kind: "incompatible" as const,
+          expectedTypes: ["string" as const],
+          actualType: "number" as const,
+        },
+      ],
+      changes: [],
+    };
+    getProbeSnapshotMock.mockResolvedValue(snapshot);
+    setSnapshotStarredMock.mockResolvedValue({ ...snapshot, starred: true });
 
     renderApplication("/probe-snapshots/cd6233d2-a600-443b-9cf5-a0bc3c241ea5");
 
-    expect(await screen.findByText(/203\.0\.113\.10/)).toBeInTheDocument();
+    expect((await screen.findAllByText("IP address")).length).toBeGreaterThan(
+      0,
+    );
+    expect(
+      screen.getAllByText("Public IP address reported by the upstream probe.")
+        .length,
+    ).toBeGreaterThan(0);
+    expect(screen.getAllByText("Head.IP").length).toBeGreaterThan(0);
+    expect(screen.getAllByText("Missing").length).toBeGreaterThan(0);
+    expect(screen.getAllByText("Incompatible type").length).toBeGreaterThan(0);
+    fireEvent.click(screen.getByRole("button", { name: "Star snapshot" }));
+    await waitFor(() =>
+      expect(setSnapshotStarredMock).toHaveBeenCalledWith(
+        snapshot.id,
+        true,
+        session.csrfToken,
+      ),
+    );
+    expect(
+      await screen.findByRole("button", { name: "Unstar snapshot" }),
+    ).toBeInTheDocument();
+    fireEvent.mouseDown(await screen.findByRole("tab", { name: "Raw JSON" }), {
+      button: 0,
+      ctrlKey: false,
+    });
+    await waitFor(() =>
+      expect(document.querySelector("pre")).toHaveTextContent("203.0.113.10"),
+    );
     expect(
       screen.getByRole("button", { name: "Copy JSON" }),
     ).toBeInTheDocument();
@@ -740,11 +847,250 @@ describe("administrator application", () => {
     ).toBeInTheDocument();
   });
 
+  it("indexes retained reports and links the previous comparison", async () => {
+    getSessionMock.mockResolvedValue(session);
+    listNodesMock.mockResolvedValue([probeTestNode]);
+    listHistorySnapshotsMock.mockResolvedValue({
+      total: 1,
+      items: [
+        {
+          id: "cd6233d2-a600-443b-9cf5-a0bc3c241ea5",
+          executionId: "ff4ce696-03f4-422c-b1ba-dcc5e7ad48e3",
+          runId: "84e7d535-e04e-47f9-8374-1585a5dce6c9",
+          nodeId: probeTestNode.id,
+          egressId: "a6a2f052-f9c4-4f37-88d5-4dc4c95d68d9",
+          owner: { nodeName: "edge-1", egressName: "Default IPv4" },
+          sequence: 2,
+          trigger: "manual",
+          runStatus: "succeeded",
+          observedAt: "2026-08-09T11:59:20Z",
+          receivedAt: "2026-08-09T11:59:21Z",
+          encodedSize: 128,
+          starred: true,
+          current: true,
+          processed: true,
+          baseline: false,
+          changeCount: 1,
+          formatStatus: "compatible",
+          formatIssueCount: 0,
+          previousSnapshotId: "9278587a-e1a9-4fe4-a5fc-5ece010c8a9f",
+        },
+      ],
+    });
+
+    renderApplication(
+      "/history?from=2026-08-01T00%3A00&to=2026-08-10T00%3A00&runStatus=succeeded&trigger=manual&changed=true&formatStatus=compatible",
+    );
+
+    expect(
+      await screen.findByRole("heading", { name: "History" }),
+    ).toBeInTheDocument();
+    await waitFor(() => expect(listHistorySnapshotsMock).toHaveBeenCalled());
+    expect(
+      (await screen.findAllByText("Default IPv4", { exact: false })).length,
+    ).toBeGreaterThan(0);
+    expect(screen.getAllByText("Succeeded").length).toBeGreaterThan(0);
+    expect(
+      screen.getAllByRole("link", { name: "Compare with previous" })[0],
+    ).toHaveAttribute(
+      "href",
+      "/history/compare?before=9278587a-e1a9-4fe4-a5fc-5ece010c8a9f&after=cd6233d2-a600-443b-9cf5-a0bc3c241ea5",
+    );
+    expect(listHistorySnapshotsMock).toHaveBeenCalledWith(
+      {
+        from: "2026-08-01T00:00:00.000Z",
+        to: "2026-08-10T00:00:00.000Z",
+        page: 1,
+        pageSize: 25,
+        runStatus: "succeeded",
+        trigger: "manual",
+        changed: true,
+        formatStatus: "compatible",
+      },
+      expect.any(AbortSignal),
+    );
+  });
+
+  it("indexes address transitions with URL-backed filters", async () => {
+    getSessionMock.mockResolvedValue(session);
+    listNodesMock.mockResolvedValue([probeTestNode]);
+    listHistoryAddressesMock.mockResolvedValue({
+      total: 1,
+      gapTotal: 0,
+      events: [
+        {
+          nodeId: probeTestNode.id,
+          owner: { nodeName: "edge-1", egressName: "Default IPv4" },
+          event: {
+            id: "758db6d8-d8cd-44c5-a18d-ab7713012ec8",
+            egressId: "a6a2f052-f9c4-4f37-88d5-4dc4c95d68d9",
+            historyGeneration: "a".repeat(64),
+            sequence: 3,
+            kind: "address-change",
+            family: "ipv4",
+            previousAddress: "203.0.113.9",
+            publicAddress: "203.0.113.10",
+            localInterface: "eth0",
+            localAddress: "10.0.0.5",
+            proxyPath: false,
+            likelyNat: true,
+            temporary: false,
+            observedAt: "2026-08-09T12:00:00Z",
+          },
+        },
+      ],
+      gaps: [],
+    });
+
+    renderApplication(
+      "/history?tab=addresses&from=2026-08-01T00%3A00&to=2026-08-10T00%3A00&eventKind=address-change&family=ipv4",
+    );
+
+    expect(
+      (
+        await screen.findAllByText("10.0.0.5 -> 203.0.113.10", {
+          exact: false,
+        })
+      ).length,
+    ).toBeGreaterThan(0);
+    expect(screen.getAllByText("Likely NAT").length).toBeGreaterThan(0);
+    expect(listHistoryAddressesMock).toHaveBeenCalledWith(
+      {
+        from: "2026-08-01T00:00:00.000Z",
+        to: "2026-08-10T00:00:00.000Z",
+        page: 1,
+        gapPage: 1,
+        pageSize: 25,
+        eventKind: "address-change",
+        family: "ipv4",
+      },
+      expect.any(AbortSignal),
+    );
+  });
+
+  it("pages report gaps and format events independently", async () => {
+    getSessionMock.mockResolvedValue(session);
+    listNodesMock.mockResolvedValue([probeTestNode]);
+    listHistoryGapsMock.mockResolvedValue({
+      total: 26,
+      items: [
+        {
+          id: "b52f3131-f684-4c28-bdf0-1be6498d79f8",
+          nodeId: probeTestNode.id,
+          egressId: "a6a2f052-f9c4-4f37-88d5-4dc4c95d68d9",
+          owner: { nodeName: "edge-1", egressName: "Default IPv4" },
+          droppedCount: 1,
+          firstSequence: 4,
+          lastSequence: 4,
+          firstObservedAt: "2026-08-09T12:00:00Z",
+          lastObservedAt: "2026-08-09T12:00:00Z",
+        },
+      ],
+    });
+    listHistoryFormatsMock.mockResolvedValue({
+      total: 26,
+      items: [
+        {
+          id: "f6f79d7e-bebb-4fae-bf0f-3bcb2c8ea668",
+          nodeId: probeTestNode.id,
+          egressId: "a6a2f052-f9c4-4f37-88d5-4dc4c95d68d9",
+          executionId: "6a88f1ee-4e4c-4d25-9edb-c0a508afeb56",
+          snapshotId: "cd6233d2-a600-443b-9cf5-a0bc3c241ea5",
+          owner: { nodeName: "edge-1", egressName: "Default IPv4" },
+          sequence: 4,
+          kind: "mismatch",
+          issues: [],
+          observedAt: "2026-08-09T12:00:00Z",
+          recordedAt: "2026-08-09T12:00:01Z",
+        },
+      ],
+    });
+
+    renderApplication("/history");
+
+    expect(await screen.findByText("Probe history gaps")).toBeInTheDocument();
+    expect(screen.getByText("Upstream format events")).toBeInTheDocument();
+    let nextButtons = screen.getAllByRole("button", { name: "Next" });
+    expect(nextButtons).toHaveLength(2);
+    fireEvent.click(nextButtons[0]);
+    await waitFor(() =>
+      expect(listHistoryGapsMock).toHaveBeenLastCalledWith(
+        expect.objectContaining({ page: 2 }),
+        expect.any(AbortSignal),
+      ),
+    );
+    expect(listHistoryFormatsMock).toHaveBeenLastCalledWith(
+      expect.objectContaining({ page: 1 }),
+      expect.any(AbortSignal),
+    );
+
+    nextButtons = screen.getAllByRole("button", { name: "Next" });
+    fireEvent.click(nextButtons[1]);
+    await waitFor(() =>
+      expect(listHistoryFormatsMock).toHaveBeenLastCalledWith(
+        expect.objectContaining({ page: 2 }),
+        expect.any(AbortSignal),
+      ),
+    );
+  });
+
+  it("renders typed snapshot comparison states", async () => {
+    getSessionMock.mockResolvedValue(session);
+    compareSnapshotsMock.mockResolvedValue({
+      beforeId: "9278587a-e1a9-4fe4-a5fc-5ece010c8a9f",
+      afterId: "cd6233d2-a600-443b-9cf5-a0bc3c241ea5",
+      egressId: "a6a2f052-f9c4-4f37-88d5-4dc4c95d68d9",
+      fields: [
+        {
+          id: "Head.IP",
+          group: "Head",
+          path: "Head.IP",
+          expectedTypes: ["string"],
+          changed: true,
+          before: {
+            id: "Head.IP",
+            group: "Head",
+            path: "Head.IP",
+            expectedTypes: ["string"],
+            status: "available",
+            actualType: "string",
+            value: "203.0.113.1",
+          },
+          after: {
+            id: "Head.IP",
+            group: "Head",
+            path: "Head.IP",
+            expectedTypes: ["string"],
+            status: "incompatible",
+            actualType: "number",
+          },
+        },
+      ],
+    });
+
+    renderApplication(
+      "/history/compare?before=9278587a-e1a9-4fe4-a5fc-5ece010c8a9f&after=cd6233d2-a600-443b-9cf5-a0bc3c241ea5",
+    );
+
+    expect(
+      await screen.findByRole("heading", { name: "Snapshot comparison" }),
+    ).toBeInTheDocument();
+    expect(await screen.findByText("IP address")).toBeInTheDocument();
+    expect(screen.getByText("Head.IP")).toBeInTheDocument();
+    expect(screen.getByText("Incompatible type")).toBeInTheDocument();
+    expect(screen.getByText("Unavailable")).toBeInTheDocument();
+    await i18n.changeLanguage("zh-CN");
+    expect(await screen.findByText("IP 地址")).toBeInTheDocument();
+    expect(
+      screen.getByText("上游探测报告的公网 IP 地址。"),
+    ).toBeInTheDocument();
+  });
+
   it("clears history only after destructive confirmation", async () => {
     getSessionMock.mockResolvedValue(session);
-    getHistoryStateMock.mockResolvedValue({ generation: "a".repeat(64) });
+    getHistoryStateMock.mockResolvedValue(historyState("a".repeat(64)));
     resetHistoryMock.mockResolvedValue({
-      generation: "b".repeat(64),
+      ...historyState("b".repeat(64)),
       resetAt: "2026-08-09T12:00:00Z",
     });
 
@@ -753,13 +1099,73 @@ describe("administrator application", () => {
     expect(
       await screen.findByRole("heading", { name: "History and storage" }),
     ).toBeInTheDocument();
-    fireEvent.click(screen.getByRole("button", { name: "Clear history" }));
+    fireEvent.click(
+      await screen.findByRole("button", { name: "Clear history" }),
+    );
     expect(resetHistoryMock).not.toHaveBeenCalled();
-    fireEvent.click(screen.getByRole("button", { name: "Clear all history" }));
+    fireEvent.click(
+      await screen.findByRole("button", { name: "Clear all history" }),
+    );
     await waitFor(() =>
       expect(resetHistoryMock).toHaveBeenCalledWith(session.csrfToken),
     );
     expect(await screen.findByText("b".repeat(64))).toBeInTheDocument();
+  });
+
+  it("applies retention and runs immediate history cleanup", async () => {
+    getSessionMock.mockResolvedValue(session);
+    const initial = {
+      ...historyState("a".repeat(64)),
+      retention: {
+        ...historyState("a".repeat(64)).retention,
+        mode: "age" as const,
+        maxAgeDays: 30,
+      },
+    };
+    const cleaned = {
+      ...initial,
+      retention: {
+        ...initial.retention,
+        lastCleanupAt: "2026-08-09T12:00:00Z",
+        lastCleanupDeletedItems: 4,
+      },
+    };
+    getHistoryStateMock
+      .mockResolvedValueOnce(initial)
+      .mockResolvedValueOnce(cleaned);
+    updateRetentionMock.mockResolvedValue({
+      ...initial,
+      retention: { ...initial.retention, maxAgeDays: 45 },
+    });
+    cleanupHistoryMock.mockResolvedValue({
+      deletedItems: 4,
+      completedAt: "2026-08-09T12:00:00Z",
+      usage: cleaned.usage,
+    });
+
+    renderApplication("/settings/history");
+
+    const days = await screen.findByLabelText("Retention days");
+    fireEvent.change(days, { target: { value: "45" } });
+    fireEvent.click(screen.getByRole("button", { name: "Save and apply" }));
+    await waitFor(() =>
+      expect(updateRetentionMock).toHaveBeenCalledWith(
+        { mode: "age", maxAgeDays: 45 },
+        session.csrfToken,
+      ),
+    );
+    expect(
+      await screen.findByText("The retention policy was saved and applied."),
+    ).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("button", { name: "Clean now" }));
+    await waitFor(() =>
+      expect(cleanupHistoryMock).toHaveBeenCalledWith(session.csrfToken),
+    );
+    expect(getHistoryStateMock).toHaveBeenCalledTimes(2);
+    expect(
+      await screen.findByText("Cleanup completed and removed 4 items."),
+    ).toBeInTheDocument();
   });
 });
 
@@ -779,6 +1185,27 @@ const probeTestNode = {
   registeredAt: "2026-08-09T11:00:00Z",
   lastSeenAt: "2026-08-09T12:00:00Z",
 };
+
+function historyState(generation: string) {
+  return {
+    generation,
+    retention: {
+      mode: "indefinite" as const,
+      updatedAt: "2026-08-09T00:00:00Z",
+      lastCleanupDeletedItems: 0,
+    },
+    usage: {
+      logicalBytes: 0,
+      protectedLogicalBytes: 0,
+      recordCount: 0,
+      databaseBytes: 4096,
+      walBytes: 0,
+      sharedMemoryBytes: 0,
+      overBudget: false,
+      overageBytes: 0,
+    },
+  };
+}
 
 function renderApplication(path: string) {
   return render(

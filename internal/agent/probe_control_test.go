@@ -79,7 +79,7 @@ func TestPollCarriesProbeStatusAndTaskReportAndAcceptsTask(t *testing.T) {
 		received.TaskReport.Status != agentapi.AgentTaskReportStatusRejected {
 		t.Fatalf("task report = %#v", received.TaskReport)
 	}
-	if err := store.CleanupProbeTasks(now.Add(25 * time.Hour)); err != nil {
+	if err := store.CleanupProbeTasks(time.Now().UTC().Add(25 * time.Hour)); err != nil {
 		t.Fatal(err)
 	}
 	if _, exists, err := store.ProbeTask(oldTaskID.String()); err != nil || exists {

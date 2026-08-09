@@ -257,6 +257,15 @@ func TestHistoryGenerationChangeDiscardsQueuedProbeArtifactsAndFinishesActiveRun
 	if err != nil || artifact.ID != "" {
 		t.Fatalf("obsolete artifact remains queued: %#v, %v", artifact, err)
 	}
+	newRun, err := store.StartProbeRun("schedule", nil, nil, start.Add(4*time.Second))
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, manifest := range newRun.Executions {
+		if manifest.Sequence != 1 {
+			t.Fatalf("new history generation sequence = %d, want 1", manifest.Sequence)
+		}
+	}
 }
 
 func TestProbeArtifactAcknowledgementIsRevisionAware(t *testing.T) {

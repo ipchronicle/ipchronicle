@@ -17,6 +17,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/ipchronicle/ipchronicle/internal/center/database/configdb"
 	"github.com/ipchronicle/ipchronicle/internal/center/database/historydb"
+	centerhistory "github.com/ipchronicle/ipchronicle/internal/center/history"
 	sharedschedule "github.com/ipchronicle/ipchronicle/internal/schedule"
 )
 
@@ -135,12 +136,18 @@ type ProbeExecution struct {
 }
 
 type ProbeSnapshot struct {
-	ID          uuid.UUID
-	ExecutionID uuid.UUID
-	EgressID    uuid.UUID
-	Sequence    int64
-	ObservedAt  time.Time
-	RawResult   []byte
+	ID                 uuid.UUID
+	ExecutionID        uuid.UUID
+	EgressID           uuid.UUID
+	PreviousSnapshotID *uuid.UUID
+	Sequence           int64
+	ObservedAt         time.Time
+	RawResult          []byte
+	Starred            bool
+	Fields             []centerhistory.FieldValue
+	FormatIssues       []centerhistory.FormatIssue
+	Baseline           *bool
+	Changes            []centerhistory.FieldChange
 }
 
 type ProbeExecutionManifest struct {
@@ -204,6 +211,8 @@ type ProbeArtifactReceipt struct {
 type HistoryState struct {
 	Generation string
 	ResetAt    *time.Time
+	Retention  HistoryRetentionSettings
+	Usage      HistoryUsage
 }
 
 func (s *Service) applyProbeControlReport(
@@ -485,7 +494,13 @@ func (s *Service) UploadProbeArtifact(ctx context.Context, credential string, ar
 			receipt.Disposition = "egress-deleted"
 			return receipt, nil
 		}
-		changed, err := s.historyQueries.UpsertProbeGap(ctx, historydb.UpsertProbeGapParams{
+		transaction, err := s.history.BeginTx(ctx, nil)
+		if err != nil {
+			return ProbeArtifactReceipt{}, err
+		}
+		defer transaction.Rollback()
+		queries := s.historyQueries.WithTx(transaction)
+		changed, err := queries.UpsertProbeGap(ctx, historydb.UpsertProbeGapParams{
 			ID: artifact.Gap.ID.String(), EgressID: artifact.Gap.EgressID.String(), NodeID: node.ID,
 			HistoryGeneration: artifact.Gap.HistoryGeneration, DroppedCount: artifact.Gap.DroppedCount,
 			FirstSequence: artifact.Gap.FirstSequence, LastSequence: artifact.Gap.LastSequence,
@@ -497,6 +512,15 @@ func (s *Service) UploadProbeArtifact(ctx context.Context, credential string, ar
 		}
 		if changed != 1 {
 			return ProbeArtifactReceipt{}, ErrInvalidProbeArtifact
+		}
+		if err := centerhistory.Advance(
+			ctx, queries, node.ID, artifact.Gap.EgressID.String(),
+			artifact.Gap.HistoryGeneration, s.now().UTC().Unix(),
+		); err != nil {
+			return ProbeArtifactReceipt{}, err
+		}
+		if err := transaction.Commit(); err != nil {
+			return ProbeArtifactReceipt{}, err
 		}
 		return receipt, nil
 	}
@@ -539,6 +563,14 @@ func (s *Service) UploadProbeArtifact(ctx context.Context, credential string, ar
 	}
 	if err := reconcileProbeRunSummary(ctx, queries, *artifact.Run, s.now().UTC().Unix()); err != nil {
 		return ProbeArtifactReceipt{}, err
+	}
+	if artifact.Execution != nil {
+		if err := centerhistory.Advance(
+			ctx, queries, node.ID, artifact.Execution.EgressID.String(),
+			artifact.Run.HistoryGeneration, s.now().UTC().Unix(),
+		); err != nil {
+			return ProbeArtifactReceipt{}, err
+		}
 	}
 	if err := transaction.Commit(); err != nil {
 		return ProbeArtifactReceipt{}, err
@@ -598,10 +630,51 @@ func (s *Service) ProbeSnapshot(ctx context.Context, id uuid.UUID) (ProbeSnapsho
 	if err != nil {
 		return ProbeSnapshot{}, err
 	}
-	return ProbeSnapshot{
+	report, err := centerhistory.Interpret(record.RawResult)
+	if err != nil {
+		return ProbeSnapshot{}, err
+	}
+	starred, err := s.historyQueries.IsProbeSnapshotStarred(ctx, id.String())
+	if err != nil {
+		return ProbeSnapshot{}, err
+	}
+	result := ProbeSnapshot{
 		ID: id, ExecutionID: executionID, EgressID: egressID, Sequence: record.Sequence,
 		ObservedAt: time.Unix(record.ObservedAt, 0).UTC(), RawResult: slices.Clone(record.RawResult),
-	}, nil
+		Starred: starred, Fields: report.Fields, FormatIssues: report.Issues,
+	}
+	previousID, previousErr := s.historyQueries.GetPreviousProbeSnapshotID(ctx, historydb.GetPreviousProbeSnapshotIDParams{
+		EgressID: record.EgressID, Sequence: record.Sequence,
+	})
+	if previousErr == nil {
+		parsed, err := uuid.Parse(previousID)
+		if err != nil {
+			return ProbeSnapshot{}, err
+		}
+		result.PreviousSnapshotID = &parsed
+	} else if !errors.Is(previousErr, sql.ErrNoRows) {
+		return ProbeSnapshot{}, previousErr
+	}
+	changeSet, changeErr := s.historyQueries.GetProbeChangeSetBySnapshot(ctx, id.String())
+	if changeErr == nil {
+		baseline := changeSet.Baseline == 1
+		result.Baseline = &baseline
+		changes, err := s.historyQueries.ListProbeFieldChanges(ctx, changeSet.ID)
+		if err != nil {
+			return ProbeSnapshot{}, err
+		}
+		result.Changes = make([]centerhistory.FieldChange, 0, len(changes))
+		for _, change := range changes {
+			result.Changes = append(result.Changes, centerhistory.FieldChange{
+				FieldID: change.FieldID, Group: change.GroupName, Path: change.JsonPath,
+				ValueType: centerhistory.JSONType(change.ValueType),
+				Before:    change.BeforeValue, After: change.AfterValue,
+			})
+		}
+	} else if !errors.Is(changeErr, sql.ErrNoRows) {
+		return ProbeSnapshot{}, changeErr
+	}
+	return result, nil
 }
 
 func (s *Service) History(ctx context.Context) (HistoryState, error) {
@@ -609,7 +682,18 @@ func (s *Service) History(ctx context.Context) (HistoryState, error) {
 	if err != nil {
 		return HistoryState{}, err
 	}
-	return HistoryState{Generation: record.HistoryGeneration, ResetAt: timePointer(record.HistoryResetAt)}, nil
+	retention, err := s.historyRetentionSettings(ctx)
+	if err != nil {
+		return HistoryState{}, err
+	}
+	usage, err := s.historyUsage(ctx, retention)
+	if err != nil {
+		return HistoryState{}, err
+	}
+	return HistoryState{
+		Generation: record.HistoryGeneration, ResetAt: timePointer(record.HistoryResetAt),
+		Retention: retention, Usage: usage,
+	}, nil
 }
 
 func (s *Service) ResetHistory(ctx context.Context) (HistoryState, error) {
@@ -640,6 +724,7 @@ func (s *Service) ResetHistory(ctx context.Context) (HistoryState, error) {
 	for _, reset := range []func(context.Context) error{
 		historyQueries.ResetProbeHistory, historyQueries.ResetProbeGaps,
 		historyQueries.ResetAddressHistory, historyQueries.ResetAddressStates, historyQueries.ResetAddressGaps,
+		historyQueries.ResetProbeComparisonProgress,
 	} {
 		if err := reset(ctx); err != nil {
 			_ = historyTransaction.Rollback()
@@ -679,8 +764,7 @@ func (s *Service) ResetHistory(ctx context.Context) (HistoryState, error) {
 	if err := configTransaction.Commit(); err != nil {
 		return HistoryState{}, err
 	}
-	resetAt := time.Unix(now, 0).UTC()
-	return HistoryState{Generation: generation, ResetAt: &resetAt}, nil
+	return s.History(ctx)
 }
 
 func ingestProbeRun(ctx context.Context, queries *historydb.Queries, nodeID string, run ProbeRunArtifact, receivedAt int64) error {
