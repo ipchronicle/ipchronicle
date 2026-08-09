@@ -294,6 +294,44 @@ export interface paths {
         patch: operations["updateNodeEgress"];
         trace?: never;
     };
+    "/api/v1/network-proxies": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List centrally managed network proxies without revealing passwords */
+        get: operations["listNetworkProxies"];
+        put?: never;
+        /** Create a centrally managed network proxy */
+        post: operations["createNetworkProxy"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/network-proxies/{proxyId}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                proxyId: components["parameters"]["ProxyId"];
+            };
+            cookie?: never;
+        };
+        get?: never;
+        /** Replace network proxy settings and explicitly keep, replace, or clear its password */
+        put: operations["updateNetworkProxy"];
+        post?: never;
+        /** Delete an unreferenced network proxy */
+        delete: operations["deleteNetworkProxy"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/agent-enrollment": {
         parameters: {
             query?: never;
@@ -431,7 +469,7 @@ export interface components {
             provisioningUri: string;
         };
         /** @enum {string} */
-        ErrorCode: "invalid_request" | "invalid_credentials" | "totp_required" | "rate_limited" | "unauthenticated" | "csrf_failed" | "origin_not_allowed" | "current_password_invalid" | "invalid_totp" | "totp_already_enabled" | "totp_not_enabled" | "totp_enrollment_not_started" | "no_account_change" | "registration_key_not_initialized" | "registration_key_invalid" | "registration_disabled" | "agent_unauthenticated" | "agent_revoked" | "node_not_found" | "node_revoked" | "node_deletion_pending" | "node_sync_unsupported" | "sync_session_unavailable" | "network_inventory_unavailable" | "invalid_egress_candidate" | "egress_already_exists" | "egress_limit_reached" | "egress_not_found" | "internal_error";
+        ErrorCode: "invalid_request" | "invalid_credentials" | "totp_required" | "rate_limited" | "unauthenticated" | "csrf_failed" | "origin_not_allowed" | "current_password_invalid" | "invalid_totp" | "totp_already_enabled" | "totp_not_enabled" | "totp_enrollment_not_started" | "no_account_change" | "registration_key_not_initialized" | "registration_key_invalid" | "registration_disabled" | "agent_unauthenticated" | "agent_revoked" | "node_not_found" | "node_revoked" | "node_deletion_pending" | "node_sync_unsupported" | "sync_session_unavailable" | "network_inventory_unavailable" | "invalid_egress_candidate" | "egress_already_exists" | "egress_limit_reached" | "egress_not_found" | "invalid_network_proxy" | "network_proxy_not_found" | "network_proxy_already_exists" | "network_proxy_limit_reached" | "network_proxy_in_use" | "internal_error";
         ErrorResponse: {
             code: components["schemas"]["ErrorCode"];
             parameters?: {
@@ -512,12 +550,13 @@ export interface components {
         };
         AgentConfigurationSnapshot: {
             /** @enum {integer} */
-            schemaVersion: 2;
+            schemaVersion: 3;
             /** Format: int64 */
             revision: number;
             enabled: boolean;
             historyGeneration: string;
             egresses: components["schemas"]["AgentEgressConfiguration"][];
+            proxies: components["schemas"]["AgentProxyConfiguration"][];
         };
         /** @enum {string} */
         AddressFamily: "ipv4" | "ipv6";
@@ -557,7 +596,7 @@ export interface components {
             routes: components["schemas"]["NetworkRoute"][];
         };
         /** @enum {string} */
-        NetworkEgressKind: "default" | "interface" | "source";
+        NetworkEgressKind: "default" | "interface" | "source" | "proxy";
         NetworkEgress: {
             /** Format: uuid */
             id: string;
@@ -568,6 +607,8 @@ export interface components {
             family: components["schemas"]["AddressFamily"];
             interfaceName?: string;
             sourceAddress?: string;
+            /** Format: uuid */
+            proxyId?: string;
             enabled: boolean;
             available: boolean;
             automatic: boolean;
@@ -599,10 +640,12 @@ export interface components {
         };
         NetworkEgressCreate: {
             /** @enum {string} */
-            kind: "interface" | "source";
+            kind: "interface" | "source" | "proxy";
             family: components["schemas"]["AddressFamily"];
-            interfaceName: string;
+            interfaceName?: string;
             sourceAddress?: string;
+            /** Format: uuid */
+            proxyId?: string;
         };
         NetworkEgressUpdate: {
             enabled: boolean;
@@ -614,10 +657,63 @@ export interface components {
             family: components["schemas"]["AddressFamily"];
             interfaceName?: string;
             sourceAddress?: string;
+            /** Format: uuid */
+            proxyId?: string;
             enabled: boolean;
             /** Format: int64 */
             lightweightIntervalSeconds: number;
             probeOnAddressChange: boolean;
+        };
+        /** @enum {string} */
+        NetworkProxyScheme: "http" | "https" | "socks5";
+        NetworkProxy: {
+            /** Format: uuid */
+            id: string;
+            name: string;
+            scheme: components["schemas"]["NetworkProxyScheme"];
+            host: string;
+            /** Format: int64 */
+            port: number;
+            username?: string;
+            passwordConfigured: boolean;
+            /** Format: date-time */
+            createdAt: string;
+            /** Format: date-time */
+            updatedAt: string;
+        };
+        NetworkProxyList: {
+            items: components["schemas"]["NetworkProxy"][];
+        };
+        NetworkProxyCreate: {
+            name: string;
+            scheme: components["schemas"]["NetworkProxyScheme"];
+            host: string;
+            /** Format: int64 */
+            port: number;
+            username?: string;
+            password?: string;
+        };
+        /** @enum {string} */
+        NetworkProxyPasswordAction: "keep" | "replace" | "clear";
+        NetworkProxyUpdate: {
+            name: string;
+            scheme: components["schemas"]["NetworkProxyScheme"];
+            host: string;
+            /** Format: int64 */
+            port: number;
+            username?: string;
+            passwordAction: components["schemas"]["NetworkProxyPasswordAction"];
+            password?: string;
+        };
+        AgentProxyConfiguration: {
+            /** Format: uuid */
+            id: string;
+            scheme: components["schemas"]["NetworkProxyScheme"];
+            host: string;
+            /** Format: int64 */
+            port: number;
+            username?: string;
+            password?: string;
         };
         /** @enum {string} */
         NodeStatus: "online" | "offline" | "disabled" | "revoked";
@@ -738,6 +834,7 @@ export interface components {
         CSRFToken: string;
         NodeId: string;
         EgressId: string;
+        ProxyId: string;
     };
     requestBodies: never;
     headers: never;
@@ -1315,6 +1412,116 @@ export interface operations {
                 };
             };
             400: components["responses"]["BadRequest"];
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+            409: components["responses"]["Conflict"];
+        };
+    };
+    listNetworkProxies: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Network proxies ordered by name. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["NetworkProxyList"];
+                };
+            };
+            401: components["responses"]["Unauthorized"];
+        };
+    };
+    createNetworkProxy: {
+        parameters: {
+            query?: never;
+            header?: {
+                "X-CSRF-Token"?: components["parameters"]["CSRFToken"];
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["NetworkProxyCreate"];
+            };
+        };
+        responses: {
+            /** @description The network proxy was created. */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["NetworkProxy"];
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            409: components["responses"]["Conflict"];
+        };
+    };
+    updateNetworkProxy: {
+        parameters: {
+            query?: never;
+            header?: {
+                "X-CSRF-Token"?: components["parameters"]["CSRFToken"];
+            };
+            path: {
+                proxyId: components["parameters"]["ProxyId"];
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["NetworkProxyUpdate"];
+            };
+        };
+        responses: {
+            /** @description The network proxy was updated. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["NetworkProxy"];
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+            409: components["responses"]["Conflict"];
+        };
+    };
+    deleteNetworkProxy: {
+        parameters: {
+            query?: never;
+            header?: {
+                "X-CSRF-Token"?: components["parameters"]["CSRFToken"];
+            };
+            path: {
+                proxyId: components["parameters"]["ProxyId"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The network proxy was deleted. */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
             401: components["responses"]["Unauthorized"];
             403: components["responses"]["Forbidden"];
             404: components["responses"]["NotFound"];

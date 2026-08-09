@@ -321,7 +321,7 @@ ON CONFLICT (node_id) DO UPDATE SET
     last_error = excluded.last_error;
 
 -- name: ListNodeEgresses :many
-SELECT id, node_id, name, kind, family, interface_name, source_address,
+SELECT id, node_id, name, kind, family, interface_name, source_address, proxy_id,
        enabled, available, automatic, lightweight_interval_seconds,
        probe_on_address_change, created_at, updated_at
 FROM network_egresses
@@ -329,33 +329,40 @@ WHERE node_id = ?
 ORDER BY family, kind, created_at, id;
 
 -- name: GetNodeEgress :one
-SELECT id, node_id, name, kind, family, interface_name, source_address,
+SELECT id, node_id, name, kind, family, interface_name, source_address, proxy_id,
        enabled, available, automatic, lightweight_interval_seconds,
        probe_on_address_change, created_at, updated_at
 FROM network_egresses
 WHERE node_id = ? AND id = ?;
 
 -- name: GetDefaultNodeEgress :one
-SELECT id, node_id, name, kind, family, interface_name, source_address,
+SELECT id, node_id, name, kind, family, interface_name, source_address, proxy_id,
        enabled, available, automatic, lightweight_interval_seconds,
        probe_on_address_change, created_at, updated_at
 FROM network_egresses
 WHERE node_id = ? AND kind = 'default' AND family = ?;
 
 -- name: GetNodeEgressBySelector :one
-SELECT id, node_id, name, kind, family, interface_name, source_address,
+SELECT id, node_id, name, kind, family, interface_name, source_address, proxy_id,
        enabled, available, automatic, lightweight_interval_seconds,
        probe_on_address_change, created_at, updated_at
 FROM network_egresses
 WHERE node_id = ? AND kind = ? AND family = ? AND interface_name = ?
   AND COALESCE(source_address, '') = COALESCE(?, '');
 
+-- name: GetNodeEgressByProxy :one
+SELECT id, node_id, name, kind, family, interface_name, source_address, proxy_id,
+       enabled, available, automatic, lightweight_interval_seconds,
+       probe_on_address_change, created_at, updated_at
+FROM network_egresses
+WHERE node_id = ? AND kind = 'proxy' AND family = ? AND proxy_id = ?;
+
 -- name: CreateNodeEgress :exec
 INSERT INTO network_egresses (
-    id, node_id, name, kind, family, interface_name, source_address,
+    id, node_id, name, kind, family, interface_name, source_address, proxy_id,
     enabled, available, automatic, lightweight_interval_seconds,
     probe_on_address_change, created_at, updated_at
-) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);
+) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);
 
 -- name: SetNodeEgressAvailability :execrows
 UPDATE network_egresses
@@ -377,3 +384,52 @@ SET desired_configuration_revision = desired_configuration_revision + 1,
     configuration_error = NULL,
     configuration_error_revision = NULL
 WHERE id = ? AND revoked_at IS NULL;
+
+-- name: ListNetworkProxies :many
+SELECT id, name, scheme, host, port, username, password_encrypted, created_at, updated_at
+FROM network_proxies
+ORDER BY name COLLATE NOCASE, id;
+
+-- name: GetNetworkProxy :one
+SELECT id, name, scheme, host, port, username, password_encrypted, created_at, updated_at
+FROM network_proxies
+WHERE id = ?;
+
+-- name: GetNetworkProxyByName :one
+SELECT id, name, scheme, host, port, username, password_encrypted, created_at, updated_at
+FROM network_proxies
+WHERE name = ? COLLATE NOCASE;
+
+-- name: ListNodeNetworkProxies :many
+SELECT DISTINCT p.id, p.name, p.scheme, p.host, p.port, p.username,
+       p.password_encrypted, p.created_at, p.updated_at
+FROM network_proxies p
+JOIN network_egresses e ON e.proxy_id = p.id
+WHERE e.node_id = ?
+ORDER BY p.name COLLATE NOCASE, p.id;
+
+-- name: CreateNetworkProxy :exec
+INSERT INTO network_proxies (
+    id, name, scheme, host, port, username, password_encrypted, created_at, updated_at
+) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?);
+
+-- name: UpdateNetworkProxy :execrows
+UPDATE network_proxies
+SET name = ?, scheme = ?, host = ?, port = ?, username = ?,
+    password_encrypted = ?, updated_at = ?
+WHERE id = ?;
+
+-- name: CountNetworkProxies :one
+SELECT count(*) FROM network_proxies;
+
+-- name: ListNodeIDsReferencingNetworkProxy :many
+SELECT DISTINCT node_id
+FROM network_egresses
+WHERE proxy_id = ?
+ORDER BY node_id;
+
+-- name: CountNetworkProxyReferences :one
+SELECT count(*) FROM network_egresses WHERE proxy_id = ?;
+
+-- name: DeleteNetworkProxy :execrows
+DELETE FROM network_proxies WHERE id = ?;

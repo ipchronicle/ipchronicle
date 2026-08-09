@@ -1,4 +1,4 @@
-import { CircleUserRound, Gauge, Radar, Server } from "lucide-react";
+import { CircleUserRound, Gauge, Network, Radar, Server } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { Link, useLocation } from "react-router";
 
@@ -90,6 +90,32 @@ export function AppSidebar() {
                     >
                       <Server aria-hidden="true" />
                       <span>{t("navigation.nodes")}</span>
+                    </SidebarLink>
+                  </SidebarMenuButton>
+                </SidebarMenuItem>
+              </SidebarMenu>
+            </SidebarGroupContent>
+          </SidebarGroup>
+          <SidebarGroup>
+            <SidebarGroupLabel>{t("navigation.settings")}</SidebarGroupLabel>
+            <SidebarGroupContent>
+              <SidebarMenu>
+                <SidebarMenuItem>
+                  <SidebarMenuButton
+                    asChild
+                    isActive={location.pathname === "/settings/network"}
+                    tooltip={t("navigation.networkSettings")}
+                  >
+                    <SidebarLink
+                      to="/settings/network"
+                      aria-current={
+                        location.pathname === "/settings/network"
+                          ? "page"
+                          : undefined
+                      }
+                    >
+                      <Network aria-hidden="true" />
+                      <span>{t("navigation.networkSettings")}</span>
                     </SidebarLink>
                   </SidebarMenuButton>
                 </SidebarMenuItem>

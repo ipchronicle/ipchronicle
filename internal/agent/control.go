@@ -22,7 +22,7 @@ import (
 
 const controlCapability = "control-v1"
 
-const maxAgentAPIResponseSize = 64 * 1024
+const maxAgentAPIResponseSize = 512 * 1024
 
 var ErrAgentRevoked = errors.New("Agent identity is revoked")
 
@@ -246,7 +246,7 @@ func (c *ControlClient) configuration(ctx context.Context, credential string, de
 		return state.Configuration{}, responseError("fetch Agent configuration", response.StatusCode(), response.JSON401, response.JSON403)
 	}
 	if len(response.Body) > maxAgentAPIResponseSize {
-		return state.Configuration{}, errors.New("Agent configuration snapshot exceeds 64 KiB")
+		return state.Configuration{}, errors.New("Agent configuration snapshot exceeds 512 KiB")
 	}
 	var configuration state.Configuration
 	decoder := json.NewDecoder(bytes.NewReader(response.Body))
@@ -307,7 +307,7 @@ func currentMetadata(version string) (agentapi.AgentMetadata, error) {
 	return agentapi.AgentMetadata{
 		Hostname: hostname, AgentVersion: version,
 		OperatingSystem: agentapi.Linux, Architecture: agentapi.AgentArchitecture(runtime.GOARCH),
-		Capabilities: []string{controlCapability, "configuration-v1", "network-inventory-v1", syncWakeCapability},
+		Capabilities: []string{controlCapability, "configuration-v3", "network-inventory-v1", syncWakeCapability},
 	}, nil
 }
 

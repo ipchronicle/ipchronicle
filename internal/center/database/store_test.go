@@ -9,7 +9,9 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/ipchronicle/ipchronicle/internal/center/database/configdb"
 	_ "github.com/mattn/go-sqlite3"
+	"github.com/pressly/goose/v3"
 )
 
 func TestFreshOpenAndRestart(t *testing.T) {
@@ -19,7 +21,7 @@ func TestFreshOpenAndRestart(t *testing.T) {
 		t.Fatal(err)
 	}
 	firstGeneration := store.HistoryGeneration
-	if store.ConfigSchemaVersion != 5 || store.HistorySchemaVersion != 1 {
+	if store.ConfigSchemaVersion != 6 || store.HistorySchemaVersion != 1 {
 		t.Fatalf("unexpected schema versions: %d/%d", store.ConfigSchemaVersion, store.HistorySchemaVersion)
 	}
 	if err := store.Close(); err != nil {
@@ -58,6 +60,71 @@ func TestMissingMasterKeyFailsWhenDatabaseExists(t *testing.T) {
 	_, err = Open(context.Background(), paths)
 	if err == nil || !strings.Contains(err.Error(), "master key is missing") {
 		t.Fatalf("error = %v, want explicit missing master key failure", err)
+	}
+}
+
+func TestVersionFiveNetworkEgressesMigrateToVersionSix(t *testing.T) {
+	ctx := context.Background()
+	paths := PathsFromDataDirectory(t.TempDir())
+	if err := prepareDirectories(paths); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(paths.MasterKey, make([]byte, MasterKeySize), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	configDatabase, err := openSQLite(ctx, paths.ConfigDatabase)
+	if err != nil {
+		t.Fatal(err)
+	}
+	migrationMu.Lock()
+	goose.SetBaseFS(migrationFiles)
+	err = goose.SetDialect("sqlite3")
+	if err == nil {
+		err = goose.UpToContext(ctx, configDatabase, "migrations/config", 5)
+	}
+	migrationMu.Unlock()
+	if err != nil {
+		_ = configDatabase.Close()
+		t.Fatal(err)
+	}
+	nodeID := "7289cfa3-a75d-4a3f-ac06-8f1074446a85"
+	egressID := "6fc6d7e8-bc63-49e2-91fc-d4c58b43ac16"
+	if _, err := configDatabase.ExecContext(ctx, `
+		INSERT INTO nodes (
+			id, name, hostname, credential_digest, agent_version,
+			operating_system, architecture, desired_configuration_revision, registered_at
+		) VALUES (?, ?, ?, ?, ?, ?, ?, 1, ?)
+	`, nodeID, "edge-1", "edge-1", make([]byte, 32), "test", "linux", "amd64", 1); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := configDatabase.ExecContext(ctx, `
+		INSERT INTO network_egresses (
+			id, node_id, name, kind, family, interface_name, source_address,
+			enabled, available, automatic, lightweight_interval_seconds,
+			probe_on_address_change, created_at, updated_at
+		) VALUES (?, ?, ?, 'source', 'ipv4', 'eth0', '10.0.0.5', 1, 1, 0, 600, 1, 1, 1)
+	`, egressID, nodeID, "source:10.0.0.5"); err != nil {
+		t.Fatal(err)
+	}
+	if err := configDatabase.Close(); err != nil {
+		t.Fatal(err)
+	}
+
+	store, err := Open(ctx, paths)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer store.Close()
+	if store.ConfigSchemaVersion != 6 {
+		t.Fatalf("configuration schema = %d, want 6", store.ConfigSchemaVersion)
+	}
+	egress, err := store.ConfigQueries.GetNodeEgress(ctx, configdb.GetNodeEgressParams{NodeID: nodeID, ID: egressID})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if egress.Kind != "source" || egress.InterfaceName == nil || *egress.InterfaceName != "eth0" ||
+		egress.SourceAddress == nil || *egress.SourceAddress != "10.0.0.5" || egress.ProxyID != nil {
+		t.Fatalf("migrated egress = %#v", egress)
 	}
 }
 

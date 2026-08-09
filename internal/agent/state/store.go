@@ -15,6 +15,7 @@ import (
 	"path/filepath"
 	"strings"
 	"time"
+	"unicode/utf8"
 
 	"github.com/google/uuid"
 	bolt "go.etcd.io/bbolt"
@@ -27,21 +28,22 @@ const (
 )
 
 var (
-	ErrNotEnrolled           = errors.New("Agent is not enrolled")
-	ErrNoConfiguration       = errors.New("Agent has no applied configuration")
-	metaBucket               = []byte("meta")
-	identityBucket           = []byte("identity")
-	configurationBucket      = []byte("configuration")
-	schemaVersionKey         = []byte("schema-version")
-	centerURLKey             = []byte("center-url")
-	nodeIDKey                = []byte("node-id")
-	credentialKey            = []byte("credential")
-	appliedRevisionKey       = []byte("applied-configuration-revision")
-	configurationKey         = []byte("current")
-	configurationErrorKey    = []byte("error")
-	configurationErrorRevKey = []byte("error-revision")
-	revokedKey               = []byte("revoked")
-	credentialAdditionalData = []byte("ipchronicle:agent-credential:v1")
+	ErrNotEnrolled            = errors.New("Agent is not enrolled")
+	ErrNoConfiguration        = errors.New("Agent has no applied configuration")
+	metaBucket                = []byte("meta")
+	identityBucket            = []byte("identity")
+	configurationBucket       = []byte("configuration")
+	schemaVersionKey          = []byte("schema-version")
+	centerURLKey              = []byte("center-url")
+	nodeIDKey                 = []byte("node-id")
+	credentialKey             = []byte("credential")
+	appliedRevisionKey        = []byte("applied-configuration-revision")
+	configurationKey          = []byte("current")
+	configurationErrorKey     = []byte("error")
+	configurationErrorRevKey  = []byte("error-revision")
+	revokedKey                = []byte("revoked")
+	credentialAdditionalData  = []byte("ipchronicle:agent-credential:v1")
+	proxyAdditionalDataPrefix = []byte("ipchronicle:agent-proxy-password:v1:")
 )
 
 type Identity struct {
@@ -57,6 +59,7 @@ type Configuration struct {
 	Enabled           bool     `json:"enabled"`
 	HistoryGeneration string   `json:"historyGeneration"`
 	Egresses          []Egress `json:"egresses,omitempty"`
+	Proxies           []Proxy  `json:"proxies,omitempty"`
 }
 
 type Egress struct {
@@ -65,9 +68,37 @@ type Egress struct {
 	Family                     string  `json:"family"`
 	InterfaceName              *string `json:"interfaceName,omitempty"`
 	SourceAddress              *string `json:"sourceAddress,omitempty"`
+	ProxyID                    *string `json:"proxyId,omitempty"`
 	Enabled                    bool    `json:"enabled"`
 	LightweightIntervalSeconds int64   `json:"lightweightIntervalSeconds"`
 	ProbeOnAddressChange       bool    `json:"probeOnAddressChange"`
+}
+
+type Proxy struct {
+	ID       string  `json:"id"`
+	Scheme   string  `json:"scheme"`
+	Host     string  `json:"host"`
+	Port     int64   `json:"port"`
+	Username *string `json:"username,omitempty"`
+	Password *string `json:"password,omitempty"`
+}
+
+type storedConfiguration struct {
+	SchemaVersion     int           `json:"schemaVersion"`
+	Revision          int64         `json:"revision"`
+	Enabled           bool          `json:"enabled"`
+	HistoryGeneration string        `json:"historyGeneration"`
+	Egresses          []Egress      `json:"egresses,omitempty"`
+	Proxies           []storedProxy `json:"proxies,omitempty"`
+}
+
+type storedProxy struct {
+	ID                string  `json:"id"`
+	Scheme            string  `json:"scheme"`
+	Host              string  `json:"host"`
+	Port              int64   `json:"port"`
+	Username          *string `json:"username,omitempty"`
+	PasswordEncrypted []byte  `json:"passwordEncrypted,omitempty"`
 }
 
 type ControlState struct {
@@ -231,9 +262,11 @@ func (s *Store) Configuration() (Configuration, error) {
 		if bucket == nil || bucket.Get(configurationKey) == nil {
 			return ErrNoConfiguration
 		}
-		if err := json.Unmarshal(bucket.Get(configurationKey), &configuration); err != nil {
-			return fmt.Errorf("decode Agent configuration: %w", err)
+		decoded, err := decodeStoredConfiguration(s.masterKey, bucket.Get(configurationKey))
+		if err != nil {
+			return err
 		}
+		configuration = decoded
 		return validateConfiguration(configuration)
 	})
 	return configuration, err
@@ -243,10 +276,10 @@ func (s *Store) ApplyConfiguration(configuration Configuration) error {
 	if err := validateConfiguration(configuration); err != nil {
 		return err
 	}
-	if configuration.SchemaVersion != 2 {
-		return errors.New("new Agent configuration must use schema version 2")
+	if configuration.SchemaVersion != 3 {
+		return errors.New("new Agent configuration must use schema version 3")
 	}
-	encoded, err := json.Marshal(configuration)
+	encoded, err := encodeStoredConfiguration(s.masterKey, configuration)
 	if err != nil {
 		return fmt.Errorf("encode Agent configuration: %w", err)
 	}
@@ -367,7 +400,7 @@ func (s *Store) validateCurrentConfiguration() error {
 }
 
 func validateConfiguration(configuration Configuration) error {
-	if (configuration.SchemaVersion != 1 && configuration.SchemaVersion != 2) || configuration.Revision < 1 {
+	if (configuration.SchemaVersion != 1 && configuration.SchemaVersion != 2 && configuration.SchemaVersion != 3) || configuration.Revision < 1 {
 		return errors.New("unsupported Agent configuration snapshot")
 	}
 	generation, err := hex.DecodeString(configuration.HistoryGeneration)
@@ -375,18 +408,38 @@ func validateConfiguration(configuration Configuration) error {
 		return errors.New("invalid Agent history generation")
 	}
 	if configuration.SchemaVersion == 1 {
-		if len(configuration.Egresses) != 0 {
+		if len(configuration.Egresses) != 0 || len(configuration.Proxies) != 0 {
 			return errors.New("schema version 1 configuration contains network egresses")
 		}
 		return nil
 	}
+	if configuration.SchemaVersion == 2 && len(configuration.Proxies) != 0 {
+		return errors.New("schema version 2 configuration contains network proxies")
+	}
 	if len(configuration.Egresses) > 64 {
 		return errors.New("Agent configuration contains too many network egresses")
 	}
+	if len(configuration.Proxies) > 64 {
+		return errors.New("Agent configuration contains too many network proxies")
+	}
+	proxies := make(map[string]struct{}, len(configuration.Proxies))
+	for _, proxy := range configuration.Proxies {
+		if _, err := uuid.Parse(proxy.ID); err != nil ||
+			(proxy.Scheme != "http" && proxy.Scheme != "https" && proxy.Scheme != "socks5") ||
+			!validStoredProxyHost(proxy.Host) || proxy.Port < 1 || proxy.Port > 65535 ||
+			!validStoredProxyUsername(proxy.Username) || !validStoredProxyPassword(proxy.Password) {
+			return errors.New("Agent configuration contains an invalid network proxy")
+		}
+		if _, exists := proxies[proxy.ID]; exists {
+			return errors.New("Agent configuration contains a duplicate network proxy")
+		}
+		proxies[proxy.ID] = struct{}{}
+	}
 	seen := make(map[string]struct{}, len(configuration.Egresses))
+	referencedProxies := make(map[string]struct{}, len(configuration.Proxies))
 	for _, egress := range configuration.Egresses {
 		if _, err := uuid.Parse(egress.ID); err != nil ||
-			(egress.Kind != "default" && egress.Kind != "interface" && egress.Kind != "source") ||
+			(egress.Kind != "default" && egress.Kind != "interface" && egress.Kind != "source" && egress.Kind != "proxy") ||
 			(egress.Family != "ipv4" && egress.Family != "ipv6") || egress.LightweightIntervalSeconds < 1 {
 			return errors.New("Agent configuration contains an invalid network egress")
 		}
@@ -396,22 +449,33 @@ func validateConfiguration(configuration Configuration) error {
 		seen[egress.ID] = struct{}{}
 		switch egress.Kind {
 		case "default":
-			if egress.InterfaceName != nil || egress.SourceAddress != nil {
+			if egress.InterfaceName != nil || egress.SourceAddress != nil || egress.ProxyID != nil {
 				return errors.New("default network egress contains a selector")
 			}
 		case "interface":
-			if !validStoredInterface(egress.InterfaceName) || egress.SourceAddress != nil {
+			if !validStoredInterface(egress.InterfaceName) || egress.SourceAddress != nil || egress.ProxyID != nil {
 				return errors.New("interface network egress contains an invalid selector")
 			}
 		case "source":
-			if !validStoredInterface(egress.InterfaceName) || egress.SourceAddress == nil {
+			if !validStoredInterface(egress.InterfaceName) || egress.SourceAddress == nil || egress.ProxyID != nil {
 				return errors.New("source network egress contains an invalid selector")
 			}
 			address, err := netip.ParseAddr(*egress.SourceAddress)
 			if err != nil || address != address.Unmap() || (address.Is4() && egress.Family != "ipv4") || (address.Is6() && egress.Family != "ipv6") {
 				return errors.New("source network egress contains an invalid address")
 			}
+		case "proxy":
+			if configuration.SchemaVersion != 3 || egress.InterfaceName != nil || egress.SourceAddress != nil || egress.ProxyID == nil {
+				return errors.New("proxy network egress contains an invalid selector")
+			}
+			if _, exists := proxies[*egress.ProxyID]; !exists {
+				return errors.New("proxy network egress references an unavailable proxy")
+			}
+			referencedProxies[*egress.ProxyID] = struct{}{}
 		}
+	}
+	if len(referencedProxies) != len(proxies) {
+		return errors.New("Agent configuration contains an unreferenced network proxy")
 	}
 	return nil
 }
@@ -419,6 +483,97 @@ func validateConfiguration(configuration Configuration) error {
 func validStoredInterface(value *string) bool {
 	return value != nil && *value == strings.TrimSpace(*value) && len(*value) >= 1 && len(*value) <= 64 &&
 		!strings.ContainsAny(*value, "\x00\r\n\t")
+}
+
+func validStoredProxyHost(host string) bool {
+	if address, err := netip.ParseAddr(host); err == nil {
+		return address == address.Unmap() && !address.IsUnspecified() && !address.IsMulticast()
+	}
+	if len(host) < 1 || len(host) > 253 || strings.HasPrefix(host, ".") || strings.HasSuffix(host, ".") || strings.Contains(host, "..") {
+		return false
+	}
+	for _, character := range host {
+		if !((character >= 'a' && character <= 'z') || (character >= 'A' && character <= 'Z') ||
+			(character >= '0' && character <= '9') || character == '-' || character == '_' || character == '.') {
+			return false
+		}
+	}
+	return true
+}
+
+func validStoredProxyUsername(value *string) bool {
+	return value == nil || (utf8.ValidString(*value) && utf8.RuneCountInString(*value) >= 1 &&
+		utf8.RuneCountInString(*value) <= 512 && !strings.ContainsRune(*value, '\x00'))
+}
+
+func validStoredProxyPassword(value *string) bool {
+	return value == nil || (utf8.ValidString(*value) && len(*value) >= 1 && len(*value) <= 4096 &&
+		!strings.ContainsRune(*value, '\x00'))
+}
+
+func encodeStoredConfiguration(masterKey [masterKeySize]byte, configuration Configuration) ([]byte, error) {
+	stored := storedConfiguration{
+		SchemaVersion: configuration.SchemaVersion, Revision: configuration.Revision,
+		Enabled: configuration.Enabled, HistoryGeneration: configuration.HistoryGeneration,
+		Egresses: configuration.Egresses, Proxies: make([]storedProxy, 0, len(configuration.Proxies)),
+	}
+	for _, proxy := range configuration.Proxies {
+		item := storedProxy{
+			ID: proxy.ID, Scheme: proxy.Scheme, Host: proxy.Host, Port: proxy.Port, Username: proxy.Username,
+		}
+		if proxy.Password != nil {
+			encrypted, err := encryptProxyPassword(masterKey, proxy.ID, *proxy.Password)
+			if err != nil {
+				return nil, err
+			}
+			item.PasswordEncrypted = encrypted
+		}
+		stored.Proxies = append(stored.Proxies, item)
+	}
+	encoded, err := json.Marshal(stored)
+	if err != nil {
+		return nil, fmt.Errorf("encode Agent configuration: %w", err)
+	}
+	return encoded, nil
+}
+
+func decodeStoredConfiguration(masterKey [masterKeySize]byte, encoded []byte) (Configuration, error) {
+	var header struct {
+		SchemaVersion int `json:"schemaVersion"`
+	}
+	if err := json.Unmarshal(encoded, &header); err != nil {
+		return Configuration{}, fmt.Errorf("decode Agent configuration: %w", err)
+	}
+	if header.SchemaVersion < 3 {
+		var configuration Configuration
+		if err := json.Unmarshal(encoded, &configuration); err != nil {
+			return Configuration{}, fmt.Errorf("decode Agent configuration: %w", err)
+		}
+		return configuration, nil
+	}
+	var stored storedConfiguration
+	if err := json.Unmarshal(encoded, &stored); err != nil {
+		return Configuration{}, fmt.Errorf("decode Agent configuration: %w", err)
+	}
+	configuration := Configuration{
+		SchemaVersion: stored.SchemaVersion, Revision: stored.Revision, Enabled: stored.Enabled,
+		HistoryGeneration: stored.HistoryGeneration, Egresses: stored.Egresses,
+	}
+	if len(stored.Proxies) != 0 {
+		configuration.Proxies = make([]Proxy, 0, len(stored.Proxies))
+	}
+	for _, proxy := range stored.Proxies {
+		item := Proxy{ID: proxy.ID, Scheme: proxy.Scheme, Host: proxy.Host, Port: proxy.Port, Username: proxy.Username}
+		if len(proxy.PasswordEncrypted) != 0 {
+			password, err := decryptProxyPassword(masterKey, proxy.ID, proxy.PasswordEncrypted)
+			if err != nil {
+				return Configuration{}, fmt.Errorf("read retained proxy credential for %s: %w", proxy.ID, err)
+			}
+			item.Password = &password
+		}
+		configuration.Proxies = append(configuration.Proxies, item)
+	}
+	return configuration, nil
 }
 
 func ensurePrivateDirectory(path string) error {
@@ -546,4 +701,50 @@ func decryptCredential(masterKey [masterKeySize]byte, envelope []byte) (string, 
 		return "", errors.New("decrypt Agent credential")
 	}
 	return string(plaintext), nil
+}
+
+func encryptProxyPassword(masterKey [masterKeySize]byte, proxyID, value string) ([]byte, error) {
+	block, err := aes.NewCipher(masterKey[:])
+	if err != nil {
+		return nil, err
+	}
+	gcm, err := cipher.NewGCM(block)
+	if err != nil {
+		return nil, err
+	}
+	nonce := make([]byte, gcm.NonceSize())
+	if _, err := rand.Read(nonce); err != nil {
+		return nil, fmt.Errorf("generate retained proxy-password nonce: %w", err)
+	}
+	envelope := make([]byte, 1, 1+len(nonce)+len(value)+gcm.Overhead())
+	envelope[0] = secretEnvelopeVersion
+	envelope = append(envelope, nonce...)
+	envelope = gcm.Seal(envelope, nonce, []byte(value), agentProxyAdditionalData(proxyID))
+	return envelope, nil
+}
+
+func decryptProxyPassword(masterKey [masterKeySize]byte, proxyID string, envelope []byte) (string, error) {
+	block, err := aes.NewCipher(masterKey[:])
+	if err != nil {
+		return "", err
+	}
+	gcm, err := cipher.NewGCM(block)
+	if err != nil {
+		return "", err
+	}
+	if len(envelope) < 1+gcm.NonceSize()+gcm.Overhead() || envelope[0] != secretEnvelopeVersion {
+		return "", errors.New("invalid retained proxy-password envelope")
+	}
+	nonce := envelope[1 : 1+gcm.NonceSize()]
+	plaintext, err := gcm.Open(nil, nonce, envelope[1+gcm.NonceSize():], agentProxyAdditionalData(proxyID))
+	if err != nil {
+		return "", errors.New("decrypt retained proxy password")
+	}
+	return string(plaintext), nil
+}
+
+func agentProxyAdditionalData(proxyID string) []byte {
+	result := make([]byte, 0, len(proxyAdditionalDataPrefix)+len(proxyID))
+	result = append(result, proxyAdditionalDataPrefix...)
+	return append(result, proxyID...)
 }

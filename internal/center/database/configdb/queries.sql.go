@@ -25,6 +25,28 @@ func (q *Queries) CompleteNodeDeletion(ctx context.Context, arg CompleteNodeDele
 	return err
 }
 
+const countNetworkProxies = `-- name: CountNetworkProxies :one
+SELECT count(*) FROM network_proxies
+`
+
+func (q *Queries) CountNetworkProxies(ctx context.Context) (int64, error) {
+	row := q.db.QueryRowContext(ctx, countNetworkProxies)
+	var count int64
+	err := row.Scan(&count)
+	return count, err
+}
+
+const countNetworkProxyReferences = `-- name: CountNetworkProxyReferences :one
+SELECT count(*) FROM network_egresses WHERE proxy_id = ?
+`
+
+func (q *Queries) CountNetworkProxyReferences(ctx context.Context, proxyID *string) (int64, error) {
+	row := q.db.QueryRowContext(ctx, countNetworkProxyReferences, proxyID)
+	var count int64
+	err := row.Scan(&count)
+	return count, err
+}
+
 const createAdministrator = `-- name: CreateAdministrator :exec
 INSERT INTO administrators (
     id, username, password_hash, locale, uses_default_credentials,
@@ -74,6 +96,39 @@ func (q *Queries) CreateAdministratorSession(ctx context.Context, arg CreateAdmi
 		arg.ExpiresAt,
 		arg.ClientAddress,
 		arg.UserAgent,
+	)
+	return err
+}
+
+const createNetworkProxy = `-- name: CreateNetworkProxy :exec
+INSERT INTO network_proxies (
+    id, name, scheme, host, port, username, password_encrypted, created_at, updated_at
+) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+`
+
+type CreateNetworkProxyParams struct {
+	ID                string
+	Name              string
+	Scheme            string
+	Host              string
+	Port              int64
+	Username          *string
+	PasswordEncrypted []byte
+	CreatedAt         int64
+	UpdatedAt         int64
+}
+
+func (q *Queries) CreateNetworkProxy(ctx context.Context, arg CreateNetworkProxyParams) error {
+	_, err := q.db.ExecContext(ctx, createNetworkProxy,
+		arg.ID,
+		arg.Name,
+		arg.Scheme,
+		arg.Host,
+		arg.Port,
+		arg.Username,
+		arg.PasswordEncrypted,
+		arg.CreatedAt,
+		arg.UpdatedAt,
 	)
 	return err
 }
@@ -157,10 +212,10 @@ func (q *Queries) CreateNodeDeletion(ctx context.Context, arg CreateNodeDeletion
 
 const createNodeEgress = `-- name: CreateNodeEgress :exec
 INSERT INTO network_egresses (
-    id, node_id, name, kind, family, interface_name, source_address,
+    id, node_id, name, kind, family, interface_name, source_address, proxy_id,
     enabled, available, automatic, lightweight_interval_seconds,
     probe_on_address_change, created_at, updated_at
-) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
 `
 
 type CreateNodeEgressParams struct {
@@ -171,6 +226,7 @@ type CreateNodeEgressParams struct {
 	Family                     string
 	InterfaceName              *string
 	SourceAddress              *string
+	ProxyID                    *string
 	Enabled                    int64
 	Available                  int64
 	Automatic                  int64
@@ -189,6 +245,7 @@ func (q *Queries) CreateNodeEgress(ctx context.Context, arg CreateNodeEgressPara
 		arg.Family,
 		arg.InterfaceName,
 		arg.SourceAddress,
+		arg.ProxyID,
 		arg.Enabled,
 		arg.Available,
 		arg.Automatic,
@@ -237,6 +294,18 @@ WHERE expires_at <= ?
 func (q *Queries) DeleteExpiredAdministratorSessions(ctx context.Context, expiresAt int64) error {
 	_, err := q.db.ExecContext(ctx, deleteExpiredAdministratorSessions, expiresAt)
 	return err
+}
+
+const deleteNetworkProxy = `-- name: DeleteNetworkProxy :execrows
+DELETE FROM network_proxies WHERE id = ?
+`
+
+func (q *Queries) DeleteNetworkProxy(ctx context.Context, id string) (int64, error) {
+	result, err := q.db.ExecContext(ctx, deleteNetworkProxy, id)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected()
 }
 
 const deleteNode = `-- name: DeleteNode :exec
@@ -473,7 +542,7 @@ func (q *Queries) GetAgentEnrollment(ctx context.Context) (AgentEnrollment, erro
 }
 
 const getDefaultNodeEgress = `-- name: GetDefaultNodeEgress :one
-SELECT id, node_id, name, kind, family, interface_name, source_address,
+SELECT id, node_id, name, kind, family, interface_name, source_address, proxy_id,
        enabled, available, automatic, lightweight_interval_seconds,
        probe_on_address_change, created_at, updated_at
 FROM network_egresses
@@ -496,11 +565,58 @@ func (q *Queries) GetDefaultNodeEgress(ctx context.Context, arg GetDefaultNodeEg
 		&i.Family,
 		&i.InterfaceName,
 		&i.SourceAddress,
+		&i.ProxyID,
 		&i.Enabled,
 		&i.Available,
 		&i.Automatic,
 		&i.LightweightIntervalSeconds,
 		&i.ProbeOnAddressChange,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+	)
+	return i, err
+}
+
+const getNetworkProxy = `-- name: GetNetworkProxy :one
+SELECT id, name, scheme, host, port, username, password_encrypted, created_at, updated_at
+FROM network_proxies
+WHERE id = ?
+`
+
+func (q *Queries) GetNetworkProxy(ctx context.Context, id string) (NetworkProxy, error) {
+	row := q.db.QueryRowContext(ctx, getNetworkProxy, id)
+	var i NetworkProxy
+	err := row.Scan(
+		&i.ID,
+		&i.Name,
+		&i.Scheme,
+		&i.Host,
+		&i.Port,
+		&i.Username,
+		&i.PasswordEncrypted,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+	)
+	return i, err
+}
+
+const getNetworkProxyByName = `-- name: GetNetworkProxyByName :one
+SELECT id, name, scheme, host, port, username, password_encrypted, created_at, updated_at
+FROM network_proxies
+WHERE name = ? COLLATE NOCASE
+`
+
+func (q *Queries) GetNetworkProxyByName(ctx context.Context, name string) (NetworkProxy, error) {
+	row := q.db.QueryRowContext(ctx, getNetworkProxyByName, name)
+	var i NetworkProxy
+	err := row.Scan(
+		&i.ID,
+		&i.Name,
+		&i.Scheme,
+		&i.Host,
+		&i.Port,
+		&i.Username,
+		&i.PasswordEncrypted,
 		&i.CreatedAt,
 		&i.UpdatedAt,
 	)
@@ -612,7 +728,7 @@ func (q *Queries) GetNodeDeletion(ctx context.Context, nodeID string) (NodeDelet
 }
 
 const getNodeEgress = `-- name: GetNodeEgress :one
-SELECT id, node_id, name, kind, family, interface_name, source_address,
+SELECT id, node_id, name, kind, family, interface_name, source_address, proxy_id,
        enabled, available, automatic, lightweight_interval_seconds,
        probe_on_address_change, created_at, updated_at
 FROM network_egresses
@@ -635,6 +751,44 @@ func (q *Queries) GetNodeEgress(ctx context.Context, arg GetNodeEgressParams) (N
 		&i.Family,
 		&i.InterfaceName,
 		&i.SourceAddress,
+		&i.ProxyID,
+		&i.Enabled,
+		&i.Available,
+		&i.Automatic,
+		&i.LightweightIntervalSeconds,
+		&i.ProbeOnAddressChange,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+	)
+	return i, err
+}
+
+const getNodeEgressByProxy = `-- name: GetNodeEgressByProxy :one
+SELECT id, node_id, name, kind, family, interface_name, source_address, proxy_id,
+       enabled, available, automatic, lightweight_interval_seconds,
+       probe_on_address_change, created_at, updated_at
+FROM network_egresses
+WHERE node_id = ? AND kind = 'proxy' AND family = ? AND proxy_id = ?
+`
+
+type GetNodeEgressByProxyParams struct {
+	NodeID  string
+	Family  string
+	ProxyID *string
+}
+
+func (q *Queries) GetNodeEgressByProxy(ctx context.Context, arg GetNodeEgressByProxyParams) (NetworkEgress, error) {
+	row := q.db.QueryRowContext(ctx, getNodeEgressByProxy, arg.NodeID, arg.Family, arg.ProxyID)
+	var i NetworkEgress
+	err := row.Scan(
+		&i.ID,
+		&i.NodeID,
+		&i.Name,
+		&i.Kind,
+		&i.Family,
+		&i.InterfaceName,
+		&i.SourceAddress,
+		&i.ProxyID,
 		&i.Enabled,
 		&i.Available,
 		&i.Automatic,
@@ -647,7 +801,7 @@ func (q *Queries) GetNodeEgress(ctx context.Context, arg GetNodeEgressParams) (N
 }
 
 const getNodeEgressBySelector = `-- name: GetNodeEgressBySelector :one
-SELECT id, node_id, name, kind, family, interface_name, source_address,
+SELECT id, node_id, name, kind, family, interface_name, source_address, proxy_id,
        enabled, available, automatic, lightweight_interval_seconds,
        probe_on_address_change, created_at, updated_at
 FROM network_egresses
@@ -680,6 +834,7 @@ func (q *Queries) GetNodeEgressBySelector(ctx context.Context, arg GetNodeEgress
 		&i.Family,
 		&i.InterfaceName,
 		&i.SourceAddress,
+		&i.ProxyID,
 		&i.Enabled,
 		&i.Available,
 		&i.Automatic,
@@ -808,6 +963,45 @@ func (q *Queries) ListActiveNodeDeletions(ctx context.Context, limit int64) ([]N
 	return items, nil
 }
 
+const listNetworkProxies = `-- name: ListNetworkProxies :many
+SELECT id, name, scheme, host, port, username, password_encrypted, created_at, updated_at
+FROM network_proxies
+ORDER BY name COLLATE NOCASE, id
+`
+
+func (q *Queries) ListNetworkProxies(ctx context.Context) ([]NetworkProxy, error) {
+	rows, err := q.db.QueryContext(ctx, listNetworkProxies)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []NetworkProxy{}
+	for rows.Next() {
+		var i NetworkProxy
+		if err := rows.Scan(
+			&i.ID,
+			&i.Name,
+			&i.Scheme,
+			&i.Host,
+			&i.Port,
+			&i.Username,
+			&i.PasswordEncrypted,
+			&i.CreatedAt,
+			&i.UpdatedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const listNodeCapabilities = `-- name: ListNodeCapabilities :many
 SELECT node_id, capability
 FROM node_capabilities
@@ -838,7 +1032,7 @@ func (q *Queries) ListNodeCapabilities(ctx context.Context) ([]NodeCapability, e
 }
 
 const listNodeEgresses = `-- name: ListNodeEgresses :many
-SELECT id, node_id, name, kind, family, interface_name, source_address,
+SELECT id, node_id, name, kind, family, interface_name, source_address, proxy_id,
        enabled, available, automatic, lightweight_interval_seconds,
        probe_on_address_change, created_at, updated_at
 FROM network_egresses
@@ -863,11 +1057,84 @@ func (q *Queries) ListNodeEgresses(ctx context.Context, nodeID string) ([]Networ
 			&i.Family,
 			&i.InterfaceName,
 			&i.SourceAddress,
+			&i.ProxyID,
 			&i.Enabled,
 			&i.Available,
 			&i.Automatic,
 			&i.LightweightIntervalSeconds,
 			&i.ProbeOnAddressChange,
+			&i.CreatedAt,
+			&i.UpdatedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listNodeIDsReferencingNetworkProxy = `-- name: ListNodeIDsReferencingNetworkProxy :many
+SELECT DISTINCT node_id
+FROM network_egresses
+WHERE proxy_id = ?
+ORDER BY node_id
+`
+
+func (q *Queries) ListNodeIDsReferencingNetworkProxy(ctx context.Context, proxyID *string) ([]string, error) {
+	rows, err := q.db.QueryContext(ctx, listNodeIDsReferencingNetworkProxy, proxyID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []string{}
+	for rows.Next() {
+		var node_id string
+		if err := rows.Scan(&node_id); err != nil {
+			return nil, err
+		}
+		items = append(items, node_id)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listNodeNetworkProxies = `-- name: ListNodeNetworkProxies :many
+SELECT DISTINCT p.id, p.name, p.scheme, p.host, p.port, p.username,
+       p.password_encrypted, p.created_at, p.updated_at
+FROM network_proxies p
+JOIN network_egresses e ON e.proxy_id = p.id
+WHERE e.node_id = ?
+ORDER BY p.name COLLATE NOCASE, p.id
+`
+
+func (q *Queries) ListNodeNetworkProxies(ctx context.Context, nodeID string) ([]NetworkProxy, error) {
+	rows, err := q.db.QueryContext(ctx, listNodeNetworkProxies, nodeID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []NetworkProxy{}
+	for rows.Next() {
+		var i NetworkProxy
+		if err := rows.Scan(
+			&i.ID,
+			&i.Name,
+			&i.Scheme,
+			&i.Host,
+			&i.Port,
+			&i.Username,
+			&i.PasswordEncrypted,
 			&i.CreatedAt,
 			&i.UpdatedAt,
 		); err != nil {
@@ -1248,6 +1515,41 @@ type UpdateAdministratorUsernameParams struct {
 func (q *Queries) UpdateAdministratorUsername(ctx context.Context, arg UpdateAdministratorUsernameParams) error {
 	_, err := q.db.ExecContext(ctx, updateAdministratorUsername, arg.Username, arg.UsesDefaultCredentials, arg.CredentialsUpdatedAt)
 	return err
+}
+
+const updateNetworkProxy = `-- name: UpdateNetworkProxy :execrows
+UPDATE network_proxies
+SET name = ?, scheme = ?, host = ?, port = ?, username = ?,
+    password_encrypted = ?, updated_at = ?
+WHERE id = ?
+`
+
+type UpdateNetworkProxyParams struct {
+	Name              string
+	Scheme            string
+	Host              string
+	Port              int64
+	Username          *string
+	PasswordEncrypted []byte
+	UpdatedAt         int64
+	ID                string
+}
+
+func (q *Queries) UpdateNetworkProxy(ctx context.Context, arg UpdateNetworkProxyParams) (int64, error) {
+	result, err := q.db.ExecContext(ctx, updateNetworkProxy,
+		arg.Name,
+		arg.Scheme,
+		arg.Host,
+		arg.Port,
+		arg.Username,
+		arg.PasswordEncrypted,
+		arg.UpdatedAt,
+		arg.ID,
+	)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected()
 }
 
 const updateNodeHeartbeat = `-- name: UpdateNodeHeartbeat :execrows

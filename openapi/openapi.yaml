@@ -492,6 +492,96 @@ paths:
           $ref: "#/components/responses/NotFound"
         "409":
           $ref: "#/components/responses/Conflict"
+  /api/v1/network-proxies:
+    get:
+      operationId: listNetworkProxies
+      summary: List centrally managed network proxies without revealing passwords
+      tags: [network]
+      responses:
+        "200":
+          description: Network proxies ordered by name.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/NetworkProxyList"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+    post:
+      operationId: createNetworkProxy
+      summary: Create a centrally managed network proxy
+      tags: [network]
+      parameters:
+        - $ref: "#/components/parameters/CSRFToken"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/NetworkProxyCreate"
+      responses:
+        "201":
+          description: The network proxy was created.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/NetworkProxy"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "409":
+          $ref: "#/components/responses/Conflict"
+  /api/v1/network-proxies/{proxyId}:
+    parameters:
+      - $ref: "#/components/parameters/ProxyId"
+    put:
+      operationId: updateNetworkProxy
+      summary: Replace network proxy settings and explicitly keep, replace, or clear its password
+      tags: [network]
+      parameters:
+        - $ref: "#/components/parameters/CSRFToken"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/NetworkProxyUpdate"
+      responses:
+        "200":
+          description: The network proxy was updated.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/NetworkProxy"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "409":
+          $ref: "#/components/responses/Conflict"
+    delete:
+      operationId: deleteNetworkProxy
+      summary: Delete an unreferenced network proxy
+      tags: [network]
+      parameters:
+        - $ref: "#/components/parameters/CSRFToken"
+      responses:
+        "204":
+          description: The network proxy was deleted.
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "409":
+          $ref: "#/components/responses/Conflict"
   /api/v1/agent-enrollment:
     get:
       operationId: getAgentEnrollment
@@ -647,6 +737,13 @@ components:
         format: uuid
     EgressId:
       name: egressId
+      in: path
+      required: true
+      schema:
+        type: string
+        format: uuid
+    ProxyId:
+      name: proxyId
       in: path
       required: true
       schema:
@@ -847,6 +944,11 @@ components:
         - egress_already_exists
         - egress_limit_reached
         - egress_not_found
+        - invalid_network_proxy
+        - network_proxy_not_found
+        - network_proxy_already_exists
+        - network_proxy_limit_reached
+        - network_proxy_in_use
         - internal_error
     ErrorResponse:
       type: object
@@ -1045,11 +1147,11 @@ components:
     AgentConfigurationSnapshot:
       type: object
       additionalProperties: false
-      required: [schemaVersion, revision, enabled, historyGeneration, egresses]
+      required: [schemaVersion, revision, enabled, historyGeneration, egresses, proxies]
       properties:
         schemaVersion:
           type: integer
-          enum: [2]
+          enum: [3]
         revision:
           type: integer
           format: int64
@@ -1064,6 +1166,11 @@ components:
           maxItems: 64
           items:
             $ref: "#/components/schemas/AgentEgressConfiguration"
+        proxies:
+          type: array
+          maxItems: 64
+          items:
+            $ref: "#/components/schemas/AgentProxyConfiguration"
     AddressFamily:
       type: string
       enum: [ipv4, ipv6]
@@ -1165,7 +1272,7 @@ components:
             $ref: "#/components/schemas/NetworkRoute"
     NetworkEgressKind:
       type: string
-      enum: [default, interface, source]
+      enum: [default, interface, source, proxy]
     NetworkEgress:
       type: object
       additionalProperties: false
@@ -1193,6 +1300,9 @@ components:
           type: string
           minLength: 2
           maxLength: 45
+        proxyId:
+          type: string
+          format: uuid
         enabled:
           type: boolean
         available:
@@ -1260,11 +1370,11 @@ components:
     NetworkEgressCreate:
       type: object
       additionalProperties: false
-      required: [kind, family, interfaceName]
+      required: [kind, family]
       properties:
         kind:
           type: string
-          enum: [interface, source]
+          enum: [interface, source, proxy]
         family:
           $ref: "#/components/schemas/AddressFamily"
         interfaceName:
@@ -1275,6 +1385,9 @@ components:
           type: string
           minLength: 2
           maxLength: 45
+        proxyId:
+          type: string
+          format: uuid
     NetworkEgressUpdate:
       type: object
       additionalProperties: false
@@ -1302,6 +1415,9 @@ components:
           type: string
           minLength: 2
           maxLength: 45
+        proxyId:
+          type: string
+          format: uuid
         enabled:
           type: boolean
         lightweightIntervalSeconds:
@@ -1310,6 +1426,144 @@ components:
           minimum: 1
         probeOnAddressChange:
           type: boolean
+    NetworkProxyScheme:
+      type: string
+      enum: [http, https, socks5]
+    NetworkProxy:
+      type: object
+      additionalProperties: false
+      required: [id, name, scheme, host, port, passwordConfigured, createdAt, updatedAt]
+      properties:
+        id:
+          type: string
+          format: uuid
+        name:
+          type: string
+          minLength: 1
+          maxLength: 128
+        scheme:
+          $ref: "#/components/schemas/NetworkProxyScheme"
+        host:
+          type: string
+          minLength: 1
+          maxLength: 253
+        port:
+          type: integer
+          format: int64
+          minimum: 1
+          maximum: 65535
+        username:
+          type: string
+          minLength: 1
+          maxLength: 512
+        passwordConfigured:
+          type: boolean
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+    NetworkProxyList:
+      type: object
+      additionalProperties: false
+      required: [items]
+      properties:
+        items:
+          type: array
+          maxItems: 64
+          items:
+            $ref: "#/components/schemas/NetworkProxy"
+    NetworkProxyCreate:
+      type: object
+      additionalProperties: false
+      required: [name, scheme, host, port]
+      properties:
+        name:
+          type: string
+          minLength: 1
+          maxLength: 128
+        scheme:
+          $ref: "#/components/schemas/NetworkProxyScheme"
+        host:
+          type: string
+          minLength: 1
+          maxLength: 253
+        port:
+          type: integer
+          format: int64
+          minimum: 1
+          maximum: 65535
+        username:
+          type: string
+          minLength: 1
+          maxLength: 512
+        password:
+          type: string
+          minLength: 1
+          maxLength: 4096
+          writeOnly: true
+    NetworkProxyPasswordAction:
+      type: string
+      enum: [keep, replace, clear]
+    NetworkProxyUpdate:
+      type: object
+      additionalProperties: false
+      required: [name, scheme, host, port, passwordAction]
+      properties:
+        name:
+          type: string
+          minLength: 1
+          maxLength: 128
+        scheme:
+          $ref: "#/components/schemas/NetworkProxyScheme"
+        host:
+          type: string
+          minLength: 1
+          maxLength: 253
+        port:
+          type: integer
+          format: int64
+          minimum: 1
+          maximum: 65535
+        username:
+          type: string
+          minLength: 1
+          maxLength: 512
+        passwordAction:
+          $ref: "#/components/schemas/NetworkProxyPasswordAction"
+        password:
+          type: string
+          minLength: 1
+          maxLength: 4096
+          writeOnly: true
+    AgentProxyConfiguration:
+      type: object
+      additionalProperties: false
+      required: [id, scheme, host, port]
+      properties:
+        id:
+          type: string
+          format: uuid
+        scheme:
+          $ref: "#/components/schemas/NetworkProxyScheme"
+        host:
+          type: string
+          minLength: 1
+          maxLength: 253
+        port:
+          type: integer
+          format: int64
+          minimum: 1
+          maximum: 65535
+        username:
+          type: string
+          minLength: 1
+          maxLength: 512
+        password:
+          type: string
+          minLength: 1
+          maxLength: 4096
     NodeStatus:
       type: string
       enum: [online, offline, disabled, revoked]

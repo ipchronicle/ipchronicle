@@ -100,6 +100,7 @@ type Configuration struct {
 	Enabled           bool
 	HistoryGeneration string
 	Egresses          []NetworkEgress
+	Proxies           []AgentProxyConfiguration
 }
 
 type Deletion struct {
@@ -381,9 +382,22 @@ func (s *Service) Configuration(ctx context.Context, credential string) (Configu
 		}
 		egresses = append(egresses, egress)
 	}
+	proxyRecords, err := s.queries.ListNodeNetworkProxies(ctx, node.ID)
+	if err != nil {
+		return Configuration{}, err
+	}
+	proxies := make([]AgentProxyConfiguration, 0, len(proxyRecords))
+	for _, record := range proxyRecords {
+		proxy, err := agentProxyFromRecord(s.masterKey, record)
+		if err != nil {
+			return Configuration{}, err
+		}
+		proxies = append(proxies, proxy)
+	}
 	return Configuration{
-		SchemaVersion: 2, Revision: node.DesiredConfigurationRevision,
-		Enabled: node.Enabled == 1, HistoryGeneration: state.HistoryGeneration, Egresses: egresses,
+		SchemaVersion: 3, Revision: node.DesiredConfigurationRevision,
+		Enabled: node.Enabled == 1, HistoryGeneration: state.HistoryGeneration,
+		Egresses: egresses, Proxies: proxies,
 	}, nil
 }
 

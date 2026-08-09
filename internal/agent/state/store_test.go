@@ -79,6 +79,55 @@ func TestMissingMasterKeyFailsWithExistingState(t *testing.T) {
 	}
 }
 
+func TestProxyCredentialsPersistEncryptedAcrossRestart(t *testing.T) {
+	directory := filepath.Join(t.TempDir(), "agent")
+	store, err := Open(directory)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := store.SaveIdentity(Identity{
+		CenterURL: "https://center.example", NodeID: "7289cfa3-a75d-4a3f-ac06-8f1074446a85",
+		Credential: "ipc_agent_secret-credential",
+	}); err != nil {
+		t.Fatal(err)
+	}
+	proxyID := "6fc6d7e8-bc63-49e2-91fc-d4c58b43ac16"
+	password := "retained-proxy-password"
+	configuration := Configuration{
+		SchemaVersion: 3, Revision: 1, Enabled: true,
+		HistoryGeneration: "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef",
+		Egresses: []Egress{{
+			ID: "c7b5eeac-903d-4b99-961d-190a8a4e5d2e", Kind: "proxy", Family: "ipv4",
+			ProxyID: &proxyID, Enabled: true, LightweightIntervalSeconds: 600, ProbeOnAddressChange: true,
+		}},
+		Proxies: []Proxy{{
+			ID: proxyID, Scheme: "socks5", Host: "proxy.example.test", Port: 1080, Password: &password,
+		}},
+	}
+	if err := store.ApplyConfiguration(configuration); err != nil {
+		t.Fatal(err)
+	}
+	if err := store.Close(); err != nil {
+		t.Fatal(err)
+	}
+	databaseBody, err := os.ReadFile(filepath.Join(directory, "state.db"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if bytes.Contains(databaseBody, []byte(password)) {
+		t.Fatal("retained proxy password is stored as plaintext in bbolt")
+	}
+	restarted, err := Open(directory)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer restarted.Close()
+	actual, err := restarted.Configuration()
+	if err != nil || !reflect.DeepEqual(actual, configuration) {
+		t.Fatalf("restarted proxy configuration = %#v, %v", actual, err)
+	}
+}
+
 func TestBroadStateDirectoryPermissionsFail(t *testing.T) {
 	directory := filepath.Join(t.TempDir(), "agent")
 	if err := os.Mkdir(directory, 0o755); err != nil {
@@ -103,7 +152,7 @@ func TestConfigurationReplacementFailureAndRevocationPersist(t *testing.T) {
 		t.Fatal(err)
 	}
 	first := Configuration{
-		SchemaVersion: 2, Revision: 1, Enabled: true,
+		SchemaVersion: 3, Revision: 1, Enabled: true,
 		HistoryGeneration: "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef",
 	}
 	if err := store.ApplyConfiguration(first); err != nil {

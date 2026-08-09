@@ -286,9 +286,9 @@ func (s apiServer) GetSystemStatus(ctx context.Context, _ api.GetSystemStatusReq
 		return api.GetSystemStatus401JSONResponse{UnauthorizedJSONResponse: unauthorized(failure)}, nil
 	}
 	security := requestSecurityFromContext(ctx)
-	transport := api.Http
+	transport := api.SystemStatusTransportSecurityHttp
 	if security.CookieSecure {
-		transport = api.Https
+		transport = api.SystemStatusTransportSecurityHttps
 	}
 	return api.GetSystemStatus200JSONResponse{
 		Service:                  api.IpchronicleCenter,
@@ -297,7 +297,7 @@ func (s apiServer) GetSystemStatus(ctx context.Context, _ api.GetSystemStatusReq
 		ConfigSchemaVersion:      s.configSchemaVersion,
 		HistorySchemaVersion:     s.historySchemaVersion,
 		TransportSecurity:        transport,
-		TransportWarning:         transport == api.Http,
+		TransportWarning:         transport == api.SystemStatusTransportSecurityHttp,
 		ExternalOriginConfigured: s.externalOriginConfigured,
 		TrustedProxyConfigured:   s.trustedProxyConfigured,
 	}, nil
@@ -474,15 +474,21 @@ func (s apiServer) CreateNodeEgress(ctx context.Context, request api.CreateNodeE
 	if request.Body == nil {
 		return api.CreateNodeEgress400JSONResponse{BadRequestJSONResponse: badRequest(api.InvalidRequest)}, nil
 	}
+	interfaceName := ""
+	if request.Body.InterfaceName != nil {
+		interfaceName = *request.Body.InterfaceName
+	}
 	egress, err := s.nodes.CreateEgress(ctx, request.NodeId, nodes.NetworkEgressSelector{
 		Kind: string(request.Body.Kind), Family: string(request.Body.Family),
-		InterfaceName: request.Body.InterfaceName, SourceAddress: request.Body.SourceAddress,
+		InterfaceName: interfaceName, SourceAddress: request.Body.SourceAddress, ProxyID: request.Body.ProxyId,
 	})
 	switch {
 	case errors.Is(err, nodes.ErrInvalidEgressCandidate):
 		return api.CreateNodeEgress400JSONResponse{BadRequestJSONResponse: badRequest(api.InvalidEgressCandidate)}, nil
 	case errors.Is(err, nodes.ErrNodeNotFound):
 		return api.CreateNodeEgress404JSONResponse{NotFoundJSONResponse: notFound(api.NodeNotFound)}, nil
+	case errors.Is(err, nodes.ErrNetworkProxyNotFound):
+		return api.CreateNodeEgress404JSONResponse{NotFoundJSONResponse: notFound(api.NetworkProxyNotFound)}, nil
 	case errors.Is(err, nodes.ErrNetworkInventoryUnavailable):
 		return api.CreateNodeEgress409JSONResponse{ConflictJSONResponse: conflict(api.NetworkInventoryUnavailable)}, nil
 	case errors.Is(err, nodes.ErrEgressAlreadyExists):
@@ -497,6 +503,111 @@ func (s apiServer) CreateNodeEgress(ctx context.Context, request api.CreateNodeE
 		return nil, err
 	}
 	return api.CreateNodeEgress201JSONResponse(egressResponse(egress)), nil
+}
+
+func (s apiServer) ListNetworkProxies(ctx context.Context, _ api.ListNetworkProxiesRequestObject) (api.ListNetworkProxiesResponseObject, error) {
+	_, failure, err := s.authorize(ctx, false, "")
+	if err != nil {
+		return nil, err
+	}
+	if failure != "" {
+		return api.ListNetworkProxies401JSONResponse{UnauthorizedJSONResponse: unauthorized(failure)}, nil
+	}
+	proxies, err := s.nodes.ListNetworkProxies(ctx)
+	if err != nil {
+		return nil, err
+	}
+	items := make([]api.NetworkProxy, 0, len(proxies))
+	for _, proxy := range proxies {
+		items = append(items, networkProxyResponse(proxy))
+	}
+	return api.ListNetworkProxies200JSONResponse{Items: items}, nil
+}
+
+func (s apiServer) CreateNetworkProxy(ctx context.Context, request api.CreateNetworkProxyRequestObject) (api.CreateNetworkProxyResponseObject, error) {
+	_, failure, err := s.authorize(ctx, true, csrfValue(request.Params.XCSRFToken))
+	if err != nil {
+		return nil, err
+	}
+	if failure == api.Unauthenticated {
+		return api.CreateNetworkProxy401JSONResponse{UnauthorizedJSONResponse: unauthorized(failure)}, nil
+	}
+	if failure != "" {
+		return api.CreateNetworkProxy403JSONResponse{ForbiddenJSONResponse: forbidden(failure)}, nil
+	}
+	if request.Body == nil {
+		return api.CreateNetworkProxy400JSONResponse{BadRequestJSONResponse: badRequest(api.InvalidRequest)}, nil
+	}
+	proxy, err := s.nodes.CreateNetworkProxy(ctx, nodes.NetworkProxyCreate{
+		Name: request.Body.Name, Scheme: string(request.Body.Scheme), Host: request.Body.Host,
+		Port: request.Body.Port, Username: request.Body.Username, Password: request.Body.Password,
+	})
+	switch {
+	case errors.Is(err, nodes.ErrInvalidNetworkProxy):
+		return api.CreateNetworkProxy400JSONResponse{BadRequestJSONResponse: badRequest(api.InvalidNetworkProxy)}, nil
+	case errors.Is(err, nodes.ErrNetworkProxyAlreadyExists):
+		return api.CreateNetworkProxy409JSONResponse{ConflictJSONResponse: conflict(api.NetworkProxyAlreadyExists)}, nil
+	case errors.Is(err, nodes.ErrNetworkProxyLimitReached):
+		return api.CreateNetworkProxy409JSONResponse{ConflictJSONResponse: conflict(api.NetworkProxyLimitReached)}, nil
+	case err != nil:
+		return nil, err
+	}
+	return api.CreateNetworkProxy201JSONResponse(networkProxyResponse(proxy)), nil
+}
+
+func (s apiServer) UpdateNetworkProxy(ctx context.Context, request api.UpdateNetworkProxyRequestObject) (api.UpdateNetworkProxyResponseObject, error) {
+	_, failure, err := s.authorize(ctx, true, csrfValue(request.Params.XCSRFToken))
+	if err != nil {
+		return nil, err
+	}
+	if failure == api.Unauthenticated {
+		return api.UpdateNetworkProxy401JSONResponse{UnauthorizedJSONResponse: unauthorized(failure)}, nil
+	}
+	if failure != "" {
+		return api.UpdateNetworkProxy403JSONResponse{ForbiddenJSONResponse: forbidden(failure)}, nil
+	}
+	if request.Body == nil {
+		return api.UpdateNetworkProxy400JSONResponse{BadRequestJSONResponse: badRequest(api.InvalidRequest)}, nil
+	}
+	proxy, err := s.nodes.UpdateNetworkProxy(ctx, request.ProxyId, nodes.NetworkProxyUpdate{
+		Name: request.Body.Name, Scheme: string(request.Body.Scheme), Host: request.Body.Host,
+		Port: request.Body.Port, Username: request.Body.Username,
+		PasswordAction: string(request.Body.PasswordAction), Password: request.Body.Password,
+	})
+	switch {
+	case errors.Is(err, nodes.ErrInvalidNetworkProxy):
+		return api.UpdateNetworkProxy400JSONResponse{BadRequestJSONResponse: badRequest(api.InvalidNetworkProxy)}, nil
+	case errors.Is(err, nodes.ErrNetworkProxyNotFound):
+		return api.UpdateNetworkProxy404JSONResponse{NotFoundJSONResponse: notFound(api.NetworkProxyNotFound)}, nil
+	case errors.Is(err, nodes.ErrNetworkProxyAlreadyExists):
+		return api.UpdateNetworkProxy409JSONResponse{ConflictJSONResponse: conflict(api.NetworkProxyAlreadyExists)}, nil
+	case err != nil:
+		return nil, err
+	}
+	return api.UpdateNetworkProxy200JSONResponse(networkProxyResponse(proxy)), nil
+}
+
+func (s apiServer) DeleteNetworkProxy(ctx context.Context, request api.DeleteNetworkProxyRequestObject) (api.DeleteNetworkProxyResponseObject, error) {
+	_, failure, err := s.authorize(ctx, true, csrfValue(request.Params.XCSRFToken))
+	if err != nil {
+		return nil, err
+	}
+	if failure == api.Unauthenticated {
+		return api.DeleteNetworkProxy401JSONResponse{UnauthorizedJSONResponse: unauthorized(failure)}, nil
+	}
+	if failure != "" {
+		return api.DeleteNetworkProxy403JSONResponse{ForbiddenJSONResponse: forbidden(failure)}, nil
+	}
+	err = s.nodes.DeleteNetworkProxy(ctx, request.ProxyId)
+	switch {
+	case errors.Is(err, nodes.ErrNetworkProxyNotFound):
+		return api.DeleteNetworkProxy404JSONResponse{NotFoundJSONResponse: notFound(api.NetworkProxyNotFound)}, nil
+	case errors.Is(err, nodes.ErrNetworkProxyInUse):
+		return api.DeleteNetworkProxy409JSONResponse{ConflictJSONResponse: conflict(api.NetworkProxyInUse)}, nil
+	case err != nil:
+		return nil, err
+	}
+	return api.DeleteNetworkProxy204Response{}, nil
 }
 
 func (s apiServer) UpdateNodeEgress(ctx context.Context, request api.UpdateNodeEgressRequestObject) (api.UpdateNodeEgressResponseObject, error) {
@@ -679,15 +790,23 @@ func (s apiServer) GetAgentConfiguration(ctx context.Context, _ api.GetAgentConf
 	for _, egress := range configuration.Egresses {
 		egresses = append(egresses, api.AgentEgressConfiguration{
 			Id: egress.ID, Kind: api.NetworkEgressKind(egress.Kind), Family: api.AddressFamily(egress.Family),
-			InterfaceName: egress.InterfaceName, SourceAddress: egress.SourceAddress, Enabled: egress.Enabled,
+			InterfaceName: egress.InterfaceName, SourceAddress: egress.SourceAddress, ProxyId: egress.ProxyID,
+			Enabled:                    egress.Enabled,
 			LightweightIntervalSeconds: egress.LightweightIntervalSeconds,
 			ProbeOnAddressChange:       egress.ProbeOnAddressChange,
+		})
+	}
+	proxies := make([]api.AgentProxyConfiguration, 0, len(configuration.Proxies))
+	for _, proxy := range configuration.Proxies {
+		proxies = append(proxies, api.AgentProxyConfiguration{
+			Id: proxy.ID, Scheme: api.NetworkProxyScheme(proxy.Scheme), Host: proxy.Host,
+			Port: proxy.Port, Username: proxy.Username, Password: proxy.Password,
 		})
 	}
 	return api.GetAgentConfiguration200JSONResponse{
 		SchemaVersion: api.AgentConfigurationSnapshotSchemaVersion(configuration.SchemaVersion),
 		Revision:      configuration.Revision, Enabled: configuration.Enabled,
-		HistoryGeneration: configuration.HistoryGeneration, Egresses: egresses,
+		HistoryGeneration: configuration.HistoryGeneration, Egresses: egresses, Proxies: proxies,
 	}, nil
 }
 
@@ -898,10 +1017,19 @@ func egressResponse(egress nodes.NetworkEgress) api.NetworkEgress {
 	return api.NetworkEgress{
 		Id: egress.ID, NodeId: egress.NodeID, Name: egress.Name,
 		Kind: api.NetworkEgressKind(egress.Kind), Family: api.AddressFamily(egress.Family),
-		InterfaceName: egress.InterfaceName, SourceAddress: egress.SourceAddress,
+		InterfaceName: egress.InterfaceName, SourceAddress: egress.SourceAddress, ProxyId: egress.ProxyID,
 		Enabled: egress.Enabled, Available: egress.Available, Automatic: egress.Automatic,
 		LightweightIntervalSeconds: egress.LightweightIntervalSeconds,
 		ProbeOnAddressChange:       egress.ProbeOnAddressChange,
+	}
+}
+
+func networkProxyResponse(proxy nodes.NetworkProxy) api.NetworkProxy {
+	return api.NetworkProxy{
+		Id: proxy.ID, Name: proxy.Name, Scheme: api.NetworkProxyScheme(proxy.Scheme),
+		Host: proxy.Host, Port: proxy.Port, Username: proxy.Username,
+		PasswordConfigured: proxy.PasswordConfigured,
+		CreatedAt:          proxy.CreatedAt, UpdatedAt: proxy.UpdatedAt,
 	}
 }
 

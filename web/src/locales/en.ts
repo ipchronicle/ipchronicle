@@ -11,6 +11,8 @@ export const en = {
       systemStatus: "System status",
       nodes: "Nodes",
       account: "Account",
+      settings: "Settings",
+      networkSettings: "Network probes",
     },
     language: {
       current: "EN",
@@ -187,6 +189,48 @@ export const en = {
         failed: "Deletion failed",
       },
     },
+    proxySettings: {
+      section: "Settings",
+      title: "Network probes",
+      detail:
+        "Manage reusable HTTP, HTTPS, and SOCKS5 proxies. Passwords can be replaced or cleared but are never shown again.",
+      refresh: "Refresh",
+      retry: "Retry",
+      loadFailed: "Network proxy settings could not be loaded",
+      empty: "No centrally managed proxies are configured.",
+      save: "Save settings",
+      create: {
+        title: "Add proxy",
+        detail:
+          "The Center sends credentials only to Agents with an egress that references this proxy.",
+        submit: "Add proxy",
+      },
+      fields: {
+        name: "Name",
+        scheme: "Protocol",
+        host: "Host or IP address",
+        port: "Port",
+        username: "Username",
+        password: "Password",
+        passwordPlaceholder: "Leave empty to keep the current password",
+      },
+      password: {
+        configured: "Password configured",
+        empty: "No password",
+        replace: "Replace password",
+        clear: "Clear password",
+        clearTitle: "Clear the stored proxy password?",
+        clearDetail:
+          "Agents referencing this proxy will receive a new configuration without the password.",
+      },
+      delete: {
+        action: "Delete proxy",
+        title: "Delete this network proxy?",
+        detail:
+          "A proxy referenced by any network egress cannot be deleted. Remove those egresses first.",
+        confirm: "Delete proxy",
+      },
+    },
     network: {
       section: "Node network",
       title: "Network egresses",
@@ -210,12 +254,25 @@ export const en = {
         default: { ipv4: "Default IPv4", ipv6: "Default IPv6" },
         interface: "Interface {{name}}",
         source: "{{name}} · {{address}}",
+        proxy: "Proxy · {{name}}",
+        missingProxy: "Missing proxy",
         enabledLabel: "Enable or disable {{name}}",
         delete: "Permanently delete egress",
         deleteTitle: "Permanently delete this network egress?",
         deleteDetail:
           "The egress configuration and its owned data will be irreversibly deleted. An automatic egress may be created with a new identity while its default route remains usable; use the switch to pause it instead.",
         deleteConfirm: "Permanently delete",
+      },
+      proxyEgress: {
+        title: "Add proxy egress",
+        detail:
+          "Create a durable IPv4 or IPv6 path through a centrally managed proxy.",
+        empty: "Configure a reusable proxy before adding a proxy egress.",
+        openSettings: "Open network settings",
+        proxy: "Proxy",
+        family: "Address family",
+        add: "Add egress",
+        configured: "Already configured",
       },
       candidates: {
         title: "Discovered candidate paths",
@@ -321,6 +378,15 @@ export const en = {
       egress_limit_reached:
         "This node has reached the maximum of 64 configured network egresses.",
       egress_not_found: "The network egress does not exist or was deleted.",
+      invalid_network_proxy: "The network proxy settings are invalid.",
+      network_proxy_not_found:
+        "The network proxy does not exist or was deleted.",
+      network_proxy_already_exists:
+        "A network proxy with this name already exists.",
+      network_proxy_limit_reached:
+        "The installation has reached the maximum of 64 network proxies.",
+      network_proxy_in_use:
+        "This proxy is still referenced by a network egress and cannot be deleted.",
       internal_error: "The center could not complete the request.",
     },
   },

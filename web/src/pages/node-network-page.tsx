@@ -10,6 +10,7 @@ import {
   Route,
   Trash2,
   TriangleAlert,
+  Waypoints,
 } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { Link, useParams } from "react-router";
@@ -24,6 +25,7 @@ import {
   type NodeNetworkState,
 } from "@/api/network";
 import { listNodes, type Node } from "@/api/nodes";
+import { listNetworkProxies, type NetworkProxy } from "@/api/proxies";
 import { useAuth } from "@/auth-context";
 import {
   AlertDialog,
@@ -49,6 +51,13 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
 import {
   Table,
@@ -62,7 +71,12 @@ import { formatAPIError } from "@/lib/api-error";
 
 type ViewState =
   | { kind: "loading" }
-  | { kind: "success"; node: Node; network: NodeNetworkState }
+  | {
+      kind: "success";
+      node: Node;
+      network: NodeNetworkState;
+      proxies: NetworkProxy[];
+    }
   | { kind: "not-found" }
   | { kind: "error" };
 
@@ -79,13 +93,16 @@ export function NodeNetworkPage() {
       if (initial) setState({ kind: "loading" });
       else setRefreshing(true);
       try {
-        const [nodes, network] = await Promise.all([
+        const [nodes, network, proxies] = await Promise.all([
           listNodes(signal),
           getNodeNetwork(nodeId, signal),
+          listNetworkProxies(signal),
         ]);
         const node = nodes.find((item) => item.id === nodeId);
         setState(
-          node ? { kind: "success", node, network } : { kind: "not-found" },
+          node
+            ? { kind: "success", node, network, proxies }
+            : { kind: "not-found" },
         );
       } catch (error) {
         if (error instanceof DOMException && error.name === "AbortError")
@@ -145,6 +162,20 @@ export function NodeNetworkPage() {
           interfaceName: candidate.interfaceName,
           sourceAddress: candidate.sourceAddress,
         },
+        csrfToken,
+      );
+      await load();
+    } catch (error) {
+      setFeedback(formatAPIError(error, t));
+    }
+  }
+
+  async function addProxyEgress(proxyId: string, family: "ipv4" | "ipv6") {
+    setFeedback(undefined);
+    try {
+      await createNodeEgress(
+        nodeId,
+        { kind: "proxy", family, proxyId },
         csrfToken,
       );
       await load();
@@ -232,8 +263,14 @@ export function NodeNetworkPage() {
           <>
             <EgressCard
               egresses={state.network.egresses}
+              proxies={state.proxies}
               onEnabled={setEnabled}
               onDelete={removeEgress}
+            />
+            <ProxyEgressCard
+              proxies={state.proxies}
+              egresses={state.network.egresses}
+              onAdd={addProxyEgress}
             />
             <CandidateCard
               candidates={state.network.candidates}
@@ -249,10 +286,12 @@ export function NodeNetworkPage() {
 
 function EgressCard({
   egresses,
+  proxies,
   onEnabled,
   onDelete,
 }: {
   egresses: NetworkEgress[];
+  proxies: NetworkProxy[];
   onEnabled: (egress: NetworkEgress, enabled: boolean) => Promise<void>;
   onDelete: (egress: NetworkEgress) => Promise<void>;
 }) {
@@ -284,7 +323,9 @@ function EgressCard({
             >
               <div className="min-w-0">
                 <div className="flex flex-wrap items-center gap-2">
-                  <p className="font-medium">{egressLabel(egress, t)}</p>
+                  <p className="font-medium">
+                    {egressLabel(egress, proxies, t)}
+                  </p>
                   <Badge variant={egress.available ? "outline" : "destructive"}>
                     {egress.available
                       ? t("network.egresses.available")
@@ -346,7 +387,7 @@ function EgressCard({
                   checked={egress.enabled}
                   disabled={working === egress.id}
                   aria-label={t("network.egresses.enabledLabel", {
-                    name: egressLabel(egress, t),
+                    name: egressLabel(egress, proxies, t),
                   })}
                   onCheckedChange={(checked) => {
                     setWorking(egress.id);
@@ -358,6 +399,116 @@ function EgressCard({
               </div>
             </div>
           ))
+        )}
+      </CardContent>
+    </Card>
+  );
+}
+
+function ProxyEgressCard({
+  proxies,
+  egresses,
+  onAdd,
+}: {
+  proxies: NetworkProxy[];
+  egresses: NetworkEgress[];
+  onAdd: (proxyId: string, family: "ipv4" | "ipv6") => Promise<void>;
+}) {
+  const { t } = useTranslation();
+  const [proxyId, setProxyId] = useState(proxies[0]?.id ?? "");
+  const [family, setFamily] = useState<"ipv4" | "ipv6">("ipv4");
+  const [working, setWorking] = useState(false);
+  const duplicate = egresses.some(
+    (egress) =>
+      egress.kind === "proxy" &&
+      egress.proxyId === proxyId &&
+      egress.family === family,
+  );
+
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle className="flex items-center gap-2">
+          <Waypoints aria-hidden="true" className="size-4" />
+          {t("network.proxyEgress.title")}
+        </CardTitle>
+        <CardDescription>{t("network.proxyEgress.detail")}</CardDescription>
+      </CardHeader>
+      <CardContent>
+        {proxies.length === 0 ? (
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <p className="text-sm text-muted-foreground">
+              {t("network.proxyEgress.empty")}
+            </p>
+            <Button variant="outline" size="sm" asChild>
+              <Link to="/settings/network">
+                {t("network.proxyEgress.openSettings")}
+              </Link>
+            </Button>
+          </div>
+        ) : (
+          <div className="grid items-end gap-4 sm:grid-cols-[minmax(0,1fr)_10rem_auto]">
+            <div className="space-y-2">
+              <span className="text-sm font-medium">
+                {t("network.proxyEgress.proxy")}
+              </span>
+              <Select value={proxyId} onValueChange={setProxyId}>
+                <SelectTrigger
+                  className="w-full"
+                  aria-label={t("network.proxyEgress.proxy")}
+                >
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {proxies.map((proxy) => (
+                    <SelectItem key={proxy.id} value={proxy.id}>
+                      {proxy.name} · {proxy.scheme.toUpperCase()}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-2">
+              <span className="text-sm font-medium">
+                {t("network.proxyEgress.family")}
+              </span>
+              <Select
+                value={family}
+                onValueChange={(value: "ipv4" | "ipv6") => setFamily(value)}
+              >
+                <SelectTrigger
+                  className="w-full"
+                  aria-label={t("network.proxyEgress.family")}
+                >
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="ipv4">IPv4</SelectItem>
+                  <SelectItem value="ipv6">IPv6</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            <Button
+              disabled={working || !proxyId || duplicate}
+              onClick={() => {
+                setWorking(true);
+                void onAdd(proxyId, family).finally(() => setWorking(false));
+              }}
+            >
+              {working ? (
+                <LoaderCircle
+                  data-icon="inline-start"
+                  aria-hidden="true"
+                  className="animate-spin"
+                />
+              ) : (
+                <CirclePlus data-icon="inline-start" aria-hidden="true" />
+              )}
+              {duplicate
+                ? t("network.proxyEgress.configured")
+                : t("network.proxyEgress.add")}
+            </Button>
+          </div>
         )}
       </CardContent>
     </Card>
@@ -629,12 +780,19 @@ function InventoryCards({ network }: { network: NodeNetworkState }) {
 
 function egressLabel(
   egress: NetworkEgress,
+  proxies: NetworkProxy[],
   t: ReturnType<typeof useTranslation>["t"],
 ) {
   if (egress.kind === "default")
     return t(`network.egresses.default.${egress.family}`);
   if (egress.kind === "interface") {
     return t("network.egresses.interface", { name: egress.interfaceName });
+  }
+  if (egress.kind === "proxy") {
+    const proxy = proxies.find((item) => item.id === egress.proxyId);
+    return t("network.egresses.proxy", {
+      name: proxy?.name ?? t("network.egresses.missingProxy"),
+    });
   }
   return t("network.egresses.source", {
     name: egress.interfaceName,

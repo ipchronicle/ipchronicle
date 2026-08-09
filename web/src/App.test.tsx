@@ -27,6 +27,12 @@ import {
   updateNode,
   updateAgentEnrollment,
 } from "@/api/nodes";
+import {
+  createNetworkProxy,
+  deleteNetworkProxy,
+  listNetworkProxies,
+  updateNetworkProxy,
+} from "@/api/proxies";
 import App from "@/App";
 import { AuthProvider } from "@/auth-context";
 import { TooltipProvider } from "@/components/ui/tooltip";
@@ -66,6 +72,13 @@ vi.mock("@/api/nodes", () => ({
   updateAgentEnrollment: vi.fn(),
 }));
 
+vi.mock("@/api/proxies", () => ({
+  createNetworkProxy: vi.fn(),
+  deleteNetworkProxy: vi.fn(),
+  listNetworkProxies: vi.fn(),
+  updateNetworkProxy: vi.fn(),
+}));
+
 const getSessionMock = vi.mocked(getAuthenticatedSession);
 const loginMock = vi.mocked(login);
 const logoutMock = vi.mocked(logout);
@@ -84,6 +97,10 @@ const deleteNodeMock = vi.mocked(deleteNode);
 const revokeNodeMock = vi.mocked(revokeNode);
 const updateNodeMock = vi.mocked(updateNode);
 const updateEnrollmentMock = vi.mocked(updateAgentEnrollment);
+const createProxyMock = vi.mocked(createNetworkProxy);
+const deleteProxyMock = vi.mocked(deleteNetworkProxy);
+const listProxiesMock = vi.mocked(listNetworkProxies);
+const updateProxyMock = vi.mocked(updateNetworkProxy);
 
 const session: AuthenticatedSession = {
   account: {
@@ -100,7 +117,7 @@ const healthyStatus = {
   service: "ipchronicle-center" as const,
   status: "ok" as const,
   version: "0.0.0-test",
-  configSchemaVersion: 5,
+  configSchemaVersion: 6,
   historySchemaVersion: 1,
   transportSecurity: "http" as const,
   transportWarning: true,
@@ -131,6 +148,11 @@ describe("administrator application", () => {
     revokeNodeMock.mockReset();
     updateNodeMock.mockReset();
     updateEnrollmentMock.mockReset();
+    createProxyMock.mockReset();
+    deleteProxyMock.mockReset();
+    listProxiesMock.mockReset();
+    listProxiesMock.mockResolvedValue([]);
+    updateProxyMock.mockReset();
   });
 
   it("routes an anonymous browser to the real login form", async () => {
@@ -346,6 +368,18 @@ describe("administrator application", () => {
 
   it("shows durable egresses and temporary IPv6 candidates", async () => {
     getSessionMock.mockResolvedValue(session);
+    listProxiesMock.mockResolvedValue([
+      {
+        id: "6fc6d7e8-bc63-49e2-91fc-d4c58b43ac16",
+        name: "Primary proxy",
+        scheme: "socks5",
+        host: "proxy.example.test",
+        port: 1080,
+        passwordConfigured: true,
+        createdAt: "2026-08-09T06:00:00Z",
+        updatedAt: "2026-08-09T06:00:00Z",
+      },
+    ]);
     listNodesMock.mockResolvedValue([
       {
         id: "7289cfa3-a75d-4a3f-ac06-8f1074446a85",
@@ -438,7 +472,41 @@ describe("administrator application", () => {
     ).toBeInTheDocument();
     expect(screen.getAllByText("Default IPv4").length).toBeGreaterThan(0);
     expect(screen.getAllByText("Temporary IPv6").length).toBeGreaterThan(0);
+    expect(screen.getByText("Primary proxy · SOCKS5")).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Enable path" })).toBeDisabled();
+  });
+
+  it("shows replace-only proxy credentials in network settings", async () => {
+    getSessionMock.mockResolvedValue(session);
+    listProxiesMock.mockResolvedValue([
+      {
+        id: "6fc6d7e8-bc63-49e2-91fc-d4c58b43ac16",
+        name: "Primary proxy",
+        scheme: "socks5",
+        host: "proxy.example.test",
+        port: 1080,
+        username: "probe-user",
+        passwordConfigured: true,
+        createdAt: "2026-08-09T06:00:00Z",
+        updatedAt: "2026-08-09T06:00:00Z",
+      },
+    ]);
+
+    renderApplication("/settings/network");
+
+    expect(
+      await screen.findByRole("heading", { name: "Network probes" }),
+    ).toBeInTheDocument();
+    expect(screen.getByText("Password configured")).toBeInTheDocument();
+    expect(
+      screen.getByRole("button", { name: "Replace password" }),
+    ).toBeDisabled();
+    expect(
+      screen.queryByDisplayValue("retained-secret"),
+    ).not.toBeInTheDocument();
+    expect(
+      screen.getByRole("link", { name: "Network probes" }),
+    ).toHaveAttribute("aria-current", "page");
   });
 });
 

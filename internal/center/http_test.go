@@ -64,7 +64,7 @@ func TestAdministratorLoginStatusAndLogout(t *testing.T) {
 	if err := json.NewDecoder(statusResponse.Body).Decode(&status); err != nil {
 		t.Fatal(err)
 	}
-	if status.Service != api.IpchronicleCenter || status.Status != api.Ok || !status.TransportWarning || status.ConfigSchemaVersion != 5 || status.HistorySchemaVersion != 1 {
+	if status.Service != api.IpchronicleCenter || status.Status != api.Ok || !status.TransportWarning || status.ConfigSchemaVersion != 6 || status.HistorySchemaVersion != 1 {
 		t.Fatalf("unexpected status response: %#v", status)
 	}
 
@@ -84,6 +84,45 @@ func TestMalformedJSONUsesStructuredError(t *testing.T) {
 	handler := newTestHTTPHandler(t, nil)
 	response := performRequest(handler, http.MethodPost, "/api/v1/auth/login", []byte("{"), "http://example.test", nil)
 	assertErrorCode(t, response, http.StatusBadRequest, api.InvalidRequest)
+}
+
+func TestNetworkProxyAPINeverRevealsStoredPassword(t *testing.T) {
+	handler := newTestHTTPHandler(t, nil)
+	login := performRequest(handler, http.MethodPost, "/api/v1/auth/login", loginBody(), "http://example.test", nil)
+	if login.Code != http.StatusOK {
+		t.Fatalf("login status = %d, body = %s", login.Code, login.Body.String())
+	}
+	var session api.AuthenticatedSession
+	if err := json.NewDecoder(login.Body).Decode(&session); err != nil {
+		t.Fatal(err)
+	}
+	cookie := login.Result().Cookies()[0]
+	secret := "proxy-password-must-not-be-returned"
+	body, err := json.Marshal(api.NetworkProxyCreate{
+		Name: "Primary proxy", Scheme: api.NetworkProxySchemeSocks5,
+		Host: "proxy.example.test", Port: 1080, Password: &secret,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	created := performRequestWithCSRF(
+		handler, http.MethodPost, "/api/v1/network-proxies", body,
+		"http://example.test", cookie, session.CsrfToken,
+	)
+	if created.Code != http.StatusCreated || bytes.Contains(created.Body.Bytes(), []byte(secret)) || bytes.Contains(created.Body.Bytes(), []byte(`"password"`)) {
+		t.Fatalf("create proxy response = %d %s", created.Code, created.Body.String())
+	}
+	var proxy api.NetworkProxy
+	if err := json.NewDecoder(created.Body).Decode(&proxy); err != nil {
+		t.Fatal(err)
+	}
+	if !proxy.PasswordConfigured {
+		t.Fatalf("create proxy response did not report configured password: %#v", proxy)
+	}
+	listed := performRequest(handler, http.MethodGet, "/api/v1/network-proxies", nil, "", cookie)
+	if listed.Code != http.StatusOK || bytes.Contains(listed.Body.Bytes(), []byte(secret)) || bytes.Contains(listed.Body.Bytes(), []byte(`"password"`)) {
+		t.Fatalf("list proxy response = %d %s", listed.Code, listed.Body.String())
+	}
 }
 
 func TestAgentControlRequestBodyHasBoundedInventoryHeadroom(t *testing.T) {

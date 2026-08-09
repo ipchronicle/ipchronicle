@@ -73,6 +73,7 @@ type NetworkEgress struct {
 	Family                     string
 	InterfaceName              *string
 	SourceAddress              *string
+	ProxyID                    *uuid.UUID
 	Enabled                    bool
 	Available                  bool
 	Automatic                  bool
@@ -105,6 +106,7 @@ type NetworkEgressSelector struct {
 	Family        string
 	InterfaceName string
 	SourceAddress *string
+	ProxyID       *uuid.UUID
 }
 
 func validateNetworkReport(inventory *NetworkInventory, reportError *string) error {
@@ -241,7 +243,7 @@ func (s *Service) applyNetworkReport(ctx context.Context, queries *configdb.Quer
 		}
 	}
 	for _, item := range egresses {
-		if item.Kind == "default" {
+		if item.Kind == "default" || item.Kind == "proxy" {
 			continue
 		}
 		available := availability[selectorKey(item.Kind, item.Family, pointerValue(item.InterfaceName), item.SourceAddress)]
@@ -308,29 +310,51 @@ func (s *Service) CreateEgress(ctx context.Context, nodeID uuid.UUID, selector N
 	if err := requireMutableNode(ctx, queries, nodeID); err != nil {
 		return NetworkEgress{}, err
 	}
-	inventoryRecord, err := queries.GetNodeNetworkInventory(ctx, nodeID.String())
-	if errors.Is(err, sql.ErrNoRows) || inventoryRecord.Payload == nil || inventoryRecord.LastError != nil {
-		return NetworkEgress{}, ErrNetworkInventoryUnavailable
-	}
-	if err != nil {
-		return NetworkEgress{}, err
-	}
-	var inventory NetworkInventory
-	if err := json.Unmarshal([]byte(*inventoryRecord.Payload), &inventory); err != nil {
-		return NetworkEgress{}, fmt.Errorf("decode stored node network inventory: %w", err)
-	}
 	selector, err = normalizeSelector(selector)
 	if err != nil {
 		return NetworkEgress{}, err
 	}
-	available := egressAvailability(inventory)
-	if !available[selectorKey(selector.Kind, selector.Family, selector.InterfaceName, selector.SourceAddress)] {
-		return NetworkEgress{}, ErrInvalidEgressCandidate
+	name := ""
+	var interfaceName *string
+	if selector.Kind == "proxy" {
+		proxy, proxyErr := queries.GetNetworkProxy(ctx, selector.ProxyID.String())
+		if errors.Is(proxyErr, sql.ErrNoRows) {
+			return NetworkEgress{}, ErrNetworkProxyNotFound
+		}
+		if proxyErr != nil {
+			return NetworkEgress{}, proxyErr
+		}
+		proxyID := selector.ProxyID.String()
+		_, err = queries.GetNodeEgressByProxy(ctx, configdb.GetNodeEgressByProxyParams{
+			NodeID: nodeID.String(), Family: selector.Family, ProxyID: &proxyID,
+		})
+		name = "proxy:" + proxy.Name + ":" + selector.Family
+	} else {
+		inventoryRecord, inventoryErr := queries.GetNodeNetworkInventory(ctx, nodeID.String())
+		if errors.Is(inventoryErr, sql.ErrNoRows) || inventoryRecord.Payload == nil || inventoryRecord.LastError != nil {
+			return NetworkEgress{}, ErrNetworkInventoryUnavailable
+		}
+		if inventoryErr != nil {
+			return NetworkEgress{}, inventoryErr
+		}
+		var inventory NetworkInventory
+		if err := json.Unmarshal([]byte(*inventoryRecord.Payload), &inventory); err != nil {
+			return NetworkEgress{}, fmt.Errorf("decode stored node network inventory: %w", err)
+		}
+		available := egressAvailability(inventory)
+		if !available[selectorKey(selector.Kind, selector.Family, selector.InterfaceName, selector.SourceAddress)] {
+			return NetworkEgress{}, ErrInvalidEgressCandidate
+		}
+		interfaceName = &selector.InterfaceName
+		_, err = queries.GetNodeEgressBySelector(ctx, configdb.GetNodeEgressBySelectorParams{
+			NodeID: nodeID.String(), Kind: selector.Kind, Family: selector.Family,
+			InterfaceName: interfaceName, SourceAddress: selector.SourceAddress,
+		})
+		name = selector.Kind + ":" + selector.InterfaceName + ":" + selector.Family
+		if selector.SourceAddress != nil {
+			name = selector.Kind + ":" + *selector.SourceAddress
+		}
 	}
-	_, err = queries.GetNodeEgressBySelector(ctx, configdb.GetNodeEgressBySelectorParams{
-		NodeID: nodeID.String(), Kind: selector.Kind, Family: selector.Family,
-		InterfaceName: &selector.InterfaceName, SourceAddress: selector.SourceAddress,
-	})
 	if err == nil {
 		return NetworkEgress{}, ErrEgressAlreadyExists
 	}
@@ -346,13 +370,14 @@ func (s *Service) CreateEgress(ctx context.Context, nodeID uuid.UUID, selector N
 	}
 	now := s.now().UTC().Truncate(time.Second).Unix()
 	id := uuid.New()
-	name := selector.Kind + ":" + selector.InterfaceName + ":" + selector.Family
-	if selector.SourceAddress != nil {
-		name = selector.Kind + ":" + *selector.SourceAddress
+	var proxyID *string
+	if selector.ProxyID != nil {
+		value := selector.ProxyID.String()
+		proxyID = &value
 	}
 	if err := queries.CreateNodeEgress(ctx, configdb.CreateNodeEgressParams{
 		ID: id.String(), NodeID: nodeID.String(), Name: name, Kind: selector.Kind, Family: selector.Family,
-		InterfaceName: &selector.InterfaceName, SourceAddress: selector.SourceAddress,
+		InterfaceName: interfaceName, SourceAddress: selector.SourceAddress, ProxyID: proxyID,
 		Enabled: 1, Available: 1, Automatic: 0,
 		LightweightIntervalSeconds: int64(defaultLightweightInterval / time.Second), ProbeOnAddressChange: 1,
 		CreatedAt: now, UpdatedAt: now,
@@ -580,8 +605,17 @@ func usableAddress(address NetworkAddress, allowTemporary bool) bool {
 }
 
 func normalizeSelector(selector NetworkEgressSelector) (NetworkEgressSelector, error) {
-	if (selector.Kind != "interface" && selector.Kind != "source") ||
-		(selector.Family != "ipv4" && selector.Family != "ipv6") || !validInterfaceName(selector.InterfaceName) ||
+	if (selector.Family != "ipv4" && selector.Family != "ipv6") ||
+		(selector.Kind != "interface" && selector.Kind != "source" && selector.Kind != "proxy") {
+		return NetworkEgressSelector{}, ErrInvalidEgressCandidate
+	}
+	if selector.Kind == "proxy" {
+		if selector.ProxyID == nil || selector.InterfaceName != "" || selector.SourceAddress != nil {
+			return NetworkEgressSelector{}, ErrInvalidEgressCandidate
+		}
+		return selector, nil
+	}
+	if selector.ProxyID != nil || !validInterfaceName(selector.InterfaceName) ||
 		(selector.Kind == "interface" && selector.SourceAddress != nil) || (selector.Kind == "source" && selector.SourceAddress == nil) {
 		return NetworkEgressSelector{}, ErrInvalidEgressCandidate
 	}
@@ -635,9 +669,17 @@ func egressFromRecord(record configdb.NetworkEgress) (NetworkEgress, error) {
 	if err != nil {
 		return NetworkEgress{}, fmt.Errorf("parse stored egress node ID %q: %w", record.NodeID, err)
 	}
+	var proxyID *uuid.UUID
+	if record.ProxyID != nil {
+		value, err := uuid.Parse(*record.ProxyID)
+		if err != nil {
+			return NetworkEgress{}, fmt.Errorf("parse stored egress proxy ID %q: %w", *record.ProxyID, err)
+		}
+		proxyID = &value
+	}
 	return NetworkEgress{
 		ID: id, NodeID: nodeID, Name: record.Name, Kind: record.Kind, Family: record.Family,
-		InterfaceName: record.InterfaceName, SourceAddress: record.SourceAddress,
+		InterfaceName: record.InterfaceName, SourceAddress: record.SourceAddress, ProxyID: proxyID,
 		Enabled: record.Enabled == 1, Available: record.Available == 1, Automatic: record.Automatic == 1,
 		LightweightIntervalSeconds: record.LightweightIntervalSeconds,
 		ProbeOnAddressChange:       record.ProbeOnAddressChange == 1,

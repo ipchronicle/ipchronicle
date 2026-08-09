@@ -35,7 +35,7 @@ curl --fail --silent --show-error \
 csrf_token="$(jq -er '.csrfToken' "$login_file")"
 curl --fail --silent --show-error --cookie "$cookie_file" \
   "$base_url/api/v1/system/status" >"$status_file"
-jq -e '.service == "ipchronicle-center" and .status == "ok" and .configSchemaVersion == 5 and .historySchemaVersion == 1 and (.version | length > 0)' "$status_file" >/dev/null
+jq -e '.service == "ipchronicle-center" and .status == "ok" and .configSchemaVersion == 6 and .historySchemaVersion == 1 and (.version | length > 0)' "$status_file" >/dev/null
 curl --fail --silent --show-error "$base_url/system/status" | grep -Fq '<div id="root"></div>'
 
 curl --fail --silent --show-error \
@@ -49,13 +49,13 @@ if [[ -z "$registration_key" ]]; then
   echo "enrollment response did not contain a registration key" >&2
   exit 1
 fi
-jq -n --arg key "$registration_key" '{registrationKey:$key,metadata:{hostname:"smoke-node",agentVersion:"dev",operatingSystem:"linux",architecture:"amd64",capabilities:["control-v1","configuration-v1"]}}' | \
+jq -n --arg key "$registration_key" '{registrationKey:$key,metadata:{hostname:"smoke-node",agentVersion:"dev",operatingSystem:"linux",architecture:"amd64",capabilities:["control-v1","configuration-v3"]}}' | \
   curl --fail --silent --show-error \
     --header 'Content-Type: application/json' \
     --data-binary @- \
     "$base_url/api/v1/agent/enroll" >"$registration_file"
 agent_credential="$(jq -er '.credential' "$registration_file")"
-jq -n '{appliedConfigurationRevision:0,metadata:{hostname:"smoke-node",agentVersion:"dev",operatingSystem:"linux",architecture:"amd64",capabilities:["control-v1","configuration-v1"]}}' | \
+jq -n '{appliedConfigurationRevision:0,metadata:{hostname:"smoke-node",agentVersion:"dev",operatingSystem:"linux",architecture:"amd64",capabilities:["control-v1","configuration-v3"]}}' | \
   curl --fail --silent --show-error \
     --header 'Content-Type: application/json' \
     --header "Authorization: Bearer $agent_credential" \
@@ -65,8 +65,8 @@ jq -n '{appliedConfigurationRevision:0,metadata:{hostname:"smoke-node",agentVers
 curl --fail --silent --show-error \
   --header "Authorization: Bearer $agent_credential" \
   "$base_url/api/v1/agent/configuration" | \
-  jq -e '.schemaVersion == 2 and .revision == 1 and .enabled == true and (.historyGeneration | length == 64) and .egresses == []' >/dev/null
-jq -n '{appliedConfigurationRevision:1,metadata:{hostname:"smoke-node",agentVersion:"dev",operatingSystem:"linux",architecture:"amd64",capabilities:["control-v1","configuration-v1"]}}' | \
+  jq -e '.schemaVersion == 3 and .revision == 1 and .enabled == true and (.historyGeneration | length == 64) and .egresses == [] and .proxies == []' >/dev/null
+jq -n '{appliedConfigurationRevision:1,metadata:{hostname:"smoke-node",agentVersion:"dev",operatingSystem:"linux",architecture:"amd64",capabilities:["control-v1","configuration-v3"]}}' | \
   curl --fail --silent --show-error \
     --header 'Content-Type: application/json' \
     --header "Authorization: Bearer $agent_credential" \

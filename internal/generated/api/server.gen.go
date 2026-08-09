@@ -54,13 +54,13 @@ func (e AgentArchitecture) Valid() bool {
 
 // Defines values for AgentConfigurationSnapshotSchemaVersion.
 const (
-	N2 AgentConfigurationSnapshotSchemaVersion = 2
+	N3 AgentConfigurationSnapshotSchemaVersion = 3
 )
 
 // Valid indicates whether the value is a known member of the AgentConfigurationSnapshotSchemaVersion enum.
 func (e AgentConfigurationSnapshotSchemaVersion) Valid() bool {
 	switch e {
-	case N2:
+	case N3:
 		return true
 	default:
 		return false
@@ -94,9 +94,14 @@ const (
 	InternalError                 ErrorCode = "internal_error"
 	InvalidCredentials            ErrorCode = "invalid_credentials"
 	InvalidEgressCandidate        ErrorCode = "invalid_egress_candidate"
+	InvalidNetworkProxy           ErrorCode = "invalid_network_proxy"
 	InvalidRequest                ErrorCode = "invalid_request"
 	InvalidTotp                   ErrorCode = "invalid_totp"
 	NetworkInventoryUnavailable   ErrorCode = "network_inventory_unavailable"
+	NetworkProxyAlreadyExists     ErrorCode = "network_proxy_already_exists"
+	NetworkProxyInUse             ErrorCode = "network_proxy_in_use"
+	NetworkProxyLimitReached      ErrorCode = "network_proxy_limit_reached"
+	NetworkProxyNotFound          ErrorCode = "network_proxy_not_found"
 	NoAccountChange               ErrorCode = "no_account_change"
 	NodeDeletionPending           ErrorCode = "node_deletion_pending"
 	NodeNotFound                  ErrorCode = "node_not_found"
@@ -138,11 +143,21 @@ func (e ErrorCode) Valid() bool {
 		return true
 	case InvalidEgressCandidate:
 		return true
+	case InvalidNetworkProxy:
+		return true
 	case InvalidRequest:
 		return true
 	case InvalidTotp:
 		return true
 	case NetworkInventoryUnavailable:
+		return true
+	case NetworkProxyAlreadyExists:
+		return true
+	case NetworkProxyInUse:
+		return true
+	case NetworkProxyLimitReached:
+		return true
+	case NetworkProxyNotFound:
 		return true
 	case NoAccountChange:
 		return true
@@ -265,6 +280,7 @@ func (e NetworkEgressCandidateUnavailableReason) Valid() bool {
 // Defines values for NetworkEgressCreateKind.
 const (
 	NetworkEgressCreateKindInterface NetworkEgressCreateKind = "interface"
+	NetworkEgressCreateKindProxy     NetworkEgressCreateKind = "proxy"
 	NetworkEgressCreateKindSource    NetworkEgressCreateKind = "source"
 )
 
@@ -272,6 +288,8 @@ const (
 func (e NetworkEgressCreateKind) Valid() bool {
 	switch e {
 	case NetworkEgressCreateKindInterface:
+		return true
+	case NetworkEgressCreateKindProxy:
 		return true
 	case NetworkEgressCreateKindSource:
 		return true
@@ -284,6 +302,7 @@ func (e NetworkEgressCreateKind) Valid() bool {
 const (
 	NetworkEgressKindDefault   NetworkEgressKind = "default"
 	NetworkEgressKindInterface NetworkEgressKind = "interface"
+	NetworkEgressKindProxy     NetworkEgressKind = "proxy"
 	NetworkEgressKindSource    NetworkEgressKind = "source"
 )
 
@@ -294,7 +313,51 @@ func (e NetworkEgressKind) Valid() bool {
 		return true
 	case NetworkEgressKindInterface:
 		return true
+	case NetworkEgressKindProxy:
+		return true
 	case NetworkEgressKindSource:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for NetworkProxyPasswordAction.
+const (
+	Clear   NetworkProxyPasswordAction = "clear"
+	Keep    NetworkProxyPasswordAction = "keep"
+	Replace NetworkProxyPasswordAction = "replace"
+)
+
+// Valid indicates whether the value is a known member of the NetworkProxyPasswordAction enum.
+func (e NetworkProxyPasswordAction) Valid() bool {
+	switch e {
+	case Clear:
+		return true
+	case Keep:
+		return true
+	case Replace:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for NetworkProxyScheme.
+const (
+	NetworkProxySchemeHttp   NetworkProxyScheme = "http"
+	NetworkProxySchemeHttps  NetworkProxyScheme = "https"
+	NetworkProxySchemeSocks5 NetworkProxyScheme = "socks5"
+)
+
+// Valid indicates whether the value is a known member of the NetworkProxyScheme enum.
+func (e NetworkProxyScheme) Valid() bool {
+	switch e {
+	case NetworkProxySchemeHttp:
+		return true
+	case NetworkProxySchemeHttps:
+		return true
+	case NetworkProxySchemeSocks5:
 		return true
 	default:
 		return false
@@ -435,16 +498,16 @@ func (e SystemStatusStatus) Valid() bool {
 
 // Defines values for SystemStatusTransportSecurity.
 const (
-	Http  SystemStatusTransportSecurity = "http"
-	Https SystemStatusTransportSecurity = "https"
+	SystemStatusTransportSecurityHttp  SystemStatusTransportSecurity = "http"
+	SystemStatusTransportSecurityHttps SystemStatusTransportSecurity = "https"
 )
 
 // Valid indicates whether the value is a known member of the SystemStatusTransportSecurity enum.
 func (e SystemStatusTransportSecurity) Valid() bool {
 	switch e {
-	case Http:
+	case SystemStatusTransportSecurityHttp:
 		return true
-	case Https:
+	case SystemStatusTransportSecurityHttps:
 		return true
 	default:
 		return false
@@ -483,6 +546,7 @@ type AgentConfigurationSnapshot struct {
 	Egresses          []AgentEgressConfiguration              `json:"egresses"`
 	Enabled           bool                                    `json:"enabled"`
 	HistoryGeneration string                                  `json:"historyGeneration"`
+	Proxies           []AgentProxyConfiguration               `json:"proxies"`
 	Revision          int64                                   `json:"revision"`
 	SchemaVersion     AgentConfigurationSnapshotSchemaVersion `json:"schemaVersion"`
 }
@@ -492,14 +556,15 @@ type AgentConfigurationSnapshotSchemaVersion int
 
 // AgentEgressConfiguration defines model for AgentEgressConfiguration.
 type AgentEgressConfiguration struct {
-	Enabled                    bool               `json:"enabled"`
-	Family                     AddressFamily      `json:"family"`
-	Id                         openapi_types.UUID `json:"id"`
-	InterfaceName              *string            `json:"interfaceName,omitempty"`
-	Kind                       NetworkEgressKind  `json:"kind"`
-	LightweightIntervalSeconds int64              `json:"lightweightIntervalSeconds"`
-	ProbeOnAddressChange       bool               `json:"probeOnAddressChange"`
-	SourceAddress              *string            `json:"sourceAddress,omitempty"`
+	Enabled                    bool                `json:"enabled"`
+	Family                     AddressFamily       `json:"family"`
+	Id                         openapi_types.UUID  `json:"id"`
+	InterfaceName              *string             `json:"interfaceName,omitempty"`
+	Kind                       NetworkEgressKind   `json:"kind"`
+	LightweightIntervalSeconds int64               `json:"lightweightIntervalSeconds"`
+	ProbeOnAddressChange       bool                `json:"probeOnAddressChange"`
+	ProxyId                    *openapi_types.UUID `json:"proxyId,omitempty"`
+	SourceAddress              *string             `json:"sourceAddress,omitempty"`
 }
 
 // AgentEnrollmentSettings defines model for AgentEnrollmentSettings.
@@ -544,6 +609,16 @@ type AgentPollResult struct {
 	Enabled                      bool              `json:"enabled"`
 	PollIntervalSeconds          int               `json:"pollIntervalSeconds"`
 	SyncSession                  *AgentSyncSession `json:"syncSession,omitempty"`
+}
+
+// AgentProxyConfiguration defines model for AgentProxyConfiguration.
+type AgentProxyConfiguration struct {
+	Host     string             `json:"host"`
+	Id       openapi_types.UUID `json:"id"`
+	Password *string            `json:"password,omitempty"`
+	Port     int64              `json:"port"`
+	Scheme   NetworkProxyScheme `json:"scheme"`
+	Username *string            `json:"username,omitempty"`
 }
 
 // AgentRegistrationRequest defines model for AgentRegistrationRequest.
@@ -623,18 +698,19 @@ type NetworkAddressScope string
 
 // NetworkEgress defines model for NetworkEgress.
 type NetworkEgress struct {
-	Automatic                  bool               `json:"automatic"`
-	Available                  bool               `json:"available"`
-	Enabled                    bool               `json:"enabled"`
-	Family                     AddressFamily      `json:"family"`
-	Id                         openapi_types.UUID `json:"id"`
-	InterfaceName              *string            `json:"interfaceName,omitempty"`
-	Kind                       NetworkEgressKind  `json:"kind"`
-	LightweightIntervalSeconds int64              `json:"lightweightIntervalSeconds"`
-	Name                       string             `json:"name"`
-	NodeId                     openapi_types.UUID `json:"nodeId"`
-	ProbeOnAddressChange       bool               `json:"probeOnAddressChange"`
-	SourceAddress              *string            `json:"sourceAddress,omitempty"`
+	Automatic                  bool                `json:"automatic"`
+	Available                  bool                `json:"available"`
+	Enabled                    bool                `json:"enabled"`
+	Family                     AddressFamily       `json:"family"`
+	Id                         openapi_types.UUID  `json:"id"`
+	InterfaceName              *string             `json:"interfaceName,omitempty"`
+	Kind                       NetworkEgressKind   `json:"kind"`
+	LightweightIntervalSeconds int64               `json:"lightweightIntervalSeconds"`
+	Name                       string              `json:"name"`
+	NodeId                     openapi_types.UUID  `json:"nodeId"`
+	ProbeOnAddressChange       bool                `json:"probeOnAddressChange"`
+	ProxyId                    *openapi_types.UUID `json:"proxyId,omitempty"`
+	SourceAddress              *string             `json:"sourceAddress,omitempty"`
 }
 
 // NetworkEgressCandidate defines model for NetworkEgressCandidate.
@@ -659,8 +735,9 @@ type NetworkEgressCandidateUnavailableReason string
 // NetworkEgressCreate defines model for NetworkEgressCreate.
 type NetworkEgressCreate struct {
 	Family        AddressFamily           `json:"family"`
-	InterfaceName string                  `json:"interfaceName"`
+	InterfaceName *string                 `json:"interfaceName,omitempty"`
 	Kind          NetworkEgressCreateKind `json:"kind"`
+	ProxyId       *openapi_types.UUID     `json:"proxyId,omitempty"`
 	SourceAddress *string                 `json:"sourceAddress,omitempty"`
 }
 
@@ -689,6 +766,51 @@ type NetworkInventory struct {
 	CapturedAt time.Time          `json:"capturedAt"`
 	Interfaces []NetworkInterface `json:"interfaces"`
 	Routes     []NetworkRoute     `json:"routes"`
+}
+
+// NetworkProxy defines model for NetworkProxy.
+type NetworkProxy struct {
+	CreatedAt          time.Time          `json:"createdAt"`
+	Host               string             `json:"host"`
+	Id                 openapi_types.UUID `json:"id"`
+	Name               string             `json:"name"`
+	PasswordConfigured bool               `json:"passwordConfigured"`
+	Port               int64              `json:"port"`
+	Scheme             NetworkProxyScheme `json:"scheme"`
+	UpdatedAt          time.Time          `json:"updatedAt"`
+	Username           *string            `json:"username,omitempty"`
+}
+
+// NetworkProxyCreate defines model for NetworkProxyCreate.
+type NetworkProxyCreate struct {
+	Host     string             `json:"host"`
+	Name     string             `json:"name"`
+	Password *string            `json:"password,omitempty"`
+	Port     int64              `json:"port"`
+	Scheme   NetworkProxyScheme `json:"scheme"`
+	Username *string            `json:"username,omitempty"`
+}
+
+// NetworkProxyList defines model for NetworkProxyList.
+type NetworkProxyList struct {
+	Items []NetworkProxy `json:"items"`
+}
+
+// NetworkProxyPasswordAction defines model for NetworkProxyPasswordAction.
+type NetworkProxyPasswordAction string
+
+// NetworkProxyScheme defines model for NetworkProxyScheme.
+type NetworkProxyScheme string
+
+// NetworkProxyUpdate defines model for NetworkProxyUpdate.
+type NetworkProxyUpdate struct {
+	Host           string                     `json:"host"`
+	Name           string                     `json:"name"`
+	Password       *string                    `json:"password,omitempty"`
+	PasswordAction NetworkProxyPasswordAction `json:"passwordAction"`
+	Port           int64                      `json:"port"`
+	Scheme         NetworkProxyScheme         `json:"scheme"`
+	Username       *string                    `json:"username,omitempty"`
 }
 
 // NetworkRoute defines model for NetworkRoute.
@@ -808,6 +930,9 @@ type EgressId = openapi_types.UUID
 // NodeId defines model for NodeId.
 type NodeId = openapi_types.UUID
 
+// ProxyId defines model for ProxyId.
+type ProxyId = openapi_types.UUID
+
 // AgentForbidden defines model for AgentForbidden.
 type AgentForbidden = ErrorResponse
 
@@ -871,6 +996,21 @@ type RotateAgentEnrollmentKeyParams struct {
 
 // LogoutParams defines parameters for Logout.
 type LogoutParams struct {
+	XCSRFToken *CSRFToken `json:"X-CSRF-Token,omitempty"`
+}
+
+// CreateNetworkProxyParams defines parameters for CreateNetworkProxy.
+type CreateNetworkProxyParams struct {
+	XCSRFToken *CSRFToken `json:"X-CSRF-Token,omitempty"`
+}
+
+// DeleteNetworkProxyParams defines parameters for DeleteNetworkProxy.
+type DeleteNetworkProxyParams struct {
+	XCSRFToken *CSRFToken `json:"X-CSRF-Token,omitempty"`
+}
+
+// UpdateNetworkProxyParams defines parameters for UpdateNetworkProxy.
+type UpdateNetworkProxyParams struct {
 	XCSRFToken *CSRFToken `json:"X-CSRF-Token,omitempty"`
 }
 
@@ -941,6 +1081,12 @@ type RegisterAgentJSONRequestBody = AgentRegistrationRequest
 // LoginJSONRequestBody defines body for Login for application/json ContentType.
 type LoginJSONRequestBody = LoginRequest
 
+// CreateNetworkProxyJSONRequestBody defines body for CreateNetworkProxy for application/json ContentType.
+type CreateNetworkProxyJSONRequestBody = NetworkProxyCreate
+
+// UpdateNetworkProxyJSONRequestBody defines body for UpdateNetworkProxy for application/json ContentType.
+type UpdateNetworkProxyJSONRequestBody = NetworkProxyUpdate
+
 // UpdateNodeJSONRequestBody defines body for UpdateNode for application/json ContentType.
 type UpdateNodeJSONRequestBody = NodeUpdate
 
@@ -1000,6 +1146,18 @@ type ServerInterface interface {
 	// GetAuthenticatedSession Read the current administrator session
 	// (GET /api/v1/auth/session)
 	GetAuthenticatedSession(w http.ResponseWriter, r *http.Request)
+	// ListNetworkProxies List centrally managed network proxies without revealing passwords
+	// (GET /api/v1/network-proxies)
+	ListNetworkProxies(w http.ResponseWriter, r *http.Request)
+	// CreateNetworkProxy Create a centrally managed network proxy
+	// (POST /api/v1/network-proxies)
+	CreateNetworkProxy(w http.ResponseWriter, r *http.Request, params CreateNetworkProxyParams)
+	// DeleteNetworkProxy Delete an unreferenced network proxy
+	// (DELETE /api/v1/network-proxies/{proxyId})
+	DeleteNetworkProxy(w http.ResponseWriter, r *http.Request, proxyId ProxyId, params DeleteNetworkProxyParams)
+	// UpdateNetworkProxy Replace network proxy settings and explicitly keep, replace, or clear its password
+	// (PUT /api/v1/network-proxies/{proxyId})
+	UpdateNetworkProxy(w http.ResponseWriter, r *http.Request, proxyId ProxyId, params UpdateNetworkProxyParams)
 	// ListNodes List registered nodes
 	// (GET /api/v1/nodes)
 	ListNodes(w http.ResponseWriter, r *http.Request)
@@ -1132,6 +1290,30 @@ func (_ Unimplemented) Logout(w http.ResponseWriter, r *http.Request, params Log
 // GetAuthenticatedSession Read the current administrator session
 // (GET /api/v1/auth/session)
 func (_ Unimplemented) GetAuthenticatedSession(w http.ResponseWriter, r *http.Request) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
+// ListNetworkProxies List centrally managed network proxies without revealing passwords
+// (GET /api/v1/network-proxies)
+func (_ Unimplemented) ListNetworkProxies(w http.ResponseWriter, r *http.Request) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
+// CreateNetworkProxy Create a centrally managed network proxy
+// (POST /api/v1/network-proxies)
+func (_ Unimplemented) CreateNetworkProxy(w http.ResponseWriter, r *http.Request, params CreateNetworkProxyParams) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
+// DeleteNetworkProxy Delete an unreferenced network proxy
+// (DELETE /api/v1/network-proxies/{proxyId})
+func (_ Unimplemented) DeleteNetworkProxy(w http.ResponseWriter, r *http.Request, proxyId ProxyId, params DeleteNetworkProxyParams) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
+// UpdateNetworkProxy Replace network proxy settings and explicitly keep, replace, or clear its password
+// (PUT /api/v1/network-proxies/{proxyId})
+func (_ Unimplemented) UpdateNetworkProxy(w http.ResponseWriter, r *http.Request, proxyId ProxyId, params UpdateNetworkProxyParams) {
 	w.WriteHeader(http.StatusNotImplemented)
 }
 
@@ -1668,6 +1850,161 @@ func (siw *ServerInterfaceWrapper) GetAuthenticatedSession(w http.ResponseWriter
 
 	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		siw.Handler.GetAuthenticatedSession(w, r)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// ListNetworkProxies operation middleware
+func (siw *ServerInterfaceWrapper) ListNetworkProxies(w http.ResponseWriter, r *http.Request) {
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.ListNetworkProxies(w, r)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// CreateNetworkProxy operation middleware
+func (siw *ServerInterfaceWrapper) CreateNetworkProxy(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	// Parameter object where we will unmarshal all parameters from the context
+	var params CreateNetworkProxyParams
+
+	headers := r.Header
+
+	// ------------- Optional header parameter "X-CSRF-Token" -------------
+	if valueList, found := headers[http.CanonicalHeaderKey("X-CSRF-Token")]; found {
+		var XCSRFToken CSRFToken
+		n := len(valueList)
+		if n != 1 {
+			siw.ErrorHandlerFunc(w, r, &TooManyValuesForParamError{ParamName: "X-CSRF-Token", Count: n})
+			return
+		}
+
+		err = runtime.BindStyledParameterWithOptions("simple", "X-CSRF-Token", valueList[0], &XCSRFToken, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: false, Type: "string", Format: ""})
+		if err != nil {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "X-CSRF-Token", Err: err})
+			return
+		}
+
+		params.XCSRFToken = &XCSRFToken
+
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.CreateNetworkProxy(w, r, params)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// DeleteNetworkProxy operation middleware
+func (siw *ServerInterfaceWrapper) DeleteNetworkProxy(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "proxyId" -------------
+	var proxyId ProxyId
+
+	err = runtime.BindStyledParameterWithOptions("simple", "proxyId", chi.URLParam(r, "proxyId"), &proxyId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "uuid", ValueIsUnescaped: r.URL.RawPath == ""})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "proxyId", Err: err})
+		return
+	}
+
+	// Parameter object where we will unmarshal all parameters from the context
+	var params DeleteNetworkProxyParams
+
+	headers := r.Header
+
+	// ------------- Optional header parameter "X-CSRF-Token" -------------
+	if valueList, found := headers[http.CanonicalHeaderKey("X-CSRF-Token")]; found {
+		var XCSRFToken CSRFToken
+		n := len(valueList)
+		if n != 1 {
+			siw.ErrorHandlerFunc(w, r, &TooManyValuesForParamError{ParamName: "X-CSRF-Token", Count: n})
+			return
+		}
+
+		err = runtime.BindStyledParameterWithOptions("simple", "X-CSRF-Token", valueList[0], &XCSRFToken, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: false, Type: "string", Format: ""})
+		if err != nil {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "X-CSRF-Token", Err: err})
+			return
+		}
+
+		params.XCSRFToken = &XCSRFToken
+
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.DeleteNetworkProxy(w, r, proxyId, params)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// UpdateNetworkProxy operation middleware
+func (siw *ServerInterfaceWrapper) UpdateNetworkProxy(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "proxyId" -------------
+	var proxyId ProxyId
+
+	err = runtime.BindStyledParameterWithOptions("simple", "proxyId", chi.URLParam(r, "proxyId"), &proxyId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "uuid", ValueIsUnescaped: r.URL.RawPath == ""})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "proxyId", Err: err})
+		return
+	}
+
+	// Parameter object where we will unmarshal all parameters from the context
+	var params UpdateNetworkProxyParams
+
+	headers := r.Header
+
+	// ------------- Optional header parameter "X-CSRF-Token" -------------
+	if valueList, found := headers[http.CanonicalHeaderKey("X-CSRF-Token")]; found {
+		var XCSRFToken CSRFToken
+		n := len(valueList)
+		if n != 1 {
+			siw.ErrorHandlerFunc(w, r, &TooManyValuesForParamError{ParamName: "X-CSRF-Token", Count: n})
+			return
+		}
+
+		err = runtime.BindStyledParameterWithOptions("simple", "X-CSRF-Token", valueList[0], &XCSRFToken, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: false, Type: "string", Format: ""})
+		if err != nil {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "X-CSRF-Token", Err: err})
+			return
+		}
+
+		params.XCSRFToken = &XCSRFToken
+
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.UpdateNetworkProxy(w, r, proxyId, params)
 	}))
 
 	for _, middleware := range siw.HandlerMiddlewares {
@@ -2324,6 +2661,18 @@ func HandlerWithOptions(si ServerInterface, options ChiServerOptions) http.Handl
 	})
 	r.Group(func(r chi.Router) {
 		r.Patch(options.BaseURL+"/api/v1/nodes/{nodeId}/egresses/{egressId}", wrapper.UpdateNodeEgress)
+	})
+	r.Group(func(r chi.Router) {
+		r.Get(options.BaseURL+"/api/v1/network-proxies", wrapper.ListNetworkProxies)
+	})
+	r.Group(func(r chi.Router) {
+		r.Post(options.BaseURL+"/api/v1/network-proxies", wrapper.CreateNetworkProxy)
+	})
+	r.Group(func(r chi.Router) {
+		r.Delete(options.BaseURL+"/api/v1/network-proxies/{proxyId}", wrapper.DeleteNetworkProxy)
+	})
+	r.Group(func(r chi.Router) {
+		r.Put(options.BaseURL+"/api/v1/network-proxies/{proxyId}", wrapper.UpdateNetworkProxy)
 	})
 	r.Group(func(r chi.Router) {
 		r.Get(options.BaseURL+"/api/v1/agent-enrollment", wrapper.GetAgentEnrollment)
@@ -3343,6 +3692,287 @@ func (response GetAuthenticatedSession401JSONResponse) VisitGetAuthenticatedSess
 	return err
 }
 
+type ListNetworkProxiesRequestObject struct {
+}
+
+type ListNetworkProxiesResponseObject interface {
+	VisitListNetworkProxiesResponse(w http.ResponseWriter) error
+}
+
+type ListNetworkProxies200JSONResponse NetworkProxyList
+
+func (response ListNetworkProxies200JSONResponse) VisitListNetworkProxiesResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type ListNetworkProxies401JSONResponse struct{ UnauthorizedJSONResponse }
+
+func (response ListNetworkProxies401JSONResponse) VisitListNetworkProxiesResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(401)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type CreateNetworkProxyRequestObject struct {
+	Params CreateNetworkProxyParams
+	Body   *CreateNetworkProxyJSONRequestBody
+}
+
+type CreateNetworkProxyResponseObject interface {
+	VisitCreateNetworkProxyResponse(w http.ResponseWriter) error
+}
+
+type CreateNetworkProxy201JSONResponse NetworkProxy
+
+func (response CreateNetworkProxy201JSONResponse) VisitCreateNetworkProxyResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(201)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type CreateNetworkProxy400JSONResponse struct{ BadRequestJSONResponse }
+
+func (response CreateNetworkProxy400JSONResponse) VisitCreateNetworkProxyResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(400)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type CreateNetworkProxy401JSONResponse struct{ UnauthorizedJSONResponse }
+
+func (response CreateNetworkProxy401JSONResponse) VisitCreateNetworkProxyResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(401)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type CreateNetworkProxy403JSONResponse struct{ ForbiddenJSONResponse }
+
+func (response CreateNetworkProxy403JSONResponse) VisitCreateNetworkProxyResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(403)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type CreateNetworkProxy409JSONResponse struct{ ConflictJSONResponse }
+
+func (response CreateNetworkProxy409JSONResponse) VisitCreateNetworkProxyResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(409)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type DeleteNetworkProxyRequestObject struct {
+	ProxyId ProxyId `json:"proxyId"`
+	Params  DeleteNetworkProxyParams
+}
+
+type DeleteNetworkProxyResponseObject interface {
+	VisitDeleteNetworkProxyResponse(w http.ResponseWriter) error
+}
+
+type DeleteNetworkProxy204Response struct {
+}
+
+func (response DeleteNetworkProxy204Response) VisitDeleteNetworkProxyResponse(w http.ResponseWriter) error {
+	w.WriteHeader(204)
+	return nil
+}
+
+type DeleteNetworkProxy401JSONResponse struct{ UnauthorizedJSONResponse }
+
+func (response DeleteNetworkProxy401JSONResponse) VisitDeleteNetworkProxyResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(401)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type DeleteNetworkProxy403JSONResponse struct{ ForbiddenJSONResponse }
+
+func (response DeleteNetworkProxy403JSONResponse) VisitDeleteNetworkProxyResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(403)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type DeleteNetworkProxy404JSONResponse struct{ NotFoundJSONResponse }
+
+func (response DeleteNetworkProxy404JSONResponse) VisitDeleteNetworkProxyResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(404)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type DeleteNetworkProxy409JSONResponse struct{ ConflictJSONResponse }
+
+func (response DeleteNetworkProxy409JSONResponse) VisitDeleteNetworkProxyResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(409)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type UpdateNetworkProxyRequestObject struct {
+	ProxyId ProxyId `json:"proxyId"`
+	Params  UpdateNetworkProxyParams
+	Body    *UpdateNetworkProxyJSONRequestBody
+}
+
+type UpdateNetworkProxyResponseObject interface {
+	VisitUpdateNetworkProxyResponse(w http.ResponseWriter) error
+}
+
+type UpdateNetworkProxy200JSONResponse NetworkProxy
+
+func (response UpdateNetworkProxy200JSONResponse) VisitUpdateNetworkProxyResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type UpdateNetworkProxy400JSONResponse struct{ BadRequestJSONResponse }
+
+func (response UpdateNetworkProxy400JSONResponse) VisitUpdateNetworkProxyResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(400)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type UpdateNetworkProxy401JSONResponse struct{ UnauthorizedJSONResponse }
+
+func (response UpdateNetworkProxy401JSONResponse) VisitUpdateNetworkProxyResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(401)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type UpdateNetworkProxy403JSONResponse struct{ ForbiddenJSONResponse }
+
+func (response UpdateNetworkProxy403JSONResponse) VisitUpdateNetworkProxyResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(403)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type UpdateNetworkProxy404JSONResponse struct{ NotFoundJSONResponse }
+
+func (response UpdateNetworkProxy404JSONResponse) VisitUpdateNetworkProxyResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(404)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type UpdateNetworkProxy409JSONResponse struct{ ConflictJSONResponse }
+
+func (response UpdateNetworkProxy409JSONResponse) VisitUpdateNetworkProxyResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(409)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
 type ListNodesRequestObject struct {
 }
 
@@ -4158,6 +4788,18 @@ type StrictServerInterface interface {
 	// GetAuthenticatedSession Read the current administrator session
 	// (GET /api/v1/auth/session)
 	GetAuthenticatedSession(ctx context.Context, request GetAuthenticatedSessionRequestObject) (GetAuthenticatedSessionResponseObject, error)
+	// ListNetworkProxies List centrally managed network proxies without revealing passwords
+	// (GET /api/v1/network-proxies)
+	ListNetworkProxies(ctx context.Context, request ListNetworkProxiesRequestObject) (ListNetworkProxiesResponseObject, error)
+	// CreateNetworkProxy Create a centrally managed network proxy
+	// (POST /api/v1/network-proxies)
+	CreateNetworkProxy(ctx context.Context, request CreateNetworkProxyRequestObject) (CreateNetworkProxyResponseObject, error)
+	// DeleteNetworkProxy Delete an unreferenced network proxy
+	// (DELETE /api/v1/network-proxies/{proxyId})
+	DeleteNetworkProxy(ctx context.Context, request DeleteNetworkProxyRequestObject) (DeleteNetworkProxyResponseObject, error)
+	// UpdateNetworkProxy Replace network proxy settings and explicitly keep, replace, or clear its password
+	// (PUT /api/v1/network-proxies/{proxyId})
+	UpdateNetworkProxy(ctx context.Context, request UpdateNetworkProxyRequestObject) (UpdateNetworkProxyResponseObject, error)
 	// ListNodes List registered nodes
 	// (GET /api/v1/nodes)
 	ListNodes(ctx context.Context, request ListNodesRequestObject) (ListNodesResponseObject, error)
@@ -4690,6 +5332,124 @@ func (sh *strictHandler) GetAuthenticatedSession(w http.ResponseWriter, r *http.
 		sh.options.ResponseErrorHandlerFunc(w, r, err)
 	} else if validResponse, ok := response.(GetAuthenticatedSessionResponseObject); ok {
 		if err := validResponse.VisitGetAuthenticatedSessionResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// ListNetworkProxies operation middleware
+func (sh *strictHandler) ListNetworkProxies(w http.ResponseWriter, r *http.Request) {
+	var request ListNetworkProxiesRequestObject
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.ListNetworkProxies(ctx, request.(ListNetworkProxiesRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "ListNetworkProxies")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(ListNetworkProxiesResponseObject); ok {
+		if err := validResponse.VisitListNetworkProxiesResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// CreateNetworkProxy operation middleware
+func (sh *strictHandler) CreateNetworkProxy(w http.ResponseWriter, r *http.Request, params CreateNetworkProxyParams) {
+	var request CreateNetworkProxyRequestObject
+
+	request.Params = params
+
+	var body CreateNetworkProxyJSONRequestBody
+	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+		sh.options.RequestErrorHandlerFunc(w, r, fmt.Errorf("can't decode JSON body: %w", err))
+		return
+	}
+	request.Body = &body
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.CreateNetworkProxy(ctx, request.(CreateNetworkProxyRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "CreateNetworkProxy")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(CreateNetworkProxyResponseObject); ok {
+		if err := validResponse.VisitCreateNetworkProxyResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// DeleteNetworkProxy operation middleware
+func (sh *strictHandler) DeleteNetworkProxy(w http.ResponseWriter, r *http.Request, proxyId ProxyId, params DeleteNetworkProxyParams) {
+	var request DeleteNetworkProxyRequestObject
+
+	request.ProxyId = proxyId
+	request.Params = params
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.DeleteNetworkProxy(ctx, request.(DeleteNetworkProxyRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "DeleteNetworkProxy")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(DeleteNetworkProxyResponseObject); ok {
+		if err := validResponse.VisitDeleteNetworkProxyResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// UpdateNetworkProxy operation middleware
+func (sh *strictHandler) UpdateNetworkProxy(w http.ResponseWriter, r *http.Request, proxyId ProxyId, params UpdateNetworkProxyParams) {
+	var request UpdateNetworkProxyRequestObject
+
+	request.ProxyId = proxyId
+	request.Params = params
+
+	var body UpdateNetworkProxyJSONRequestBody
+	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+		sh.options.RequestErrorHandlerFunc(w, r, fmt.Errorf("can't decode JSON body: %w", err))
+		return
+	}
+	request.Body = &body
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.UpdateNetworkProxy(ctx, request.(UpdateNetworkProxyRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "UpdateNetworkProxy")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(UpdateNetworkProxyResponseObject); ok {
+		if err := validResponse.VisitUpdateNetworkProxyResponse(w); err != nil {
 			sh.options.ResponseErrorHandlerFunc(w, r, err)
 		}
 	} else if response != nil {

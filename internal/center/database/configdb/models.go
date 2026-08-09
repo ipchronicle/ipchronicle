@@ -42,6 +42,7 @@ type NetworkEgress struct {
 	Family                     string
 	InterfaceName              *string
 	SourceAddress              *string
+	ProxyID                    *string
 	Enabled                    int64
 	Available                  int64
 	Automatic                  int64
@@ -49,6 +50,18 @@ type NetworkEgress struct {
 	ProbeOnAddressChange       int64
 	CreatedAt                  int64
 	UpdatedAt                  int64
+}
+
+type NetworkProxy struct {
+	ID                string
+	Name              string
+	Scheme            string
+	Host              string
+	Port              int64
+	Username          *string
+	PasswordEncrypted []byte
+	CreatedAt         int64
+	UpdatedAt         int64
 }
 
 type Node struct {

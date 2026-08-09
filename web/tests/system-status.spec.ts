@@ -94,7 +94,7 @@ test("generates an Agent installation command from the nodes page", async ({
         architecture: "amd64",
         capabilities: [
           "control-v1",
-          "configuration-v1",
+          "configuration-v3",
           "network-inventory-v1",
           "sync-wakeup-v1",
         ],
@@ -129,7 +129,7 @@ test("generates an Agent installation command from the nodes page", async ({
         architecture: "amd64",
         capabilities: [
           "control-v1",
-          "configuration-v1",
+          "configuration-v3",
           "network-inventory-v1",
           "sync-wakeup-v1",
         ],
@@ -194,6 +194,53 @@ test("generates an Agent installation command from the nodes page", async ({
     page.getByRole("button", { name: "Start temporary sync" }),
   ).toBeVisible();
 
+  const networkSettingsLink = page.getByRole("link", {
+    name: "Network probes",
+    exact: true,
+  });
+  if (!(await networkSettingsLink.isVisible())) {
+    await page.getByRole("button", { name: "Toggle sidebar" }).click();
+  }
+  await networkSettingsLink.click();
+  await expect(
+    page.getByRole("heading", { name: "Network probes" }),
+  ).toBeVisible();
+  await page.getByLabel("Name", { exact: true }).fill("E2E proxy");
+  await page.getByLabel("Protocol").click();
+  await page.getByRole("option", { name: "SOCKS5" }).click();
+  await page.getByLabel("Host or IP address").fill("proxy.example.test");
+  await page.getByLabel("Port").fill("1080");
+  await page.getByLabel("Username").fill("probe-user");
+  await page.getByLabel("Password").fill("e2e-proxy-secret");
+  await page.getByRole("button", { name: "Add proxy" }).click();
+  await expect(page.getByText("Password configured")).toBeVisible();
+  const inputValues = await page
+    .locator("input")
+    .evaluateAll((inputs) =>
+      inputs.map((input) => (input as HTMLInputElement).value),
+    );
+  expect(inputValues).not.toContain("e2e-proxy-secret");
+  await expect
+    .poll(() =>
+      page.evaluate(
+        () =>
+          document.documentElement.scrollWidth <=
+          document.documentElement.clientWidth,
+      ),
+    )
+    .toBe(true);
+  await page.screenshot({
+    path: testInfo.outputPath("network-proxies.png"),
+    fullPage: true,
+  });
+
+  const returnToNodes = page.getByRole("link", { name: "Nodes", exact: true });
+  if (!(await returnToNodes.isVisible())) {
+    await page.getByRole("button", { name: "Toggle sidebar" }).click();
+  }
+  await returnToNodes.click();
+  await expect(page.getByRole("heading", { name: "Nodes" })).toBeVisible();
+
   await page.getByRole("link", { name: "Network egresses" }).click();
   await expect(page.getByRole("heading", { name: "edge-e2e" })).toBeVisible();
   await expect(page.getByText("Default IPv4").first()).toBeVisible();
@@ -201,6 +248,17 @@ test("generates an Agent installation command from the nodes page", async ({
   await expect(
     page.getByRole("button", { name: "Enable path" }).last(),
   ).toBeDisabled();
+  await page.getByRole("button", { name: "Add egress" }).click();
+  await expect(page.getByText("Proxy · E2E proxy")).toBeVisible();
+  await expect
+    .poll(() =>
+      page.evaluate(
+        () =>
+          document.documentElement.scrollWidth <=
+          document.documentElement.clientWidth,
+      ),
+    )
+    .toBe(true);
   await page.screenshot({
     path: testInfo.outputPath("network-egresses.png"),
     fullPage: true,
@@ -209,7 +267,7 @@ test("generates an Agent installation command from the nodes page", async ({
 
   await page.getByRole("button", { name: "Pause node" }).click();
   await expect(responsiveItem("Disabled")).toBeVisible();
-  await expect(responsiveItem("Pending · 0/3")).toBeVisible();
+  await expect(responsiveItem("Pending · 0/4")).toBeVisible();
   await page.screenshot({
     path: testInfo.outputPath("node-actions.png"),
     fullPage: true,
@@ -246,6 +304,23 @@ test("generates an Agent installation command from the nodes page", async ({
     path: testInfo.outputPath("nodes.png"),
     fullPage: true,
   });
+
+  const cleanupSettingsLink = page.getByRole("link", {
+    name: "Network probes",
+    exact: true,
+  });
+  if (!(await cleanupSettingsLink.isVisible())) {
+    await page.getByRole("button", { name: "Toggle sidebar" }).click();
+  }
+  await cleanupSettingsLink.click();
+  await page.getByRole("button", { name: "Delete proxy" }).click();
+  await page
+    .getByRole("alertdialog")
+    .getByRole("button", { name: "Delete proxy", exact: true })
+    .click();
+  await expect(
+    page.getByText("No centrally managed proxies are configured."),
+  ).toBeVisible();
 });
 
 test("shows account validation errors and starts TOTP enrollment", async ({

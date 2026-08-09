@@ -22,7 +22,10 @@ import (
 	"github.com/ipchronicle/ipchronicle/internal/generated/api"
 )
 
-const maxAgentControlRequestBodySize = 128 * 1024
+const (
+	maxAgentControlRequestBodySize = 128 * 1024
+	maxProxyRequestBodySize        = 16 * 1024
+)
 
 type HTTPOptions struct {
 	Version        string
@@ -140,6 +143,8 @@ func limitAPIRequestBody(next http.Handler) http.Handler {
 			limit := int64(4096)
 			if r.URL.Path == "/api/v1/agent/control" {
 				limit = maxAgentControlRequestBodySize
+			} else if strings.HasPrefix(r.URL.Path, "/api/v1/network-proxies") {
+				limit = maxProxyRequestBodySize
 			}
 			r.Body = http.MaxBytesReader(w, r.Body, limit)
 		}
