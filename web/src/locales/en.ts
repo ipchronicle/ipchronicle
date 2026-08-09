@@ -165,6 +165,7 @@ export const en = {
       },
       actions: {
         title: "Node actions",
+        network: "Network egresses",
         enable: "Enable node",
         disable: "Pause node",
         revoke: "Revoke Agent credential",
@@ -184,6 +185,100 @@ export const en = {
         confirm: "Permanently delete",
         pending: "Deleting",
         failed: "Deletion failed",
+      },
+    },
+    network: {
+      section: "Node network",
+      title: "Network egresses",
+      detail:
+        "Review Agent-reported interfaces, addresses, and routes, then manage the network paths this node can probe.",
+      back: "Back to nodes",
+      refresh: "Refresh",
+      retry: "Retry",
+      loadFailed: "Node network state could not be loaded",
+      nodeNotFound: "The node does not exist or was deleted",
+      family: { ipv4: "IPv4", ipv6: "IPv6" },
+      egresses: {
+        title: "Configured egresses",
+        detail:
+          "Egresses are durable probe paths. A missing selector does not delete its configuration.",
+        empty:
+          "Default egresses appear after the Agent reports usable default routes.",
+        available: "Available",
+        unavailable: "Unavailable",
+        automatic: "Auto-discovered",
+        default: { ipv4: "Default IPv4", ipv6: "Default IPv6" },
+        interface: "Interface {{name}}",
+        source: "{{name}} · {{address}}",
+        enabledLabel: "Enable or disable {{name}}",
+        delete: "Permanently delete egress",
+        deleteTitle: "Permanently delete this network egress?",
+        deleteDetail:
+          "The egress configuration and its owned data will be irreversibly deleted. An automatic egress may be created with a new identity while its default route remains usable; use the switch to pause it instead.",
+        deleteConfirm: "Permanently delete",
+      },
+      candidates: {
+        title: "Discovered candidate paths",
+        detail:
+          "Only stable interfaces and source addresses in the current Agent inventory can be enabled.",
+        empty: "No unconfigured candidate paths are available.",
+        interface: "Interface {{name}}",
+        source: "{{name}} · {{address}}",
+        temporary: "Temporary IPv6",
+        add: "Enable path",
+      },
+      inventory: {
+        title: "Interface inventory",
+        detail:
+          "Shows the last valid Agent capture. A collection failure does not overwrite it.",
+        empty: "The Agent has not reported a valid network inventory.",
+        failed: "The latest network inventory collection failed",
+        interface: "Interface",
+        index: "Index",
+        state: "State",
+        up: "Up",
+        down: "Down",
+        loopback: "Loopback",
+      },
+      addresses: {
+        title: "Addresses",
+        detail:
+          "Addresses stay associated with their interface and kernel lifecycle flags.",
+        address: "Address",
+        scope: "Scope",
+        lifecycle: "Lifecycle",
+        stable: "Stable",
+        temporary: "Temporary",
+        tentative: "Tentative",
+        deprecated: "Deprecated",
+        duplicate: "Duplicate",
+      },
+      routes: {
+        title: "Routes",
+        detail:
+          "The Agent reports IPv4 and IPv6 routes currently marked up by the kernel.",
+        destination: "Destination",
+        gateway: "Gateway",
+        metric: "Metric",
+        default: { ipv4: "Default IPv4", ipv6: "Default IPv6" },
+      },
+      scope: {
+        global: "Global",
+        private: "Private",
+        shared: "Shared space",
+        "unique-local": "IPv6 unique-local",
+        "link-local": "Link-local",
+        loopback: "Loopback",
+        multicast: "Multicast",
+        unspecified: "Unspecified",
+        other: "Other",
+      },
+      reason: {
+        "interface-down": "The interface is down",
+        "no-usable-route": "No usable route or address is available",
+        "temporary-address":
+          "A temporary IPv6 address cannot become its own durable egress",
+        "unusable-address": "The address is not currently usable",
       },
     },
     errors: {
@@ -218,6 +313,14 @@ export const en = {
         "The current Agent version does not support temporary sync.",
       sync_session_unavailable:
         "The temporary sync session has ended or is unavailable.",
+      network_inventory_unavailable:
+        "The node has not reported a valid network inventory.",
+      invalid_egress_candidate:
+        "This interface or source address cannot currently become a network egress.",
+      egress_already_exists: "This network egress already exists.",
+      egress_limit_reached:
+        "This node has reached the maximum of 64 configured network egresses.",
+      egress_not_found: "The network egress does not exist or was deleted.",
       internal_error: "The center could not complete the request.",
     },
   },

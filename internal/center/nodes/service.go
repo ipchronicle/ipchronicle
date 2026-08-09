@@ -99,6 +99,7 @@ type Configuration struct {
 	Revision          int64
 	Enabled           bool
 	HistoryGeneration string
+	Egresses          []NetworkEgress
 }
 
 type Deletion struct {
@@ -242,10 +243,20 @@ func (s *Service) Register(ctx context.Context, registrationKey string, metadata
 	return Registration{NodeID: nodeID, Credential: credential}, nil
 }
 
-func (s *Service) Poll(ctx context.Context, credential string, metadata Metadata, appliedRevision int64, configurationError *string, configurationErrorRevision *int64) (Poll, error) {
+func (s *Service) Poll(
+	ctx context.Context,
+	credential string,
+	metadata Metadata,
+	appliedRevision int64,
+	configurationError *string,
+	configurationErrorRevision *int64,
+	inventory *NetworkInventory,
+	inventoryError *string,
+) (Poll, error) {
 	metadata, err := validateMetadata(metadata)
 	if err != nil || appliedRevision < 0 || !validConfigurationError(configurationError) ||
-		(configurationError == nil) != (configurationErrorRevision == nil) {
+		(configurationError == nil) != (configurationErrorRevision == nil) ||
+		validateNetworkReport(inventory, inventoryError) != nil {
 		return Poll{}, ErrInvalidMetadata
 	}
 	node, err := s.authenticateAgent(ctx, credential)
@@ -281,6 +292,15 @@ func (s *Service) Poll(ctx context.Context, credential string, metadata Metadata
 	if err := replaceCapabilities(ctx, queries, node.ID, metadata.Capabilities); err != nil {
 		return Poll{}, err
 	}
+	networkChanged, err := s.applyNetworkReport(ctx, queries, node.ID, inventory, inventoryError, now)
+	if err != nil {
+		return Poll{}, err
+	}
+	if networkChanged {
+		if err := incrementNodeConfiguration(ctx, queries, node.ID); err != nil {
+			return Poll{}, err
+		}
+	}
 	var syncSession *SyncSession
 	session, err := queries.GetActiveNodeSyncSession(ctx, configdb.GetActiveNodeSyncSessionParams{
 		NodeID: node.ID, ExpiresAt: now,
@@ -307,9 +327,13 @@ func (s *Service) Poll(ctx context.Context, credential string, metadata Metadata
 	if err := transaction.Commit(); err != nil {
 		return Poll{}, err
 	}
+	current, err := s.queries.GetNodeByID(ctx, node.ID)
+	if err != nil {
+		return Poll{}, err
+	}
 	return Poll{
-		DesiredConfigurationRevision: node.DesiredConfigurationRevision,
-		Enabled:                      node.Enabled == 1, SyncSession: syncSession,
+		DesiredConfigurationRevision: current.DesiredConfigurationRevision,
+		Enabled:                      current.Enabled == 1, SyncSession: syncSession,
 	}, nil
 }
 
@@ -345,9 +369,21 @@ func (s *Service) Configuration(ctx context.Context, credential string) (Configu
 	if err != nil {
 		return Configuration{}, err
 	}
+	egressRecords, err := s.queries.ListNodeEgresses(ctx, node.ID)
+	if err != nil {
+		return Configuration{}, err
+	}
+	egresses := make([]NetworkEgress, 0, len(egressRecords))
+	for _, record := range egressRecords {
+		egress, err := egressFromRecord(record)
+		if err != nil {
+			return Configuration{}, err
+		}
+		egresses = append(egresses, egress)
+	}
 	return Configuration{
-		SchemaVersion: 1, Revision: node.DesiredConfigurationRevision,
-		Enabled: node.Enabled == 1, HistoryGeneration: state.HistoryGeneration,
+		SchemaVersion: 2, Revision: node.DesiredConfigurationRevision,
+		Enabled: node.Enabled == 1, HistoryGeneration: state.HistoryGeneration, Egresses: egresses,
 	}, nil
 }
 

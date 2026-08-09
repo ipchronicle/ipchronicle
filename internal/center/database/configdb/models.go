@@ -34,6 +34,23 @@ type AgentEnrollment struct {
 	RotatedAt    int64
 }
 
+type NetworkEgress struct {
+	ID                         string
+	NodeID                     string
+	Name                       string
+	Kind                       string
+	Family                     string
+	InterfaceName              *string
+	SourceAddress              *string
+	Enabled                    int64
+	Available                  int64
+	Automatic                  int64
+	LightweightIntervalSeconds int64
+	ProbeOnAddressChange       int64
+	CreatedAt                  int64
+	UpdatedAt                  int64
+}
+
 type Node struct {
 	ID                           string
 	Name                         string
@@ -64,6 +81,14 @@ type NodeDeletionOperation struct {
 	RequestedAt      int64
 	UpdatedAt        int64
 	LastError        *string
+}
+
+type NodeNetworkInventory struct {
+	NodeID     string
+	Payload    *string
+	CapturedAt *int64
+	ReceivedAt int64
+	LastError  *string
 }
 
 type NodeSyncSession struct {

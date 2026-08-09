@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"io"
 	"net/http"
 	"net/http/httptest"
 	"net/netip"
@@ -63,7 +64,7 @@ func TestAdministratorLoginStatusAndLogout(t *testing.T) {
 	if err := json.NewDecoder(statusResponse.Body).Decode(&status); err != nil {
 		t.Fatal(err)
 	}
-	if status.Service != api.IpchronicleCenter || status.Status != api.Ok || !status.TransportWarning || status.ConfigSchemaVersion != 4 || status.HistorySchemaVersion != 1 {
+	if status.Service != api.IpchronicleCenter || status.Status != api.Ok || !status.TransportWarning || status.ConfigSchemaVersion != 5 || status.HistorySchemaVersion != 1 {
 		t.Fatalf("unexpected status response: %#v", status)
 	}
 
@@ -83,6 +84,31 @@ func TestMalformedJSONUsesStructuredError(t *testing.T) {
 	handler := newTestHTTPHandler(t, nil)
 	response := performRequest(handler, http.MethodPost, "/api/v1/auth/login", []byte("{"), "http://example.test", nil)
 	assertErrorCode(t, response, http.StatusBadRequest, api.InvalidRequest)
+}
+
+func TestAgentControlRequestBodyHasBoundedInventoryHeadroom(t *testing.T) {
+	handler := limitAPIRequestBody(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if _, err := io.Copy(io.Discard, r.Body); err != nil {
+			w.WriteHeader(http.StatusRequestEntityTooLarge)
+			return
+		}
+		w.WriteHeader(http.StatusNoContent)
+	}))
+
+	withinLimit := performRequest(
+		handler, http.MethodPost, "/api/v1/agent/control",
+		bytes.Repeat([]byte("x"), 96*1024), "", nil,
+	)
+	if withinLimit.Code != http.StatusNoContent {
+		t.Fatalf("96 KiB control request status = %d, want %d", withinLimit.Code, http.StatusNoContent)
+	}
+	tooLarge := performRequest(
+		handler, http.MethodPost, "/api/v1/agent/control",
+		bytes.Repeat([]byte("x"), maxAgentControlRequestBodySize+1), "", nil,
+	)
+	if tooLarge.Code != http.StatusRequestEntityTooLarge {
+		t.Fatalf("oversized control request status = %d, want %d", tooLarge.Code, http.StatusRequestEntityTooLarge)
+	}
 }
 
 func TestAdministratorEnrollmentAndAgentCredentialBoundaries(t *testing.T) {
@@ -239,7 +265,7 @@ func TestTemporarySyncWebSocketAuthenticationWakeAndStop(t *testing.T) {
 	if _, err := nodeService.StartSyncSession(ctx, registration.NodeID); err != nil {
 		t.Fatal(err)
 	}
-	poll, err := nodeService.Poll(ctx, registration.Credential, metadata, 0, nil, nil)
+	poll, err := nodeService.Poll(ctx, registration.Credential, metadata, 0, nil, nil, nil, nil)
 	if err != nil || poll.SyncSession == nil {
 		t.Fatalf("sync poll = %#v, %v", poll, err)
 	}

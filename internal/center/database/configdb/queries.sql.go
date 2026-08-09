@@ -155,6 +155,51 @@ func (q *Queries) CreateNodeDeletion(ctx context.Context, arg CreateNodeDeletion
 	return err
 }
 
+const createNodeEgress = `-- name: CreateNodeEgress :exec
+INSERT INTO network_egresses (
+    id, node_id, name, kind, family, interface_name, source_address,
+    enabled, available, automatic, lightweight_interval_seconds,
+    probe_on_address_change, created_at, updated_at
+) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+`
+
+type CreateNodeEgressParams struct {
+	ID                         string
+	NodeID                     string
+	Name                       string
+	Kind                       string
+	Family                     string
+	InterfaceName              *string
+	SourceAddress              *string
+	Enabled                    int64
+	Available                  int64
+	Automatic                  int64
+	LightweightIntervalSeconds int64
+	ProbeOnAddressChange       int64
+	CreatedAt                  int64
+	UpdatedAt                  int64
+}
+
+func (q *Queries) CreateNodeEgress(ctx context.Context, arg CreateNodeEgressParams) error {
+	_, err := q.db.ExecContext(ctx, createNodeEgress,
+		arg.ID,
+		arg.NodeID,
+		arg.Name,
+		arg.Kind,
+		arg.Family,
+		arg.InterfaceName,
+		arg.SourceAddress,
+		arg.Enabled,
+		arg.Available,
+		arg.Automatic,
+		arg.LightweightIntervalSeconds,
+		arg.ProbeOnAddressChange,
+		arg.CreatedAt,
+		arg.UpdatedAt,
+	)
+	return err
+}
+
 const createSystemState = `-- name: CreateSystemState :exec
 INSERT INTO system_state (id, history_generation)
 VALUES (1, ?)
@@ -212,6 +257,24 @@ WHERE node_id = ?
 func (q *Queries) DeleteNodeCapabilities(ctx context.Context, nodeID string) error {
 	_, err := q.db.ExecContext(ctx, deleteNodeCapabilities, nodeID)
 	return err
+}
+
+const deleteNodeEgress = `-- name: DeleteNodeEgress :execrows
+DELETE FROM network_egresses
+WHERE id = ? AND node_id = ?
+`
+
+type DeleteNodeEgressParams struct {
+	ID     string
+	NodeID string
+}
+
+func (q *Queries) DeleteNodeEgress(ctx context.Context, arg DeleteNodeEgressParams) (int64, error) {
+	result, err := q.db.ExecContext(ctx, deleteNodeEgress, arg.ID, arg.NodeID)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected()
 }
 
 const deleteNodeSyncSession = `-- name: DeleteNodeSyncSession :exec
@@ -409,6 +472,41 @@ func (q *Queries) GetAgentEnrollment(ctx context.Context) (AgentEnrollment, erro
 	return i, err
 }
 
+const getDefaultNodeEgress = `-- name: GetDefaultNodeEgress :one
+SELECT id, node_id, name, kind, family, interface_name, source_address,
+       enabled, available, automatic, lightweight_interval_seconds,
+       probe_on_address_change, created_at, updated_at
+FROM network_egresses
+WHERE node_id = ? AND kind = 'default' AND family = ?
+`
+
+type GetDefaultNodeEgressParams struct {
+	NodeID string
+	Family string
+}
+
+func (q *Queries) GetDefaultNodeEgress(ctx context.Context, arg GetDefaultNodeEgressParams) (NetworkEgress, error) {
+	row := q.db.QueryRowContext(ctx, getDefaultNodeEgress, arg.NodeID, arg.Family)
+	var i NetworkEgress
+	err := row.Scan(
+		&i.ID,
+		&i.NodeID,
+		&i.Name,
+		&i.Kind,
+		&i.Family,
+		&i.InterfaceName,
+		&i.SourceAddress,
+		&i.Enabled,
+		&i.Available,
+		&i.Automatic,
+		&i.LightweightIntervalSeconds,
+		&i.ProbeOnAddressChange,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+	)
+	return i, err
+}
+
 const getNodeByCredentialDigest = `-- name: GetNodeByCredentialDigest :one
 SELECT id, name, hostname, credential_digest, enabled, revoked_at,
        agent_version, operating_system, architecture,
@@ -513,6 +611,105 @@ func (q *Queries) GetNodeDeletion(ctx context.Context, nodeID string) (NodeDelet
 	return i, err
 }
 
+const getNodeEgress = `-- name: GetNodeEgress :one
+SELECT id, node_id, name, kind, family, interface_name, source_address,
+       enabled, available, automatic, lightweight_interval_seconds,
+       probe_on_address_change, created_at, updated_at
+FROM network_egresses
+WHERE node_id = ? AND id = ?
+`
+
+type GetNodeEgressParams struct {
+	NodeID string
+	ID     string
+}
+
+func (q *Queries) GetNodeEgress(ctx context.Context, arg GetNodeEgressParams) (NetworkEgress, error) {
+	row := q.db.QueryRowContext(ctx, getNodeEgress, arg.NodeID, arg.ID)
+	var i NetworkEgress
+	err := row.Scan(
+		&i.ID,
+		&i.NodeID,
+		&i.Name,
+		&i.Kind,
+		&i.Family,
+		&i.InterfaceName,
+		&i.SourceAddress,
+		&i.Enabled,
+		&i.Available,
+		&i.Automatic,
+		&i.LightweightIntervalSeconds,
+		&i.ProbeOnAddressChange,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+	)
+	return i, err
+}
+
+const getNodeEgressBySelector = `-- name: GetNodeEgressBySelector :one
+SELECT id, node_id, name, kind, family, interface_name, source_address,
+       enabled, available, automatic, lightweight_interval_seconds,
+       probe_on_address_change, created_at, updated_at
+FROM network_egresses
+WHERE node_id = ? AND kind = ? AND family = ? AND interface_name = ?
+  AND COALESCE(source_address, '') = COALESCE(?, '')
+`
+
+type GetNodeEgressBySelectorParams struct {
+	NodeID        string
+	Kind          string
+	Family        string
+	InterfaceName *string
+	SourceAddress *string
+}
+
+func (q *Queries) GetNodeEgressBySelector(ctx context.Context, arg GetNodeEgressBySelectorParams) (NetworkEgress, error) {
+	row := q.db.QueryRowContext(ctx, getNodeEgressBySelector,
+		arg.NodeID,
+		arg.Kind,
+		arg.Family,
+		arg.InterfaceName,
+		arg.SourceAddress,
+	)
+	var i NetworkEgress
+	err := row.Scan(
+		&i.ID,
+		&i.NodeID,
+		&i.Name,
+		&i.Kind,
+		&i.Family,
+		&i.InterfaceName,
+		&i.SourceAddress,
+		&i.Enabled,
+		&i.Available,
+		&i.Automatic,
+		&i.LightweightIntervalSeconds,
+		&i.ProbeOnAddressChange,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+	)
+	return i, err
+}
+
+const getNodeNetworkInventory = `-- name: GetNodeNetworkInventory :one
+SELECT node_id, payload, captured_at, received_at, last_error
+FROM node_network_inventories
+WHERE node_id = ?
+`
+
+func (q *Queries) GetNodeNetworkInventory(ctx context.Context, nodeID string) (NodeNetworkInventory, error) {
+	row := q.db.QueryRowContext(ctx, getNodeNetworkInventory, nodeID)
+	var i NodeNetworkInventory
+	err := row.Scan(
+		&i.NodeID,
+		&i.Payload,
+		&i.CapturedAt,
+		&i.ReceivedAt,
+		&i.LastError,
+	)
+	return i, err
+}
+
 const getRevokedAgentCredential = `-- name: GetRevokedAgentCredential :one
 SELECT credential_digest, revoked_at, reason
 FROM revoked_agent_credentials
@@ -555,6 +752,22 @@ WHERE revoked_at IS NULL
 func (q *Queries) IncrementAllNodeDesiredConfigurationRevisions(ctx context.Context) error {
 	_, err := q.db.ExecContext(ctx, incrementAllNodeDesiredConfigurationRevisions)
 	return err
+}
+
+const incrementNodeDesiredConfigurationRevision = `-- name: IncrementNodeDesiredConfigurationRevision :execrows
+UPDATE nodes
+SET desired_configuration_revision = desired_configuration_revision + 1,
+    configuration_error = NULL,
+    configuration_error_revision = NULL
+WHERE id = ? AND revoked_at IS NULL
+`
+
+func (q *Queries) IncrementNodeDesiredConfigurationRevision(ctx context.Context, id string) (int64, error) {
+	result, err := q.db.ExecContext(ctx, incrementNodeDesiredConfigurationRevision, id)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected()
 }
 
 const listActiveNodeDeletions = `-- name: ListActiveNodeDeletions :many
@@ -611,6 +824,53 @@ func (q *Queries) ListNodeCapabilities(ctx context.Context) ([]NodeCapability, e
 	for rows.Next() {
 		var i NodeCapability
 		if err := rows.Scan(&i.NodeID, &i.Capability); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listNodeEgresses = `-- name: ListNodeEgresses :many
+SELECT id, node_id, name, kind, family, interface_name, source_address,
+       enabled, available, automatic, lightweight_interval_seconds,
+       probe_on_address_change, created_at, updated_at
+FROM network_egresses
+WHERE node_id = ?
+ORDER BY family, kind, created_at, id
+`
+
+func (q *Queries) ListNodeEgresses(ctx context.Context, nodeID string) ([]NetworkEgress, error) {
+	rows, err := q.db.QueryContext(ctx, listNodeEgresses, nodeID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []NetworkEgress{}
+	for rows.Next() {
+		var i NetworkEgress
+		if err := rows.Scan(
+			&i.ID,
+			&i.NodeID,
+			&i.Name,
+			&i.Kind,
+			&i.Family,
+			&i.InterfaceName,
+			&i.SourceAddress,
+			&i.Enabled,
+			&i.Available,
+			&i.Automatic,
+			&i.LightweightIntervalSeconds,
+			&i.ProbeOnAddressChange,
+			&i.CreatedAt,
+			&i.UpdatedAt,
+		); err != nil {
 			return nil, err
 		}
 		items = append(items, i)
@@ -756,6 +1016,26 @@ func (q *Queries) PromotePendingHistoryGeneration(ctx context.Context, arg Promo
 	return result.RowsAffected()
 }
 
+const recordNodeNetworkInventoryError = `-- name: RecordNodeNetworkInventoryError :exec
+INSERT INTO node_network_inventories (
+    node_id, payload, captured_at, received_at, last_error
+) VALUES (?, NULL, NULL, ?, ?)
+ON CONFLICT (node_id) DO UPDATE SET
+    received_at = excluded.received_at,
+    last_error = excluded.last_error
+`
+
+type RecordNodeNetworkInventoryErrorParams struct {
+	NodeID     string
+	ReceivedAt int64
+	LastError  *string
+}
+
+func (q *Queries) RecordNodeNetworkInventoryError(ctx context.Context, arg RecordNodeNetworkInventoryErrorParams) error {
+	_, err := q.db.ExecContext(ctx, recordNodeNetworkInventoryError, arg.NodeID, arg.ReceivedAt, arg.LastError)
+	return err
+}
+
 const rehashAdministratorPassword = `-- name: RehashAdministratorPassword :exec
 UPDATE administrators
 SET password_hash = ?
@@ -811,6 +1091,62 @@ WHERE id = 1
 
 func (q *Queries) SetAgentEnrollmentEnabled(ctx context.Context, enabled int64) (int64, error) {
 	result, err := q.db.ExecContext(ctx, setAgentEnrollmentEnabled, enabled)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected()
+}
+
+const setNodeEgressAvailability = `-- name: SetNodeEgressAvailability :execrows
+UPDATE network_egresses
+SET available = ?, updated_at = ?
+WHERE id = ? AND node_id = ? AND available != ?
+`
+
+type SetNodeEgressAvailabilityParams struct {
+	Available   int64
+	UpdatedAt   int64
+	ID          string
+	NodeID      string
+	Available_2 int64
+}
+
+func (q *Queries) SetNodeEgressAvailability(ctx context.Context, arg SetNodeEgressAvailabilityParams) (int64, error) {
+	result, err := q.db.ExecContext(ctx, setNodeEgressAvailability,
+		arg.Available,
+		arg.UpdatedAt,
+		arg.ID,
+		arg.NodeID,
+		arg.Available_2,
+	)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected()
+}
+
+const setNodeEgressEnabled = `-- name: SetNodeEgressEnabled :execrows
+UPDATE network_egresses
+SET enabled = ?, updated_at = ?
+WHERE id = ? AND node_id = ? AND enabled != ?
+`
+
+type SetNodeEgressEnabledParams struct {
+	Enabled   int64
+	UpdatedAt int64
+	ID        string
+	NodeID    string
+	Enabled_2 int64
+}
+
+func (q *Queries) SetNodeEgressEnabled(ctx context.Context, arg SetNodeEgressEnabledParams) (int64, error) {
+	result, err := q.db.ExecContext(ctx, setNodeEgressEnabled,
+		arg.Enabled,
+		arg.UpdatedAt,
+		arg.ID,
+		arg.NodeID,
+		arg.Enabled_2,
+	)
 	if err != nil {
 		return 0, err
 	}
@@ -976,6 +1312,34 @@ func (q *Queries) UpsertAgentEnrollmentKey(ctx context.Context, arg UpsertAgentE
 		arg.KeyEncrypted,
 		arg.CreatedAt,
 		arg.RotatedAt,
+	)
+	return err
+}
+
+const upsertNodeNetworkInventory = `-- name: UpsertNodeNetworkInventory :exec
+INSERT INTO node_network_inventories (
+    node_id, payload, captured_at, received_at, last_error
+) VALUES (?, ?, ?, ?, NULL)
+ON CONFLICT (node_id) DO UPDATE SET
+    payload = excluded.payload,
+    captured_at = excluded.captured_at,
+    received_at = excluded.received_at,
+    last_error = NULL
+`
+
+type UpsertNodeNetworkInventoryParams struct {
+	NodeID     string
+	Payload    *string
+	CapturedAt *int64
+	ReceivedAt int64
+}
+
+func (q *Queries) UpsertNodeNetworkInventory(ctx context.Context, arg UpsertNodeNetworkInventoryParams) error {
+	_, err := q.db.ExecContext(ctx, upsertNodeNetworkInventory,
+		arg.NodeID,
+		arg.Payload,
+		arg.CapturedAt,
+		arg.ReceivedAt,
 	)
 	return err
 }

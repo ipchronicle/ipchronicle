@@ -10,11 +10,13 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"net/netip"
 	"os"
 	"path/filepath"
 	"strings"
 	"time"
 
+	"github.com/google/uuid"
 	bolt "go.etcd.io/bbolt"
 )
 
@@ -50,10 +52,22 @@ type Identity struct {
 }
 
 type Configuration struct {
-	SchemaVersion     int    `json:"schemaVersion"`
-	Revision          int64  `json:"revision"`
-	Enabled           bool   `json:"enabled"`
-	HistoryGeneration string `json:"historyGeneration"`
+	SchemaVersion     int      `json:"schemaVersion"`
+	Revision          int64    `json:"revision"`
+	Enabled           bool     `json:"enabled"`
+	HistoryGeneration string   `json:"historyGeneration"`
+	Egresses          []Egress `json:"egresses,omitempty"`
+}
+
+type Egress struct {
+	ID                         string  `json:"id"`
+	Kind                       string  `json:"kind"`
+	Family                     string  `json:"family"`
+	InterfaceName              *string `json:"interfaceName,omitempty"`
+	SourceAddress              *string `json:"sourceAddress,omitempty"`
+	Enabled                    bool    `json:"enabled"`
+	LightweightIntervalSeconds int64   `json:"lightweightIntervalSeconds"`
+	ProbeOnAddressChange       bool    `json:"probeOnAddressChange"`
 }
 
 type ControlState struct {
@@ -229,6 +243,9 @@ func (s *Store) ApplyConfiguration(configuration Configuration) error {
 	if err := validateConfiguration(configuration); err != nil {
 		return err
 	}
+	if configuration.SchemaVersion != 2 {
+		return errors.New("new Agent configuration must use schema version 2")
+	}
 	encoded, err := json.Marshal(configuration)
 	if err != nil {
 		return fmt.Errorf("encode Agent configuration: %w", err)
@@ -350,14 +367,58 @@ func (s *Store) validateCurrentConfiguration() error {
 }
 
 func validateConfiguration(configuration Configuration) error {
-	if configuration.SchemaVersion != 1 || configuration.Revision < 1 {
+	if (configuration.SchemaVersion != 1 && configuration.SchemaVersion != 2) || configuration.Revision < 1 {
 		return errors.New("unsupported Agent configuration snapshot")
 	}
 	generation, err := hex.DecodeString(configuration.HistoryGeneration)
 	if err != nil || len(generation) != 32 || configuration.HistoryGeneration != strings.ToLower(configuration.HistoryGeneration) {
 		return errors.New("invalid Agent history generation")
 	}
+	if configuration.SchemaVersion == 1 {
+		if len(configuration.Egresses) != 0 {
+			return errors.New("schema version 1 configuration contains network egresses")
+		}
+		return nil
+	}
+	if len(configuration.Egresses) > 64 {
+		return errors.New("Agent configuration contains too many network egresses")
+	}
+	seen := make(map[string]struct{}, len(configuration.Egresses))
+	for _, egress := range configuration.Egresses {
+		if _, err := uuid.Parse(egress.ID); err != nil ||
+			(egress.Kind != "default" && egress.Kind != "interface" && egress.Kind != "source") ||
+			(egress.Family != "ipv4" && egress.Family != "ipv6") || egress.LightweightIntervalSeconds < 1 {
+			return errors.New("Agent configuration contains an invalid network egress")
+		}
+		if _, exists := seen[egress.ID]; exists {
+			return errors.New("Agent configuration contains a duplicate network egress")
+		}
+		seen[egress.ID] = struct{}{}
+		switch egress.Kind {
+		case "default":
+			if egress.InterfaceName != nil || egress.SourceAddress != nil {
+				return errors.New("default network egress contains a selector")
+			}
+		case "interface":
+			if !validStoredInterface(egress.InterfaceName) || egress.SourceAddress != nil {
+				return errors.New("interface network egress contains an invalid selector")
+			}
+		case "source":
+			if !validStoredInterface(egress.InterfaceName) || egress.SourceAddress == nil {
+				return errors.New("source network egress contains an invalid selector")
+			}
+			address, err := netip.ParseAddr(*egress.SourceAddress)
+			if err != nil || address != address.Unmap() || (address.Is4() && egress.Family != "ipv4") || (address.Is6() && egress.Family != "ipv6") {
+				return errors.New("source network egress contains an invalid address")
+			}
+		}
+	}
 	return nil
+}
+
+func validStoredInterface(value *string) bool {
+	return value != nil && *value == strings.TrimSpace(*value) && len(*value) >= 1 && len(*value) <= 64 &&
+		!strings.ContainsAny(*value, "\x00\r\n\t")
 }
 
 func ensurePrivateDirectory(path string) error {

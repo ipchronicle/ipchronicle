@@ -235,6 +235,65 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/nodes/{nodeId}/network": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                nodeId: components["parameters"]["NodeId"];
+            };
+            cookie?: never;
+        };
+        /** Read the latest network inventory, candidates, and configured egresses */
+        get: operations["getNodeNetwork"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/nodes/{nodeId}/egresses": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                nodeId: components["parameters"]["NodeId"];
+            };
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Enable a discovered interface or source-address egress */
+        post: operations["createNodeEgress"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/nodes/{nodeId}/egresses/{egressId}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                nodeId: components["parameters"]["NodeId"];
+                egressId: components["parameters"]["EgressId"];
+            };
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /** Permanently delete a durable network egress */
+        delete: operations["deleteNodeEgress"];
+        options?: never;
+        head?: never;
+        /** Update a durable network egress */
+        patch: operations["updateNodeEgress"];
+        trace?: never;
+    };
     "/api/v1/agent-enrollment": {
         parameters: {
             query?: never;
@@ -372,7 +431,7 @@ export interface components {
             provisioningUri: string;
         };
         /** @enum {string} */
-        ErrorCode: "invalid_request" | "invalid_credentials" | "totp_required" | "rate_limited" | "unauthenticated" | "csrf_failed" | "origin_not_allowed" | "current_password_invalid" | "invalid_totp" | "totp_already_enabled" | "totp_not_enabled" | "totp_enrollment_not_started" | "no_account_change" | "registration_key_not_initialized" | "registration_key_invalid" | "registration_disabled" | "agent_unauthenticated" | "agent_revoked" | "node_not_found" | "node_revoked" | "node_deletion_pending" | "node_sync_unsupported" | "sync_session_unavailable" | "internal_error";
+        ErrorCode: "invalid_request" | "invalid_credentials" | "totp_required" | "rate_limited" | "unauthenticated" | "csrf_failed" | "origin_not_allowed" | "current_password_invalid" | "invalid_totp" | "totp_already_enabled" | "totp_not_enabled" | "totp_enrollment_not_started" | "no_account_change" | "registration_key_not_initialized" | "registration_key_invalid" | "registration_disabled" | "agent_unauthenticated" | "agent_revoked" | "node_not_found" | "node_revoked" | "node_deletion_pending" | "node_sync_unsupported" | "sync_session_unavailable" | "network_inventory_unavailable" | "invalid_egress_candidate" | "egress_already_exists" | "egress_limit_reached" | "egress_not_found" | "internal_error";
         ErrorResponse: {
             code: components["schemas"]["ErrorCode"];
             parameters?: {
@@ -433,6 +492,8 @@ export interface components {
             configurationError?: string;
             /** Format: int64 */
             configurationErrorRevision?: number;
+            networkInventory?: components["schemas"]["NetworkInventory"];
+            networkInventoryError?: string;
         };
         AgentPollResult: {
             centerVersion: string;
@@ -451,11 +512,112 @@ export interface components {
         };
         AgentConfigurationSnapshot: {
             /** @enum {integer} */
-            schemaVersion: 1;
+            schemaVersion: 2;
             /** Format: int64 */
             revision: number;
             enabled: boolean;
             historyGeneration: string;
+            egresses: components["schemas"]["AgentEgressConfiguration"][];
+        };
+        /** @enum {string} */
+        AddressFamily: "ipv4" | "ipv6";
+        NetworkInterface: {
+            name: string;
+            index: number;
+            up: boolean;
+            loopback: boolean;
+        };
+        /** @enum {string} */
+        NetworkAddressScope: "global" | "private" | "shared" | "unique-local" | "link-local" | "loopback" | "multicast" | "unspecified" | "other";
+        NetworkAddress: {
+            interfaceName: string;
+            address: string;
+            prefixLength: number;
+            family: components["schemas"]["AddressFamily"];
+            scope: components["schemas"]["NetworkAddressScope"];
+            temporary: boolean;
+            tentative: boolean;
+            deprecated: boolean;
+            duplicate: boolean;
+        };
+        NetworkRoute: {
+            interfaceName: string;
+            family: components["schemas"]["AddressFamily"];
+            destination: string;
+            gateway?: string;
+            /** Format: int64 */
+            metric: number;
+            default: boolean;
+        };
+        NetworkInventory: {
+            /** Format: date-time */
+            capturedAt: string;
+            interfaces: components["schemas"]["NetworkInterface"][];
+            addresses: components["schemas"]["NetworkAddress"][];
+            routes: components["schemas"]["NetworkRoute"][];
+        };
+        /** @enum {string} */
+        NetworkEgressKind: "default" | "interface" | "source";
+        NetworkEgress: {
+            /** Format: uuid */
+            id: string;
+            /** Format: uuid */
+            nodeId: string;
+            name: string;
+            kind: components["schemas"]["NetworkEgressKind"];
+            family: components["schemas"]["AddressFamily"];
+            interfaceName?: string;
+            sourceAddress?: string;
+            enabled: boolean;
+            available: boolean;
+            automatic: boolean;
+            /** Format: int64 */
+            lightweightIntervalSeconds: number;
+            probeOnAddressChange: boolean;
+        };
+        NetworkEgressCandidate: {
+            /** @enum {string} */
+            kind: "interface" | "source";
+            family: components["schemas"]["AddressFamily"];
+            interfaceName: string;
+            sourceAddress?: string;
+            scope?: components["schemas"]["NetworkAddressScope"];
+            temporary: boolean;
+            eligible: boolean;
+            /** @enum {string} */
+            unavailableReason?: "interface-down" | "no-usable-route" | "temporary-address" | "unusable-address";
+            /** Format: uuid */
+            configuredEgressId?: string;
+        };
+        NodeNetworkState: {
+            inventory?: components["schemas"]["NetworkInventory"];
+            inventoryError?: string;
+            /** Format: date-time */
+            inventoryReceivedAt?: string;
+            egresses: components["schemas"]["NetworkEgress"][];
+            candidates: components["schemas"]["NetworkEgressCandidate"][];
+        };
+        NetworkEgressCreate: {
+            /** @enum {string} */
+            kind: "interface" | "source";
+            family: components["schemas"]["AddressFamily"];
+            interfaceName: string;
+            sourceAddress?: string;
+        };
+        NetworkEgressUpdate: {
+            enabled: boolean;
+        };
+        AgentEgressConfiguration: {
+            /** Format: uuid */
+            id: string;
+            kind: components["schemas"]["NetworkEgressKind"];
+            family: components["schemas"]["AddressFamily"];
+            interfaceName?: string;
+            sourceAddress?: string;
+            enabled: boolean;
+            /** Format: int64 */
+            lightweightIntervalSeconds: number;
+            probeOnAddressChange: boolean;
         };
         /** @enum {string} */
         NodeStatus: "online" | "offline" | "disabled" | "revoked";
@@ -575,6 +737,7 @@ export interface components {
     parameters: {
         CSRFToken: string;
         NodeId: string;
+        EgressId: string;
     };
     requestBodies: never;
     headers: never;
@@ -1038,6 +1201,124 @@ export interface operations {
             401: components["responses"]["Unauthorized"];
             403: components["responses"]["Forbidden"];
             404: components["responses"]["NotFound"];
+        };
+    };
+    getNodeNetwork: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                nodeId: components["parameters"]["NodeId"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Current network state for the node. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["NodeNetworkState"];
+                };
+            };
+            401: components["responses"]["Unauthorized"];
+            404: components["responses"]["NotFound"];
+        };
+    };
+    createNodeEgress: {
+        parameters: {
+            query?: never;
+            header?: {
+                "X-CSRF-Token"?: components["parameters"]["CSRFToken"];
+            };
+            path: {
+                nodeId: components["parameters"]["NodeId"];
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["NetworkEgressCreate"];
+            };
+        };
+        responses: {
+            /** @description The durable egress was created. */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["NetworkEgress"];
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+            409: components["responses"]["Conflict"];
+        };
+    };
+    deleteNodeEgress: {
+        parameters: {
+            query?: never;
+            header?: {
+                "X-CSRF-Token"?: components["parameters"]["CSRFToken"];
+            };
+            path: {
+                nodeId: components["parameters"]["NodeId"];
+                egressId: components["parameters"]["EgressId"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The egress was permanently deleted. */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+            409: components["responses"]["Conflict"];
+        };
+    };
+    updateNodeEgress: {
+        parameters: {
+            query?: never;
+            header?: {
+                "X-CSRF-Token"?: components["parameters"]["CSRFToken"];
+            };
+            path: {
+                nodeId: components["parameters"]["NodeId"];
+                egressId: components["parameters"]["EgressId"];
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["NetworkEgressUpdate"];
+            };
+        };
+        responses: {
+            /** @description The egress was updated. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["NetworkEgress"];
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+            409: components["responses"]["Conflict"];
         };
     };
     getAgentEnrollment: {

@@ -5,6 +5,7 @@ import (
 	"errors"
 	"os"
 	"path/filepath"
+	"reflect"
 	"testing"
 )
 
@@ -102,7 +103,7 @@ func TestConfigurationReplacementFailureAndRevocationPersist(t *testing.T) {
 		t.Fatal(err)
 	}
 	first := Configuration{
-		SchemaVersion: 1, Revision: 1, Enabled: true,
+		SchemaVersion: 2, Revision: 1, Enabled: true,
 		HistoryGeneration: "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef",
 	}
 	if err := store.ApplyConfiguration(first); err != nil {
@@ -119,7 +120,7 @@ func TestConfigurationReplacementFailureAndRevocationPersist(t *testing.T) {
 		t.Fatalf("control state = %#v, %v", control, err)
 	}
 	current, err := store.Configuration()
-	if err != nil || current != first {
+	if err != nil || !reflect.DeepEqual(current, first) {
 		t.Fatalf("configuration after failure = %#v, %v", current, err)
 	}
 	invalid := first
@@ -151,7 +152,7 @@ func TestConfigurationReplacementFailureAndRevocationPersist(t *testing.T) {
 		t.Fatalf("restarted control state = %#v, %v", control, err)
 	}
 	current, err = restarted.Configuration()
-	if err != nil || current != second {
+	if err != nil || !reflect.DeepEqual(current, second) {
 		t.Fatalf("restarted configuration = %#v, %v", current, err)
 	}
 }

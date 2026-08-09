@@ -16,6 +16,24 @@ import (
 	openapi_types "github.com/oapi-codegen/runtime/types"
 )
 
+// Defines values for AddressFamily.
+const (
+	Ipv4 AddressFamily = "ipv4"
+	Ipv6 AddressFamily = "ipv6"
+)
+
+// Valid indicates whether the value is a known member of the AddressFamily enum.
+func (e AddressFamily) Valid() bool {
+	switch e {
+	case Ipv4:
+		return true
+	case Ipv6:
+		return true
+	default:
+		return false
+	}
+}
+
 // Defines values for AgentArchitecture.
 const (
 	Amd64 AgentArchitecture = "amd64"
@@ -36,13 +54,13 @@ func (e AgentArchitecture) Valid() bool {
 
 // Defines values for AgentConfigurationSnapshotSchemaVersion.
 const (
-	N1 AgentConfigurationSnapshotSchemaVersion = 1
+	N2 AgentConfigurationSnapshotSchemaVersion = 2
 )
 
 // Valid indicates whether the value is a known member of the AgentConfigurationSnapshotSchemaVersion enum.
 func (e AgentConfigurationSnapshotSchemaVersion) Valid() bool {
 	switch e {
-	case N1:
+	case N2:
 		return true
 	default:
 		return false
@@ -70,10 +88,15 @@ const (
 	AgentUnauthenticated          ErrorCode = "agent_unauthenticated"
 	CsrfFailed                    ErrorCode = "csrf_failed"
 	CurrentPasswordInvalid        ErrorCode = "current_password_invalid"
+	EgressAlreadyExists           ErrorCode = "egress_already_exists"
+	EgressLimitReached            ErrorCode = "egress_limit_reached"
+	EgressNotFound                ErrorCode = "egress_not_found"
 	InternalError                 ErrorCode = "internal_error"
 	InvalidCredentials            ErrorCode = "invalid_credentials"
+	InvalidEgressCandidate        ErrorCode = "invalid_egress_candidate"
 	InvalidRequest                ErrorCode = "invalid_request"
 	InvalidTotp                   ErrorCode = "invalid_totp"
+	NetworkInventoryUnavailable   ErrorCode = "network_inventory_unavailable"
 	NoAccountChange               ErrorCode = "no_account_change"
 	NodeDeletionPending           ErrorCode = "node_deletion_pending"
 	NodeNotFound                  ErrorCode = "node_not_found"
@@ -103,13 +126,23 @@ func (e ErrorCode) Valid() bool {
 		return true
 	case CurrentPasswordInvalid:
 		return true
+	case EgressAlreadyExists:
+		return true
+	case EgressLimitReached:
+		return true
+	case EgressNotFound:
+		return true
 	case InternalError:
 		return true
 	case InvalidCredentials:
 		return true
+	case InvalidEgressCandidate:
+		return true
 	case InvalidRequest:
 		return true
 	case InvalidTotp:
+		return true
+	case NetworkInventoryUnavailable:
 		return true
 	case NoAccountChange:
 		return true
@@ -142,6 +175,126 @@ func (e ErrorCode) Valid() bool {
 	case TotpRequired:
 		return true
 	case Unauthenticated:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for NetworkAddressScope.
+const (
+	Global      NetworkAddressScope = "global"
+	LinkLocal   NetworkAddressScope = "link-local"
+	Loopback    NetworkAddressScope = "loopback"
+	Multicast   NetworkAddressScope = "multicast"
+	Other       NetworkAddressScope = "other"
+	Private     NetworkAddressScope = "private"
+	Shared      NetworkAddressScope = "shared"
+	UniqueLocal NetworkAddressScope = "unique-local"
+	Unspecified NetworkAddressScope = "unspecified"
+)
+
+// Valid indicates whether the value is a known member of the NetworkAddressScope enum.
+func (e NetworkAddressScope) Valid() bool {
+	switch e {
+	case Global:
+		return true
+	case LinkLocal:
+		return true
+	case Loopback:
+		return true
+	case Multicast:
+		return true
+	case Other:
+		return true
+	case Private:
+		return true
+	case Shared:
+		return true
+	case UniqueLocal:
+		return true
+	case Unspecified:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for NetworkEgressCandidateKind.
+const (
+	NetworkEgressCandidateKindInterface NetworkEgressCandidateKind = "interface"
+	NetworkEgressCandidateKindSource    NetworkEgressCandidateKind = "source"
+)
+
+// Valid indicates whether the value is a known member of the NetworkEgressCandidateKind enum.
+func (e NetworkEgressCandidateKind) Valid() bool {
+	switch e {
+	case NetworkEgressCandidateKindInterface:
+		return true
+	case NetworkEgressCandidateKindSource:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for NetworkEgressCandidateUnavailableReason.
+const (
+	InterfaceDown    NetworkEgressCandidateUnavailableReason = "interface-down"
+	NoUsableRoute    NetworkEgressCandidateUnavailableReason = "no-usable-route"
+	TemporaryAddress NetworkEgressCandidateUnavailableReason = "temporary-address"
+	UnusableAddress  NetworkEgressCandidateUnavailableReason = "unusable-address"
+)
+
+// Valid indicates whether the value is a known member of the NetworkEgressCandidateUnavailableReason enum.
+func (e NetworkEgressCandidateUnavailableReason) Valid() bool {
+	switch e {
+	case InterfaceDown:
+		return true
+	case NoUsableRoute:
+		return true
+	case TemporaryAddress:
+		return true
+	case UnusableAddress:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for NetworkEgressCreateKind.
+const (
+	NetworkEgressCreateKindInterface NetworkEgressCreateKind = "interface"
+	NetworkEgressCreateKindSource    NetworkEgressCreateKind = "source"
+)
+
+// Valid indicates whether the value is a known member of the NetworkEgressCreateKind enum.
+func (e NetworkEgressCreateKind) Valid() bool {
+	switch e {
+	case NetworkEgressCreateKindInterface:
+		return true
+	case NetworkEgressCreateKindSource:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for NetworkEgressKind.
+const (
+	NetworkEgressKindDefault   NetworkEgressKind = "default"
+	NetworkEgressKindInterface NetworkEgressKind = "interface"
+	NetworkEgressKindSource    NetworkEgressKind = "source"
+)
+
+// Valid indicates whether the value is a known member of the NetworkEgressKind enum.
+func (e NetworkEgressKind) Valid() bool {
+	switch e {
+	case NetworkEgressKindDefault:
+		return true
+	case NetworkEgressKindInterface:
+		return true
+	case NetworkEgressKindSource:
 		return true
 	default:
 		return false
@@ -319,11 +472,15 @@ type AccountUpdateResult struct {
 	SessionRevoked bool    `json:"sessionRevoked"`
 }
 
+// AddressFamily defines model for AddressFamily.
+type AddressFamily string
+
 // AgentArchitecture defines model for AgentArchitecture.
 type AgentArchitecture string
 
 // AgentConfigurationSnapshot defines model for AgentConfigurationSnapshot.
 type AgentConfigurationSnapshot struct {
+	Egresses          []AgentEgressConfiguration              `json:"egresses"`
 	Enabled           bool                                    `json:"enabled"`
 	HistoryGeneration string                                  `json:"historyGeneration"`
 	Revision          int64                                   `json:"revision"`
@@ -332,6 +489,18 @@ type AgentConfigurationSnapshot struct {
 
 // AgentConfigurationSnapshotSchemaVersion defines model for AgentConfigurationSnapshot.SchemaVersion.
 type AgentConfigurationSnapshotSchemaVersion int
+
+// AgentEgressConfiguration defines model for AgentEgressConfiguration.
+type AgentEgressConfiguration struct {
+	Enabled                    bool               `json:"enabled"`
+	Family                     AddressFamily      `json:"family"`
+	Id                         openapi_types.UUID `json:"id"`
+	InterfaceName              *string            `json:"interfaceName,omitempty"`
+	Kind                       NetworkEgressKind  `json:"kind"`
+	LightweightIntervalSeconds int64              `json:"lightweightIntervalSeconds"`
+	ProbeOnAddressChange       bool               `json:"probeOnAddressChange"`
+	SourceAddress              *string            `json:"sourceAddress,omitempty"`
+}
 
 // AgentEnrollmentSettings defines model for AgentEnrollmentSettings.
 type AgentEnrollmentSettings struct {
@@ -360,10 +529,12 @@ type AgentPlatform string
 
 // AgentPollRequest defines model for AgentPollRequest.
 type AgentPollRequest struct {
-	AppliedConfigurationRevision int64         `json:"appliedConfigurationRevision"`
-	ConfigurationError           *string       `json:"configurationError,omitempty"`
-	ConfigurationErrorRevision   *int64        `json:"configurationErrorRevision,omitempty"`
-	Metadata                     AgentMetadata `json:"metadata"`
+	AppliedConfigurationRevision int64             `json:"appliedConfigurationRevision"`
+	ConfigurationError           *string           `json:"configurationError,omitempty"`
+	ConfigurationErrorRevision   *int64            `json:"configurationErrorRevision,omitempty"`
+	Metadata                     AgentMetadata     `json:"metadata"`
+	NetworkInventory             *NetworkInventory `json:"networkInventory,omitempty"`
+	NetworkInventoryError        *string           `json:"networkInventoryError,omitempty"`
 }
 
 // AgentPollResult defines model for AgentPollResult.
@@ -434,6 +605,102 @@ type LoginRequest struct {
 	Username string  `json:"username"`
 }
 
+// NetworkAddress defines model for NetworkAddress.
+type NetworkAddress struct {
+	Address       string              `json:"address"`
+	Deprecated    bool                `json:"deprecated"`
+	Duplicate     bool                `json:"duplicate"`
+	Family        AddressFamily       `json:"family"`
+	InterfaceName string              `json:"interfaceName"`
+	PrefixLength  int                 `json:"prefixLength"`
+	Scope         NetworkAddressScope `json:"scope"`
+	Temporary     bool                `json:"temporary"`
+	Tentative     bool                `json:"tentative"`
+}
+
+// NetworkAddressScope defines model for NetworkAddressScope.
+type NetworkAddressScope string
+
+// NetworkEgress defines model for NetworkEgress.
+type NetworkEgress struct {
+	Automatic                  bool               `json:"automatic"`
+	Available                  bool               `json:"available"`
+	Enabled                    bool               `json:"enabled"`
+	Family                     AddressFamily      `json:"family"`
+	Id                         openapi_types.UUID `json:"id"`
+	InterfaceName              *string            `json:"interfaceName,omitempty"`
+	Kind                       NetworkEgressKind  `json:"kind"`
+	LightweightIntervalSeconds int64              `json:"lightweightIntervalSeconds"`
+	Name                       string             `json:"name"`
+	NodeId                     openapi_types.UUID `json:"nodeId"`
+	ProbeOnAddressChange       bool               `json:"probeOnAddressChange"`
+	SourceAddress              *string            `json:"sourceAddress,omitempty"`
+}
+
+// NetworkEgressCandidate defines model for NetworkEgressCandidate.
+type NetworkEgressCandidate struct {
+	ConfiguredEgressId *openapi_types.UUID                      `json:"configuredEgressId,omitempty"`
+	Eligible           bool                                     `json:"eligible"`
+	Family             AddressFamily                            `json:"family"`
+	InterfaceName      string                                   `json:"interfaceName"`
+	Kind               NetworkEgressCandidateKind               `json:"kind"`
+	Scope              *NetworkAddressScope                     `json:"scope,omitempty"`
+	SourceAddress      *string                                  `json:"sourceAddress,omitempty"`
+	Temporary          bool                                     `json:"temporary"`
+	UnavailableReason  *NetworkEgressCandidateUnavailableReason `json:"unavailableReason,omitempty"`
+}
+
+// NetworkEgressCandidateKind defines model for NetworkEgressCandidate.Kind.
+type NetworkEgressCandidateKind string
+
+// NetworkEgressCandidateUnavailableReason defines model for NetworkEgressCandidate.UnavailableReason.
+type NetworkEgressCandidateUnavailableReason string
+
+// NetworkEgressCreate defines model for NetworkEgressCreate.
+type NetworkEgressCreate struct {
+	Family        AddressFamily           `json:"family"`
+	InterfaceName string                  `json:"interfaceName"`
+	Kind          NetworkEgressCreateKind `json:"kind"`
+	SourceAddress *string                 `json:"sourceAddress,omitempty"`
+}
+
+// NetworkEgressCreateKind defines model for NetworkEgressCreate.Kind.
+type NetworkEgressCreateKind string
+
+// NetworkEgressKind defines model for NetworkEgressKind.
+type NetworkEgressKind string
+
+// NetworkEgressUpdate defines model for NetworkEgressUpdate.
+type NetworkEgressUpdate struct {
+	Enabled bool `json:"enabled"`
+}
+
+// NetworkInterface defines model for NetworkInterface.
+type NetworkInterface struct {
+	Index    int    `json:"index"`
+	Loopback bool   `json:"loopback"`
+	Name     string `json:"name"`
+	Up       bool   `json:"up"`
+}
+
+// NetworkInventory defines model for NetworkInventory.
+type NetworkInventory struct {
+	Addresses  []NetworkAddress   `json:"addresses"`
+	CapturedAt time.Time          `json:"capturedAt"`
+	Interfaces []NetworkInterface `json:"interfaces"`
+	Routes     []NetworkRoute     `json:"routes"`
+}
+
+// NetworkRoute defines model for NetworkRoute.
+type NetworkRoute struct {
+	Default       bool          `json:"default"`
+	Destination   string        `json:"destination"`
+	Family        AddressFamily `json:"family"`
+	Gateway       *string       `json:"gateway,omitempty"`
+	InterfaceName string        `json:"interfaceName"`
+	Metric        int64         `json:"metric"`
+}
+
 // Node defines model for Node.
 type Node struct {
 	AgentVersion                 string                  `json:"agentVersion"`
@@ -474,6 +741,15 @@ type NodeDeletionStatus string
 // NodeList defines model for NodeList.
 type NodeList struct {
 	Items []Node `json:"items"`
+}
+
+// NodeNetworkState defines model for NodeNetworkState.
+type NodeNetworkState struct {
+	Candidates          []NetworkEgressCandidate `json:"candidates"`
+	Egresses            []NetworkEgress          `json:"egresses"`
+	Inventory           *NetworkInventory        `json:"inventory,omitempty"`
+	InventoryError      *string                  `json:"inventoryError,omitempty"`
+	InventoryReceivedAt *time.Time               `json:"inventoryReceivedAt,omitempty"`
 }
 
 // NodeStatus defines model for NodeStatus.
@@ -525,6 +801,9 @@ type TOTPEnrollment struct {
 
 // CSRFToken defines model for CSRFToken.
 type CSRFToken = string
+
+// EgressId defines model for EgressId.
+type EgressId = openapi_types.UUID
 
 // NodeId defines model for NodeId.
 type NodeId = openapi_types.UUID
@@ -605,6 +884,21 @@ type UpdateNodeParams struct {
 	XCSRFToken *CSRFToken `json:"X-CSRF-Token,omitempty"`
 }
 
+// CreateNodeEgressParams defines parameters for CreateNodeEgress.
+type CreateNodeEgressParams struct {
+	XCSRFToken *CSRFToken `json:"X-CSRF-Token,omitempty"`
+}
+
+// DeleteNodeEgressParams defines parameters for DeleteNodeEgress.
+type DeleteNodeEgressParams struct {
+	XCSRFToken *CSRFToken `json:"X-CSRF-Token,omitempty"`
+}
+
+// UpdateNodeEgressParams defines parameters for UpdateNodeEgress.
+type UpdateNodeEgressParams struct {
+	XCSRFToken *CSRFToken `json:"X-CSRF-Token,omitempty"`
+}
+
 // RevokeNodeParams defines parameters for RevokeNode.
 type RevokeNodeParams struct {
 	XCSRFToken *CSRFToken `json:"X-CSRF-Token,omitempty"`
@@ -649,6 +943,12 @@ type LoginJSONRequestBody = LoginRequest
 
 // UpdateNodeJSONRequestBody defines body for UpdateNode for application/json ContentType.
 type UpdateNodeJSONRequestBody = NodeUpdate
+
+// CreateNodeEgressJSONRequestBody defines body for CreateNodeEgress for application/json ContentType.
+type CreateNodeEgressJSONRequestBody = NetworkEgressCreate
+
+// UpdateNodeEgressJSONRequestBody defines body for UpdateNodeEgress for application/json ContentType.
+type UpdateNodeEgressJSONRequestBody = NetworkEgressUpdate
 
 // ServerInterface represents all server handlers.
 type ServerInterface interface {
@@ -709,6 +1009,18 @@ type ServerInterface interface {
 	// UpdateNode Update node monitoring state
 	// (PATCH /api/v1/nodes/{nodeId})
 	UpdateNode(w http.ResponseWriter, r *http.Request, nodeId NodeId, params UpdateNodeParams)
+	// CreateNodeEgress Enable a discovered interface or source-address egress
+	// (POST /api/v1/nodes/{nodeId}/egresses)
+	CreateNodeEgress(w http.ResponseWriter, r *http.Request, nodeId NodeId, params CreateNodeEgressParams)
+	// DeleteNodeEgress Permanently delete a durable network egress
+	// (DELETE /api/v1/nodes/{nodeId}/egresses/{egressId})
+	DeleteNodeEgress(w http.ResponseWriter, r *http.Request, nodeId NodeId, egressId EgressId, params DeleteNodeEgressParams)
+	// UpdateNodeEgress Update a durable network egress
+	// (PATCH /api/v1/nodes/{nodeId}/egresses/{egressId})
+	UpdateNodeEgress(w http.ResponseWriter, r *http.Request, nodeId NodeId, egressId EgressId, params UpdateNodeEgressParams)
+	// GetNodeNetwork Read the latest network inventory, candidates, and configured egresses
+	// (GET /api/v1/nodes/{nodeId}/network)
+	GetNodeNetwork(w http.ResponseWriter, r *http.Request, nodeId NodeId)
 	// RevokeNode Permanently revoke a node Agent credential
 	// (POST /api/v1/nodes/{nodeId}/revoke)
 	RevokeNode(w http.ResponseWriter, r *http.Request, nodeId NodeId, params RevokeNodeParams)
@@ -838,6 +1150,30 @@ func (_ Unimplemented) DeleteNode(w http.ResponseWriter, r *http.Request, nodeId
 // UpdateNode Update node monitoring state
 // (PATCH /api/v1/nodes/{nodeId})
 func (_ Unimplemented) UpdateNode(w http.ResponseWriter, r *http.Request, nodeId NodeId, params UpdateNodeParams) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
+// CreateNodeEgress Enable a discovered interface or source-address egress
+// (POST /api/v1/nodes/{nodeId}/egresses)
+func (_ Unimplemented) CreateNodeEgress(w http.ResponseWriter, r *http.Request, nodeId NodeId, params CreateNodeEgressParams) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
+// DeleteNodeEgress Permanently delete a durable network egress
+// (DELETE /api/v1/nodes/{nodeId}/egresses/{egressId})
+func (_ Unimplemented) DeleteNodeEgress(w http.ResponseWriter, r *http.Request, nodeId NodeId, egressId EgressId, params DeleteNodeEgressParams) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
+// UpdateNodeEgress Update a durable network egress
+// (PATCH /api/v1/nodes/{nodeId}/egresses/{egressId})
+func (_ Unimplemented) UpdateNodeEgress(w http.ResponseWriter, r *http.Request, nodeId NodeId, egressId EgressId, params UpdateNodeEgressParams) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
+// GetNodeNetwork Read the latest network inventory, candidates, and configured egresses
+// (GET /api/v1/nodes/{nodeId}/network)
+func (_ Unimplemented) GetNodeNetwork(w http.ResponseWriter, r *http.Request, nodeId NodeId) {
 	w.WriteHeader(http.StatusNotImplemented)
 }
 
@@ -1455,6 +1791,200 @@ func (siw *ServerInterfaceWrapper) UpdateNode(w http.ResponseWriter, r *http.Req
 	handler.ServeHTTP(w, r)
 }
 
+// CreateNodeEgress operation middleware
+func (siw *ServerInterfaceWrapper) CreateNodeEgress(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "nodeId" -------------
+	var nodeId NodeId
+
+	err = runtime.BindStyledParameterWithOptions("simple", "nodeId", chi.URLParam(r, "nodeId"), &nodeId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "uuid", ValueIsUnescaped: r.URL.RawPath == ""})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "nodeId", Err: err})
+		return
+	}
+
+	// Parameter object where we will unmarshal all parameters from the context
+	var params CreateNodeEgressParams
+
+	headers := r.Header
+
+	// ------------- Optional header parameter "X-CSRF-Token" -------------
+	if valueList, found := headers[http.CanonicalHeaderKey("X-CSRF-Token")]; found {
+		var XCSRFToken CSRFToken
+		n := len(valueList)
+		if n != 1 {
+			siw.ErrorHandlerFunc(w, r, &TooManyValuesForParamError{ParamName: "X-CSRF-Token", Count: n})
+			return
+		}
+
+		err = runtime.BindStyledParameterWithOptions("simple", "X-CSRF-Token", valueList[0], &XCSRFToken, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: false, Type: "string", Format: ""})
+		if err != nil {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "X-CSRF-Token", Err: err})
+			return
+		}
+
+		params.XCSRFToken = &XCSRFToken
+
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.CreateNodeEgress(w, r, nodeId, params)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// DeleteNodeEgress operation middleware
+func (siw *ServerInterfaceWrapper) DeleteNodeEgress(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "nodeId" -------------
+	var nodeId NodeId
+
+	err = runtime.BindStyledParameterWithOptions("simple", "nodeId", chi.URLParam(r, "nodeId"), &nodeId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "uuid", ValueIsUnescaped: r.URL.RawPath == ""})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "nodeId", Err: err})
+		return
+	}
+
+	// ------------- Path parameter "egressId" -------------
+	var egressId EgressId
+
+	err = runtime.BindStyledParameterWithOptions("simple", "egressId", chi.URLParam(r, "egressId"), &egressId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "uuid", ValueIsUnescaped: r.URL.RawPath == ""})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "egressId", Err: err})
+		return
+	}
+
+	// Parameter object where we will unmarshal all parameters from the context
+	var params DeleteNodeEgressParams
+
+	headers := r.Header
+
+	// ------------- Optional header parameter "X-CSRF-Token" -------------
+	if valueList, found := headers[http.CanonicalHeaderKey("X-CSRF-Token")]; found {
+		var XCSRFToken CSRFToken
+		n := len(valueList)
+		if n != 1 {
+			siw.ErrorHandlerFunc(w, r, &TooManyValuesForParamError{ParamName: "X-CSRF-Token", Count: n})
+			return
+		}
+
+		err = runtime.BindStyledParameterWithOptions("simple", "X-CSRF-Token", valueList[0], &XCSRFToken, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: false, Type: "string", Format: ""})
+		if err != nil {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "X-CSRF-Token", Err: err})
+			return
+		}
+
+		params.XCSRFToken = &XCSRFToken
+
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.DeleteNodeEgress(w, r, nodeId, egressId, params)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// UpdateNodeEgress operation middleware
+func (siw *ServerInterfaceWrapper) UpdateNodeEgress(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "nodeId" -------------
+	var nodeId NodeId
+
+	err = runtime.BindStyledParameterWithOptions("simple", "nodeId", chi.URLParam(r, "nodeId"), &nodeId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "uuid", ValueIsUnescaped: r.URL.RawPath == ""})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "nodeId", Err: err})
+		return
+	}
+
+	// ------------- Path parameter "egressId" -------------
+	var egressId EgressId
+
+	err = runtime.BindStyledParameterWithOptions("simple", "egressId", chi.URLParam(r, "egressId"), &egressId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "uuid", ValueIsUnescaped: r.URL.RawPath == ""})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "egressId", Err: err})
+		return
+	}
+
+	// Parameter object where we will unmarshal all parameters from the context
+	var params UpdateNodeEgressParams
+
+	headers := r.Header
+
+	// ------------- Optional header parameter "X-CSRF-Token" -------------
+	if valueList, found := headers[http.CanonicalHeaderKey("X-CSRF-Token")]; found {
+		var XCSRFToken CSRFToken
+		n := len(valueList)
+		if n != 1 {
+			siw.ErrorHandlerFunc(w, r, &TooManyValuesForParamError{ParamName: "X-CSRF-Token", Count: n})
+			return
+		}
+
+		err = runtime.BindStyledParameterWithOptions("simple", "X-CSRF-Token", valueList[0], &XCSRFToken, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: false, Type: "string", Format: ""})
+		if err != nil {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "X-CSRF-Token", Err: err})
+			return
+		}
+
+		params.XCSRFToken = &XCSRFToken
+
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.UpdateNodeEgress(w, r, nodeId, egressId, params)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// GetNodeNetwork operation middleware
+func (siw *ServerInterfaceWrapper) GetNodeNetwork(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "nodeId" -------------
+	var nodeId NodeId
+
+	err = runtime.BindStyledParameterWithOptions("simple", "nodeId", chi.URLParam(r, "nodeId"), &nodeId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "uuid", ValueIsUnescaped: r.URL.RawPath == ""})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "nodeId", Err: err})
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.GetNodeNetwork(w, r, nodeId)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
 // RevokeNode operation middleware
 func (siw *ServerInterfaceWrapper) RevokeNode(w http.ResponseWriter, r *http.Request) {
 
@@ -1782,6 +2312,18 @@ func HandlerWithOptions(si ServerInterface, options ChiServerOptions) http.Handl
 	})
 	r.Group(func(r chi.Router) {
 		r.Post(options.BaseURL+"/api/v1/nodes/{nodeId}/sync-session", wrapper.StartNodeSyncSession)
+	})
+	r.Group(func(r chi.Router) {
+		r.Get(options.BaseURL+"/api/v1/nodes/{nodeId}/network", wrapper.GetNodeNetwork)
+	})
+	r.Group(func(r chi.Router) {
+		r.Post(options.BaseURL+"/api/v1/nodes/{nodeId}/egresses", wrapper.CreateNodeEgress)
+	})
+	r.Group(func(r chi.Router) {
+		r.Delete(options.BaseURL+"/api/v1/nodes/{nodeId}/egresses/{egressId}", wrapper.DeleteNodeEgress)
+	})
+	r.Group(func(r chi.Router) {
+		r.Patch(options.BaseURL+"/api/v1/nodes/{nodeId}/egresses/{egressId}", wrapper.UpdateNodeEgress)
 	})
 	r.Group(func(r chi.Router) {
 		r.Get(options.BaseURL+"/api/v1/agent-enrollment", wrapper.GetAgentEnrollment)
@@ -2995,6 +3537,319 @@ func (response UpdateNode409JSONResponse) VisitUpdateNodeResponse(w http.Respons
 	return err
 }
 
+type CreateNodeEgressRequestObject struct {
+	NodeId NodeId `json:"nodeId"`
+	Params CreateNodeEgressParams
+	Body   *CreateNodeEgressJSONRequestBody
+}
+
+type CreateNodeEgressResponseObject interface {
+	VisitCreateNodeEgressResponse(w http.ResponseWriter) error
+}
+
+type CreateNodeEgress201JSONResponse NetworkEgress
+
+func (response CreateNodeEgress201JSONResponse) VisitCreateNodeEgressResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(201)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type CreateNodeEgress400JSONResponse struct{ BadRequestJSONResponse }
+
+func (response CreateNodeEgress400JSONResponse) VisitCreateNodeEgressResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(400)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type CreateNodeEgress401JSONResponse struct{ UnauthorizedJSONResponse }
+
+func (response CreateNodeEgress401JSONResponse) VisitCreateNodeEgressResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(401)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type CreateNodeEgress403JSONResponse struct{ ForbiddenJSONResponse }
+
+func (response CreateNodeEgress403JSONResponse) VisitCreateNodeEgressResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(403)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type CreateNodeEgress404JSONResponse struct{ NotFoundJSONResponse }
+
+func (response CreateNodeEgress404JSONResponse) VisitCreateNodeEgressResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(404)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type CreateNodeEgress409JSONResponse struct{ ConflictJSONResponse }
+
+func (response CreateNodeEgress409JSONResponse) VisitCreateNodeEgressResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(409)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type DeleteNodeEgressRequestObject struct {
+	NodeId   NodeId   `json:"nodeId"`
+	EgressId EgressId `json:"egressId"`
+	Params   DeleteNodeEgressParams
+}
+
+type DeleteNodeEgressResponseObject interface {
+	VisitDeleteNodeEgressResponse(w http.ResponseWriter) error
+}
+
+type DeleteNodeEgress204Response struct {
+}
+
+func (response DeleteNodeEgress204Response) VisitDeleteNodeEgressResponse(w http.ResponseWriter) error {
+	w.WriteHeader(204)
+	return nil
+}
+
+type DeleteNodeEgress401JSONResponse struct{ UnauthorizedJSONResponse }
+
+func (response DeleteNodeEgress401JSONResponse) VisitDeleteNodeEgressResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(401)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type DeleteNodeEgress403JSONResponse struct{ ForbiddenJSONResponse }
+
+func (response DeleteNodeEgress403JSONResponse) VisitDeleteNodeEgressResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(403)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type DeleteNodeEgress404JSONResponse struct{ NotFoundJSONResponse }
+
+func (response DeleteNodeEgress404JSONResponse) VisitDeleteNodeEgressResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(404)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type DeleteNodeEgress409JSONResponse struct{ ConflictJSONResponse }
+
+func (response DeleteNodeEgress409JSONResponse) VisitDeleteNodeEgressResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(409)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type UpdateNodeEgressRequestObject struct {
+	NodeId   NodeId   `json:"nodeId"`
+	EgressId EgressId `json:"egressId"`
+	Params   UpdateNodeEgressParams
+	Body     *UpdateNodeEgressJSONRequestBody
+}
+
+type UpdateNodeEgressResponseObject interface {
+	VisitUpdateNodeEgressResponse(w http.ResponseWriter) error
+}
+
+type UpdateNodeEgress200JSONResponse NetworkEgress
+
+func (response UpdateNodeEgress200JSONResponse) VisitUpdateNodeEgressResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type UpdateNodeEgress400JSONResponse struct{ BadRequestJSONResponse }
+
+func (response UpdateNodeEgress400JSONResponse) VisitUpdateNodeEgressResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(400)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type UpdateNodeEgress401JSONResponse struct{ UnauthorizedJSONResponse }
+
+func (response UpdateNodeEgress401JSONResponse) VisitUpdateNodeEgressResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(401)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type UpdateNodeEgress403JSONResponse struct{ ForbiddenJSONResponse }
+
+func (response UpdateNodeEgress403JSONResponse) VisitUpdateNodeEgressResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(403)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type UpdateNodeEgress404JSONResponse struct{ NotFoundJSONResponse }
+
+func (response UpdateNodeEgress404JSONResponse) VisitUpdateNodeEgressResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(404)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type UpdateNodeEgress409JSONResponse struct{ ConflictJSONResponse }
+
+func (response UpdateNodeEgress409JSONResponse) VisitUpdateNodeEgressResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(409)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type GetNodeNetworkRequestObject struct {
+	NodeId NodeId `json:"nodeId"`
+}
+
+type GetNodeNetworkResponseObject interface {
+	VisitGetNodeNetworkResponse(w http.ResponseWriter) error
+}
+
+type GetNodeNetwork200JSONResponse NodeNetworkState
+
+func (response GetNodeNetwork200JSONResponse) VisitGetNodeNetworkResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type GetNodeNetwork401JSONResponse struct{ UnauthorizedJSONResponse }
+
+func (response GetNodeNetwork401JSONResponse) VisitGetNodeNetworkResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(401)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type GetNodeNetwork404JSONResponse struct{ NotFoundJSONResponse }
+
+func (response GetNodeNetwork404JSONResponse) VisitGetNodeNetworkResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(404)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
 type RevokeNodeRequestObject struct {
 	NodeId NodeId `json:"nodeId"`
 	Params RevokeNodeParams
@@ -3312,6 +4167,18 @@ type StrictServerInterface interface {
 	// UpdateNode Update node monitoring state
 	// (PATCH /api/v1/nodes/{nodeId})
 	UpdateNode(ctx context.Context, request UpdateNodeRequestObject) (UpdateNodeResponseObject, error)
+	// CreateNodeEgress Enable a discovered interface or source-address egress
+	// (POST /api/v1/nodes/{nodeId}/egresses)
+	CreateNodeEgress(ctx context.Context, request CreateNodeEgressRequestObject) (CreateNodeEgressResponseObject, error)
+	// DeleteNodeEgress Permanently delete a durable network egress
+	// (DELETE /api/v1/nodes/{nodeId}/egresses/{egressId})
+	DeleteNodeEgress(ctx context.Context, request DeleteNodeEgressRequestObject) (DeleteNodeEgressResponseObject, error)
+	// UpdateNodeEgress Update a durable network egress
+	// (PATCH /api/v1/nodes/{nodeId}/egresses/{egressId})
+	UpdateNodeEgress(ctx context.Context, request UpdateNodeEgressRequestObject) (UpdateNodeEgressResponseObject, error)
+	// GetNodeNetwork Read the latest network inventory, candidates, and configured egresses
+	// (GET /api/v1/nodes/{nodeId}/network)
+	GetNodeNetwork(ctx context.Context, request GetNodeNetworkRequestObject) (GetNodeNetworkResponseObject, error)
 	// RevokeNode Permanently revoke a node Agent credential
 	// (POST /api/v1/nodes/{nodeId}/revoke)
 	RevokeNode(ctx context.Context, request RevokeNodeRequestObject) (RevokeNodeResponseObject, error)
@@ -3908,6 +4775,129 @@ func (sh *strictHandler) UpdateNode(w http.ResponseWriter, r *http.Request, node
 		sh.options.ResponseErrorHandlerFunc(w, r, err)
 	} else if validResponse, ok := response.(UpdateNodeResponseObject); ok {
 		if err := validResponse.VisitUpdateNodeResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// CreateNodeEgress operation middleware
+func (sh *strictHandler) CreateNodeEgress(w http.ResponseWriter, r *http.Request, nodeId NodeId, params CreateNodeEgressParams) {
+	var request CreateNodeEgressRequestObject
+
+	request.NodeId = nodeId
+	request.Params = params
+
+	var body CreateNodeEgressJSONRequestBody
+	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+		sh.options.RequestErrorHandlerFunc(w, r, fmt.Errorf("can't decode JSON body: %w", err))
+		return
+	}
+	request.Body = &body
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.CreateNodeEgress(ctx, request.(CreateNodeEgressRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "CreateNodeEgress")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(CreateNodeEgressResponseObject); ok {
+		if err := validResponse.VisitCreateNodeEgressResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// DeleteNodeEgress operation middleware
+func (sh *strictHandler) DeleteNodeEgress(w http.ResponseWriter, r *http.Request, nodeId NodeId, egressId EgressId, params DeleteNodeEgressParams) {
+	var request DeleteNodeEgressRequestObject
+
+	request.NodeId = nodeId
+	request.EgressId = egressId
+	request.Params = params
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.DeleteNodeEgress(ctx, request.(DeleteNodeEgressRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "DeleteNodeEgress")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(DeleteNodeEgressResponseObject); ok {
+		if err := validResponse.VisitDeleteNodeEgressResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// UpdateNodeEgress operation middleware
+func (sh *strictHandler) UpdateNodeEgress(w http.ResponseWriter, r *http.Request, nodeId NodeId, egressId EgressId, params UpdateNodeEgressParams) {
+	var request UpdateNodeEgressRequestObject
+
+	request.NodeId = nodeId
+	request.EgressId = egressId
+	request.Params = params
+
+	var body UpdateNodeEgressJSONRequestBody
+	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+		sh.options.RequestErrorHandlerFunc(w, r, fmt.Errorf("can't decode JSON body: %w", err))
+		return
+	}
+	request.Body = &body
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.UpdateNodeEgress(ctx, request.(UpdateNodeEgressRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "UpdateNodeEgress")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(UpdateNodeEgressResponseObject); ok {
+		if err := validResponse.VisitUpdateNodeEgressResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// GetNodeNetwork operation middleware
+func (sh *strictHandler) GetNodeNetwork(w http.ResponseWriter, r *http.Request, nodeId NodeId) {
+	var request GetNodeNetworkRequestObject
+
+	request.NodeId = nodeId
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.GetNodeNetwork(ctx, request.(GetNodeNetworkRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "GetNodeNetwork")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(GetNodeNetworkResponseObject); ok {
+		if err := validResponse.VisitGetNodeNetworkResponse(w); err != nil {
 			sh.options.ResponseErrorHandlerFunc(w, r, err)
 		}
 	} else if response != nil {

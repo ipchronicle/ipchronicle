@@ -95,11 +95,11 @@ func TestEnrollmentRegistrationAndHeartbeatLifecycle(t *testing.T) {
 	if err != nil || len(listed) != 1 || listed[0].Status != "offline" {
 		t.Fatalf("nodes before heartbeat = %#v, %v", listed, err)
 	}
-	if _, err := service.Poll(ctx, "wrong-credential", metadata, 0, nil, nil); !errors.Is(err, ErrAgentUnauthenticated) {
+	if _, err := service.Poll(ctx, "wrong-credential", metadata, 0, nil, nil, nil, nil); !errors.Is(err, ErrAgentUnauthenticated) {
 		t.Fatalf("wrong Agent credential error = %v", err)
 	}
 	now = now.Add(time.Minute)
-	poll, err := service.Poll(ctx, registration.Credential, metadata, 0, nil, nil)
+	poll, err := service.Poll(ctx, registration.Credential, metadata, 0, nil, nil, nil, nil)
 	if err != nil || !poll.Enabled || poll.DesiredConfigurationRevision != 1 {
 		t.Fatalf("poll = %#v, %v", poll, err)
 	}
@@ -107,7 +107,7 @@ func TestEnrollmentRegistrationAndHeartbeatLifecycle(t *testing.T) {
 	if err != nil || configuration.Revision != 1 || !configuration.Enabled || len(configuration.HistoryGeneration) != 64 {
 		t.Fatalf("configuration = %#v, %v", configuration, err)
 	}
-	if _, err := service.Poll(ctx, registration.Credential, metadata, 1, nil, nil); err != nil {
+	if _, err := service.Poll(ctx, registration.Credential, metadata, 1, nil, nil, nil, nil); err != nil {
 		t.Fatalf("applied configuration poll: %v", err)
 	}
 	listed, err = service.List(ctx)
@@ -131,7 +131,7 @@ func TestEnrollmentRegistrationAndHeartbeatLifecycle(t *testing.T) {
 	if _, err := restarted.Register(ctx, enrollment.Key, metadata); !errors.Is(err, ErrEnrollmentKeyInvalid) {
 		t.Fatalf("old key remains valid after rotation: %v", err)
 	}
-	if _, err := restarted.Poll(ctx, registration.Credential, metadata, 1, nil, nil); err != nil {
+	if _, err := restarted.Poll(ctx, registration.Credential, metadata, 1, nil, nil, nil, nil); err != nil {
 		t.Fatalf("key rotation invalidated existing Agent: %v", err)
 	}
 }
@@ -182,17 +182,17 @@ func TestConfigurationFailureAndNodeLifecycle(t *testing.T) {
 	}
 	message := "snapshot rejected for test"
 	errorRevision := int64(2)
-	if _, err := service.Poll(ctx, registration.Credential, testMetadata(), 1, &message, &errorRevision); err != nil {
+	if _, err := service.Poll(ctx, registration.Credential, testMetadata(), 1, &message, &errorRevision, nil, nil); err != nil {
 		t.Fatal(err)
 	}
 	failed, err := service.Get(ctx, registration.NodeID)
 	if err != nil || failed.ConfigurationStatus != "failed" || failed.ConfigurationError == nil {
 		t.Fatalf("failed node = %#v, %v", failed, err)
 	}
-	if _, err := service.Poll(ctx, registration.Credential, testMetadata(), 2, nil, nil); err != nil {
+	if _, err := service.Poll(ctx, registration.Credential, testMetadata(), 2, nil, nil, nil, nil); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := service.Poll(ctx, registration.Credential, testMetadata(), 1, nil, nil); !errors.Is(err, ErrInvalidMetadata) {
+	if _, err := service.Poll(ctx, registration.Credential, testMetadata(), 1, nil, nil, nil, nil); !errors.Is(err, ErrInvalidMetadata) {
 		t.Fatalf("applied revision rollback error = %v", err)
 	}
 	current, err := service.Get(ctx, registration.NodeID)
@@ -229,7 +229,7 @@ func TestConfigurationFailureAndNodeLifecycle(t *testing.T) {
 	if _, err := service.Get(ctx, registration.NodeID); !errors.Is(err, ErrNodeNotFound) {
 		t.Fatalf("deleted node lookup error = %v", err)
 	}
-	if _, err := service.Poll(ctx, registration.Credential, testMetadata(), 2, nil, nil); !errors.Is(err, ErrAgentRevoked) {
+	if _, err := service.Poll(ctx, registration.Credential, testMetadata(), 2, nil, nil, nil, nil); !errors.Is(err, ErrAgentRevoked) {
 		t.Fatalf("deleted credential error = %v", err)
 	}
 }
@@ -274,7 +274,7 @@ func TestTemporarySyncSessionLifecycle(t *testing.T) {
 	if err != nil || persisted.SyncStatus == nil || *persisted.SyncStatus != "pending" {
 		t.Fatalf("persisted sync session = %#v, %v", persisted, err)
 	}
-	poll, err := restarted.Poll(ctx, registration.Credential, metadata, 0, nil, nil)
+	poll, err := restarted.Poll(ctx, registration.Credential, metadata, 0, nil, nil, nil, nil)
 	if err != nil || poll.SyncSession == nil || !poll.SyncSession.ExpiresAt.Equal(now.Add(SyncSessionLease)) {
 		t.Fatalf("sync delivery poll = %#v, %v", poll, err)
 	}
@@ -321,7 +321,7 @@ func TestTemporarySyncSessionLifecycle(t *testing.T) {
 	if err != nil || expired.SyncStatus != nil || expired.SyncExpiresAt != nil {
 		t.Fatalf("expired sync session = %#v, %v", expired, err)
 	}
-	expiredPoll, err := restarted.Poll(ctx, registration.Credential, metadata, 0, nil, nil)
+	expiredPoll, err := restarted.Poll(ctx, registration.Credential, metadata, 0, nil, nil, nil, nil)
 	if err != nil || expiredPoll.SyncSession != nil {
 		t.Fatalf("expired sync delivery poll = %#v, %v", expiredPoll, err)
 	}

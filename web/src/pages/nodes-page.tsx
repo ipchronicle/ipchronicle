@@ -4,6 +4,7 @@ import {
   Clipboard,
   KeyRound,
   LoaderCircle,
+  Network as NetworkIcon,
   Pause,
   Play,
   RadioTower,
@@ -19,6 +20,7 @@ import {
   WifiOff,
 } from "lucide-react";
 import { useTranslation } from "react-i18next";
+import { Link } from "react-router";
 
 import {
   deleteNode,
@@ -694,6 +696,20 @@ function NodeActions({
 
   return (
     <div className="flex flex-wrap items-center justify-end gap-1">
+      <Tooltip>
+        <TooltipTrigger asChild>
+          <Button variant="ghost" size="icon-sm" asChild>
+            <Link
+              to={`/nodes/${node.id}/network`}
+              aria-label={t("nodes.actions.network")}
+            >
+              <NetworkIcon aria-hidden="true" />
+            </Link>
+          </Button>
+        </TooltipTrigger>
+        <TooltipContent>{t("nodes.actions.network")}</TooltipContent>
+      </Tooltip>
+
       {node.status !== "revoked" && node.deletionStatus === undefined ? (
         <Tooltip>
           <TooltipTrigger asChild>

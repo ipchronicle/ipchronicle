@@ -72,13 +72,16 @@ func TestAgentEnrollsOnceAndBecomesOnline(t *testing.T) {
 		done <- agent.Run(runContext, localStore, "0.1.0-test", log.New(io.Discard, "", 0))
 	}()
 	deadline := time.Now().Add(3 * time.Second)
+	expectedRevision := int64(0)
 	for {
 		listed, err = nodeService.List(ctx)
 		if err != nil {
 			t.Fatal(err)
 		}
 		if len(listed) == 1 && listed[0].Status == "online" && listed[0].ConfigurationStatus == "current" &&
-			listed[0].AppliedConfigurationRevision == 1 && listed[0].SyncStatus != nil && *listed[0].SyncStatus == "connected" {
+			listed[0].AppliedConfigurationRevision == listed[0].DesiredConfigurationRevision &&
+			listed[0].SyncStatus != nil && *listed[0].SyncStatus == "connected" {
+			expectedRevision = listed[0].DesiredConfigurationRevision
 			break
 		}
 		if time.Now().After(deadline) {
@@ -87,7 +90,7 @@ func TestAgentEnrollsOnceAndBecomesOnline(t *testing.T) {
 		time.Sleep(20 * time.Millisecond)
 	}
 	configuration, err := localStore.Configuration()
-	if err != nil || configuration.Revision != 1 || !configuration.Enabled || len(configuration.HistoryGeneration) != 64 {
+	if err != nil || configuration.Revision != expectedRevision || !configuration.Enabled || len(configuration.HistoryGeneration) != 64 {
 		t.Fatalf("applied local configuration = %#v, %v", configuration, err)
 	}
 	convergenceStarted := time.Now()
@@ -100,7 +103,7 @@ func TestAgentEnrollsOnceAndBecomesOnline(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		if configuration.Revision == 2 && !configuration.Enabled {
+		if configuration.Revision == expectedRevision+1 && !configuration.Enabled {
 			break
 		}
 		if time.Now().After(deadline) {

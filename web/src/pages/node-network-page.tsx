@@ -1,0 +1,687 @@
+import { useCallback, useEffect, useMemo, useState } from "react";
+import {
+  ArrowLeft,
+  Cable,
+  CirclePlus,
+  Globe2,
+  LoaderCircle,
+  Network,
+  RefreshCw,
+  Route,
+  Trash2,
+  TriangleAlert,
+} from "lucide-react";
+import { useTranslation } from "react-i18next";
+import { Link, useParams } from "react-router";
+
+import {
+  createNodeEgress,
+  deleteNodeEgress,
+  getNodeNetwork,
+  updateNodeEgress,
+  type NetworkEgress,
+  type NetworkEgressCandidate,
+  type NodeNetworkState,
+} from "@/api/network";
+import { listNodes, type Node } from "@/api/nodes";
+import { useAuth } from "@/auth-context";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogMedia,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from "@/components/ui/alert-dialog";
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
+import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import {
+  Card,
+  CardAction,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card";
+import { Skeleton } from "@/components/ui/skeleton";
+import { Switch } from "@/components/ui/switch";
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table";
+import { formatAPIError } from "@/lib/api-error";
+
+type ViewState =
+  | { kind: "loading" }
+  | { kind: "success"; node: Node; network: NodeNetworkState }
+  | { kind: "not-found" }
+  | { kind: "error" };
+
+export function NodeNetworkPage() {
+  const { nodeId = "" } = useParams();
+  const { t } = useTranslation();
+  const { state: authState } = useAuth();
+  const [state, setState] = useState<ViewState>({ kind: "loading" });
+  const [refreshing, setRefreshing] = useState(false);
+  const [feedback, setFeedback] = useState<string>();
+
+  const load = useCallback(
+    async (signal?: AbortSignal, initial = false) => {
+      if (initial) setState({ kind: "loading" });
+      else setRefreshing(true);
+      try {
+        const [nodes, network] = await Promise.all([
+          listNodes(signal),
+          getNodeNetwork(nodeId, signal),
+        ]);
+        const node = nodes.find((item) => item.id === nodeId);
+        setState(
+          node ? { kind: "success", node, network } : { kind: "not-found" },
+        );
+      } catch (error) {
+        if (error instanceof DOMException && error.name === "AbortError")
+          return;
+        setState({ kind: "error" });
+      } finally {
+        setRefreshing(false);
+      }
+    },
+    [nodeId],
+  );
+
+  useEffect(() => {
+    const controller = new AbortController();
+    void load(controller.signal, true);
+    return () => controller.abort();
+  }, [load]);
+
+  const csrfToken =
+    authState.status === "authenticated" ? authState.session.csrfToken : "";
+
+  function replaceEgress(egress: NetworkEgress) {
+    setState((current) =>
+      current.kind === "success"
+        ? {
+            ...current,
+            network: {
+              ...current.network,
+              egresses: current.network.egresses.map((item) =>
+                item.id === egress.id ? egress : item,
+              ),
+            },
+          }
+        : current,
+    );
+  }
+
+  async function setEnabled(egress: NetworkEgress, enabled: boolean) {
+    setFeedback(undefined);
+    try {
+      replaceEgress(
+        await updateNodeEgress(nodeId, egress.id, enabled, csrfToken),
+      );
+    } catch (error) {
+      setFeedback(formatAPIError(error, t));
+    }
+  }
+
+  async function addCandidate(candidate: NetworkEgressCandidate) {
+    setFeedback(undefined);
+    try {
+      await createNodeEgress(
+        nodeId,
+        {
+          kind: candidate.kind,
+          family: candidate.family,
+          interfaceName: candidate.interfaceName,
+          sourceAddress: candidate.sourceAddress,
+        },
+        csrfToken,
+      );
+      await load();
+    } catch (error) {
+      setFeedback(formatAPIError(error, t));
+    }
+  }
+
+  async function removeEgress(egress: NetworkEgress) {
+    setFeedback(undefined);
+    try {
+      await deleteNodeEgress(nodeId, egress.id, csrfToken);
+      await load();
+    } catch (error) {
+      setFeedback(formatAPIError(error, t));
+    }
+  }
+
+  return (
+    <main className="mx-auto w-full max-w-6xl px-4 py-10 sm:px-6 sm:py-14">
+      <div className="flex flex-wrap items-end justify-between gap-4">
+        <div className="min-w-0 max-w-2xl">
+          <Button variant="ghost" size="sm" asChild className="mb-3 -ml-3">
+            <Link to="/nodes">
+              <ArrowLeft data-icon="inline-start" aria-hidden="true" />
+              {t("network.back")}
+            </Link>
+          </Button>
+          <p className="text-xs font-medium text-muted-foreground uppercase">
+            {t("network.section")}
+          </p>
+          <h1 className="mt-2 truncate text-2xl font-semibold sm:text-3xl">
+            {state.kind === "success" ? state.node.name : t("network.title")}
+          </h1>
+          <p className="mt-2 text-sm text-muted-foreground">
+            {t("network.detail")}
+          </p>
+        </div>
+        <Button
+          variant="outline"
+          disabled={refreshing || state.kind === "loading"}
+          onClick={() => void load()}
+        >
+          <RefreshCw
+            data-icon="inline-start"
+            aria-hidden="true"
+            className={refreshing ? "animate-spin" : undefined}
+          />
+          {t("network.refresh")}
+        </Button>
+      </div>
+
+      <div className="mt-8 space-y-4" aria-live="polite">
+        {state.kind === "loading" ? <NetworkSkeleton /> : null}
+        {state.kind === "not-found" ? (
+          <Alert variant="destructive">
+            <TriangleAlert aria-hidden="true" />
+            <AlertTitle>{t("network.nodeNotFound")}</AlertTitle>
+          </Alert>
+        ) : null}
+        {state.kind === "error" ? (
+          <Alert variant="destructive">
+            <TriangleAlert aria-hidden="true" />
+            <AlertTitle>{t("network.loadFailed")}</AlertTitle>
+            <AlertDescription>
+              <Button
+                variant="outline"
+                size="sm"
+                className="mt-3"
+                onClick={() => void load(undefined, true)}
+              >
+                <RefreshCw data-icon="inline-start" aria-hidden="true" />
+                {t("network.retry")}
+              </Button>
+            </AlertDescription>
+          </Alert>
+        ) : null}
+        {feedback ? (
+          <Alert variant="destructive">
+            <TriangleAlert aria-hidden="true" />
+            <AlertDescription>{feedback}</AlertDescription>
+          </Alert>
+        ) : null}
+        {state.kind === "success" ? (
+          <>
+            <EgressCard
+              egresses={state.network.egresses}
+              onEnabled={setEnabled}
+              onDelete={removeEgress}
+            />
+            <CandidateCard
+              candidates={state.network.candidates}
+              onAdd={addCandidate}
+            />
+            <InventoryCards network={state.network} />
+          </>
+        ) : null}
+      </div>
+    </main>
+  );
+}
+
+function EgressCard({
+  egresses,
+  onEnabled,
+  onDelete,
+}: {
+  egresses: NetworkEgress[];
+  onEnabled: (egress: NetworkEgress, enabled: boolean) => Promise<void>;
+  onDelete: (egress: NetworkEgress) => Promise<void>;
+}) {
+  const { t } = useTranslation();
+  const [working, setWorking] = useState<string>();
+
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle className="flex items-center gap-2">
+          <Globe2 aria-hidden="true" className="size-4" />
+          {t("network.egresses.title")}
+        </CardTitle>
+        <CardDescription>{t("network.egresses.detail")}</CardDescription>
+        <CardAction>
+          <Badge variant="secondary">{egresses.length}</Badge>
+        </CardAction>
+      </CardHeader>
+      <CardContent className="space-y-3">
+        {egresses.length === 0 ? (
+          <p className="py-6 text-center text-sm text-muted-foreground">
+            {t("network.egresses.empty")}
+          </p>
+        ) : (
+          egresses.map((egress) => (
+            <div
+              key={egress.id}
+              className="flex flex-wrap items-center justify-between gap-4 rounded-md border p-4"
+            >
+              <div className="min-w-0">
+                <div className="flex flex-wrap items-center gap-2">
+                  <p className="font-medium">{egressLabel(egress, t)}</p>
+                  <Badge variant={egress.available ? "outline" : "destructive"}>
+                    {egress.available
+                      ? t("network.egresses.available")
+                      : t("network.egresses.unavailable")}
+                  </Badge>
+                  {egress.automatic ? (
+                    <Badge variant="secondary">
+                      {t("network.egresses.automatic")}
+                    </Badge>
+                  ) : null}
+                </div>
+                <p className="mt-1 break-all text-xs text-muted-foreground">
+                  {t(`network.family.${egress.family}`)} · {egress.id}
+                </p>
+              </div>
+              <div className="flex items-center gap-2">
+                <AlertDialog>
+                  <AlertDialogTrigger asChild>
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      disabled={working === egress.id}
+                      aria-label={t("network.egresses.delete")}
+                    >
+                      <Trash2 aria-hidden="true" />
+                    </Button>
+                  </AlertDialogTrigger>
+                  <AlertDialogContent>
+                    <AlertDialogHeader>
+                      <AlertDialogMedia>
+                        <TriangleAlert aria-hidden="true" />
+                      </AlertDialogMedia>
+                      <AlertDialogTitle>
+                        {t("network.egresses.deleteTitle")}
+                      </AlertDialogTitle>
+                      <AlertDialogDescription>
+                        {t("network.egresses.deleteDetail")}
+                      </AlertDialogDescription>
+                    </AlertDialogHeader>
+                    <AlertDialogFooter>
+                      <AlertDialogCancel>
+                        {t("common.cancel")}
+                      </AlertDialogCancel>
+                      <AlertDialogAction
+                        variant="destructive"
+                        onClick={() => {
+                          setWorking(egress.id);
+                          void onDelete(egress).finally(() =>
+                            setWorking(undefined),
+                          );
+                        }}
+                      >
+                        {t("network.egresses.deleteConfirm")}
+                      </AlertDialogAction>
+                    </AlertDialogFooter>
+                  </AlertDialogContent>
+                </AlertDialog>
+                <Switch
+                  checked={egress.enabled}
+                  disabled={working === egress.id}
+                  aria-label={t("network.egresses.enabledLabel", {
+                    name: egressLabel(egress, t),
+                  })}
+                  onCheckedChange={(checked) => {
+                    setWorking(egress.id);
+                    void onEnabled(egress, checked).finally(() =>
+                      setWorking(undefined),
+                    );
+                  }}
+                />
+              </div>
+            </div>
+          ))
+        )}
+      </CardContent>
+    </Card>
+  );
+}
+
+function CandidateCard({
+  candidates,
+  onAdd,
+}: {
+  candidates: NetworkEgressCandidate[];
+  onAdd: (candidate: NetworkEgressCandidate) => Promise<void>;
+}) {
+  const { t } = useTranslation();
+  const [working, setWorking] = useState<string>();
+  const visible = useMemo(
+    () =>
+      candidates.filter(
+        (candidate) => candidate.configuredEgressId === undefined,
+      ),
+    [candidates],
+  );
+
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle className="flex items-center gap-2">
+          <Cable aria-hidden="true" className="size-4" />
+          {t("network.candidates.title")}
+        </CardTitle>
+        <CardDescription>{t("network.candidates.detail")}</CardDescription>
+        <CardAction>
+          <Badge variant="secondary">{visible.length}</Badge>
+        </CardAction>
+      </CardHeader>
+      <CardContent className="space-y-3">
+        {visible.length === 0 ? (
+          <p className="py-6 text-center text-sm text-muted-foreground">
+            {t("network.candidates.empty")}
+          </p>
+        ) : (
+          visible.map((candidate) => {
+            const key = candidateKey(candidate);
+            return (
+              <div
+                key={key}
+                className="flex flex-wrap items-center justify-between gap-4 rounded-md border p-4"
+              >
+                <div className="min-w-0">
+                  <p className="break-all font-medium">
+                    {candidateLabel(candidate, t)}
+                  </p>
+                  <div className="mt-2 flex flex-wrap gap-2">
+                    <Badge variant="outline">
+                      {t(`network.family.${candidate.family}`)}
+                    </Badge>
+                    {candidate.scope ? (
+                      <Badge variant="secondary">
+                        {t(`network.scope.${candidate.scope}`)}
+                      </Badge>
+                    ) : null}
+                    {candidate.temporary ? (
+                      <Badge variant="destructive">
+                        {t("network.candidates.temporary")}
+                      </Badge>
+                    ) : null}
+                    {!candidate.eligible && candidate.unavailableReason ? (
+                      <span className="text-xs text-muted-foreground">
+                        {t(`network.reason.${candidate.unavailableReason}`)}
+                      </span>
+                    ) : null}
+                  </div>
+                </div>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  disabled={!candidate.eligible || working === key}
+                  onClick={() => {
+                    setWorking(key);
+                    void onAdd(candidate).finally(() => setWorking(undefined));
+                  }}
+                >
+                  {working === key ? (
+                    <LoaderCircle
+                      data-icon="inline-start"
+                      aria-hidden="true"
+                      className="animate-spin"
+                    />
+                  ) : (
+                    <CirclePlus data-icon="inline-start" aria-hidden="true" />
+                  )}
+                  {t("network.candidates.add")}
+                </Button>
+              </div>
+            );
+          })
+        )}
+      </CardContent>
+    </Card>
+  );
+}
+
+function InventoryCards({ network }: { network: NodeNetworkState }) {
+  const { i18n, t } = useTranslation();
+  const inventory = network.inventory;
+  return (
+    <>
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <Network aria-hidden="true" className="size-4" />
+            {t("network.inventory.title")}
+          </CardTitle>
+          <CardDescription>{t("network.inventory.detail")}</CardDescription>
+          <CardAction>
+            {network.inventoryReceivedAt ? (
+              <Badge variant="outline">
+                {new Intl.DateTimeFormat(i18n.language, {
+                  dateStyle: "short",
+                  timeStyle: "medium",
+                }).format(new Date(network.inventoryReceivedAt))}
+              </Badge>
+            ) : null}
+          </CardAction>
+        </CardHeader>
+        <CardContent>
+          {network.inventoryError ? (
+            <Alert variant="destructive" className="mb-4">
+              <TriangleAlert aria-hidden="true" />
+              <AlertTitle>{t("network.inventory.failed")}</AlertTitle>
+              <AlertDescription className="break-all">
+                {network.inventoryError}
+              </AlertDescription>
+            </Alert>
+          ) : null}
+          {!inventory ? (
+            <p className="py-6 text-center text-sm text-muted-foreground">
+              {t("network.inventory.empty")}
+            </p>
+          ) : (
+            <div className="overflow-x-auto rounded-md border">
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>{t("network.inventory.interface")}</TableHead>
+                    <TableHead>{t("network.inventory.index")}</TableHead>
+                    <TableHead>{t("network.inventory.state")}</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {inventory.interfaces.map((item) => (
+                    <TableRow key={`${item.index}:${item.name}`}>
+                      <TableCell className="font-medium">{item.name}</TableCell>
+                      <TableCell>{item.index}</TableCell>
+                      <TableCell>
+                        <Badge variant={item.up ? "outline" : "secondary"}>
+                          {item.loopback
+                            ? t("network.inventory.loopback")
+                            : item.up
+                              ? t("network.inventory.up")
+                              : t("network.inventory.down")}
+                        </Badge>
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            </div>
+          )}
+        </CardContent>
+      </Card>
+
+      {inventory ? (
+        <>
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <Globe2 aria-hidden="true" className="size-4" />
+                {t("network.addresses.title")}
+              </CardTitle>
+              <CardDescription>{t("network.addresses.detail")}</CardDescription>
+            </CardHeader>
+            <CardContent>
+              <div className="overflow-x-auto rounded-md border">
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>{t("network.inventory.interface")}</TableHead>
+                      <TableHead>{t("network.addresses.address")}</TableHead>
+                      <TableHead>{t("network.addresses.scope")}</TableHead>
+                      <TableHead>{t("network.addresses.lifecycle")}</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {inventory.addresses.map((item) => (
+                      <TableRow key={`${item.interfaceName}:${item.address}`}>
+                        <TableCell>{item.interfaceName}</TableCell>
+                        <TableCell className="font-mono text-xs whitespace-nowrap">
+                          {item.address}/{item.prefixLength}
+                        </TableCell>
+                        <TableCell>
+                          {t(`network.scope.${item.scope}`)}
+                        </TableCell>
+                        <TableCell>
+                          {addressLifecycle(item, t).map((label) => (
+                            <Badge
+                              key={label}
+                              variant="secondary"
+                              className="mr-1"
+                            >
+                              {label}
+                            </Badge>
+                          ))}
+                        </TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              </div>
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <Route aria-hidden="true" className="size-4" />
+                {t("network.routes.title")}
+              </CardTitle>
+              <CardDescription>{t("network.routes.detail")}</CardDescription>
+            </CardHeader>
+            <CardContent>
+              <div className="overflow-x-auto rounded-md border">
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>{t("network.inventory.interface")}</TableHead>
+                      <TableHead>{t("network.routes.destination")}</TableHead>
+                      <TableHead>{t("network.routes.gateway")}</TableHead>
+                      <TableHead>{t("network.routes.metric")}</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {inventory.routes.map((item, index) => (
+                      <TableRow
+                        key={`${item.family}:${item.interfaceName}:${item.destination}:${item.metric}:${index}`}
+                      >
+                        <TableCell>{item.interfaceName}</TableCell>
+                        <TableCell className="font-mono text-xs whitespace-nowrap">
+                          {item.default
+                            ? t(`network.routes.default.${item.family}`)
+                            : item.destination}
+                        </TableCell>
+                        <TableCell className="font-mono text-xs whitespace-nowrap">
+                          {item.gateway ?? "-"}
+                        </TableCell>
+                        <TableCell>{item.metric}</TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              </div>
+            </CardContent>
+          </Card>
+        </>
+      ) : null}
+    </>
+  );
+}
+
+function egressLabel(
+  egress: NetworkEgress,
+  t: ReturnType<typeof useTranslation>["t"],
+) {
+  if (egress.kind === "default")
+    return t(`network.egresses.default.${egress.family}`);
+  if (egress.kind === "interface") {
+    return t("network.egresses.interface", { name: egress.interfaceName });
+  }
+  return t("network.egresses.source", {
+    name: egress.interfaceName,
+    address: egress.sourceAddress,
+  });
+}
+
+function candidateLabel(
+  candidate: NetworkEgressCandidate,
+  t: ReturnType<typeof useTranslation>["t"],
+) {
+  return candidate.kind === "interface"
+    ? t("network.candidates.interface", { name: candidate.interfaceName })
+    : t("network.candidates.source", {
+        name: candidate.interfaceName,
+        address: candidate.sourceAddress,
+      });
+}
+
+function candidateKey(candidate: NetworkEgressCandidate) {
+  return `${candidate.kind}:${candidate.family}:${candidate.interfaceName}:${candidate.sourceAddress ?? ""}`;
+}
+
+function addressLifecycle(
+  address: NonNullable<NodeNetworkState["inventory"]>["addresses"][number],
+  t: ReturnType<typeof useTranslation>["t"],
+) {
+  const labels: string[] = [];
+  if (address.temporary) labels.push(t("network.addresses.temporary"));
+  if (address.tentative) labels.push(t("network.addresses.tentative"));
+  if (address.deprecated) labels.push(t("network.addresses.deprecated"));
+  if (address.duplicate) labels.push(t("network.addresses.duplicate"));
+  if (labels.length === 0) labels.push(t("network.addresses.stable"));
+  return labels;
+}
+
+function NetworkSkeleton() {
+  return (
+    <Card>
+      <CardHeader>
+        <Skeleton className="h-5 w-40" />
+        <Skeleton className="h-4 w-72 max-w-full" />
+      </CardHeader>
+      <CardContent className="space-y-3">
+        <Skeleton className="h-20 w-full" />
+        <Skeleton className="h-20 w-full" />
+      </CardContent>
+    </Card>
+  );
+}

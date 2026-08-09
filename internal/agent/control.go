@@ -15,6 +15,7 @@ import (
 	"strings"
 	"time"
 
+	agentnetwork "github.com/ipchronicle/ipchronicle/internal/agent/network"
 	"github.com/ipchronicle/ipchronicle/internal/agent/state"
 	"github.com/ipchronicle/ipchronicle/internal/generated/agentapi"
 )
@@ -142,7 +143,8 @@ func Run(ctx context.Context, store *state.Store, version string, logger *log.Lo
 			logger.Printf("Agent %s is revoked; control polling has stopped", identity.NodeID)
 			return nil
 		}
-		outcome, err := client.poll(ctx, store, identity, metadata, controlState)
+		inventory, inventoryError := captureNetworkInventory()
+		outcome, err := client.poll(ctx, store, identity, metadata, controlState, inventory, inventoryError)
 		if errors.Is(err, ErrAgentRevoked) {
 			if markErr := store.MarkRevoked(); markErr != nil {
 				return errors.Join(err, markErr)
@@ -178,12 +180,22 @@ func Run(ctx context.Context, store *state.Store, version string, logger *log.Lo
 	}
 }
 
-func (c *ControlClient) poll(ctx context.Context, store *state.Store, identity state.Identity, metadata agentapi.AgentMetadata, controlState state.ControlState) (pollOutcome, error) {
+func (c *ControlClient) poll(
+	ctx context.Context,
+	store *state.Store,
+	identity state.Identity,
+	metadata agentapi.AgentMetadata,
+	controlState state.ControlState,
+	inventory *agentapi.NetworkInventory,
+	inventoryError *string,
+) (pollOutcome, error) {
 	response, err := c.client.PollAgentWithResponse(ctx, agentapi.AgentPollRequest{
 		AppliedConfigurationRevision: controlState.AppliedConfigurationRevision,
 		ConfigurationError:           controlState.ConfigurationError,
 		ConfigurationErrorRevision:   controlState.ConfigurationErrorRevision,
 		Metadata:                     metadata,
+		NetworkInventory:             inventory,
+		NetworkInventoryError:        inventoryError,
 	}, func(_ context.Context, request *http.Request) error {
 		request.Header.Set("Authorization", "Bearer "+identity.Credential)
 		return nil
@@ -295,8 +307,50 @@ func currentMetadata(version string) (agentapi.AgentMetadata, error) {
 	return agentapi.AgentMetadata{
 		Hostname: hostname, AgentVersion: version,
 		OperatingSystem: agentapi.Linux, Architecture: agentapi.AgentArchitecture(runtime.GOARCH),
-		Capabilities: []string{controlCapability, "configuration-v1", syncWakeCapability},
+		Capabilities: []string{controlCapability, "configuration-v1", "network-inventory-v1", syncWakeCapability},
 	}, nil
+}
+
+func captureNetworkInventory() (*agentapi.NetworkInventory, *string) {
+	inventory, err := agentnetwork.Discover()
+	if err != nil {
+		message := boundedMessage(err.Error(), 1024)
+		return nil, &message
+	}
+	result := &agentapi.NetworkInventory{CapturedAt: time.Now().UTC()}
+	result.Interfaces = make([]agentapi.NetworkInterface, 0, len(inventory.Interfaces))
+	for _, item := range inventory.Interfaces {
+		result.Interfaces = append(result.Interfaces, agentapi.NetworkInterface{
+			Name: item.Name, Index: item.Index, Up: item.Up, Loopback: item.Loopback,
+		})
+	}
+	result.Addresses = make([]agentapi.NetworkAddress, 0, len(inventory.Addresses))
+	for _, item := range inventory.Addresses {
+		result.Addresses = append(result.Addresses, agentapi.NetworkAddress{
+			InterfaceName: item.Interface, Address: item.Address, PrefixLength: item.PrefixLength,
+			Family: agentapi.AddressFamily(item.Family), Scope: agentapi.NetworkAddressScope(item.Scope),
+			Temporary: item.Temporary, Tentative: item.Tentative, Deprecated: item.Deprecated, Duplicate: item.Duplicate,
+		})
+	}
+	result.Routes = make([]agentapi.NetworkRoute, 0, len(inventory.Routes))
+	for _, item := range inventory.Routes {
+		result.Routes = append(result.Routes, agentapi.NetworkRoute{
+			InterfaceName: item.Interface, Family: agentapi.AddressFamily(item.Family), Destination: item.Destination,
+			Gateway: item.Gateway, Metric: item.Metric, Default: item.Default,
+		})
+	}
+	return result, nil
+}
+
+func boundedMessage(value string, limit int) string {
+	runes := []rune(strings.TrimSpace(value))
+	if len(runes) > limit {
+		runes = runes[:limit]
+	}
+	if len(runes) == 0 {
+		return "network inventory failed without diagnostics"
+	}
+	return string(runes)
 }
 
 func responseError(operation string, status int, responses ...*agentapi.ErrorResponse) error {

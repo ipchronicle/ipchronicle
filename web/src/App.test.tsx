@@ -11,6 +11,12 @@ import {
 } from "@/api/auth";
 import { getSystemStatus } from "@/api/system";
 import {
+  createNodeEgress,
+  deleteNodeEgress,
+  getNodeNetwork,
+  updateNodeEgress,
+} from "@/api/network";
+import {
   deleteNode,
   getAgentEnrollment,
   listNodes,
@@ -41,6 +47,13 @@ vi.mock("@/api/system", () => ({
   getSystemStatus: vi.fn(),
 }));
 
+vi.mock("@/api/network", () => ({
+  createNodeEgress: vi.fn(),
+  deleteNodeEgress: vi.fn(),
+  getNodeNetwork: vi.fn(),
+  updateNodeEgress: vi.fn(),
+}));
+
 vi.mock("@/api/nodes", () => ({
   deleteNode: vi.fn(),
   getAgentEnrollment: vi.fn(),
@@ -58,6 +71,10 @@ const loginMock = vi.mocked(login);
 const logoutMock = vi.mocked(logout);
 const updateLocaleMock = vi.mocked(updateAccountLocale);
 const getSystemStatusMock = vi.mocked(getSystemStatus);
+const createEgressMock = vi.mocked(createNodeEgress);
+const deleteEgressMock = vi.mocked(deleteNodeEgress);
+const getNodeNetworkMock = vi.mocked(getNodeNetwork);
+const updateEgressMock = vi.mocked(updateNodeEgress);
 const getEnrollmentMock = vi.mocked(getAgentEnrollment);
 const listNodesMock = vi.mocked(listNodes);
 const rotateEnrollmentMock = vi.mocked(rotateAgentEnrollmentKey);
@@ -83,7 +100,7 @@ const healthyStatus = {
   service: "ipchronicle-center" as const,
   status: "ok" as const,
   version: "0.0.0-test",
-  configSchemaVersion: 4,
+  configSchemaVersion: 5,
   historySchemaVersion: 1,
   transportSecurity: "http" as const,
   transportWarning: true,
@@ -101,6 +118,10 @@ describe("administrator application", () => {
     logoutMock.mockReset();
     updateLocaleMock.mockReset();
     getSystemStatusMock.mockReset();
+    createEgressMock.mockReset();
+    deleteEgressMock.mockReset();
+    getNodeNetworkMock.mockReset();
+    updateEgressMock.mockReset();
     getEnrollmentMock.mockReset();
     listNodesMock.mockReset();
     rotateEnrollmentMock.mockReset();
@@ -321,6 +342,103 @@ describe("administrator application", () => {
     );
     expect(screen.getAllByText("Disabled").length).toBeGreaterThan(0);
     expect(screen.getAllByText("Pending · 1/2").length).toBeGreaterThan(0);
+  });
+
+  it("shows durable egresses and temporary IPv6 candidates", async () => {
+    getSessionMock.mockResolvedValue(session);
+    listNodesMock.mockResolvedValue([
+      {
+        id: "7289cfa3-a75d-4a3f-ac06-8f1074446a85",
+        name: "edge-1",
+        hostname: "edge-1",
+        status: "online",
+        enabled: true,
+        agentVersion: "0.1.0",
+        operatingSystem: "linux",
+        architecture: "amd64",
+        capabilities: ["network-inventory-v1"],
+        desiredConfigurationRevision: 2,
+        appliedConfigurationRevision: 2,
+        configurationStatus: "current",
+        registeredAt: "2026-08-09T06:00:00Z",
+      },
+    ]);
+    getNodeNetworkMock.mockResolvedValue({
+      inventoryReceivedAt: "2026-08-09T06:01:00Z",
+      inventory: {
+        capturedAt: "2026-08-09T06:01:00Z",
+        interfaces: [{ name: "eth0", index: 2, up: true, loopback: false }],
+        addresses: [
+          {
+            interfaceName: "eth0",
+            address: "10.0.0.5",
+            prefixLength: 24,
+            family: "ipv4",
+            scope: "private",
+            temporary: false,
+            tentative: false,
+            deprecated: false,
+            duplicate: false,
+          },
+          {
+            interfaceName: "eth0",
+            address: "2001:4860::99",
+            prefixLength: 64,
+            family: "ipv6",
+            scope: "global",
+            temporary: true,
+            tentative: false,
+            deprecated: false,
+            duplicate: false,
+          },
+        ],
+        routes: [
+          {
+            interfaceName: "eth0",
+            family: "ipv4",
+            destination: "0.0.0.0/0",
+            gateway: "10.0.0.1",
+            metric: 100,
+            default: true,
+          },
+        ],
+      },
+      egresses: [
+        {
+          id: "a6a2f052-f9c4-4f37-88d5-4dc4c95d68d9",
+          nodeId: "7289cfa3-a75d-4a3f-ac06-8f1074446a85",
+          name: "default-ipv4",
+          kind: "default",
+          family: "ipv4",
+          enabled: true,
+          available: true,
+          automatic: true,
+          lightweightIntervalSeconds: 600,
+          probeOnAddressChange: true,
+        },
+      ],
+      candidates: [
+        {
+          kind: "source",
+          family: "ipv6",
+          interfaceName: "eth0",
+          sourceAddress: "2001:4860::99",
+          scope: "global",
+          temporary: true,
+          eligible: false,
+          unavailableReason: "temporary-address",
+        },
+      ],
+    });
+
+    renderApplication("/nodes/7289cfa3-a75d-4a3f-ac06-8f1074446a85/network");
+
+    expect(
+      await screen.findByRole("heading", { name: "edge-1" }),
+    ).toBeInTheDocument();
+    expect(screen.getAllByText("Default IPv4").length).toBeGreaterThan(0);
+    expect(screen.getAllByText("Temporary IPv6").length).toBeGreaterThan(0);
+    expect(screen.getByRole("button", { name: "Enable path" })).toBeDisabled();
   });
 });
 

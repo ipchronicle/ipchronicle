@@ -92,7 +92,12 @@ test("generates an Agent installation command from the nodes page", async ({
         agentVersion: "0.1.0-e2e",
         operatingSystem: "linux",
         architecture: "amd64",
-        capabilities: ["control-v1", "configuration-v1", "sync-wakeup-v1"],
+        capabilities: [
+          "control-v1",
+          "configuration-v1",
+          "network-inventory-v1",
+          "sync-wakeup-v1",
+        ],
       },
     },
   });
@@ -122,7 +127,58 @@ test("generates an Agent installation command from the nodes page", async ({
         agentVersion: "0.1.0-e2e",
         operatingSystem: "linux",
         architecture: "amd64",
-        capabilities: ["control-v1", "configuration-v1", "sync-wakeup-v1"],
+        capabilities: [
+          "control-v1",
+          "configuration-v1",
+          "network-inventory-v1",
+          "sync-wakeup-v1",
+        ],
+      },
+      networkInventory: {
+        capturedAt: "2026-08-09T06:00:00Z",
+        interfaces: [{ name: "eth0", index: 2, up: true, loopback: false }],
+        addresses: [
+          {
+            interfaceName: "eth0",
+            address: "10.0.0.5",
+            prefixLength: 24,
+            family: "ipv4",
+            scope: "private",
+            temporary: false,
+            tentative: false,
+            deprecated: false,
+            duplicate: false,
+          },
+          {
+            interfaceName: "eth0",
+            address: "2001:4860::99",
+            prefixLength: 64,
+            family: "ipv6",
+            scope: "global",
+            temporary: true,
+            tentative: false,
+            deprecated: false,
+            duplicate: false,
+          },
+        ],
+        routes: [
+          {
+            interfaceName: "eth0",
+            family: "ipv4",
+            destination: "0.0.0.0/0",
+            gateway: "10.0.0.1",
+            metric: 100,
+            default: true,
+          },
+          {
+            interfaceName: "eth0",
+            family: "ipv6",
+            destination: "::/0",
+            gateway: "fe80::1",
+            metric: 100,
+            default: true,
+          },
+        ],
       },
     },
   });
@@ -138,9 +194,22 @@ test("generates an Agent installation command from the nodes page", async ({
     page.getByRole("button", { name: "Start temporary sync" }),
   ).toBeVisible();
 
+  await page.getByRole("link", { name: "Network egresses" }).click();
+  await expect(page.getByRole("heading", { name: "edge-e2e" })).toBeVisible();
+  await expect(page.getByText("Default IPv4").first()).toBeVisible();
+  await expect(page.getByText("Temporary IPv6").first()).toBeVisible();
+  await expect(
+    page.getByRole("button", { name: "Enable path" }).last(),
+  ).toBeDisabled();
+  await page.screenshot({
+    path: testInfo.outputPath("network-egresses.png"),
+    fullPage: true,
+  });
+  await page.getByRole("link", { name: "Back to nodes" }).click();
+
   await page.getByRole("button", { name: "Pause node" }).click();
   await expect(responsiveItem("Disabled")).toBeVisible();
-  await expect(responsiveItem("Pending · 0/2")).toBeVisible();
+  await expect(responsiveItem("Pending · 0/3")).toBeVisible();
   await page.screenshot({
     path: testInfo.outputPath("node-actions.png"),
     fullPage: true,

@@ -392,6 +392,106 @@ paths:
           $ref: "#/components/responses/Forbidden"
         "404":
           $ref: "#/components/responses/NotFound"
+  /api/v1/nodes/{nodeId}/network:
+    parameters:
+      - $ref: "#/components/parameters/NodeId"
+    get:
+      operationId: getNodeNetwork
+      summary: Read the latest network inventory, candidates, and configured egresses
+      tags: [network]
+      responses:
+        "200":
+          description: Current network state for the node.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/NodeNetworkState"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "404":
+          $ref: "#/components/responses/NotFound"
+  /api/v1/nodes/{nodeId}/egresses:
+    parameters:
+      - $ref: "#/components/parameters/NodeId"
+    post:
+      operationId: createNodeEgress
+      summary: Enable a discovered interface or source-address egress
+      tags: [network]
+      parameters:
+        - $ref: "#/components/parameters/CSRFToken"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/NetworkEgressCreate"
+      responses:
+        "201":
+          description: The durable egress was created.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/NetworkEgress"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "409":
+          $ref: "#/components/responses/Conflict"
+  /api/v1/nodes/{nodeId}/egresses/{egressId}:
+    parameters:
+      - $ref: "#/components/parameters/NodeId"
+      - $ref: "#/components/parameters/EgressId"
+    patch:
+      operationId: updateNodeEgress
+      summary: Update a durable network egress
+      tags: [network]
+      parameters:
+        - $ref: "#/components/parameters/CSRFToken"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/NetworkEgressUpdate"
+      responses:
+        "200":
+          description: The egress was updated.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/NetworkEgress"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "409":
+          $ref: "#/components/responses/Conflict"
+    delete:
+      operationId: deleteNodeEgress
+      summary: Permanently delete a durable network egress
+      tags: [network]
+      parameters:
+        - $ref: "#/components/parameters/CSRFToken"
+      responses:
+        "204":
+          description: The egress was permanently deleted.
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "409":
+          $ref: "#/components/responses/Conflict"
   /api/v1/agent-enrollment:
     get:
       operationId: getAgentEnrollment
@@ -540,6 +640,13 @@ components:
         maxLength: 128
     NodeId:
       name: nodeId
+      in: path
+      required: true
+      schema:
+        type: string
+        format: uuid
+    EgressId:
+      name: egressId
       in: path
       required: true
       schema:
@@ -735,6 +842,11 @@ components:
         - node_deletion_pending
         - node_sync_unsupported
         - sync_session_unavailable
+        - network_inventory_unavailable
+        - invalid_egress_candidate
+        - egress_already_exists
+        - egress_limit_reached
+        - egress_not_found
         - internal_error
     ErrorResponse:
       type: object
@@ -886,6 +998,12 @@ components:
           type: integer
           format: int64
           minimum: 1
+        networkInventory:
+          $ref: "#/components/schemas/NetworkInventory"
+        networkInventoryError:
+          type: string
+          minLength: 1
+          maxLength: 1024
     AgentPollResult:
       type: object
       additionalProperties: false
@@ -927,11 +1045,11 @@ components:
     AgentConfigurationSnapshot:
       type: object
       additionalProperties: false
-      required: [schemaVersion, revision, enabled, historyGeneration]
+      required: [schemaVersion, revision, enabled, historyGeneration, egresses]
       properties:
         schemaVersion:
           type: integer
-          enum: [1]
+          enum: [2]
         revision:
           type: integer
           format: int64
@@ -941,6 +1059,257 @@ components:
         historyGeneration:
           type: string
           pattern: "^[0-9a-f]{64}$"
+        egresses:
+          type: array
+          maxItems: 64
+          items:
+            $ref: "#/components/schemas/AgentEgressConfiguration"
+    AddressFamily:
+      type: string
+      enum: [ipv4, ipv6]
+    NetworkInterface:
+      type: object
+      additionalProperties: false
+      required: [name, index, up, loopback]
+      properties:
+        name:
+          type: string
+          minLength: 1
+          maxLength: 64
+        index:
+          type: integer
+          minimum: 1
+        up:
+          type: boolean
+        loopback:
+          type: boolean
+    NetworkAddressScope:
+      type: string
+      enum: [global, private, shared, unique-local, link-local, loopback, multicast, unspecified, other]
+    NetworkAddress:
+      type: object
+      additionalProperties: false
+      required: [interfaceName, address, prefixLength, family, scope, temporary, tentative, deprecated, duplicate]
+      properties:
+        interfaceName:
+          type: string
+          minLength: 1
+          maxLength: 64
+        address:
+          type: string
+          minLength: 2
+          maxLength: 45
+        prefixLength:
+          type: integer
+          minimum: 0
+          maximum: 128
+        family:
+          $ref: "#/components/schemas/AddressFamily"
+        scope:
+          $ref: "#/components/schemas/NetworkAddressScope"
+        temporary:
+          type: boolean
+        tentative:
+          type: boolean
+        deprecated:
+          type: boolean
+        duplicate:
+          type: boolean
+    NetworkRoute:
+      type: object
+      additionalProperties: false
+      required: [interfaceName, family, destination, metric, default]
+      properties:
+        interfaceName:
+          type: string
+          minLength: 1
+          maxLength: 64
+        family:
+          $ref: "#/components/schemas/AddressFamily"
+        destination:
+          type: string
+          minLength: 3
+          maxLength: 49
+        gateway:
+          type: string
+          minLength: 2
+          maxLength: 45
+        metric:
+          type: integer
+          format: int64
+          minimum: 0
+        default:
+          type: boolean
+    NetworkInventory:
+      type: object
+      additionalProperties: false
+      required: [capturedAt, interfaces, addresses, routes]
+      properties:
+        capturedAt:
+          type: string
+          format: date-time
+        interfaces:
+          type: array
+          maxItems: 64
+          items:
+            $ref: "#/components/schemas/NetworkInterface"
+        addresses:
+          type: array
+          maxItems: 128
+          items:
+            $ref: "#/components/schemas/NetworkAddress"
+        routes:
+          type: array
+          maxItems: 256
+          items:
+            $ref: "#/components/schemas/NetworkRoute"
+    NetworkEgressKind:
+      type: string
+      enum: [default, interface, source]
+    NetworkEgress:
+      type: object
+      additionalProperties: false
+      required: [id, nodeId, name, kind, family, enabled, available, automatic, lightweightIntervalSeconds, probeOnAddressChange]
+      properties:
+        id:
+          type: string
+          format: uuid
+        nodeId:
+          type: string
+          format: uuid
+        name:
+          type: string
+          minLength: 1
+          maxLength: 128
+        kind:
+          $ref: "#/components/schemas/NetworkEgressKind"
+        family:
+          $ref: "#/components/schemas/AddressFamily"
+        interfaceName:
+          type: string
+          minLength: 1
+          maxLength: 64
+        sourceAddress:
+          type: string
+          minLength: 2
+          maxLength: 45
+        enabled:
+          type: boolean
+        available:
+          type: boolean
+        automatic:
+          type: boolean
+        lightweightIntervalSeconds:
+          type: integer
+          format: int64
+          minimum: 1
+        probeOnAddressChange:
+          type: boolean
+    NetworkEgressCandidate:
+      type: object
+      additionalProperties: false
+      required: [kind, family, interfaceName, temporary, eligible]
+      properties:
+        kind:
+          type: string
+          enum: [interface, source]
+        family:
+          $ref: "#/components/schemas/AddressFamily"
+        interfaceName:
+          type: string
+          minLength: 1
+          maxLength: 64
+        sourceAddress:
+          type: string
+          minLength: 2
+          maxLength: 45
+        scope:
+          $ref: "#/components/schemas/NetworkAddressScope"
+        temporary:
+          type: boolean
+        eligible:
+          type: boolean
+        unavailableReason:
+          type: string
+          enum: [interface-down, no-usable-route, temporary-address, unusable-address]
+        configuredEgressId:
+          type: string
+          format: uuid
+    NodeNetworkState:
+      type: object
+      additionalProperties: false
+      required: [egresses, candidates]
+      properties:
+        inventory:
+          $ref: "#/components/schemas/NetworkInventory"
+        inventoryError:
+          type: string
+          minLength: 1
+          maxLength: 1024
+        inventoryReceivedAt:
+          type: string
+          format: date-time
+        egresses:
+          type: array
+          items:
+            $ref: "#/components/schemas/NetworkEgress"
+        candidates:
+          type: array
+          items:
+            $ref: "#/components/schemas/NetworkEgressCandidate"
+    NetworkEgressCreate:
+      type: object
+      additionalProperties: false
+      required: [kind, family, interfaceName]
+      properties:
+        kind:
+          type: string
+          enum: [interface, source]
+        family:
+          $ref: "#/components/schemas/AddressFamily"
+        interfaceName:
+          type: string
+          minLength: 1
+          maxLength: 64
+        sourceAddress:
+          type: string
+          minLength: 2
+          maxLength: 45
+    NetworkEgressUpdate:
+      type: object
+      additionalProperties: false
+      required: [enabled]
+      properties:
+        enabled:
+          type: boolean
+    AgentEgressConfiguration:
+      type: object
+      additionalProperties: false
+      required: [id, kind, family, enabled, lightweightIntervalSeconds, probeOnAddressChange]
+      properties:
+        id:
+          type: string
+          format: uuid
+        kind:
+          $ref: "#/components/schemas/NetworkEgressKind"
+        family:
+          $ref: "#/components/schemas/AddressFamily"
+        interfaceName:
+          type: string
+          minLength: 1
+          maxLength: 64
+        sourceAddress:
+          type: string
+          minLength: 2
+          maxLength: 45
+        enabled:
+          type: boolean
+        lightweightIntervalSeconds:
+          type: integer
+          format: int64
+          minimum: 1
+        probeOnAddressChange:
+          type: boolean
     NodeStatus:
       type: string
       enum: [online, offline, disabled, revoked]

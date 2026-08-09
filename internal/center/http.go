@@ -22,6 +22,8 @@ import (
 	"github.com/ipchronicle/ipchronicle/internal/generated/api"
 )
 
+const maxAgentControlRequestBodySize = 128 * 1024
+
 type HTTPOptions struct {
 	Version        string
 	Web            http.Handler
@@ -135,7 +137,11 @@ func agentSyncWebSocket(nodeService *nodes.Service, hub *syncws.Hub) http.Handle
 func limitAPIRequestBody(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if strings.HasPrefix(r.URL.Path, "/api/") && r.Body != nil {
-			r.Body = http.MaxBytesReader(w, r.Body, 4096)
+			limit := int64(4096)
+			if r.URL.Path == "/api/v1/agent/control" {
+				limit = maxAgentControlRequestBodySize
+			}
+			r.Body = http.MaxBytesReader(w, r.Body, limit)
 		}
 		if strings.HasPrefix(r.URL.Path, "/api/v1/agent/") {
 			w.Header().Set("Cache-Control", "no-store")

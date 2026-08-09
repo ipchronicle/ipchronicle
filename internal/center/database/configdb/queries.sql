@@ -296,3 +296,84 @@ WHERE node_id = ? AND session_id = ? AND expires_at > ?;
 -- name: DeleteNodeSyncSession :exec
 DELETE FROM node_sync_sessions
 WHERE node_id = ?;
+
+-- name: GetNodeNetworkInventory :one
+SELECT node_id, payload, captured_at, received_at, last_error
+FROM node_network_inventories
+WHERE node_id = ?;
+
+-- name: UpsertNodeNetworkInventory :exec
+INSERT INTO node_network_inventories (
+    node_id, payload, captured_at, received_at, last_error
+) VALUES (?, ?, ?, ?, NULL)
+ON CONFLICT (node_id) DO UPDATE SET
+    payload = excluded.payload,
+    captured_at = excluded.captured_at,
+    received_at = excluded.received_at,
+    last_error = NULL;
+
+-- name: RecordNodeNetworkInventoryError :exec
+INSERT INTO node_network_inventories (
+    node_id, payload, captured_at, received_at, last_error
+) VALUES (?, NULL, NULL, ?, ?)
+ON CONFLICT (node_id) DO UPDATE SET
+    received_at = excluded.received_at,
+    last_error = excluded.last_error;
+
+-- name: ListNodeEgresses :many
+SELECT id, node_id, name, kind, family, interface_name, source_address,
+       enabled, available, automatic, lightweight_interval_seconds,
+       probe_on_address_change, created_at, updated_at
+FROM network_egresses
+WHERE node_id = ?
+ORDER BY family, kind, created_at, id;
+
+-- name: GetNodeEgress :one
+SELECT id, node_id, name, kind, family, interface_name, source_address,
+       enabled, available, automatic, lightweight_interval_seconds,
+       probe_on_address_change, created_at, updated_at
+FROM network_egresses
+WHERE node_id = ? AND id = ?;
+
+-- name: GetDefaultNodeEgress :one
+SELECT id, node_id, name, kind, family, interface_name, source_address,
+       enabled, available, automatic, lightweight_interval_seconds,
+       probe_on_address_change, created_at, updated_at
+FROM network_egresses
+WHERE node_id = ? AND kind = 'default' AND family = ?;
+
+-- name: GetNodeEgressBySelector :one
+SELECT id, node_id, name, kind, family, interface_name, source_address,
+       enabled, available, automatic, lightweight_interval_seconds,
+       probe_on_address_change, created_at, updated_at
+FROM network_egresses
+WHERE node_id = ? AND kind = ? AND family = ? AND interface_name = ?
+  AND COALESCE(source_address, '') = COALESCE(?, '');
+
+-- name: CreateNodeEgress :exec
+INSERT INTO network_egresses (
+    id, node_id, name, kind, family, interface_name, source_address,
+    enabled, available, automatic, lightweight_interval_seconds,
+    probe_on_address_change, created_at, updated_at
+) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);
+
+-- name: SetNodeEgressAvailability :execrows
+UPDATE network_egresses
+SET available = ?, updated_at = ?
+WHERE id = ? AND node_id = ? AND available != ?;
+
+-- name: SetNodeEgressEnabled :execrows
+UPDATE network_egresses
+SET enabled = ?, updated_at = ?
+WHERE id = ? AND node_id = ? AND enabled != ?;
+
+-- name: DeleteNodeEgress :execrows
+DELETE FROM network_egresses
+WHERE id = ? AND node_id = ?;
+
+-- name: IncrementNodeDesiredConfigurationRevision :execrows
+UPDATE nodes
+SET desired_configuration_revision = desired_configuration_revision + 1,
+    configuration_error = NULL,
+    configuration_error_revision = NULL
+WHERE id = ? AND revoked_at IS NULL;

@@ -18,6 +18,24 @@ import (
 	openapi_types "github.com/oapi-codegen/runtime/types"
 )
 
+// Defines values for AddressFamily.
+const (
+	Ipv4 AddressFamily = "ipv4"
+	Ipv6 AddressFamily = "ipv6"
+)
+
+// Valid indicates whether the value is a known member of the AddressFamily enum.
+func (e AddressFamily) Valid() bool {
+	switch e {
+	case Ipv4:
+		return true
+	case Ipv6:
+		return true
+	default:
+		return false
+	}
+}
+
 // Defines values for AgentArchitecture.
 const (
 	Amd64 AgentArchitecture = "amd64"
@@ -38,13 +56,13 @@ func (e AgentArchitecture) Valid() bool {
 
 // Defines values for AgentConfigurationSnapshotSchemaVersion.
 const (
-	N1 AgentConfigurationSnapshotSchemaVersion = 1
+	N2 AgentConfigurationSnapshotSchemaVersion = 2
 )
 
 // Valid indicates whether the value is a known member of the AgentConfigurationSnapshotSchemaVersion enum.
 func (e AgentConfigurationSnapshotSchemaVersion) Valid() bool {
 	switch e {
-	case N1:
+	case N2:
 		return true
 	default:
 		return false
@@ -72,10 +90,15 @@ const (
 	AgentUnauthenticated          ErrorCode = "agent_unauthenticated"
 	CsrfFailed                    ErrorCode = "csrf_failed"
 	CurrentPasswordInvalid        ErrorCode = "current_password_invalid"
+	EgressAlreadyExists           ErrorCode = "egress_already_exists"
+	EgressLimitReached            ErrorCode = "egress_limit_reached"
+	EgressNotFound                ErrorCode = "egress_not_found"
 	InternalError                 ErrorCode = "internal_error"
 	InvalidCredentials            ErrorCode = "invalid_credentials"
+	InvalidEgressCandidate        ErrorCode = "invalid_egress_candidate"
 	InvalidRequest                ErrorCode = "invalid_request"
 	InvalidTotp                   ErrorCode = "invalid_totp"
+	NetworkInventoryUnavailable   ErrorCode = "network_inventory_unavailable"
 	NoAccountChange               ErrorCode = "no_account_change"
 	NodeDeletionPending           ErrorCode = "node_deletion_pending"
 	NodeNotFound                  ErrorCode = "node_not_found"
@@ -105,13 +128,23 @@ func (e ErrorCode) Valid() bool {
 		return true
 	case CurrentPasswordInvalid:
 		return true
+	case EgressAlreadyExists:
+		return true
+	case EgressLimitReached:
+		return true
+	case EgressNotFound:
+		return true
 	case InternalError:
 		return true
 	case InvalidCredentials:
 		return true
+	case InvalidEgressCandidate:
+		return true
 	case InvalidRequest:
 		return true
 	case InvalidTotp:
+		return true
+	case NetworkInventoryUnavailable:
 		return true
 	case NoAccountChange:
 		return true
@@ -144,6 +177,126 @@ func (e ErrorCode) Valid() bool {
 	case TotpRequired:
 		return true
 	case Unauthenticated:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for NetworkAddressScope.
+const (
+	Global      NetworkAddressScope = "global"
+	LinkLocal   NetworkAddressScope = "link-local"
+	Loopback    NetworkAddressScope = "loopback"
+	Multicast   NetworkAddressScope = "multicast"
+	Other       NetworkAddressScope = "other"
+	Private     NetworkAddressScope = "private"
+	Shared      NetworkAddressScope = "shared"
+	UniqueLocal NetworkAddressScope = "unique-local"
+	Unspecified NetworkAddressScope = "unspecified"
+)
+
+// Valid indicates whether the value is a known member of the NetworkAddressScope enum.
+func (e NetworkAddressScope) Valid() bool {
+	switch e {
+	case Global:
+		return true
+	case LinkLocal:
+		return true
+	case Loopback:
+		return true
+	case Multicast:
+		return true
+	case Other:
+		return true
+	case Private:
+		return true
+	case Shared:
+		return true
+	case UniqueLocal:
+		return true
+	case Unspecified:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for NetworkEgressCandidateKind.
+const (
+	NetworkEgressCandidateKindInterface NetworkEgressCandidateKind = "interface"
+	NetworkEgressCandidateKindSource    NetworkEgressCandidateKind = "source"
+)
+
+// Valid indicates whether the value is a known member of the NetworkEgressCandidateKind enum.
+func (e NetworkEgressCandidateKind) Valid() bool {
+	switch e {
+	case NetworkEgressCandidateKindInterface:
+		return true
+	case NetworkEgressCandidateKindSource:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for NetworkEgressCandidateUnavailableReason.
+const (
+	InterfaceDown    NetworkEgressCandidateUnavailableReason = "interface-down"
+	NoUsableRoute    NetworkEgressCandidateUnavailableReason = "no-usable-route"
+	TemporaryAddress NetworkEgressCandidateUnavailableReason = "temporary-address"
+	UnusableAddress  NetworkEgressCandidateUnavailableReason = "unusable-address"
+)
+
+// Valid indicates whether the value is a known member of the NetworkEgressCandidateUnavailableReason enum.
+func (e NetworkEgressCandidateUnavailableReason) Valid() bool {
+	switch e {
+	case InterfaceDown:
+		return true
+	case NoUsableRoute:
+		return true
+	case TemporaryAddress:
+		return true
+	case UnusableAddress:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for NetworkEgressCreateKind.
+const (
+	NetworkEgressCreateKindInterface NetworkEgressCreateKind = "interface"
+	NetworkEgressCreateKindSource    NetworkEgressCreateKind = "source"
+)
+
+// Valid indicates whether the value is a known member of the NetworkEgressCreateKind enum.
+func (e NetworkEgressCreateKind) Valid() bool {
+	switch e {
+	case NetworkEgressCreateKindInterface:
+		return true
+	case NetworkEgressCreateKindSource:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for NetworkEgressKind.
+const (
+	NetworkEgressKindDefault   NetworkEgressKind = "default"
+	NetworkEgressKindInterface NetworkEgressKind = "interface"
+	NetworkEgressKindSource    NetworkEgressKind = "source"
+)
+
+// Valid indicates whether the value is a known member of the NetworkEgressKind enum.
+func (e NetworkEgressKind) Valid() bool {
+	switch e {
+	case NetworkEgressKindDefault:
+		return true
+	case NetworkEgressKindInterface:
+		return true
+	case NetworkEgressKindSource:
 		return true
 	default:
 		return false
@@ -321,11 +474,15 @@ type AccountUpdateResult struct {
 	SessionRevoked bool    `json:"sessionRevoked"`
 }
 
+// AddressFamily defines model for AddressFamily.
+type AddressFamily string
+
 // AgentArchitecture defines model for AgentArchitecture.
 type AgentArchitecture string
 
 // AgentConfigurationSnapshot defines model for AgentConfigurationSnapshot.
 type AgentConfigurationSnapshot struct {
+	Egresses          []AgentEgressConfiguration              `json:"egresses"`
 	Enabled           bool                                    `json:"enabled"`
 	HistoryGeneration string                                  `json:"historyGeneration"`
 	Revision          int64                                   `json:"revision"`
@@ -334,6 +491,18 @@ type AgentConfigurationSnapshot struct {
 
 // AgentConfigurationSnapshotSchemaVersion defines model for AgentConfigurationSnapshot.SchemaVersion.
 type AgentConfigurationSnapshotSchemaVersion int
+
+// AgentEgressConfiguration defines model for AgentEgressConfiguration.
+type AgentEgressConfiguration struct {
+	Enabled                    bool               `json:"enabled"`
+	Family                     AddressFamily      `json:"family"`
+	Id                         openapi_types.UUID `json:"id"`
+	InterfaceName              *string            `json:"interfaceName,omitempty"`
+	Kind                       NetworkEgressKind  `json:"kind"`
+	LightweightIntervalSeconds int64              `json:"lightweightIntervalSeconds"`
+	ProbeOnAddressChange       bool               `json:"probeOnAddressChange"`
+	SourceAddress              *string            `json:"sourceAddress,omitempty"`
+}
 
 // AgentEnrollmentSettings defines model for AgentEnrollmentSettings.
 type AgentEnrollmentSettings struct {
@@ -362,10 +531,12 @@ type AgentPlatform string
 
 // AgentPollRequest defines model for AgentPollRequest.
 type AgentPollRequest struct {
-	AppliedConfigurationRevision int64         `json:"appliedConfigurationRevision"`
-	ConfigurationError           *string       `json:"configurationError,omitempty"`
-	ConfigurationErrorRevision   *int64        `json:"configurationErrorRevision,omitempty"`
-	Metadata                     AgentMetadata `json:"metadata"`
+	AppliedConfigurationRevision int64             `json:"appliedConfigurationRevision"`
+	ConfigurationError           *string           `json:"configurationError,omitempty"`
+	ConfigurationErrorRevision   *int64            `json:"configurationErrorRevision,omitempty"`
+	Metadata                     AgentMetadata     `json:"metadata"`
+	NetworkInventory             *NetworkInventory `json:"networkInventory,omitempty"`
+	NetworkInventoryError        *string           `json:"networkInventoryError,omitempty"`
 }
 
 // AgentPollResult defines model for AgentPollResult.
@@ -436,6 +607,102 @@ type LoginRequest struct {
 	Username string  `json:"username"`
 }
 
+// NetworkAddress defines model for NetworkAddress.
+type NetworkAddress struct {
+	Address       string              `json:"address"`
+	Deprecated    bool                `json:"deprecated"`
+	Duplicate     bool                `json:"duplicate"`
+	Family        AddressFamily       `json:"family"`
+	InterfaceName string              `json:"interfaceName"`
+	PrefixLength  int                 `json:"prefixLength"`
+	Scope         NetworkAddressScope `json:"scope"`
+	Temporary     bool                `json:"temporary"`
+	Tentative     bool                `json:"tentative"`
+}
+
+// NetworkAddressScope defines model for NetworkAddressScope.
+type NetworkAddressScope string
+
+// NetworkEgress defines model for NetworkEgress.
+type NetworkEgress struct {
+	Automatic                  bool               `json:"automatic"`
+	Available                  bool               `json:"available"`
+	Enabled                    bool               `json:"enabled"`
+	Family                     AddressFamily      `json:"family"`
+	Id                         openapi_types.UUID `json:"id"`
+	InterfaceName              *string            `json:"interfaceName,omitempty"`
+	Kind                       NetworkEgressKind  `json:"kind"`
+	LightweightIntervalSeconds int64              `json:"lightweightIntervalSeconds"`
+	Name                       string             `json:"name"`
+	NodeId                     openapi_types.UUID `json:"nodeId"`
+	ProbeOnAddressChange       bool               `json:"probeOnAddressChange"`
+	SourceAddress              *string            `json:"sourceAddress,omitempty"`
+}
+
+// NetworkEgressCandidate defines model for NetworkEgressCandidate.
+type NetworkEgressCandidate struct {
+	ConfiguredEgressId *openapi_types.UUID                      `json:"configuredEgressId,omitempty"`
+	Eligible           bool                                     `json:"eligible"`
+	Family             AddressFamily                            `json:"family"`
+	InterfaceName      string                                   `json:"interfaceName"`
+	Kind               NetworkEgressCandidateKind               `json:"kind"`
+	Scope              *NetworkAddressScope                     `json:"scope,omitempty"`
+	SourceAddress      *string                                  `json:"sourceAddress,omitempty"`
+	Temporary          bool                                     `json:"temporary"`
+	UnavailableReason  *NetworkEgressCandidateUnavailableReason `json:"unavailableReason,omitempty"`
+}
+
+// NetworkEgressCandidateKind defines model for NetworkEgressCandidate.Kind.
+type NetworkEgressCandidateKind string
+
+// NetworkEgressCandidateUnavailableReason defines model for NetworkEgressCandidate.UnavailableReason.
+type NetworkEgressCandidateUnavailableReason string
+
+// NetworkEgressCreate defines model for NetworkEgressCreate.
+type NetworkEgressCreate struct {
+	Family        AddressFamily           `json:"family"`
+	InterfaceName string                  `json:"interfaceName"`
+	Kind          NetworkEgressCreateKind `json:"kind"`
+	SourceAddress *string                 `json:"sourceAddress,omitempty"`
+}
+
+// NetworkEgressCreateKind defines model for NetworkEgressCreate.Kind.
+type NetworkEgressCreateKind string
+
+// NetworkEgressKind defines model for NetworkEgressKind.
+type NetworkEgressKind string
+
+// NetworkEgressUpdate defines model for NetworkEgressUpdate.
+type NetworkEgressUpdate struct {
+	Enabled bool `json:"enabled"`
+}
+
+// NetworkInterface defines model for NetworkInterface.
+type NetworkInterface struct {
+	Index    int    `json:"index"`
+	Loopback bool   `json:"loopback"`
+	Name     string `json:"name"`
+	Up       bool   `json:"up"`
+}
+
+// NetworkInventory defines model for NetworkInventory.
+type NetworkInventory struct {
+	Addresses  []NetworkAddress   `json:"addresses"`
+	CapturedAt time.Time          `json:"capturedAt"`
+	Interfaces []NetworkInterface `json:"interfaces"`
+	Routes     []NetworkRoute     `json:"routes"`
+}
+
+// NetworkRoute defines model for NetworkRoute.
+type NetworkRoute struct {
+	Default       bool          `json:"default"`
+	Destination   string        `json:"destination"`
+	Family        AddressFamily `json:"family"`
+	Gateway       *string       `json:"gateway,omitempty"`
+	InterfaceName string        `json:"interfaceName"`
+	Metric        int64         `json:"metric"`
+}
+
 // Node defines model for Node.
 type Node struct {
 	AgentVersion                 string                  `json:"agentVersion"`
@@ -476,6 +743,15 @@ type NodeDeletionStatus string
 // NodeList defines model for NodeList.
 type NodeList struct {
 	Items []Node `json:"items"`
+}
+
+// NodeNetworkState defines model for NodeNetworkState.
+type NodeNetworkState struct {
+	Candidates          []NetworkEgressCandidate `json:"candidates"`
+	Egresses            []NetworkEgress          `json:"egresses"`
+	Inventory           *NetworkInventory        `json:"inventory,omitempty"`
+	InventoryError      *string                  `json:"inventoryError,omitempty"`
+	InventoryReceivedAt *time.Time               `json:"inventoryReceivedAt,omitempty"`
 }
 
 // NodeStatus defines model for NodeStatus.
@@ -527,6 +803,9 @@ type TOTPEnrollment struct {
 
 // CSRFToken defines model for CSRFToken.
 type CSRFToken = string
+
+// EgressId defines model for EgressId.
+type EgressId = openapi_types.UUID
 
 // NodeId defines model for NodeId.
 type NodeId = openapi_types.UUID
@@ -607,6 +886,21 @@ type UpdateNodeParams struct {
 	XCSRFToken *CSRFToken `json:"X-CSRF-Token,omitempty"`
 }
 
+// CreateNodeEgressParams defines parameters for CreateNodeEgress.
+type CreateNodeEgressParams struct {
+	XCSRFToken *CSRFToken `json:"X-CSRF-Token,omitempty"`
+}
+
+// DeleteNodeEgressParams defines parameters for DeleteNodeEgress.
+type DeleteNodeEgressParams struct {
+	XCSRFToken *CSRFToken `json:"X-CSRF-Token,omitempty"`
+}
+
+// UpdateNodeEgressParams defines parameters for UpdateNodeEgress.
+type UpdateNodeEgressParams struct {
+	XCSRFToken *CSRFToken `json:"X-CSRF-Token,omitempty"`
+}
+
 // RevokeNodeParams defines parameters for RevokeNode.
 type RevokeNodeParams struct {
 	XCSRFToken *CSRFToken `json:"X-CSRF-Token,omitempty"`
@@ -651,6 +945,12 @@ type LoginJSONRequestBody = LoginRequest
 
 // UpdateNodeJSONRequestBody defines body for UpdateNode for application/json ContentType.
 type UpdateNodeJSONRequestBody = NodeUpdate
+
+// CreateNodeEgressJSONRequestBody defines body for CreateNodeEgress for application/json ContentType.
+type CreateNodeEgressJSONRequestBody = NetworkEgressCreate
+
+// UpdateNodeEgressJSONRequestBody defines body for UpdateNodeEgress for application/json ContentType.
+type UpdateNodeEgressJSONRequestBody = NetworkEgressUpdate
 
 // RequestEditorFn is the function signature for the RequestEditor callback function
 type RequestEditorFn func(ctx context.Context, req *http.Request) error
@@ -910,6 +1210,44 @@ type ClientInterface interface {
 	//
 	// Corresponds with PATCH /api/v1/nodes/{nodeId} (the `UpdateNode` operationId).
 	UpdateNode(ctx context.Context, nodeId NodeId, params *UpdateNodeParams, body UpdateNodeJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// CreateNodeEgressWithBody Enable a discovered interface or source-address egress
+	//
+	// Takes any type of body and a specified content type.
+	//
+	// Corresponds with POST /api/v1/nodes/{nodeId}/egresses (the `CreateNodeEgress` operationId).
+	CreateNodeEgressWithBody(ctx context.Context, nodeId NodeId, params *CreateNodeEgressParams, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// CreateNodeEgress Enable a discovered interface or source-address egress
+	//
+	// Takes a body of the `application/json` content type.
+	//
+	// Corresponds with POST /api/v1/nodes/{nodeId}/egresses (the `CreateNodeEgress` operationId).
+	CreateNodeEgress(ctx context.Context, nodeId NodeId, params *CreateNodeEgressParams, body CreateNodeEgressJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// DeleteNodeEgress Permanently delete a durable network egress
+	//
+	// Corresponds with DELETE /api/v1/nodes/{nodeId}/egresses/{egressId} (the `DeleteNodeEgress` operationId).
+	DeleteNodeEgress(ctx context.Context, nodeId NodeId, egressId EgressId, params *DeleteNodeEgressParams, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// UpdateNodeEgressWithBody Update a durable network egress
+	//
+	// Takes any type of body and a specified content type.
+	//
+	// Corresponds with PATCH /api/v1/nodes/{nodeId}/egresses/{egressId} (the `UpdateNodeEgress` operationId).
+	UpdateNodeEgressWithBody(ctx context.Context, nodeId NodeId, egressId EgressId, params *UpdateNodeEgressParams, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// UpdateNodeEgress Update a durable network egress
+	//
+	// Takes a body of the `application/json` content type.
+	//
+	// Corresponds with PATCH /api/v1/nodes/{nodeId}/egresses/{egressId} (the `UpdateNodeEgress` operationId).
+	UpdateNodeEgress(ctx context.Context, nodeId NodeId, egressId EgressId, params *UpdateNodeEgressParams, body UpdateNodeEgressJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// GetNodeNetwork Read the latest network inventory, candidates, and configured egresses
+	//
+	// Corresponds with GET /api/v1/nodes/{nodeId}/network (the `GetNodeNetwork` operationId).
+	GetNodeNetwork(ctx context.Context, nodeId NodeId, reqEditors ...RequestEditorFn) (*http.Response, error)
 
 	// RevokeNode Permanently revoke a node Agent credential
 	//
@@ -1397,6 +1735,104 @@ func (c *Client) UpdateNodeWithBody(ctx context.Context, nodeId NodeId, params *
 // Corresponds with PATCH /api/v1/nodes/{nodeId} (the `UpdateNode` operationId).
 func (c *Client) UpdateNode(ctx context.Context, nodeId NodeId, params *UpdateNodeParams, body UpdateNodeJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error) {
 	req, err := NewUpdateNodeRequest(c.Server, nodeId, params, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+// CreateNodeEgressWithBody Enable a discovered interface or source-address egress
+//
+// Takes any type of body and a specified content type.
+//
+// Corresponds with POST /api/v1/nodes/{nodeId}/egresses (the `CreateNodeEgress` operationId).
+func (c *Client) CreateNodeEgressWithBody(ctx context.Context, nodeId NodeId, params *CreateNodeEgressParams, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewCreateNodeEgressRequestWithBody(c.Server, nodeId, params, contentType, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+// CreateNodeEgress Enable a discovered interface or source-address egress
+//
+// Takes a body of the `application/json` content type.
+//
+// Corresponds with POST /api/v1/nodes/{nodeId}/egresses (the `CreateNodeEgress` operationId).
+func (c *Client) CreateNodeEgress(ctx context.Context, nodeId NodeId, params *CreateNodeEgressParams, body CreateNodeEgressJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewCreateNodeEgressRequest(c.Server, nodeId, params, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+// DeleteNodeEgress Permanently delete a durable network egress
+//
+// Corresponds with DELETE /api/v1/nodes/{nodeId}/egresses/{egressId} (the `DeleteNodeEgress` operationId).
+func (c *Client) DeleteNodeEgress(ctx context.Context, nodeId NodeId, egressId EgressId, params *DeleteNodeEgressParams, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewDeleteNodeEgressRequest(c.Server, nodeId, egressId, params)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+// UpdateNodeEgressWithBody Update a durable network egress
+//
+// Takes any type of body and a specified content type.
+//
+// Corresponds with PATCH /api/v1/nodes/{nodeId}/egresses/{egressId} (the `UpdateNodeEgress` operationId).
+func (c *Client) UpdateNodeEgressWithBody(ctx context.Context, nodeId NodeId, egressId EgressId, params *UpdateNodeEgressParams, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewUpdateNodeEgressRequestWithBody(c.Server, nodeId, egressId, params, contentType, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+// UpdateNodeEgress Update a durable network egress
+//
+// Takes a body of the `application/json` content type.
+//
+// Corresponds with PATCH /api/v1/nodes/{nodeId}/egresses/{egressId} (the `UpdateNodeEgress` operationId).
+func (c *Client) UpdateNodeEgress(ctx context.Context, nodeId NodeId, egressId EgressId, params *UpdateNodeEgressParams, body UpdateNodeEgressJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewUpdateNodeEgressRequest(c.Server, nodeId, egressId, params, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+// GetNodeNetwork Read the latest network inventory, candidates, and configured egresses
+//
+// Corresponds with GET /api/v1/nodes/{nodeId}/network (the `GetNodeNetwork` operationId).
+func (c *Client) GetNodeNetwork(ctx context.Context, nodeId NodeId, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewGetNodeNetworkRequest(c.Server, nodeId)
 	if err != nil {
 		return nil, err
 	}
@@ -2289,6 +2725,227 @@ func NewUpdateNodeRequestWithBody(server string, nodeId NodeId, params *UpdateNo
 	return req, nil
 }
 
+// NewCreateNodeEgressRequest calls the generic CreateNodeEgress builder with application/json body
+func NewCreateNodeEgressRequest(server string, nodeId NodeId, params *CreateNodeEgressParams, body CreateNodeEgressJSONRequestBody) (*http.Request, error) {
+	var bodyReader io.Reader
+	buf, err := json.Marshal(body)
+	if err != nil {
+		return nil, err
+	}
+	bodyReader = bytes.NewReader(buf)
+	return NewCreateNodeEgressRequestWithBody(server, nodeId, params, "application/json", bodyReader)
+}
+
+// NewCreateNodeEgressRequestWithBody constructs an http.Request for the CreateNodeEgress method, with any body, and a specified content type
+func NewCreateNodeEgressRequestWithBody(server string, nodeId NodeId, params *CreateNodeEgressParams, contentType string, body io.Reader) (*http.Request, error) {
+	var err error
+
+	var pathParam0 string
+
+	pathParam0, err = runtime.StyleParamWithOptions("simple", false, "nodeId", nodeId, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationPath, Type: "string", Format: "uuid"})
+	if err != nil {
+		return nil, err
+	}
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/api/v1/nodes/%s/egresses", pathParam0)
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest(http.MethodPost, queryURL.String(), body)
+	if err != nil {
+		return nil, err
+	}
+
+	req.Header.Add("Content-Type", contentType)
+
+	if params != nil {
+
+		if params.XCSRFToken != nil {
+			var headerParam0 string
+
+			headerParam0, err = runtime.StyleParamWithOptions("simple", false, "X-CSRF-Token", *params.XCSRFToken, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationHeader, Type: "string", Format: ""})
+			if err != nil {
+				return nil, err
+			}
+
+			req.Header.Set("X-CSRF-Token", headerParam0)
+		}
+
+	}
+
+	return req, nil
+}
+
+// NewDeleteNodeEgressRequest constructs an http.Request for the DeleteNodeEgress method
+func NewDeleteNodeEgressRequest(server string, nodeId NodeId, egressId EgressId, params *DeleteNodeEgressParams) (*http.Request, error) {
+	var err error
+
+	var pathParam0 string
+
+	pathParam0, err = runtime.StyleParamWithOptions("simple", false, "nodeId", nodeId, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationPath, Type: "string", Format: "uuid"})
+	if err != nil {
+		return nil, err
+	}
+
+	var pathParam1 string
+
+	pathParam1, err = runtime.StyleParamWithOptions("simple", false, "egressId", egressId, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationPath, Type: "string", Format: "uuid"})
+	if err != nil {
+		return nil, err
+	}
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/api/v1/nodes/%s/egresses/%s", pathParam0, pathParam1)
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest(http.MethodDelete, queryURL.String(), nil)
+	if err != nil {
+		return nil, err
+	}
+
+	if params != nil {
+
+		if params.XCSRFToken != nil {
+			var headerParam0 string
+
+			headerParam0, err = runtime.StyleParamWithOptions("simple", false, "X-CSRF-Token", *params.XCSRFToken, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationHeader, Type: "string", Format: ""})
+			if err != nil {
+				return nil, err
+			}
+
+			req.Header.Set("X-CSRF-Token", headerParam0)
+		}
+
+	}
+
+	return req, nil
+}
+
+// NewUpdateNodeEgressRequest calls the generic UpdateNodeEgress builder with application/json body
+func NewUpdateNodeEgressRequest(server string, nodeId NodeId, egressId EgressId, params *UpdateNodeEgressParams, body UpdateNodeEgressJSONRequestBody) (*http.Request, error) {
+	var bodyReader io.Reader
+	buf, err := json.Marshal(body)
+	if err != nil {
+		return nil, err
+	}
+	bodyReader = bytes.NewReader(buf)
+	return NewUpdateNodeEgressRequestWithBody(server, nodeId, egressId, params, "application/json", bodyReader)
+}
+
+// NewUpdateNodeEgressRequestWithBody constructs an http.Request for the UpdateNodeEgress method, with any body, and a specified content type
+func NewUpdateNodeEgressRequestWithBody(server string, nodeId NodeId, egressId EgressId, params *UpdateNodeEgressParams, contentType string, body io.Reader) (*http.Request, error) {
+	var err error
+
+	var pathParam0 string
+
+	pathParam0, err = runtime.StyleParamWithOptions("simple", false, "nodeId", nodeId, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationPath, Type: "string", Format: "uuid"})
+	if err != nil {
+		return nil, err
+	}
+
+	var pathParam1 string
+
+	pathParam1, err = runtime.StyleParamWithOptions("simple", false, "egressId", egressId, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationPath, Type: "string", Format: "uuid"})
+	if err != nil {
+		return nil, err
+	}
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/api/v1/nodes/%s/egresses/%s", pathParam0, pathParam1)
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest(http.MethodPatch, queryURL.String(), body)
+	if err != nil {
+		return nil, err
+	}
+
+	req.Header.Add("Content-Type", contentType)
+
+	if params != nil {
+
+		if params.XCSRFToken != nil {
+			var headerParam0 string
+
+			headerParam0, err = runtime.StyleParamWithOptions("simple", false, "X-CSRF-Token", *params.XCSRFToken, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationHeader, Type: "string", Format: ""})
+			if err != nil {
+				return nil, err
+			}
+
+			req.Header.Set("X-CSRF-Token", headerParam0)
+		}
+
+	}
+
+	return req, nil
+}
+
+// NewGetNodeNetworkRequest constructs an http.Request for the GetNodeNetwork method
+func NewGetNodeNetworkRequest(server string, nodeId NodeId) (*http.Request, error) {
+	var err error
+
+	var pathParam0 string
+
+	pathParam0, err = runtime.StyleParamWithOptions("simple", false, "nodeId", nodeId, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationPath, Type: "string", Format: "uuid"})
+	if err != nil {
+		return nil, err
+	}
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/api/v1/nodes/%s/network", pathParam0)
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest(http.MethodGet, queryURL.String(), nil)
+	if err != nil {
+		return nil, err
+	}
+
+	return req, nil
+}
+
 // NewRevokeNodeRequest constructs an http.Request for the RevokeNode method
 func NewRevokeNodeRequest(server string, nodeId NodeId, params *RevokeNodeParams) (*http.Request, error) {
 	var err error
@@ -2709,6 +3366,48 @@ type ClientWithResponsesInterface interface {
 	//
 	// Corresponds with PATCH /api/v1/nodes/{nodeId} (the `UpdateNode` operationId).
 	UpdateNodeWithResponse(ctx context.Context, nodeId NodeId, params *UpdateNodeParams, body UpdateNodeJSONRequestBody, reqEditors ...RequestEditorFn) (*UpdateNodeResponse, error)
+
+	// CreateNodeEgressWithBodyWithResponse Enable a discovered interface or source-address egress
+	//
+	// Takes any type of body and a specified content type, and returns a wrapper object for the known response body format(s).
+	//
+	// Corresponds with POST /api/v1/nodes/{nodeId}/egresses (the `CreateNodeEgress` operationId).
+	CreateNodeEgressWithBodyWithResponse(ctx context.Context, nodeId NodeId, params *CreateNodeEgressParams, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*CreateNodeEgressResponse, error)
+
+	// CreateNodeEgressWithResponse Enable a discovered interface or source-address egress
+	//
+	// Takes a body of the `application/json` content type, and returns a wrapper object for the known response body format(s).
+	//
+	// Corresponds with POST /api/v1/nodes/{nodeId}/egresses (the `CreateNodeEgress` operationId).
+	CreateNodeEgressWithResponse(ctx context.Context, nodeId NodeId, params *CreateNodeEgressParams, body CreateNodeEgressJSONRequestBody, reqEditors ...RequestEditorFn) (*CreateNodeEgressResponse, error)
+
+	// DeleteNodeEgressWithResponse Permanently delete a durable network egress
+	//
+	// Returns a wrapper object for the known response body format(s).
+	//
+	// Corresponds with DELETE /api/v1/nodes/{nodeId}/egresses/{egressId} (the `DeleteNodeEgress` operationId).
+	DeleteNodeEgressWithResponse(ctx context.Context, nodeId NodeId, egressId EgressId, params *DeleteNodeEgressParams, reqEditors ...RequestEditorFn) (*DeleteNodeEgressResponse, error)
+
+	// UpdateNodeEgressWithBodyWithResponse Update a durable network egress
+	//
+	// Takes any type of body and a specified content type, and returns a wrapper object for the known response body format(s).
+	//
+	// Corresponds with PATCH /api/v1/nodes/{nodeId}/egresses/{egressId} (the `UpdateNodeEgress` operationId).
+	UpdateNodeEgressWithBodyWithResponse(ctx context.Context, nodeId NodeId, egressId EgressId, params *UpdateNodeEgressParams, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*UpdateNodeEgressResponse, error)
+
+	// UpdateNodeEgressWithResponse Update a durable network egress
+	//
+	// Takes a body of the `application/json` content type, and returns a wrapper object for the known response body format(s).
+	//
+	// Corresponds with PATCH /api/v1/nodes/{nodeId}/egresses/{egressId} (the `UpdateNodeEgress` operationId).
+	UpdateNodeEgressWithResponse(ctx context.Context, nodeId NodeId, egressId EgressId, params *UpdateNodeEgressParams, body UpdateNodeEgressJSONRequestBody, reqEditors ...RequestEditorFn) (*UpdateNodeEgressResponse, error)
+
+	// GetNodeNetworkWithResponse Read the latest network inventory, candidates, and configured egresses
+	//
+	// Returns a wrapper object for the known response body format(s).
+	//
+	// Corresponds with GET /api/v1/nodes/{nodeId}/network (the `GetNodeNetwork` operationId).
+	GetNodeNetworkWithResponse(ctx context.Context, nodeId NodeId, reqEditors ...RequestEditorFn) (*GetNodeNetworkResponse, error)
 
 	// RevokeNodeWithResponse Permanently revoke a node Agent credential
 	//
@@ -3896,6 +4595,275 @@ func (r UpdateNodeResponse) ContentType() string {
 	return ""
 }
 
+type CreateNodeEgressResponse struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	// JSON201 the response for an HTTP 201 `application/json` response
+	JSON201 *NetworkEgress
+	// JSON400 the response for an HTTP 400 `application/json` response
+	JSON400 *BadRequest
+	// JSON401 the response for an HTTP 401 `application/json` response
+	JSON401 *Unauthorized
+	// JSON403 the response for an HTTP 403 `application/json` response
+	JSON403 *Forbidden
+	// JSON404 the response for an HTTP 404 `application/json` response
+	JSON404 *NotFound
+	// JSON409 the response for an HTTP 409 `application/json` response
+	JSON409 *Conflict
+}
+
+// GetJSON201 returns the response for an HTTP 201 `application/json` response
+func (r CreateNodeEgressResponse) GetJSON201() *NetworkEgress {
+	return r.JSON201
+}
+
+// GetJSON400 returns the response for an HTTP 400 `application/json` response
+func (r CreateNodeEgressResponse) GetJSON400() *BadRequest {
+	return r.JSON400
+}
+
+// GetJSON401 returns the response for an HTTP 401 `application/json` response
+func (r CreateNodeEgressResponse) GetJSON401() *Unauthorized {
+	return r.JSON401
+}
+
+// GetJSON403 returns the response for an HTTP 403 `application/json` response
+func (r CreateNodeEgressResponse) GetJSON403() *Forbidden {
+	return r.JSON403
+}
+
+// GetJSON404 returns the response for an HTTP 404 `application/json` response
+func (r CreateNodeEgressResponse) GetJSON404() *NotFound {
+	return r.JSON404
+}
+
+// GetJSON409 returns the response for an HTTP 409 `application/json` response
+func (r CreateNodeEgressResponse) GetJSON409() *Conflict {
+	return r.JSON409
+}
+
+// GetBody returns the raw response body bytes
+func (r CreateNodeEgressResponse) GetBody() []byte {
+	return r.Body
+}
+
+// Status returns HTTPResponse.Status
+func (r CreateNodeEgressResponse) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r CreateNodeEgressResponse) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+// ContentType is a convenience method to retrieve the Content-Type value from the HTTP response headers
+func (r CreateNodeEgressResponse) ContentType() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Header.Get("Content-Type")
+	}
+	return ""
+}
+
+type DeleteNodeEgressResponse struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	// JSON401 the response for an HTTP 401 `application/json` response
+	JSON401 *Unauthorized
+	// JSON403 the response for an HTTP 403 `application/json` response
+	JSON403 *Forbidden
+	// JSON404 the response for an HTTP 404 `application/json` response
+	JSON404 *NotFound
+	// JSON409 the response for an HTTP 409 `application/json` response
+	JSON409 *Conflict
+}
+
+// GetJSON401 returns the response for an HTTP 401 `application/json` response
+func (r DeleteNodeEgressResponse) GetJSON401() *Unauthorized {
+	return r.JSON401
+}
+
+// GetJSON403 returns the response for an HTTP 403 `application/json` response
+func (r DeleteNodeEgressResponse) GetJSON403() *Forbidden {
+	return r.JSON403
+}
+
+// GetJSON404 returns the response for an HTTP 404 `application/json` response
+func (r DeleteNodeEgressResponse) GetJSON404() *NotFound {
+	return r.JSON404
+}
+
+// GetJSON409 returns the response for an HTTP 409 `application/json` response
+func (r DeleteNodeEgressResponse) GetJSON409() *Conflict {
+	return r.JSON409
+}
+
+// GetBody returns the raw response body bytes
+func (r DeleteNodeEgressResponse) GetBody() []byte {
+	return r.Body
+}
+
+// Status returns HTTPResponse.Status
+func (r DeleteNodeEgressResponse) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r DeleteNodeEgressResponse) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+// ContentType is a convenience method to retrieve the Content-Type value from the HTTP response headers
+func (r DeleteNodeEgressResponse) ContentType() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Header.Get("Content-Type")
+	}
+	return ""
+}
+
+type UpdateNodeEgressResponse struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	// JSON200 the response for an HTTP 200 `application/json` response
+	JSON200 *NetworkEgress
+	// JSON400 the response for an HTTP 400 `application/json` response
+	JSON400 *BadRequest
+	// JSON401 the response for an HTTP 401 `application/json` response
+	JSON401 *Unauthorized
+	// JSON403 the response for an HTTP 403 `application/json` response
+	JSON403 *Forbidden
+	// JSON404 the response for an HTTP 404 `application/json` response
+	JSON404 *NotFound
+	// JSON409 the response for an HTTP 409 `application/json` response
+	JSON409 *Conflict
+}
+
+// GetJSON200 returns the response for an HTTP 200 `application/json` response
+func (r UpdateNodeEgressResponse) GetJSON200() *NetworkEgress {
+	return r.JSON200
+}
+
+// GetJSON400 returns the response for an HTTP 400 `application/json` response
+func (r UpdateNodeEgressResponse) GetJSON400() *BadRequest {
+	return r.JSON400
+}
+
+// GetJSON401 returns the response for an HTTP 401 `application/json` response
+func (r UpdateNodeEgressResponse) GetJSON401() *Unauthorized {
+	return r.JSON401
+}
+
+// GetJSON403 returns the response for an HTTP 403 `application/json` response
+func (r UpdateNodeEgressResponse) GetJSON403() *Forbidden {
+	return r.JSON403
+}
+
+// GetJSON404 returns the response for an HTTP 404 `application/json` response
+func (r UpdateNodeEgressResponse) GetJSON404() *NotFound {
+	return r.JSON404
+}
+
+// GetJSON409 returns the response for an HTTP 409 `application/json` response
+func (r UpdateNodeEgressResponse) GetJSON409() *Conflict {
+	return r.JSON409
+}
+
+// GetBody returns the raw response body bytes
+func (r UpdateNodeEgressResponse) GetBody() []byte {
+	return r.Body
+}
+
+// Status returns HTTPResponse.Status
+func (r UpdateNodeEgressResponse) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r UpdateNodeEgressResponse) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+// ContentType is a convenience method to retrieve the Content-Type value from the HTTP response headers
+func (r UpdateNodeEgressResponse) ContentType() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Header.Get("Content-Type")
+	}
+	return ""
+}
+
+type GetNodeNetworkResponse struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	// JSON200 the response for an HTTP 200 `application/json` response
+	JSON200 *NodeNetworkState
+	// JSON401 the response for an HTTP 401 `application/json` response
+	JSON401 *Unauthorized
+	// JSON404 the response for an HTTP 404 `application/json` response
+	JSON404 *NotFound
+}
+
+// GetJSON200 returns the response for an HTTP 200 `application/json` response
+func (r GetNodeNetworkResponse) GetJSON200() *NodeNetworkState {
+	return r.JSON200
+}
+
+// GetJSON401 returns the response for an HTTP 401 `application/json` response
+func (r GetNodeNetworkResponse) GetJSON401() *Unauthorized {
+	return r.JSON401
+}
+
+// GetJSON404 returns the response for an HTTP 404 `application/json` response
+func (r GetNodeNetworkResponse) GetJSON404() *NotFound {
+	return r.JSON404
+}
+
+// GetBody returns the raw response body bytes
+func (r GetNodeNetworkResponse) GetBody() []byte {
+	return r.Body
+}
+
+// Status returns HTTPResponse.Status
+func (r GetNodeNetworkResponse) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r GetNodeNetworkResponse) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+// ContentType is a convenience method to retrieve the Content-Type value from the HTTP response headers
+func (r GetNodeNetworkResponse) ContentType() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Header.Get("Content-Type")
+	}
+	return ""
+}
+
 type RevokeNodeResponse struct {
 	Body         []byte
 	HTTPResponse *http.Response
@@ -4519,6 +5487,84 @@ func (c *ClientWithResponses) UpdateNodeWithResponse(ctx context.Context, nodeId
 		return nil, err
 	}
 	return ParseUpdateNodeResponse(rsp)
+}
+
+// CreateNodeEgressWithBodyWithResponse Enable a discovered interface or source-address egress
+//
+// Takes any type of body and a specified content type, and returns a wrapper object for the known response body format(s).
+//
+// Corresponds with POST /api/v1/nodes/{nodeId}/egresses (the `CreateNodeEgress` operationId).
+func (c *ClientWithResponses) CreateNodeEgressWithBodyWithResponse(ctx context.Context, nodeId NodeId, params *CreateNodeEgressParams, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*CreateNodeEgressResponse, error) {
+	rsp, err := c.CreateNodeEgressWithBody(ctx, nodeId, params, contentType, body, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseCreateNodeEgressResponse(rsp)
+}
+
+// CreateNodeEgressWithResponse Enable a discovered interface or source-address egress
+//
+// Takes a body of the `application/json` content type, and returns a wrapper object for the known response body format(s).
+//
+// Corresponds with POST /api/v1/nodes/{nodeId}/egresses (the `CreateNodeEgress` operationId).
+func (c *ClientWithResponses) CreateNodeEgressWithResponse(ctx context.Context, nodeId NodeId, params *CreateNodeEgressParams, body CreateNodeEgressJSONRequestBody, reqEditors ...RequestEditorFn) (*CreateNodeEgressResponse, error) {
+	rsp, err := c.CreateNodeEgress(ctx, nodeId, params, body, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseCreateNodeEgressResponse(rsp)
+}
+
+// DeleteNodeEgressWithResponse Permanently delete a durable network egress
+//
+// Returns a wrapper object for the known response body format(s).
+//
+// Corresponds with DELETE /api/v1/nodes/{nodeId}/egresses/{egressId} (the `DeleteNodeEgress` operationId).
+func (c *ClientWithResponses) DeleteNodeEgressWithResponse(ctx context.Context, nodeId NodeId, egressId EgressId, params *DeleteNodeEgressParams, reqEditors ...RequestEditorFn) (*DeleteNodeEgressResponse, error) {
+	rsp, err := c.DeleteNodeEgress(ctx, nodeId, egressId, params, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseDeleteNodeEgressResponse(rsp)
+}
+
+// UpdateNodeEgressWithBodyWithResponse Update a durable network egress
+//
+// Takes any type of body and a specified content type, and returns a wrapper object for the known response body format(s).
+//
+// Corresponds with PATCH /api/v1/nodes/{nodeId}/egresses/{egressId} (the `UpdateNodeEgress` operationId).
+func (c *ClientWithResponses) UpdateNodeEgressWithBodyWithResponse(ctx context.Context, nodeId NodeId, egressId EgressId, params *UpdateNodeEgressParams, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*UpdateNodeEgressResponse, error) {
+	rsp, err := c.UpdateNodeEgressWithBody(ctx, nodeId, egressId, params, contentType, body, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseUpdateNodeEgressResponse(rsp)
+}
+
+// UpdateNodeEgressWithResponse Update a durable network egress
+//
+// Takes a body of the `application/json` content type, and returns a wrapper object for the known response body format(s).
+//
+// Corresponds with PATCH /api/v1/nodes/{nodeId}/egresses/{egressId} (the `UpdateNodeEgress` operationId).
+func (c *ClientWithResponses) UpdateNodeEgressWithResponse(ctx context.Context, nodeId NodeId, egressId EgressId, params *UpdateNodeEgressParams, body UpdateNodeEgressJSONRequestBody, reqEditors ...RequestEditorFn) (*UpdateNodeEgressResponse, error) {
+	rsp, err := c.UpdateNodeEgress(ctx, nodeId, egressId, params, body, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseUpdateNodeEgressResponse(rsp)
+}
+
+// GetNodeNetworkWithResponse Read the latest network inventory, candidates, and configured egresses
+//
+// Returns a wrapper object for the known response body format(s).
+//
+// Corresponds with GET /api/v1/nodes/{nodeId}/network (the `GetNodeNetwork` operationId).
+func (c *ClientWithResponses) GetNodeNetworkWithResponse(ctx context.Context, nodeId NodeId, reqEditors ...RequestEditorFn) (*GetNodeNetworkResponse, error) {
+	rsp, err := c.GetNodeNetwork(ctx, nodeId, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseGetNodeNetworkResponse(rsp)
 }
 
 // RevokeNodeWithResponse Permanently revoke a node Agent credential
@@ -5478,6 +6524,218 @@ func ParseUpdateNodeResponse(rsp *http.Response) (*UpdateNodeResponse, error) {
 			return nil, err
 		}
 		response.JSON409 = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseCreateNodeEgressResponse parses an HTTP response from a CreateNodeEgressWithResponse call
+func ParseCreateNodeEgressResponse(rsp *http.Response) (*CreateNodeEgressResponse, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &CreateNodeEgressResponse{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 201:
+		var dest NetworkEgress
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON201 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 400:
+		var dest BadRequest
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON400 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 401:
+		var dest Unauthorized
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON401 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 403:
+		var dest Forbidden
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON403 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 404:
+		var dest NotFound
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON404 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 409:
+		var dest Conflict
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON409 = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseDeleteNodeEgressResponse parses an HTTP response from a DeleteNodeEgressWithResponse call
+func ParseDeleteNodeEgressResponse(rsp *http.Response) (*DeleteNodeEgressResponse, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &DeleteNodeEgressResponse{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case rsp.StatusCode == 204:
+		break // No content-type
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 401:
+		var dest Unauthorized
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON401 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 403:
+		var dest Forbidden
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON403 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 404:
+		var dest NotFound
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON404 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 409:
+		var dest Conflict
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON409 = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseUpdateNodeEgressResponse parses an HTTP response from a UpdateNodeEgressWithResponse call
+func ParseUpdateNodeEgressResponse(rsp *http.Response) (*UpdateNodeEgressResponse, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &UpdateNodeEgressResponse{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest NetworkEgress
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 400:
+		var dest BadRequest
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON400 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 401:
+		var dest Unauthorized
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON401 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 403:
+		var dest Forbidden
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON403 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 404:
+		var dest NotFound
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON404 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 409:
+		var dest Conflict
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON409 = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseGetNodeNetworkResponse parses an HTTP response from a GetNodeNetworkWithResponse call
+func ParseGetNodeNetworkResponse(rsp *http.Response) (*GetNodeNetworkResponse, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &GetNodeNetworkResponse{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest NodeNetworkState
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 401:
+		var dest Unauthorized
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON401 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 404:
+		var dest NotFound
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON404 = &dest
 
 	}
 
