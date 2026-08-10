@@ -137,6 +137,8 @@ func (c *Connection) Run() error {
 	defer ticker.Stop()
 	leaseTimer := time.NewTimer(max(time.Until(c.expiresAt), 0))
 	defer leaseTimer.Stop()
+	pingResult := make(chan error, 1)
+	pinging := false
 	if err := c.writeWake(); err != nil {
 		return err
 	}
@@ -151,17 +153,28 @@ func (c *Connection) Run() error {
 				return nil
 			}
 			return err
+		case err := <-pingResult:
+			pinging = false
+			if err != nil {
+				return fmt.Errorf("ping Agent sync connection: %w", err)
+			}
 		case <-c.wake:
 			if err := c.writeWake(); err != nil {
 				return err
 			}
 		case <-ticker.C:
-			ctx, cancel := context.WithTimeout(c.ctx, c.hub.pingTimeout)
-			err := c.conn.Ping(ctx)
-			cancel()
-			if err != nil {
-				return fmt.Errorf("ping Agent sync connection: %w", err)
+			if !time.Now().Before(c.expiresAt) {
+				return nil
 			}
+			if pinging {
+				continue
+			}
+			pinging = true
+			go func() {
+				ctx, cancel := context.WithTimeout(c.ctx, c.hub.pingTimeout)
+				defer cancel()
+				pingResult <- c.conn.Ping(ctx)
+			}()
 		}
 	}
 }

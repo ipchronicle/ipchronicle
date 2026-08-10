@@ -190,7 +190,7 @@ func TestJavaScriptWorkerHTTPAndIsolation(t *testing.T) {
 		_, _ = w.Write([]byte("ok"))
 	}))
 	t.Cleanup(receiver.Close)
-	runner := ProcessJavaScriptRunner{Executable: os.Args[0], Timeout: 3 * time.Second}
+	runner := ProcessJavaScriptRunner{Executable: os.Args[0], Timeout: functionalWorkerTestTimeout()}
 	script := `
 		if (typeof process !== "undefined" || typeof require !== "undefined" || typeof fetch !== "undefined") {
 			throw new Error("host leaked");
@@ -234,7 +234,8 @@ func TestJavaScriptWorkerRedactsExceptionAndStopsRunawayWork(t *testing.T) {
 	result = runner.Run(context.Background(), JavaScriptRequest{
 		Script: `for (;;) {}`, Event: json.RawMessage(`{"id":"event-1"}`), Title: "title", Body: "body",
 	})
-	if result.Code != "worker-timeout" || time.Since(started) > timeout+3*time.Second {
+	if result.Code != "worker-timeout" ||
+		time.Since(started) > javaScriptWorkerStartupTimeout+timeout+javaScriptWorkerShutdownGrace+time.Second {
 		t.Fatalf("runaway result = %#v after %s", result, time.Since(started))
 	}
 }
@@ -273,6 +274,13 @@ func boundaryWorkerTestTimeout() time.Duration {
 		return 3 * time.Second
 	}
 	return 500 * time.Millisecond
+}
+
+func functionalWorkerTestTimeout() time.Duration {
+	if raceInstrumentationEnabled {
+		return javaScriptWorkerTimeout
+	}
+	return 3 * time.Second
 }
 
 func newNotificationTestService(t *testing.T) (*Service, *database.Store, uuid.UUID, uuid.UUID) {

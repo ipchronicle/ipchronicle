@@ -11,6 +11,7 @@ import (
 	"net/url"
 	"os"
 	"os/exec"
+	"strconv"
 	"strings"
 	"sync/atomic"
 	"syscall"
@@ -24,12 +25,17 @@ import (
 const (
 	javaScriptWorkerProtocolVersion = 1
 	javaScriptWorkerTimeout         = 30 * time.Second
+	javaScriptWorkerStartupTimeout  = 10 * time.Second
+	javaScriptWorkerShutdownGrace   = 2 * time.Second
 	javaScriptRequestTimeout        = 10 * time.Second
 	javaScriptDataLimit             = 128 * 1024 * 1024
 	maximumJavaScriptRequests       = 10
 	maximumJavaScriptBodyBytes      = 1024 * 1024
 	maximumWorkerOutputBytes        = 16 * 1024
 	maximumWorkerInputBytes         = 2 * 1024 * 1024
+	workerReadyEnvironment          = "IPCHRONICLE_NOTIFICATION_WORKER_READY_FD"
+	workerReadyDescriptor           = 3
+	workerReadyByte                 = 1
 )
 
 type JavaScriptRequest struct {
@@ -93,17 +99,28 @@ func (r ProcessJavaScriptRunner) Run(ctx context.Context, request JavaScriptRequ
 		return DeliveryError{Code: "worker-failed"}
 	}
 	defer outputFile.Close()
-	command := exec.Command(r.Executable, "notification-worker")
-	command.Env = environmentWithValue(os.Environ(), "GOMAXPROCS", "1")
-	command.Stdin = inputFile
-	command.Stdout = outputFile
-	command.SysProcAttr = &syscall.SysProcAttr{Setpgid: true, Pdeathsig: syscall.SIGKILL}
-	if err := command.Start(); err != nil {
+	readyReader, readyWriter, err := os.Pipe()
+	if err != nil {
 		return DeliveryError{Code: "worker-failed"}
 	}
+	defer readyReader.Close()
+	command := exec.Command(r.Executable, "notification-worker")
+	command.Env = environmentWithValue(os.Environ(), "GOMAXPROCS", "1")
+	command.Env = environmentWithValue(command.Env, workerReadyEnvironment, strconv.Itoa(workerReadyDescriptor))
+	command.Stdin = inputFile
+	command.Stdout = outputFile
+	command.ExtraFiles = []*os.File{readyWriter}
+	command.SysProcAttr = &syscall.SysProcAttr{Setpgid: true, Pdeathsig: syscall.SIGKILL}
+	if err := command.Start(); err != nil {
+		_ = readyWriter.Close()
+		return DeliveryError{Code: "worker-failed"}
+	}
+	_ = readyWriter.Close()
 	completed := make(chan struct{})
+	ready := make(chan struct{}, 1)
+	go awaitWorkerReady(readyReader, ready)
 	var canceled atomic.Bool
-	go superviseWorker(ctx, command.Process, timeout, completed, &canceled)
+	go superviseWorker(ctx, command.Process, timeout, ready, completed, &canceled)
 	err = command.Wait()
 	close(completed)
 	if err != nil {
@@ -140,11 +157,18 @@ func (r ProcessJavaScriptRunner) Run(ctx context.Context, request JavaScriptRequ
 }
 
 func RunJavaScriptWorker(input io.Reader, output io.Writer) error {
-	response := executeJavaScriptWorker(input)
+	readyFile, err := javaScriptWorkerReadyFile()
+	if err != nil {
+		return err
+	}
+	if readyFile != nil {
+		defer readyFile.Close()
+	}
+	response := executeJavaScriptWorker(input, readyFile)
 	return json.NewEncoder(output).Encode(response)
 }
 
-func executeJavaScriptWorker(input io.Reader) (response workerResponse) {
+func executeJavaScriptWorker(input io.Reader, ready io.Writer) (response workerResponse) {
 	response = workerResponse{Code: "worker-failed"}
 	defer func() {
 		if recover() != nil {
@@ -177,6 +201,11 @@ func executeJavaScriptWorker(input io.Reader) (response workerResponse) {
 	}
 	if err := armWorkerKillTimer(time.Duration(request.TimeoutMilliseconds) * time.Millisecond); err != nil {
 		return workerResponse{Code: "resource-limit-unavailable"}
+	}
+	if ready != nil {
+		if _, err := ready.Write([]byte{workerReadyByte}); err != nil {
+			return workerResponse{Code: "resource-limit-unavailable"}
+		}
 	}
 	runtime := goja.New()
 	deadline := time.Now().Add(time.Duration(request.TimeoutMilliseconds) * time.Millisecond)
@@ -233,15 +262,53 @@ func workerExitedWithSignal(err error, signal syscall.Signal) bool {
 	return ok && waitStatus.Signaled() && waitStatus.Signal() == signal
 }
 
-func superviseWorker(ctx context.Context, process *os.Process, timeout time.Duration, completed <-chan struct{}, canceled *atomic.Bool) {
-	timer := time.NewTimer(timeout)
-	defer timer.Stop()
+func javaScriptWorkerReadyFile() (*os.File, error) {
+	value := os.Getenv(workerReadyEnvironment)
+	if value == "" {
+		return nil, nil
+	}
+	descriptor, err := strconv.Atoi(value)
+	if err != nil || descriptor != workerReadyDescriptor {
+		return nil, errors.New("invalid notification worker ready descriptor")
+	}
+	return os.NewFile(uintptr(descriptor), "ipchronicle-notification-ready"), nil
+}
+
+func awaitWorkerReady(reader io.Reader, ready chan<- struct{}) {
+	var signal [1]byte
+	if _, err := io.ReadFull(reader, signal[:]); err == nil && signal[0] == workerReadyByte {
+		ready <- struct{}{}
+	}
+}
+
+func superviseWorker(
+	ctx context.Context,
+	process *os.Process,
+	timeout time.Duration,
+	ready <-chan struct{},
+	completed <-chan struct{},
+	canceled *atomic.Bool,
+) {
+	startupTimer := time.NewTimer(javaScriptWorkerStartupTimeout)
 	select {
 	case <-ctx.Done():
+		startupTimer.Stop()
 		canceled.Store(true)
-	case <-timer.C:
 	case <-completed:
+		startupTimer.Stop()
 		return
+	case <-ready:
+		startupTimer.Stop()
+		executionTimer := time.NewTimer(timeout + javaScriptWorkerShutdownGrace)
+		defer executionTimer.Stop()
+		select {
+		case <-ctx.Done():
+			canceled.Store(true)
+		case <-executionTimer.C:
+		case <-completed:
+			return
+		}
+	case <-startupTimer.C:
 	}
 	_ = unix.Kill(-process.Pid, unix.SIGKILL)
 	_ = process.Kill()

@@ -101,6 +101,28 @@ func TestHubExpiresConnectionAndMaintainsPingPong(t *testing.T) {
 	waitForConnection(t, hub, "node-1", "session-1", false)
 }
 
+func TestHubLeaseExpiryCancelsStalledPing(t *testing.T) {
+	hub := NewHub()
+	hub.pingInterval = 20 * time.Millisecond
+	hub.pingTimeout = 5 * time.Second
+	t.Cleanup(hub.CloseAll)
+	server := newHubTestServer(t, hub, time.Now().Add(100*time.Millisecond))
+	connection := dialHubTestConnection(t, server.URL)
+	t.Cleanup(func() { connection.CloseNow() })
+	assertWakeMessage(t, connection)
+	waitForConnection(t, hub, "node-1", "session-1", true)
+
+	// Stop reading so the next Ping cannot receive its Pong. Lease expiry must
+	// still remove the connection without waiting for the Ping timeout.
+	waitForConnection(t, hub, "node-1", "session-1", false)
+	readContext, cancel := context.WithTimeout(context.Background(), time.Second)
+	defer cancel()
+	_, _, err := connection.Read(readContext)
+	if websocket.CloseStatus(err) != websocket.StatusNormalClosure {
+		t.Fatalf("expired stalled connection close = %v", err)
+	}
+}
+
 func newHubTestServer(t *testing.T, hub *Hub, expiresAt time.Time) *httptest.Server {
 	t.Helper()
 	server := httptest.NewServer(http.HandlerFunc(func(response http.ResponseWriter, request *http.Request) {
