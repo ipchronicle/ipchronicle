@@ -1,0 +1,302 @@
+import { type ReactNode, useCallback, useEffect, useState } from "react";
+import {
+  CalendarClock,
+  GitCommitHorizontal,
+  LoaderCircle,
+  PackageCheck,
+  RefreshCw,
+  ServerCog,
+  TriangleAlert,
+} from "lucide-react";
+import { useTranslation } from "react-i18next";
+
+import {
+  getAgentUpdateState,
+  updateReleaseChannel,
+  type AgentUpdateState,
+  type ReleaseChannel,
+} from "@/api/updates";
+import { useAuth } from "@/auth-context";
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
+import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import {
+  Card,
+  CardAction,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import { Skeleton } from "@/components/ui/skeleton";
+import { formatAPIError } from "@/lib/api-error";
+
+type ViewState =
+  | { kind: "loading" }
+  | { kind: "success"; value: AgentUpdateState }
+  | { kind: "error" };
+
+export function SystemSettingsPage() {
+  const { i18n, t } = useTranslation();
+  const { state: authState } = useAuth();
+  const [state, setState] = useState<ViewState>({ kind: "loading" });
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState<string>();
+
+  const load = useCallback((signal?: AbortSignal) => {
+    setState({ kind: "loading" });
+    setError(undefined);
+    void getAgentUpdateState(signal)
+      .then((value) => setState({ kind: "success", value }))
+      .catch((cause: unknown) => {
+        if (cause instanceof DOMException && cause.name === "AbortError") {
+          return;
+        }
+        setState({ kind: "error" });
+      });
+  }, []);
+
+  useEffect(() => {
+    const controller = new AbortController();
+    load(controller.signal);
+    return () => controller.abort();
+  }, [load]);
+
+  const csrfToken =
+    authState.status === "authenticated" ? authState.session.csrfToken : "";
+
+  async function changeChannel(channel: ReleaseChannel) {
+    if (state.kind !== "success" || channel === state.value.channel) return;
+    setSaving(true);
+    setError(undefined);
+    try {
+      setState({
+        kind: "success",
+        value: await updateReleaseChannel(channel, csrfToken),
+      });
+    } catch (cause) {
+      setError(formatAPIError(cause, t));
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  return (
+    <div className="mx-auto w-full max-w-6xl px-4 py-10 sm:px-6 sm:py-14">
+      <div className="max-w-2xl">
+        <p className="text-xs font-medium text-muted-foreground uppercase">
+          {t("settings.section")}
+        </p>
+        <h1 className="mt-2 text-2xl font-semibold sm:text-3xl">
+          {t("systemSettings.title")}
+        </h1>
+        <p className="mt-2 text-sm text-muted-foreground">
+          {t("systemSettings.detail")}
+        </p>
+      </div>
+
+      <Card className="mt-8" aria-live="polite">
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <PackageCheck aria-hidden="true" className="size-4" />
+            {t("systemSettings.release.title")}
+          </CardTitle>
+          <CardDescription>
+            {t("systemSettings.release.detail")}
+          </CardDescription>
+          {state.kind === "success" ? (
+            <CardAction>
+              <Badge variant="secondary">
+                {t(`systemSettings.release.channel.${state.value.channel}`)}
+              </Badge>
+            </CardAction>
+          ) : null}
+        </CardHeader>
+        <CardContent className="space-y-5">
+          {state.kind === "loading" ? <ReleaseSettingsSkeleton /> : null}
+          {state.kind === "error" ? (
+            <Alert variant="destructive">
+              <TriangleAlert aria-hidden="true" />
+              <AlertTitle>{t("systemSettings.release.loadFailed")}</AlertTitle>
+              <AlertDescription>
+                <Button
+                  className="mt-3"
+                  variant="outline"
+                  size="sm"
+                  onClick={() => load()}
+                >
+                  <RefreshCw data-icon="inline-start" aria-hidden="true" />
+                  {t("systemSettings.release.retry")}
+                </Button>
+              </AlertDescription>
+            </Alert>
+          ) : null}
+          {state.kind === "success" ? (
+            <>
+              {error !== undefined ? (
+                <Alert variant="destructive">
+                  <TriangleAlert aria-hidden="true" />
+                  <AlertDescription>{error}</AlertDescription>
+                </Alert>
+              ) : null}
+              {state.value.discoveryError !== undefined ? (
+                <Alert>
+                  <TriangleAlert aria-hidden="true" />
+                  <AlertTitle>
+                    {t("systemSettings.release.discoveryFailed")}
+                  </AlertTitle>
+                  <AlertDescription>
+                    {t(
+                      `systemSettings.release.discoveryErrors.${state.value.discoveryError}`,
+                    )}
+                  </AlertDescription>
+                </Alert>
+              ) : null}
+
+              <div className="flex flex-col justify-between gap-3 rounded-md border p-4 sm:flex-row sm:items-center">
+                <div>
+                  <p className="text-sm font-medium">
+                    {t("systemSettings.release.channelLabel")}
+                  </p>
+                  <p className="mt-1 text-sm text-muted-foreground">
+                    {t("systemSettings.release.channelDetail")}
+                  </p>
+                </div>
+                <div className="flex items-center gap-2">
+                  {saving ? (
+                    <LoaderCircle
+                      className="size-4 animate-spin text-muted-foreground"
+                      aria-label={t("systemSettings.release.saving")}
+                    />
+                  ) : null}
+                  <Select
+                    value={state.value.channel}
+                    disabled={saving}
+                    onValueChange={(value) =>
+                      void changeChannel(value as ReleaseChannel)
+                    }
+                  >
+                    <SelectTrigger
+                      className="w-full sm:w-52"
+                      aria-label={t("systemSettings.release.channelLabel")}
+                    >
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="stable">
+                        {t("systemSettings.release.channel.stable")}
+                      </SelectItem>
+                      <SelectItem value="rc">
+                        {t("systemSettings.release.channel.rc")}
+                      </SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+              </div>
+
+              <dl className="grid gap-px overflow-hidden rounded-md border bg-border sm:grid-cols-2 lg:grid-cols-3">
+                <ReleaseField
+                  icon={<ServerCog aria-hidden="true" />}
+                  label={t("systemSettings.release.currentVersion")}
+                  value={state.value.currentVersion}
+                />
+                <ReleaseField
+                  icon={<GitCommitHorizontal aria-hidden="true" />}
+                  label={t("systemSettings.release.currentRevision")}
+                  value={state.value.currentRevision}
+                  mono
+                />
+                <ReleaseField
+                  icon={<CalendarClock aria-hidden="true" />}
+                  label={t("systemSettings.release.checkedAt")}
+                  value={formatDate(
+                    state.value.checkedAt,
+                    i18n.resolvedLanguage,
+                  )}
+                />
+                <ReleaseField
+                  icon={<PackageCheck aria-hidden="true" />}
+                  label={t("systemSettings.release.availableVersion")}
+                  value={
+                    state.value.availableRelease?.version ??
+                    t("systemSettings.release.noneAvailable")
+                  }
+                />
+                <ReleaseField
+                  icon={<GitCommitHorizontal aria-hidden="true" />}
+                  label={t("systemSettings.release.availableRevision")}
+                  value={
+                    state.value.availableRelease?.revision ??
+                    t("systemSettings.release.notAvailable")
+                  }
+                  mono
+                />
+                <ReleaseField
+                  icon={<CalendarClock aria-hidden="true" />}
+                  label={t("systemSettings.release.publishedAt")}
+                  value={
+                    state.value.availableRelease === undefined
+                      ? t("systemSettings.release.notAvailable")
+                      : formatDate(
+                          state.value.availableRelease.publishedAt,
+                          i18n.resolvedLanguage,
+                        )
+                  }
+                />
+              </dl>
+            </>
+          ) : null}
+        </CardContent>
+      </Card>
+    </div>
+  );
+}
+
+function ReleaseField({
+  icon,
+  label,
+  value,
+  mono = false,
+}: {
+  icon: ReactNode;
+  label: string;
+  value: string;
+  mono?: boolean;
+}) {
+  return (
+    <div className="min-w-0 bg-card p-4">
+      <dt className="flex items-center gap-2 text-xs font-medium text-muted-foreground [&_svg]:size-3.5">
+        {icon}
+        {label}
+      </dt>
+      <dd
+        className={`mt-2 break-all text-sm font-medium ${mono ? "font-mono" : ""}`}
+      >
+        {value}
+      </dd>
+    </div>
+  );
+}
+
+function ReleaseSettingsSkeleton() {
+  return (
+    <div className="space-y-4" aria-busy="true">
+      <Skeleton className="h-20 w-full" />
+      <Skeleton className="h-36 w-full" />
+    </div>
+  );
+}
+
+function formatDate(value: string, locale?: string) {
+  return new Intl.DateTimeFormat(locale, {
+    dateStyle: "medium",
+    timeStyle: "short",
+  }).format(new Date(value));
+}

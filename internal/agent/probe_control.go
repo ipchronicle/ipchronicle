@@ -80,6 +80,22 @@ func taskReportToAPI(report *state.ProbeTaskReport) (*agentapi.AgentTaskReport, 
 	return result, nil
 }
 
+func agentUpdateReportToAPI(report *state.AgentUpdateReport) (*agentapi.AgentTaskReport, error) {
+	if report == nil {
+		return nil, nil
+	}
+	id, err := uuid.Parse(report.ID)
+	if err != nil {
+		return nil, err
+	}
+	return &agentapi.AgentTaskReport{
+		Id: id, Status: agentapi.AgentTaskReportStatus(report.Status),
+		AcknowledgedAt: report.AcknowledgedAt, StartedAt: report.StartedAt, CompletedAt: report.CompletedAt,
+		PreviousVersion: report.PreviousVersion, ResultVersion: report.ResultVersion,
+		FailureCode: report.FailureCode, Diagnostic: report.Diagnostic,
+	}, nil
+}
+
 func (client *ControlClient) runProbeUploader(
 	ctx context.Context,
 	store *state.Store,

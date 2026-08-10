@@ -11,6 +11,11 @@ import {
 } from "@/api/auth";
 import { getSystemStatus } from "@/api/system";
 import {
+  createAgentUpdateTasks,
+  getAgentUpdateState,
+  updateReleaseChannel,
+} from "@/api/updates";
+import {
   cleanupHistory,
   compareProbeSnapshots,
   listHistoryAddressEvents,
@@ -86,6 +91,12 @@ vi.mock("@/api/system", () => ({
   getSystemStatus: vi.fn(),
 }));
 
+vi.mock("@/api/updates", () => ({
+  createAgentUpdateTasks: vi.fn(),
+  getAgentUpdateState: vi.fn(),
+  updateReleaseChannel: vi.fn(),
+}));
+
 vi.mock("@/api/history", () => ({
   cleanupHistory: vi.fn(),
   compareProbeSnapshots: vi.fn(),
@@ -153,6 +164,9 @@ const loginMock = vi.mocked(login);
 const logoutMock = vi.mocked(logout);
 const updateLocaleMock = vi.mocked(updateAccountLocale);
 const getSystemStatusMock = vi.mocked(getSystemStatus);
+const createAgentUpdateTasksMock = vi.mocked(createAgentUpdateTasks);
+const getAgentUpdateStateMock = vi.mocked(getAgentUpdateState);
+const updateReleaseChannelMock = vi.mocked(updateReleaseChannel);
 const cleanupHistoryMock = vi.mocked(cleanupHistory);
 const compareSnapshotsMock = vi.mocked(compareProbeSnapshots);
 const listHistoryAddressesMock = vi.mocked(listHistoryAddressEvents);
@@ -217,12 +231,21 @@ const healthyStatus = {
   service: "ipchronicle-center" as const,
   status: "ok" as const,
   version: "0.0.0-test",
+  sourceRevision: "1111111111111111111111111111111111111111",
   configSchemaVersion: 8,
   historySchemaVersion: 2,
   transportSecurity: "http" as const,
   transportWarning: true,
   externalOriginConfigured: false,
   trustedProxyConfigured: false,
+};
+
+const agentUpdateState = {
+  channel: "stable" as const,
+  currentVersion: "0.1.0",
+  currentRevision: "1111111111111111111111111111111111111111",
+  checkedAt: "2026-08-10T08:00:00Z",
+  tasks: [],
 };
 
 describe("administrator application", () => {
@@ -235,6 +258,10 @@ describe("administrator application", () => {
     logoutMock.mockReset();
     updateLocaleMock.mockReset();
     getSystemStatusMock.mockReset();
+    createAgentUpdateTasksMock.mockReset();
+    getAgentUpdateStateMock.mockReset();
+    getAgentUpdateStateMock.mockResolvedValue(agentUpdateState);
+    updateReleaseChannelMock.mockReset();
     cleanupHistoryMock.mockReset();
     compareSnapshotsMock.mockReset();
     listHistoryAddressesMock.mockReset();
@@ -362,6 +389,55 @@ describe("administrator application", () => {
 
     fireEvent.click(await screen.findByRole("button", { name: "Retry" }));
     expect(await screen.findByText("Operational")).toBeInTheDocument();
+  });
+
+  it("shows release metadata and switches the unified release channel", async () => {
+    getSessionMock.mockResolvedValue(session);
+    getAgentUpdateStateMock.mockResolvedValue({
+      ...agentUpdateState,
+      availableRelease: {
+        version: "0.1.1",
+        tag: "v0.1.1",
+        channel: "stable",
+        revision: "2222222222222222222222222222222222222222",
+        publishedAt: "2026-08-10T07:00:00Z",
+        agentCapabilities: ["agent-update-v1"],
+      },
+    });
+    updateReleaseChannelMock.mockResolvedValue({
+      ...agentUpdateState,
+      channel: "rc",
+      availableRelease: {
+        version: "0.2.0-rc.1",
+        tag: "v0.2.0-rc.1",
+        channel: "rc",
+        revision: "3333333333333333333333333333333333333333",
+        publishedAt: "2026-08-10T09:00:00Z",
+        agentCapabilities: ["agent-update-v1"],
+      },
+    });
+    renderApplication("/settings/system");
+
+    expect(
+      await screen.findByRole("heading", { name: "System" }),
+    ).toBeInTheDocument();
+    expect(screen.getByText("0.1.1")).toBeInTheDocument();
+    expect(
+      screen.getByText("2222222222222222222222222222222222222222"),
+    ).toBeInTheDocument();
+    fireEvent.click(
+      screen.getByRole("combobox", { name: "Discovery channel" }),
+    );
+    fireEvent.click(
+      await screen.findByRole("option", { name: "Release candidate" }),
+    );
+    await waitFor(() =>
+      expect(updateReleaseChannelMock).toHaveBeenCalledWith(
+        "rc",
+        session.csrfToken,
+      ),
+    );
+    expect(screen.getByText("0.2.0-rc.1")).toBeInTheDocument();
   });
 
   it("opens notification rules and follows test delivery status", async () => {
@@ -638,6 +714,130 @@ describe("administrator application", () => {
     );
     expect(screen.getAllByText("Disabled").length).toBeGreaterThan(0);
     expect(screen.getAllByText("Pending · 1/2").length).toBeGreaterThan(0);
+  });
+
+  it("filters updateable nodes and reports partial grouped update results", async () => {
+    getSessionMock.mockResolvedValue(session);
+    getEnrollmentMock.mockResolvedValue({
+      enabled: true,
+      hasKey: true,
+      installationCommand: "install-agent",
+      rotatedAt: "2026-08-10T07:00:00Z",
+    });
+    const firstNode = updateTestNode("edge-1", "1");
+    const secondNode = updateTestNode("edge-2", "2");
+    listNodesMock.mockResolvedValue([firstNode, secondNode]);
+    getAgentUpdateStateMock.mockResolvedValue({
+      ...agentUpdateState,
+      availableRelease: {
+        version: "0.2.0",
+        tag: "v0.2.0",
+        channel: "stable",
+        revision: "2222222222222222222222222222222222222222",
+        publishedAt: "2026-08-10T07:00:00Z",
+        agentCapabilities: ["agent-update-v1"],
+      },
+    });
+    createAgentUpdateTasksMock.mockResolvedValue({
+      targetVersion: "0.2.0",
+      items: [
+        {
+          nodeId: firstNode.id,
+          accepted: true,
+          task: {
+            id: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
+            nodeId: firstNode.id,
+            targetVersion: "0.2.0",
+            status: "pending",
+            createdAt: "2026-08-10T08:01:00Z",
+            expiresAt: "2026-08-10T08:03:00Z",
+            offline: false,
+          },
+        },
+        {
+          nodeId: secondNode.id,
+          accepted: false,
+          error: "agent_update_task_slot_occupied",
+        },
+      ],
+    });
+    renderApplication("/nodes");
+
+    await screen.findByRole("heading", { name: "Nodes" });
+    expect(screen.getAllByText("Source 111111111111")).toHaveLength(4);
+    fireEvent.click(screen.getByRole("switch", { name: "Updates available" }));
+    expect(screen.getAllByText("Update available: 0.2.0")).toHaveLength(4);
+    fireEvent.click(
+      screen.getAllByRole("checkbox", {
+        name: "Select edge-1 for Agent update",
+      })[0],
+    );
+    fireEvent.click(
+      screen.getAllByRole("checkbox", {
+        name: "Select edge-2 for Agent update",
+      })[0],
+    );
+    fireEvent.click(
+      screen.getByRole("button", { name: "Update selected (2)" }),
+    );
+
+    await waitFor(() =>
+      expect(createAgentUpdateTasksMock).toHaveBeenCalledWith(
+        [firstNode.id, secondNode.id],
+        "0.2.0",
+        session.csrfToken,
+      ),
+    );
+    expect(
+      await screen.findByText("Some Agent update tasks were not accepted"),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByText(
+        "edge-2: Another Center-issued task already occupies this node's task slot.",
+      ),
+    ).toBeInTheDocument();
+    expect(screen.getAllByText("Waiting for Agent").length).toBeGreaterThan(0);
+  });
+
+  it("keeps an offline update phase and bounded diagnostics visible", async () => {
+    getSessionMock.mockResolvedValue(session);
+    getEnrollmentMock.mockResolvedValue({
+      enabled: true,
+      hasKey: true,
+      installationCommand: "install-agent",
+      rotatedAt: "2026-08-10T07:00:00Z",
+    });
+    const node = updateTestNode("edge-offline", "3", "offline");
+    listNodesMock.mockResolvedValue([node]);
+    getAgentUpdateStateMock.mockResolvedValue({
+      ...agentUpdateState,
+      tasks: [
+        {
+          id: "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb",
+          nodeId: node.id,
+          targetVersion: "0.2.0",
+          status: "verifying",
+          createdAt: "2026-08-10T08:01:00Z",
+          expiresAt: "2026-08-10T08:03:00Z",
+          acknowledgedAt: "2026-08-10T08:01:10Z",
+          startedAt: "2026-08-10T08:01:12Z",
+          failureCode: "artifact_checksum_mismatch",
+          diagnostic: "sha256 did not match the release manifest",
+          offline: true,
+        },
+      ],
+    });
+    renderApplication("/nodes");
+
+    expect(
+      (await screen.findAllByText("Offline · Verifying artifact")).length,
+    ).toBeGreaterThan(0);
+    expect(
+      screen.getAllByText("Failure code: artifact_checksum_mismatch").length,
+    ).toBeGreaterThan(0);
+    expect(
+      screen.getAllByText("sha256 did not match the release manifest").length,
+    ).toBeGreaterThan(0);
   });
 
   it("shows durable egresses and temporary IPv6 candidates", async () => {
@@ -1362,6 +1562,30 @@ const probeTestNode = {
   registeredAt: "2026-08-09T11:00:00Z",
   lastSeenAt: "2026-08-09T12:00:00Z",
 };
+
+function updateTestNode(
+  name: string,
+  suffix: string,
+  status: "online" | "offline" = "online",
+) {
+  return {
+    id: `7289cfa3-a75d-4a3f-ac06-${suffix.padStart(12, "0")}`,
+    name,
+    hostname: name,
+    status,
+    enabled: true,
+    agentVersion: "0.1.0",
+    sourceRevision: "1111111111111111111111111111111111111111",
+    operatingSystem: "linux" as const,
+    architecture: "amd64" as const,
+    capabilities: ["control-v1", "agent-update-v1"],
+    desiredConfigurationRevision: 2,
+    appliedConfigurationRevision: 2,
+    configurationStatus: "current" as const,
+    registeredAt: "2026-08-09T11:00:00Z",
+    lastSeenAt: "2026-08-10T08:00:00Z",
+  };
+}
 
 function historyState(generation: string) {
   return {

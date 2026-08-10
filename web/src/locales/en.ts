@@ -9,6 +9,7 @@ export const en = {
       mobileDescription: "Browse IPChronicle sections.",
       toggleSidebar: "Toggle sidebar",
       systemStatus: "System status",
+      systemSettings: "System",
       nodes: "Nodes",
       history: "History",
       notifications: "Notifications",
@@ -96,6 +97,40 @@ export const en = {
       httpWarningDetail:
         "Credentials, TOTP codes, and sessions are not protected from network interception.",
     },
+    systemSettings: {
+      title: "System",
+      detail: "Review release metadata and choose the product update channel.",
+      release: {
+        title: "Release channel",
+        detail:
+          "The selected channel controls Center and Agent release discovery together.",
+        loadFailed: "Release information could not be loaded",
+        retry: "Retry",
+        discoveryFailed: "Release discovery is unavailable",
+        discoveryErrors: {
+          "release-discovery-failed":
+            "The official GitHub release or its manifest could not be validated. Existing Agents continue running.",
+          "current-version-invalid":
+            "This Center build does not contain a valid semantic product version.",
+        },
+        channelLabel: "Discovery channel",
+        channelDetail:
+          "Stable is the default. The RC channel also includes official release candidates.",
+        saving: "Saving release channel",
+        channel: {
+          stable: "Stable",
+          rc: "Release candidate",
+        },
+        currentVersion: "Center version",
+        currentRevision: "Center source revision",
+        checkedAt: "Last discovery check",
+        availableVersion: "Discovered version",
+        availableRevision: "Discovered source revision",
+        publishedAt: "Published",
+        noneAvailable: "No compatible release found",
+        notAvailable: "Not available",
+      },
+    },
     nodes: {
       section: "Managed nodes",
       title: "Nodes",
@@ -144,8 +179,60 @@ export const en = {
         node: "Node",
         status: "Status",
         agent: "Agent",
+        sourceRevision: "Source {{value}}",
         configuration: "Configuration",
         lastSeen: "Last seen",
+        search: "Search nodes",
+        searchPlaceholder: "Name, hostname, version, or source revision",
+        noMatches: "No nodes match the current filters",
+        clearFilters: "Clear filters",
+      },
+      updates: {
+        filter: "Updates available",
+        updateSelected: "Update selected ({{count}})",
+        selectAvailable: "Select all updateable visible nodes",
+        selectNode: "Select {{name}} for Agent update",
+        loadFailed: "Agent update state could not be loaded",
+        loadFailedDetail:
+          "Node management remains available, but update filtering and update actions are temporarily unavailable.",
+        accepted: "Accepted update tasks: {{count}}",
+        partial: "Some Agent update tasks were not accepted",
+        failed: "Agent update tasks were not accepted",
+        available: "Update available: {{version}}",
+        target: "Target {{version}}",
+        result: "Running {{version}}",
+        failureCode: "Failure code: {{code}}",
+        updateNode: "Update Agent on {{name}}",
+        disabledReason: "Enable the node before updating its Agent",
+        offlineReason: "The Agent must be online before an update can be sent",
+        status: {
+          pending: "Waiting for Agent",
+          acknowledged: "Received by Agent",
+          verifying: "Verifying artifact",
+          installing: "Installing",
+          restarting: "Restarting Agent",
+          succeeded: "Update succeeded",
+          failed: "Update failed",
+          "rolled-back": "Rolled back",
+          rejected: "Update rejected",
+          expired: "Delivery expired",
+          offlineWithPhase: "Offline · {{phase}}",
+        },
+        errors: {
+          agent_update_node_not_found: "The node no longer exists.",
+          agent_update_node_revoked: "The Agent credential is revoked.",
+          agent_update_node_disabled: "The node is disabled.",
+          agent_update_node_offline: "The Agent is offline.",
+          agent_update_task_slot_occupied:
+            "Another Center-issued task already occupies this node's task slot.",
+          agent_update_unsupported:
+            "The Agent does not support this update or product major version.",
+          agent_update_not_available:
+            "The selected version is not newer than the running Agent.",
+          agent_update_target_invalid:
+            "The discovered release is no longer a valid update target.",
+          unknown: "The update task was rejected for an unknown reason.",
+        },
       },
       status: {
         online: "Online",

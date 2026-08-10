@@ -1,4 +1,8 @@
 package version
 
-// Value is replaced from the product release tag at build time.
-var Value = "dev"
+// Value and Revision are replaced from the product release tag and source
+// commit at build time.
+var (
+	Value    = "dev"
+	Revision = "unknown"
+)

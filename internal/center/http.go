@@ -20,6 +20,7 @@ import (
 	"github.com/ipchronicle/ipchronicle/internal/center/nodes"
 	"github.com/ipchronicle/ipchronicle/internal/center/notifications"
 	"github.com/ipchronicle/ipchronicle/internal/center/syncws"
+	centerupdates "github.com/ipchronicle/ipchronicle/internal/center/updates"
 	"github.com/ipchronicle/ipchronicle/internal/generated/api"
 )
 
@@ -32,10 +33,12 @@ const (
 
 type HTTPOptions struct {
 	Version        string
+	Revision       string
 	Web            http.Handler
 	Administrator  *admin.Service
 	Nodes          *nodes.Service
 	Notifications  *notifications.Service
+	Updates        *centerupdates.Service
 	SyncHub        *syncws.Hub
 	Store          *database.Store
 	ExternalOrigin *url.URL
@@ -43,19 +46,21 @@ type HTTPOptions struct {
 }
 
 func NewHTTPHandler(options HTTPOptions) http.Handler {
-	if strings.TrimSpace(options.Version) == "" {
-		panic("center version must not be empty")
+	if strings.TrimSpace(options.Version) == "" || strings.TrimSpace(options.Revision) == "" {
+		panic("center version and revision must not be empty")
 	}
-	if options.Web == nil || options.Administrator == nil || options.Nodes == nil || options.Notifications == nil || options.SyncHub == nil || options.Store == nil {
+	if options.Web == nil || options.Administrator == nil || options.Nodes == nil || options.Notifications == nil || options.Updates == nil || options.SyncHub == nil || options.Store == nil {
 		panic("center HTTP dependencies must not be nil")
 	}
 
 	proxy := newProxyPolicy(options.ExternalOrigin, options.TrustedProxies)
 	server := apiServer{
 		version:                  options.Version,
+		revision:                 options.Revision,
 		administrator:            options.Administrator,
 		nodes:                    options.Nodes,
 		notifications:            options.Notifications,
+		updates:                  options.Updates,
 		configSchemaVersion:      options.Store.ConfigSchemaVersion,
 		historySchemaVersion:     options.Store.HistorySchemaVersion,
 		externalOriginConfigured: options.ExternalOrigin != nil,

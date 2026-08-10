@@ -28,6 +28,27 @@ async function expectNoPageOverflow(page: import("@playwright/test").Page) {
     .toBe(true);
 }
 
+function updateState(channel: "stable" | "rc") {
+  const isRC = channel === "rc";
+  return {
+    channel,
+    currentVersion: "0.1.0",
+    currentRevision: "1111111111111111111111111111111111111111",
+    checkedAt: "2026-08-10T08:00:00Z",
+    availableRelease: {
+      version: isRC ? "0.2.0-rc.1" : "0.1.1",
+      tag: isRC ? "v0.2.0-rc.1" : "v0.1.1",
+      channel,
+      revision: isRC
+        ? "3333333333333333333333333333333333333333"
+        : "2222222222222222222222222222222222222222",
+      publishedAt: "2026-08-10T07:00:00Z",
+      agentCapabilities: ["agent-update-v1"],
+    },
+    tasks: [],
+  };
+}
+
 async function uploadSucceededProbeSnapshot(
   page: import("@playwright/test").Page,
   input: {
@@ -130,6 +151,43 @@ test("changes theme immediately", async ({ page }) => {
 
   await page.getByRole("button", { name: "Use dark theme" }).click();
   await expect(page.locator("html")).toHaveClass(/dark/);
+});
+
+test("switches the release channel from system settings", async ({ page }) => {
+  await signIn(page);
+  let channel: "stable" | "rc" = "stable";
+  await page.route("**/api/v1/agent-updates/channel", async (route) => {
+    const request = route.request().postDataJSON() as {
+      channel: "stable" | "rc";
+    };
+    channel = request.channel;
+    await route.fulfill({
+      contentType: "application/json",
+      body: JSON.stringify(updateState(channel)),
+    });
+  });
+  await page.route("**/api/v1/agent-updates", async (route) => {
+    await route.fulfill({
+      contentType: "application/json",
+      body: JSON.stringify(updateState(channel)),
+    });
+  });
+
+  const systemLink = page.getByRole("link", { name: "System", exact: true });
+  if (!(await systemLink.isVisible())) {
+    await page.getByRole("button", { name: "Toggle sidebar" }).click();
+  }
+  await systemLink.click();
+  await expect(page.getByRole("heading", { name: "System" })).toBeVisible();
+  await expect(page.getByText("0.1.1")).toBeVisible();
+  await expect(
+    page.getByText("2222222222222222222222222222222222222222"),
+  ).toBeVisible();
+
+  await page.getByRole("combobox", { name: "Discovery channel" }).click();
+  await page.getByRole("option", { name: "Release candidate" }).click();
+  await expect(page.getByText("0.2.0-rc.1")).toBeVisible();
+  await expectNoPageOverflow(page);
 });
 
 test("generates an Agent installation command from the nodes page", async ({
@@ -842,6 +900,138 @@ test("generates an Agent installation command from the nodes page", async ({
   await expect(
     page.getByText("No centrally managed proxies are configured."),
   ).toBeVisible();
+});
+
+test("updates one registered Agent and keeps the task phase visible", async ({
+  page,
+}, testInfo) => {
+  await signIn(page);
+  const nodeName = `update-${testInfo.project.name}`;
+  let task:
+    | {
+        id: string;
+        nodeId: string;
+        targetVersion: string;
+        status: "pending";
+        createdAt: string;
+        expiresAt: string;
+        offline: boolean;
+      }
+    | undefined;
+  await page.route("**/api/v1/agent-updates*", async (route) => {
+    const request = route.request();
+    if (request.method() === "GET") {
+      await route.fulfill({
+        contentType: "application/json",
+        body: JSON.stringify({
+          ...updateState("stable"),
+          tasks: task === undefined ? [] : [task],
+        }),
+      });
+      return;
+    }
+    if (request.method() === "POST") {
+      const body = request.postDataJSON() as {
+        nodeIds: string[];
+        targetVersion: string;
+      };
+      task = {
+        id: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
+        nodeId: body.nodeIds[0],
+        targetVersion: body.targetVersion,
+        status: "pending",
+        createdAt: "2026-08-10T08:01:00Z",
+        expiresAt: "2026-08-10T08:03:00Z",
+        offline: false,
+      };
+      await route.fulfill({
+        status: 202,
+        contentType: "application/json",
+        body: JSON.stringify({
+          targetVersion: body.targetVersion,
+          items: [{ nodeId: body.nodeIds[0], accepted: true, task }],
+        }),
+      });
+      return;
+    }
+    await route.continue();
+  });
+
+  const nodesLink = page.getByRole("link", { name: "Nodes", exact: true });
+  if (!(await nodesLink.isVisible())) {
+    await page.getByRole("button", { name: "Toggle sidebar" }).click();
+  }
+  await nodesLink.click();
+  const generate = page.getByRole("button", { name: "Generate key" });
+  if (await generate.isVisible()) {
+    await generate.click();
+  }
+  const installationCommand = await page.locator("pre code").textContent();
+  const registrationKey = installationCommand?.match(
+    /--registration-key '([^']+)'/,
+  )?.[1];
+  expect(registrationKey).toBeTruthy();
+  const metadata = {
+    hostname: nodeName,
+    agentVersion: "0.1.0",
+    sourceRevision: "1111111111111111111111111111111111111111",
+    operatingSystem: "linux",
+    architecture: "amd64",
+    physicalMemoryBytes: 536870912,
+    capabilities: ["control-v1", "configuration-v5", "agent-update-v1"],
+  } as const;
+  const registration = await page.request.post("/api/v1/agent/enroll", {
+    data: {
+      registrationKey,
+      metadata,
+    },
+  });
+  expect(registration.status()).toBe(201);
+  const registered = (await registration.json()) as {
+    credential: string;
+    nodeId: string;
+  };
+  const poll = await page.request.post("/api/v1/agent/control", {
+    headers: { Authorization: `Bearer ${registered.credential}` },
+    data: {
+      appliedConfigurationRevision: 0,
+      metadata,
+    },
+  });
+  expect(poll.status()).toBe(200);
+
+  await page.reload();
+  await expect(
+    page.getByText(nodeName, { exact: true }).filter({ visible: true }).first(),
+  ).toBeVisible();
+  await page
+    .getByRole("button", { name: `Update Agent on ${nodeName}` })
+    .filter({ visible: true })
+    .click();
+  await expect(
+    page
+      .getByText("Waiting for Agent", { exact: true })
+      .filter({ visible: true }),
+  ).toBeVisible();
+  await expectNoPageOverflow(page);
+
+  await page
+    .getByRole("button", { name: "Permanently delete node" })
+    .filter({ visible: true })
+    .click();
+  await page
+    .getByRole("alertdialog")
+    .getByRole("button", { name: "Permanently delete", exact: true })
+    .click();
+  await expect
+    .poll(async () => {
+      const response = await page.request.get("/api/v1/nodes");
+      const body = (await response.json()) as {
+        items: Array<{ name: string }>;
+      };
+      return body.items.some((node) => node.name === nodeName);
+    })
+    .toBe(false);
 });
 
 test("shows account validation errors and starts TOTP enrollment", async ({

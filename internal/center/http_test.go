@@ -21,6 +21,7 @@ import (
 	"github.com/ipchronicle/ipchronicle/internal/center/nodes"
 	"github.com/ipchronicle/ipchronicle/internal/center/notifications"
 	"github.com/ipchronicle/ipchronicle/internal/center/syncws"
+	centerupdates "github.com/ipchronicle/ipchronicle/internal/center/updates"
 	"github.com/ipchronicle/ipchronicle/internal/generated/api"
 )
 
@@ -68,7 +69,8 @@ func TestAdministratorLoginStatusAndLogout(t *testing.T) {
 	if err := json.NewDecoder(statusResponse.Body).Decode(&status); err != nil {
 		t.Fatal(err)
 	}
-	if status.Service != api.IpchronicleCenter || status.Status != api.Ok || !status.TransportWarning || status.ConfigSchemaVersion != 11 || status.HistorySchemaVersion != 5 {
+	if status.Service != api.IpchronicleCenter || status.Status != api.Ok || status.SourceRevision != "test-revision" ||
+		!status.TransportWarning || status.ConfigSchemaVersion != 12 || status.HistorySchemaVersion != 5 {
 		t.Fatalf("unexpected status response: %#v", status)
 	}
 
@@ -949,9 +951,13 @@ func newTestHTTPHandlerWithNotifications(t *testing.T, trustedProxies []netip.Pr
 		ConfigQueries: store.ConfigQueries, HistoryQueries: store.HistoryQueries,
 		MasterKey: store.MasterKey, Executable: "/proc/self/exe",
 	})
+	updateService := centerupdates.NewService(centerupdates.ServiceOptions{
+		Queries: store.ConfigQueries, Waker: syncHub,
+		CurrentVersion: "0.0.0-test", CurrentRevision: "test-revision",
+	})
 	return NewHTTPHandler(HTTPOptions{
-		Version: "0.0.0-test", Web: http.NotFoundHandler(),
-		Administrator: administrator, Nodes: nodeService, Notifications: notificationService, SyncHub: syncHub,
+		Version: "0.0.0-test", Revision: "test-revision", Web: http.NotFoundHandler(),
+		Administrator: administrator, Nodes: nodeService, Notifications: notificationService, Updates: updateService, SyncHub: syncHub,
 		Store: store, TrustedProxies: trustedProxies,
 	}), nodeService, notificationService, syncHub
 }

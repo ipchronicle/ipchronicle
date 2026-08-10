@@ -2,11 +2,22 @@ package agent
 
 import (
 	"context"
+	"encoding/json"
 	"io"
+	"log"
 	"net/http"
 	"net/http/httptest"
+	"os"
+	"path/filepath"
+	"slices"
 	"strings"
 	"testing"
+	"time"
+
+	"github.com/google/uuid"
+	"github.com/ipchronicle/ipchronicle/internal/agent/state"
+	agentupdate "github.com/ipchronicle/ipchronicle/internal/agent/update"
+	"github.com/ipchronicle/ipchronicle/internal/generated/agentapi"
 )
 
 func TestConfigurationRejectsUnknownFields(t *testing.T) {
@@ -66,5 +77,126 @@ func TestParsePhysicalMemory(t *testing.T) {
 		if _, err := parsePhysicalMemory(strings.NewReader(input)); err == nil {
 			t.Fatalf("invalid meminfo %q unexpectedly succeeded", input)
 		}
+	}
+}
+
+func TestUpdatedAgentAuthenticatesBeforePublishingHealth(t *testing.T) {
+	pollReceived := make(chan struct{}, 1)
+	server := httptest.NewServer(http.HandlerFunc(func(response http.ResponseWriter, request *http.Request) {
+		if request.URL.Path != "/api/v1/agent/control" || request.Header.Get("Authorization") != "Bearer ipc_agent_health-test" {
+			http.Error(response, "unauthorized", http.StatusUnauthorized)
+			return
+		}
+		var poll agentapi.AgentPollRequest
+		if err := json.NewDecoder(request.Body).Decode(&poll); err != nil {
+			t.Error(err)
+			http.Error(response, "invalid", http.StatusBadRequest)
+			return
+		}
+		if poll.TaskReport == nil || poll.TaskReport.Status != agentapi.AgentTaskReportStatusRestarting ||
+			poll.Metadata.AgentVersion != "0.1.1" || !slices.Contains(poll.Metadata.Capabilities, "agent-update-v1") {
+			t.Errorf("health poll = %#v", poll)
+			http.Error(response, "invalid", http.StatusBadRequest)
+			return
+		}
+		pollReceived <- struct{}{}
+		response.Header().Set("Content-Type", "application/json")
+		_ = json.NewEncoder(response).Encode(agentapi.AgentPollResult{
+			AddressUploadReceipt: agentapi.AgentAddressUploadReceipt{
+				AcceptedEventIds: []uuid.UUID{}, DiscardedEventIds: []uuid.UUID{},
+				AcceptedGaps: []agentapi.AgentAddressGapReceipt{}, DiscardedGaps: []agentapi.AgentAddressGapReceipt{},
+			},
+			CenterVersion: "0.1.1", DesiredConfigurationRevision: 0, Enabled: true, PollIntervalSeconds: 30,
+		})
+	}))
+	defer server.Close()
+
+	stateDirectory := filepath.Join(t.TempDir(), "state")
+	store, err := state.Open(stateDirectory)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer store.Close()
+	if err := store.SaveIdentity(state.Identity{
+		CenterURL: server.URL, NodeID: uuid.NewString(), Credential: "ipc_agent_health-test",
+	}); err != nil {
+		t.Fatal(err)
+	}
+	now := time.Now().UTC().Truncate(time.Second)
+	taskID := uuid.NewString()
+	if _, err := store.AcceptAgentUpdate(state.AgentUpdateDelivery{
+		ID: taskID, TargetVersion: "0.1.1", CreatedAt: now.Add(-time.Second), ExpiresAt: now.Add(time.Minute),
+	}, "0.1.0", now); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := store.BeginAgentUpdate(taskID, "0.1.0", now); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := store.MarkAgentUpdateInstalling(taskID); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := store.MarkAgentUpdateRestarting(taskID); err != nil {
+		t.Fatal(err)
+	}
+	checkpoint := filepath.Join(stateDirectory, "update", "checkpoint-"+taskID)
+	if err := os.MkdirAll(filepath.Join(checkpoint, "results"), 0o700); err != nil {
+		t.Fatal(err)
+	}
+	for _, name := range []string{"state.db", "master.key"} {
+		contents, err := os.ReadFile(filepath.Join(stateDirectory, name))
+		if err != nil {
+			t.Fatal(err)
+		}
+		if err := os.WriteFile(filepath.Join(checkpoint, name), contents, 0o600); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if err := os.WriteFile(filepath.Join(checkpoint, "agent.previous"), []byte("old Agent"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(checkpoint, "complete"), nil, 0o600); err != nil {
+		t.Fatal(err)
+	}
+
+	ctx, cancel := context.WithCancel(context.Background())
+	triggered := make(chan struct{}, 1)
+	done := make(chan error, 1)
+	go func() {
+		done <- RunWithOptions(ctx, store, "0.1.1", log.New(io.Discard, "", 0), RunOptions{
+			UpdateConfig: &agentupdate.Config{
+				InitSystem: "systemd", AgentPath: "/usr/local/bin/ipchronicle-agent", UpdaterPath: "/usr/local/libexec/ipchronicle-agent-updater",
+			},
+			UpdateTrigger: func(context.Context, string) error {
+				triggered <- struct{}{}
+				cancel()
+				return nil
+			},
+		})
+	}()
+	select {
+	case <-triggered:
+	case <-time.After(3 * time.Second):
+		t.Fatal("updated Agent did not publish health")
+	}
+	select {
+	case <-pollReceived:
+	default:
+		t.Fatal("health was published before an authenticated control poll")
+	}
+	updateState, found, err := store.PendingAgentUpdate()
+	if err != nil || !found || updateState.Status != "succeeded" {
+		t.Fatalf("healthy update state = %#v, %v, %v", updateState, found, err)
+	}
+	marker, err := os.ReadFile(agentupdate.HealthMarkerPath(stateDirectory, taskID))
+	if err != nil || strings.TrimSpace(string(marker)) != taskID {
+		t.Fatalf("health marker = %q, %v", marker, err)
+	}
+	select {
+	case err := <-done:
+		if err != nil {
+			t.Fatal(err)
+		}
+	case <-time.After(3 * time.Second):
+		t.Fatal("Agent did not stop after test cancellation")
 	}
 }

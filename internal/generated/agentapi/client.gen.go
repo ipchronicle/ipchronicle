@@ -218,12 +218,15 @@ func (e AgentProbeSkipReason) Valid() bool {
 
 // Defines values for AgentTaskKind.
 const (
+	AgentUpdate   AgentTaskKind = "agent-update"
 	CompleteProbe AgentTaskKind = "complete-probe"
 )
 
 // Valid indicates whether the value is a known member of the AgentTaskKind enum.
 func (e AgentTaskKind) Valid() bool {
 	switch e {
+	case AgentUpdate:
+		return true
 	case CompleteProbe:
 		return true
 	default:
@@ -235,10 +238,14 @@ func (e AgentTaskKind) Valid() bool {
 const (
 	AgentTaskReportStatusAcknowledged AgentTaskReportStatus = "acknowledged"
 	AgentTaskReportStatusFailed       AgentTaskReportStatus = "failed"
+	AgentTaskReportStatusInstalling   AgentTaskReportStatus = "installing"
 	AgentTaskReportStatusPartial      AgentTaskReportStatus = "partial"
 	AgentTaskReportStatusRejected     AgentTaskReportStatus = "rejected"
+	AgentTaskReportStatusRestarting   AgentTaskReportStatus = "restarting"
+	AgentTaskReportStatusRolledBack   AgentTaskReportStatus = "rolled-back"
 	AgentTaskReportStatusRunning      AgentTaskReportStatus = "running"
 	AgentTaskReportStatusSucceeded    AgentTaskReportStatus = "succeeded"
+	AgentTaskReportStatusVerifying    AgentTaskReportStatus = "verifying"
 )
 
 // Valid indicates whether the value is a known member of the AgentTaskReportStatus enum.
@@ -248,13 +255,117 @@ func (e AgentTaskReportStatus) Valid() bool {
 		return true
 	case AgentTaskReportStatusFailed:
 		return true
+	case AgentTaskReportStatusInstalling:
+		return true
 	case AgentTaskReportStatusPartial:
 		return true
 	case AgentTaskReportStatusRejected:
 		return true
+	case AgentTaskReportStatusRestarting:
+		return true
+	case AgentTaskReportStatusRolledBack:
+		return true
 	case AgentTaskReportStatusRunning:
 		return true
 	case AgentTaskReportStatusSucceeded:
+		return true
+	case AgentTaskReportStatusVerifying:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for AgentUpdateDiscoveryError.
+const (
+	CurrentVersionInvalid  AgentUpdateDiscoveryError = "current-version-invalid"
+	ReleaseDiscoveryFailed AgentUpdateDiscoveryError = "release-discovery-failed"
+)
+
+// Valid indicates whether the value is a known member of the AgentUpdateDiscoveryError enum.
+func (e AgentUpdateDiscoveryError) Valid() bool {
+	switch e {
+	case CurrentVersionInvalid:
+		return true
+	case ReleaseDiscoveryFailed:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for AgentUpdateErrorCode.
+const (
+	AgentUpdateNodeDisabled     AgentUpdateErrorCode = "agent_update_node_disabled"
+	AgentUpdateNodeNotFound     AgentUpdateErrorCode = "agent_update_node_not_found"
+	AgentUpdateNodeOffline      AgentUpdateErrorCode = "agent_update_node_offline"
+	AgentUpdateNodeRevoked      AgentUpdateErrorCode = "agent_update_node_revoked"
+	AgentUpdateNotAvailable     AgentUpdateErrorCode = "agent_update_not_available"
+	AgentUpdateTargetInvalid    AgentUpdateErrorCode = "agent_update_target_invalid"
+	AgentUpdateTaskSlotOccupied AgentUpdateErrorCode = "agent_update_task_slot_occupied"
+	AgentUpdateUnsupported      AgentUpdateErrorCode = "agent_update_unsupported"
+)
+
+// Valid indicates whether the value is a known member of the AgentUpdateErrorCode enum.
+func (e AgentUpdateErrorCode) Valid() bool {
+	switch e {
+	case AgentUpdateNodeDisabled:
+		return true
+	case AgentUpdateNodeNotFound:
+		return true
+	case AgentUpdateNodeOffline:
+		return true
+	case AgentUpdateNodeRevoked:
+		return true
+	case AgentUpdateNotAvailable:
+		return true
+	case AgentUpdateTargetInvalid:
+		return true
+	case AgentUpdateTaskSlotOccupied:
+		return true
+	case AgentUpdateUnsupported:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for AgentUpdateTaskStatus.
+const (
+	AgentUpdateTaskStatusAcknowledged AgentUpdateTaskStatus = "acknowledged"
+	AgentUpdateTaskStatusExpired      AgentUpdateTaskStatus = "expired"
+	AgentUpdateTaskStatusFailed       AgentUpdateTaskStatus = "failed"
+	AgentUpdateTaskStatusInstalling   AgentUpdateTaskStatus = "installing"
+	AgentUpdateTaskStatusPending      AgentUpdateTaskStatus = "pending"
+	AgentUpdateTaskStatusRejected     AgentUpdateTaskStatus = "rejected"
+	AgentUpdateTaskStatusRestarting   AgentUpdateTaskStatus = "restarting"
+	AgentUpdateTaskStatusRolledBack   AgentUpdateTaskStatus = "rolled-back"
+	AgentUpdateTaskStatusSucceeded    AgentUpdateTaskStatus = "succeeded"
+	AgentUpdateTaskStatusVerifying    AgentUpdateTaskStatus = "verifying"
+)
+
+// Valid indicates whether the value is a known member of the AgentUpdateTaskStatus enum.
+func (e AgentUpdateTaskStatus) Valid() bool {
+	switch e {
+	case AgentUpdateTaskStatusAcknowledged:
+		return true
+	case AgentUpdateTaskStatusExpired:
+		return true
+	case AgentUpdateTaskStatusFailed:
+		return true
+	case AgentUpdateTaskStatusInstalling:
+		return true
+	case AgentUpdateTaskStatusPending:
+		return true
+	case AgentUpdateTaskStatusRejected:
+		return true
+	case AgentUpdateTaskStatusRestarting:
+		return true
+	case AgentUpdateTaskStatusRolledBack:
+		return true
+	case AgentUpdateTaskStatusSucceeded:
+		return true
+	case AgentUpdateTaskStatusVerifying:
 		return true
 	default:
 		return false
@@ -1077,6 +1188,24 @@ func (e ProbeTrigger) Valid() bool {
 	}
 }
 
+// Defines values for ReleaseChannel.
+const (
+	Rc     ReleaseChannel = "rc"
+	Stable ReleaseChannel = "stable"
+)
+
+// Valid indicates whether the value is a known member of the ReleaseChannel enum.
+func (e ReleaseChannel) Valid() bool {
+	switch e {
+	case Rc:
+		return true
+	case Stable:
+		return true
+	default:
+		return false
+	}
+}
+
 // Defines values for SupportedLocale.
 const (
 	En   SupportedLocale = "en"
@@ -1301,6 +1430,7 @@ type AgentMetadata struct {
 	Hostname            string            `json:"hostname"`
 	OperatingSystem     AgentPlatform     `json:"operatingSystem"`
 	PhysicalMemoryBytes int64             `json:"physicalMemoryBytes"`
+	SourceRevision      *string           `json:"sourceRevision,omitempty"`
 }
 
 // AgentPlatform defines model for AgentPlatform.
@@ -1452,10 +1582,11 @@ type AgentSyncSession struct {
 
 // AgentTask defines model for AgentTask.
 type AgentTask struct {
-	CreatedAt time.Time          `json:"createdAt"`
-	ExpiresAt time.Time          `json:"expiresAt"`
-	Id        openapi_types.UUID `json:"id"`
-	Kind      AgentTaskKind      `json:"kind"`
+	CreatedAt     time.Time          `json:"createdAt"`
+	ExpiresAt     time.Time          `json:"expiresAt"`
+	Id            openapi_types.UUID `json:"id"`
+	Kind          AgentTaskKind      `json:"kind"`
+	TargetVersion *string            `json:"targetVersion,omitempty"`
 }
 
 // AgentTaskKind defines model for AgentTask.Kind.
@@ -1465,8 +1596,12 @@ type AgentTaskKind string
 type AgentTaskReport struct {
 	AcknowledgedAt  time.Time             `json:"acknowledgedAt"`
 	CompletedAt     *time.Time            `json:"completedAt,omitempty"`
+	Diagnostic      *string               `json:"diagnostic,omitempty"`
+	FailureCode     *string               `json:"failureCode,omitempty"`
 	Id              openapi_types.UUID    `json:"id"`
+	PreviousVersion *string               `json:"previousVersion,omitempty"`
 	RejectionReason *AgentProbeSkipReason `json:"rejectionReason,omitempty"`
+	ResultVersion   *string               `json:"resultVersion,omitempty"`
 	RunId           *openapi_types.UUID   `json:"runId,omitempty"`
 	StartedAt       *time.Time            `json:"startedAt,omitempty"`
 	Status          AgentTaskReportStatus `json:"status"`
@@ -1474,6 +1609,74 @@ type AgentTaskReport struct {
 
 // AgentTaskReportStatus defines model for AgentTaskReport.Status.
 type AgentTaskReportStatus string
+
+// AgentUpdateBatchItem defines model for AgentUpdateBatchItem.
+type AgentUpdateBatchItem struct {
+	Accepted bool                  `json:"accepted"`
+	Error    *AgentUpdateErrorCode `json:"error,omitempty"`
+	NodeId   openapi_types.UUID    `json:"nodeId"`
+	Task     *AgentUpdateTask      `json:"task,omitempty"`
+}
+
+// AgentUpdateBatchRequest defines model for AgentUpdateBatchRequest.
+type AgentUpdateBatchRequest struct {
+	NodeIds       []openapi_types.UUID `json:"nodeIds"`
+	TargetVersion string               `json:"targetVersion"`
+}
+
+// AgentUpdateBatchResult defines model for AgentUpdateBatchResult.
+type AgentUpdateBatchResult struct {
+	Items         []AgentUpdateBatchItem `json:"items"`
+	TargetVersion string                 `json:"targetVersion"`
+}
+
+// AgentUpdateDiscoveryError defines model for AgentUpdateDiscoveryError.
+type AgentUpdateDiscoveryError string
+
+// AgentUpdateErrorCode defines model for AgentUpdateErrorCode.
+type AgentUpdateErrorCode string
+
+// AgentUpdateRelease defines model for AgentUpdateRelease.
+type AgentUpdateRelease struct {
+	AgentCapabilities []string       `json:"agentCapabilities"`
+	Channel           ReleaseChannel `json:"channel"`
+	PublishedAt       time.Time      `json:"publishedAt"`
+	Revision          string         `json:"revision"`
+	Tag               string         `json:"tag"`
+	Version           string         `json:"version"`
+}
+
+// AgentUpdateState defines model for AgentUpdateState.
+type AgentUpdateState struct {
+	AvailableRelease *AgentUpdateRelease        `json:"availableRelease,omitempty"`
+	Channel          ReleaseChannel             `json:"channel"`
+	CheckedAt        time.Time                  `json:"checkedAt"`
+	CurrentRevision  string                     `json:"currentRevision"`
+	CurrentVersion   string                     `json:"currentVersion"`
+	DiscoveryError   *AgentUpdateDiscoveryError `json:"discoveryError,omitempty"`
+	Tasks            []AgentUpdateTask          `json:"tasks"`
+}
+
+// AgentUpdateTask defines model for AgentUpdateTask.
+type AgentUpdateTask struct {
+	AcknowledgedAt  *time.Time            `json:"acknowledgedAt,omitempty"`
+	CompletedAt     *time.Time            `json:"completedAt,omitempty"`
+	CreatedAt       time.Time             `json:"createdAt"`
+	Diagnostic      *string               `json:"diagnostic,omitempty"`
+	ExpiresAt       time.Time             `json:"expiresAt"`
+	FailureCode     *string               `json:"failureCode,omitempty"`
+	Id              openapi_types.UUID    `json:"id"`
+	NodeId          openapi_types.UUID    `json:"nodeId"`
+	Offline         bool                  `json:"offline"`
+	PreviousVersion *string               `json:"previousVersion,omitempty"`
+	ResultVersion   *string               `json:"resultVersion,omitempty"`
+	StartedAt       *time.Time            `json:"startedAt,omitempty"`
+	Status          AgentUpdateTaskStatus `json:"status"`
+	TargetVersion   string                `json:"targetVersion"`
+}
+
+// AgentUpdateTaskStatus defines model for AgentUpdateTaskStatus.
+type AgentUpdateTaskStatus string
 
 // AuthenticatedSession defines model for AuthenticatedSession.
 type AuthenticatedSession struct {
@@ -1805,6 +2008,7 @@ type Node struct {
 	Name                         string                  `json:"name"`
 	OperatingSystem              AgentPlatform           `json:"operatingSystem"`
 	RegisteredAt                 time.Time               `json:"registeredAt"`
+	SourceRevision               *string                 `json:"sourceRevision,omitempty"`
 	Status                       NodeStatus              `json:"status"`
 	SyncExpiresAt                *time.Time              `json:"syncExpiresAt,omitempty"`
 	SyncStatus                   *NodeSyncStatus         `json:"syncStatus,omitempty"`
@@ -2186,6 +2390,14 @@ type ProbeTaskStatus string
 // ProbeTrigger defines model for ProbeTrigger.
 type ProbeTrigger string
 
+// ReleaseChannel defines model for ReleaseChannel.
+type ReleaseChannel string
+
+// ReleaseChannelUpdate defines model for ReleaseChannelUpdate.
+type ReleaseChannelUpdate struct {
+	Channel ReleaseChannel `json:"channel"`
+}
+
 // SupportedLocale defines model for SupportedLocale.
 type SupportedLocale string
 
@@ -2195,6 +2407,7 @@ type SystemStatus struct {
 	ExternalOriginConfigured bool                          `json:"externalOriginConfigured"`
 	HistorySchemaVersion     int64                         `json:"historySchemaVersion"`
 	Service                  SystemStatusService           `json:"service"`
+	SourceRevision           string                        `json:"sourceRevision"`
 	Status                   SystemStatusStatus            `json:"status"`
 	TransportSecurity        SystemStatusTransportSecurity `json:"transportSecurity"`
 	TransportWarning         bool                          `json:"transportWarning"`
@@ -2385,6 +2598,16 @@ type UpdateAgentEnrollmentParams struct {
 
 // RotateAgentEnrollmentKeyParams defines parameters for RotateAgentEnrollmentKey.
 type RotateAgentEnrollmentKeyParams struct {
+	XCSRFToken *CSRFToken `json:"X-CSRF-Token,omitempty"`
+}
+
+// CreateAgentUpdateTasksParams defines parameters for CreateAgentUpdateTasks.
+type CreateAgentUpdateTasksParams struct {
+	XCSRFToken *CSRFToken `json:"X-CSRF-Token,omitempty"`
+}
+
+// UpdateReleaseChannelParams defines parameters for UpdateReleaseChannel.
+type UpdateReleaseChannelParams struct {
 	XCSRFToken *CSRFToken `json:"X-CSRF-Token,omitempty"`
 }
 
@@ -2601,6 +2824,12 @@ type StartTOTPEnrollmentJSONRequestBody = CurrentPasswordRequest
 
 // UpdateAgentEnrollmentJSONRequestBody defines body for UpdateAgentEnrollment for application/json ContentType.
 type UpdateAgentEnrollmentJSONRequestBody = AgentEnrollmentUpdate
+
+// CreateAgentUpdateTasksJSONRequestBody defines body for CreateAgentUpdateTasks for application/json ContentType.
+type CreateAgentUpdateTasksJSONRequestBody = AgentUpdateBatchRequest
+
+// UpdateReleaseChannelJSONRequestBody defines body for UpdateReleaseChannel for application/json ContentType.
+type UpdateReleaseChannelJSONRequestBody = ReleaseChannelUpdate
 
 // PollAgentJSONRequestBody defines body for PollAgent for application/json ContentType.
 type PollAgentJSONRequestBody = AgentPollRequest
@@ -2827,6 +3056,39 @@ type ClientInterface interface {
 	//
 	// Corresponds with POST /api/v1/agent-enrollment/key (the `RotateAgentEnrollmentKey` operationId).
 	RotateAgentEnrollmentKey(ctx context.Context, params *RotateAgentEnrollmentKeyParams, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// GetAgentUpdateState Discover the current channel release and recent Agent update tasks
+	//
+	// Corresponds with GET /api/v1/agent-updates (the `GetAgentUpdateState` operationId).
+	GetAgentUpdateState(ctx context.Context, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// CreateAgentUpdateTasksWithBody Create Agent update tasks for one or more online nodes
+	//
+	// Takes any type of body and a specified content type.
+	//
+	// Corresponds with POST /api/v1/agent-updates (the `CreateAgentUpdateTasks` operationId).
+	CreateAgentUpdateTasksWithBody(ctx context.Context, params *CreateAgentUpdateTasksParams, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// CreateAgentUpdateTasks Create Agent update tasks for one or more online nodes
+	//
+	// Takes a body of the `application/json` content type.
+	//
+	// Corresponds with POST /api/v1/agent-updates (the `CreateAgentUpdateTasks` operationId).
+	CreateAgentUpdateTasks(ctx context.Context, params *CreateAgentUpdateTasksParams, body CreateAgentUpdateTasksJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// UpdateReleaseChannelWithBody Select the stable or release-candidate discovery channel
+	//
+	// Takes any type of body and a specified content type.
+	//
+	// Corresponds with PUT /api/v1/agent-updates/channel (the `UpdateReleaseChannel` operationId).
+	UpdateReleaseChannelWithBody(ctx context.Context, params *UpdateReleaseChannelParams, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// UpdateReleaseChannel Select the stable or release-candidate discovery channel
+	//
+	// Takes a body of the `application/json` content type.
+	//
+	// Corresponds with PUT /api/v1/agent-updates/channel (the `UpdateReleaseChannel` operationId).
+	UpdateReleaseChannel(ctx context.Context, params *UpdateReleaseChannelParams, body UpdateReleaseChannelJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
 
 	// GetAgentConfiguration Read the current complete desired Agent configuration
 	//
@@ -3477,6 +3739,89 @@ func (c *Client) UpdateAgentEnrollment(ctx context.Context, params *UpdateAgentE
 // Corresponds with POST /api/v1/agent-enrollment/key (the `RotateAgentEnrollmentKey` operationId).
 func (c *Client) RotateAgentEnrollmentKey(ctx context.Context, params *RotateAgentEnrollmentKeyParams, reqEditors ...RequestEditorFn) (*http.Response, error) {
 	req, err := NewRotateAgentEnrollmentKeyRequest(c.Server, params)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+// GetAgentUpdateState Discover the current channel release and recent Agent update tasks
+//
+// Corresponds with GET /api/v1/agent-updates (the `GetAgentUpdateState` operationId).
+func (c *Client) GetAgentUpdateState(ctx context.Context, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewGetAgentUpdateStateRequest(c.Server)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+// CreateAgentUpdateTasksWithBody Create Agent update tasks for one or more online nodes
+//
+// Takes any type of body and a specified content type.
+//
+// Corresponds with POST /api/v1/agent-updates (the `CreateAgentUpdateTasks` operationId).
+func (c *Client) CreateAgentUpdateTasksWithBody(ctx context.Context, params *CreateAgentUpdateTasksParams, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewCreateAgentUpdateTasksRequestWithBody(c.Server, params, contentType, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+// CreateAgentUpdateTasks Create Agent update tasks for one or more online nodes
+//
+// Takes a body of the `application/json` content type.
+//
+// Corresponds with POST /api/v1/agent-updates (the `CreateAgentUpdateTasks` operationId).
+func (c *Client) CreateAgentUpdateTasks(ctx context.Context, params *CreateAgentUpdateTasksParams, body CreateAgentUpdateTasksJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewCreateAgentUpdateTasksRequest(c.Server, params, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+// UpdateReleaseChannelWithBody Select the stable or release-candidate discovery channel
+//
+// Takes any type of body and a specified content type.
+//
+// Corresponds with PUT /api/v1/agent-updates/channel (the `UpdateReleaseChannel` operationId).
+func (c *Client) UpdateReleaseChannelWithBody(ctx context.Context, params *UpdateReleaseChannelParams, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewUpdateReleaseChannelRequestWithBody(c.Server, params, contentType, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+// UpdateReleaseChannel Select the stable or release-candidate discovery channel
+//
+// Takes a body of the `application/json` content type.
+//
+// Corresponds with PUT /api/v1/agent-updates/channel (the `UpdateReleaseChannel` operationId).
+func (c *Client) UpdateReleaseChannel(ctx context.Context, params *UpdateReleaseChannelParams, body UpdateReleaseChannelJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewUpdateReleaseChannelRequest(c.Server, params, body)
 	if err != nil {
 		return nil, err
 	}
@@ -4990,6 +5335,143 @@ func NewRotateAgentEnrollmentKeyRequest(server string, params *RotateAgentEnroll
 	if err != nil {
 		return nil, err
 	}
+
+	if params != nil {
+
+		if params.XCSRFToken != nil {
+			var headerParam0 string
+
+			headerParam0, err = runtime.StyleParamWithOptions("simple", false, "X-CSRF-Token", *params.XCSRFToken, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationHeader, Type: "string", Format: ""})
+			if err != nil {
+				return nil, err
+			}
+
+			req.Header.Set("X-CSRF-Token", headerParam0)
+		}
+
+	}
+
+	return req, nil
+}
+
+// NewGetAgentUpdateStateRequest constructs an http.Request for the GetAgentUpdateState method
+func NewGetAgentUpdateStateRequest(server string) (*http.Request, error) {
+	var err error
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/api/v1/agent-updates")
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest(http.MethodGet, queryURL.String(), nil)
+	if err != nil {
+		return nil, err
+	}
+
+	return req, nil
+}
+
+// NewCreateAgentUpdateTasksRequest calls the generic CreateAgentUpdateTasks builder with application/json body
+func NewCreateAgentUpdateTasksRequest(server string, params *CreateAgentUpdateTasksParams, body CreateAgentUpdateTasksJSONRequestBody) (*http.Request, error) {
+	var bodyReader io.Reader
+	buf, err := json.Marshal(body)
+	if err != nil {
+		return nil, err
+	}
+	bodyReader = bytes.NewReader(buf)
+	return NewCreateAgentUpdateTasksRequestWithBody(server, params, "application/json", bodyReader)
+}
+
+// NewCreateAgentUpdateTasksRequestWithBody constructs an http.Request for the CreateAgentUpdateTasks method, with any body, and a specified content type
+func NewCreateAgentUpdateTasksRequestWithBody(server string, params *CreateAgentUpdateTasksParams, contentType string, body io.Reader) (*http.Request, error) {
+	var err error
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/api/v1/agent-updates")
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest(http.MethodPost, queryURL.String(), body)
+	if err != nil {
+		return nil, err
+	}
+
+	req.Header.Add("Content-Type", contentType)
+
+	if params != nil {
+
+		if params.XCSRFToken != nil {
+			var headerParam0 string
+
+			headerParam0, err = runtime.StyleParamWithOptions("simple", false, "X-CSRF-Token", *params.XCSRFToken, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationHeader, Type: "string", Format: ""})
+			if err != nil {
+				return nil, err
+			}
+
+			req.Header.Set("X-CSRF-Token", headerParam0)
+		}
+
+	}
+
+	return req, nil
+}
+
+// NewUpdateReleaseChannelRequest calls the generic UpdateReleaseChannel builder with application/json body
+func NewUpdateReleaseChannelRequest(server string, params *UpdateReleaseChannelParams, body UpdateReleaseChannelJSONRequestBody) (*http.Request, error) {
+	var bodyReader io.Reader
+	buf, err := json.Marshal(body)
+	if err != nil {
+		return nil, err
+	}
+	bodyReader = bytes.NewReader(buf)
+	return NewUpdateReleaseChannelRequestWithBody(server, params, "application/json", bodyReader)
+}
+
+// NewUpdateReleaseChannelRequestWithBody constructs an http.Request for the UpdateReleaseChannel method, with any body, and a specified content type
+func NewUpdateReleaseChannelRequestWithBody(server string, params *UpdateReleaseChannelParams, contentType string, body io.Reader) (*http.Request, error) {
+	var err error
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/api/v1/agent-updates/channel")
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest(http.MethodPut, queryURL.String(), body)
+	if err != nil {
+		return nil, err
+	}
+
+	req.Header.Add("Content-Type", contentType)
 
 	if params != nil {
 
@@ -7829,6 +8311,41 @@ type ClientWithResponsesInterface interface {
 	// Corresponds with POST /api/v1/agent-enrollment/key (the `RotateAgentEnrollmentKey` operationId).
 	RotateAgentEnrollmentKeyWithResponse(ctx context.Context, params *RotateAgentEnrollmentKeyParams, reqEditors ...RequestEditorFn) (*RotateAgentEnrollmentKeyResponse, error)
 
+	// GetAgentUpdateStateWithResponse Discover the current channel release and recent Agent update tasks
+	//
+	// Returns a wrapper object for the known response body format(s).
+	//
+	// Corresponds with GET /api/v1/agent-updates (the `GetAgentUpdateState` operationId).
+	GetAgentUpdateStateWithResponse(ctx context.Context, reqEditors ...RequestEditorFn) (*GetAgentUpdateStateResponse, error)
+
+	// CreateAgentUpdateTasksWithBodyWithResponse Create Agent update tasks for one or more online nodes
+	//
+	// Takes any type of body and a specified content type, and returns a wrapper object for the known response body format(s).
+	//
+	// Corresponds with POST /api/v1/agent-updates (the `CreateAgentUpdateTasks` operationId).
+	CreateAgentUpdateTasksWithBodyWithResponse(ctx context.Context, params *CreateAgentUpdateTasksParams, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*CreateAgentUpdateTasksResponse, error)
+
+	// CreateAgentUpdateTasksWithResponse Create Agent update tasks for one or more online nodes
+	//
+	// Takes a body of the `application/json` content type, and returns a wrapper object for the known response body format(s).
+	//
+	// Corresponds with POST /api/v1/agent-updates (the `CreateAgentUpdateTasks` operationId).
+	CreateAgentUpdateTasksWithResponse(ctx context.Context, params *CreateAgentUpdateTasksParams, body CreateAgentUpdateTasksJSONRequestBody, reqEditors ...RequestEditorFn) (*CreateAgentUpdateTasksResponse, error)
+
+	// UpdateReleaseChannelWithBodyWithResponse Select the stable or release-candidate discovery channel
+	//
+	// Takes any type of body and a specified content type, and returns a wrapper object for the known response body format(s).
+	//
+	// Corresponds with PUT /api/v1/agent-updates/channel (the `UpdateReleaseChannel` operationId).
+	UpdateReleaseChannelWithBodyWithResponse(ctx context.Context, params *UpdateReleaseChannelParams, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*UpdateReleaseChannelResponse, error)
+
+	// UpdateReleaseChannelWithResponse Select the stable or release-candidate discovery channel
+	//
+	// Takes a body of the `application/json` content type, and returns a wrapper object for the known response body format(s).
+	//
+	// Corresponds with PUT /api/v1/agent-updates/channel (the `UpdateReleaseChannel` operationId).
+	UpdateReleaseChannelWithResponse(ctx context.Context, params *UpdateReleaseChannelParams, body UpdateReleaseChannelJSONRequestBody, reqEditors ...RequestEditorFn) (*UpdateReleaseChannelResponse, error)
+
 	// GetAgentConfigurationWithResponse Read the current complete desired Agent configuration
 	//
 	// Returns a wrapper object for the known response body format(s).
@@ -8899,6 +9416,185 @@ func (r RotateAgentEnrollmentKeyResponse) StatusCode() int {
 
 // ContentType is a convenience method to retrieve the Content-Type value from the HTTP response headers
 func (r RotateAgentEnrollmentKeyResponse) ContentType() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Header.Get("Content-Type")
+	}
+	return ""
+}
+
+type GetAgentUpdateStateResponse struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	// JSON200 the response for an HTTP 200 `application/json` response
+	JSON200 *AgentUpdateState
+	// JSON401 the response for an HTTP 401 `application/json` response
+	JSON401 *Unauthorized
+}
+
+// GetJSON200 returns the response for an HTTP 200 `application/json` response
+func (r GetAgentUpdateStateResponse) GetJSON200() *AgentUpdateState {
+	return r.JSON200
+}
+
+// GetJSON401 returns the response for an HTTP 401 `application/json` response
+func (r GetAgentUpdateStateResponse) GetJSON401() *Unauthorized {
+	return r.JSON401
+}
+
+// GetBody returns the raw response body bytes
+func (r GetAgentUpdateStateResponse) GetBody() []byte {
+	return r.Body
+}
+
+// Status returns HTTPResponse.Status
+func (r GetAgentUpdateStateResponse) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r GetAgentUpdateStateResponse) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+// ContentType is a convenience method to retrieve the Content-Type value from the HTTP response headers
+func (r GetAgentUpdateStateResponse) ContentType() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Header.Get("Content-Type")
+	}
+	return ""
+}
+
+type CreateAgentUpdateTasksResponse struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	// JSON202 the response for an HTTP 202 `application/json` response
+	JSON202 *AgentUpdateBatchResult
+	// JSON400 the response for an HTTP 400 `application/json` response
+	JSON400 *BadRequest
+	// JSON401 the response for an HTTP 401 `application/json` response
+	JSON401 *Unauthorized
+	// JSON403 the response for an HTTP 403 `application/json` response
+	JSON403 *Forbidden
+	// JSON409 the response for an HTTP 409 `application/json` response
+	JSON409 *Conflict
+}
+
+// GetJSON202 returns the response for an HTTP 202 `application/json` response
+func (r CreateAgentUpdateTasksResponse) GetJSON202() *AgentUpdateBatchResult {
+	return r.JSON202
+}
+
+// GetJSON400 returns the response for an HTTP 400 `application/json` response
+func (r CreateAgentUpdateTasksResponse) GetJSON400() *BadRequest {
+	return r.JSON400
+}
+
+// GetJSON401 returns the response for an HTTP 401 `application/json` response
+func (r CreateAgentUpdateTasksResponse) GetJSON401() *Unauthorized {
+	return r.JSON401
+}
+
+// GetJSON403 returns the response for an HTTP 403 `application/json` response
+func (r CreateAgentUpdateTasksResponse) GetJSON403() *Forbidden {
+	return r.JSON403
+}
+
+// GetJSON409 returns the response for an HTTP 409 `application/json` response
+func (r CreateAgentUpdateTasksResponse) GetJSON409() *Conflict {
+	return r.JSON409
+}
+
+// GetBody returns the raw response body bytes
+func (r CreateAgentUpdateTasksResponse) GetBody() []byte {
+	return r.Body
+}
+
+// Status returns HTTPResponse.Status
+func (r CreateAgentUpdateTasksResponse) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r CreateAgentUpdateTasksResponse) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+// ContentType is a convenience method to retrieve the Content-Type value from the HTTP response headers
+func (r CreateAgentUpdateTasksResponse) ContentType() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Header.Get("Content-Type")
+	}
+	return ""
+}
+
+type UpdateReleaseChannelResponse struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	// JSON200 the response for an HTTP 200 `application/json` response
+	JSON200 *AgentUpdateState
+	// JSON400 the response for an HTTP 400 `application/json` response
+	JSON400 *BadRequest
+	// JSON401 the response for an HTTP 401 `application/json` response
+	JSON401 *Unauthorized
+	// JSON403 the response for an HTTP 403 `application/json` response
+	JSON403 *Forbidden
+}
+
+// GetJSON200 returns the response for an HTTP 200 `application/json` response
+func (r UpdateReleaseChannelResponse) GetJSON200() *AgentUpdateState {
+	return r.JSON200
+}
+
+// GetJSON400 returns the response for an HTTP 400 `application/json` response
+func (r UpdateReleaseChannelResponse) GetJSON400() *BadRequest {
+	return r.JSON400
+}
+
+// GetJSON401 returns the response for an HTTP 401 `application/json` response
+func (r UpdateReleaseChannelResponse) GetJSON401() *Unauthorized {
+	return r.JSON401
+}
+
+// GetJSON403 returns the response for an HTTP 403 `application/json` response
+func (r UpdateReleaseChannelResponse) GetJSON403() *Forbidden {
+	return r.JSON403
+}
+
+// GetBody returns the raw response body bytes
+func (r UpdateReleaseChannelResponse) GetBody() []byte {
+	return r.Body
+}
+
+// Status returns HTTPResponse.Status
+func (r UpdateReleaseChannelResponse) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r UpdateReleaseChannelResponse) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+// ContentType is a convenience method to retrieve the Content-Type value from the HTTP response headers
+func (r UpdateReleaseChannelResponse) ContentType() string {
 	if r.HTTPResponse != nil {
 		return r.HTTPResponse.Header.Get("Content-Type")
 	}
@@ -12136,6 +12832,71 @@ func (c *ClientWithResponses) RotateAgentEnrollmentKeyWithResponse(ctx context.C
 	return ParseRotateAgentEnrollmentKeyResponse(rsp)
 }
 
+// GetAgentUpdateStateWithResponse Discover the current channel release and recent Agent update tasks
+//
+// Returns a wrapper object for the known response body format(s).
+//
+// Corresponds with GET /api/v1/agent-updates (the `GetAgentUpdateState` operationId).
+func (c *ClientWithResponses) GetAgentUpdateStateWithResponse(ctx context.Context, reqEditors ...RequestEditorFn) (*GetAgentUpdateStateResponse, error) {
+	rsp, err := c.GetAgentUpdateState(ctx, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseGetAgentUpdateStateResponse(rsp)
+}
+
+// CreateAgentUpdateTasksWithBodyWithResponse Create Agent update tasks for one or more online nodes
+//
+// Takes any type of body and a specified content type, and returns a wrapper object for the known response body format(s).
+//
+// Corresponds with POST /api/v1/agent-updates (the `CreateAgentUpdateTasks` operationId).
+func (c *ClientWithResponses) CreateAgentUpdateTasksWithBodyWithResponse(ctx context.Context, params *CreateAgentUpdateTasksParams, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*CreateAgentUpdateTasksResponse, error) {
+	rsp, err := c.CreateAgentUpdateTasksWithBody(ctx, params, contentType, body, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseCreateAgentUpdateTasksResponse(rsp)
+}
+
+// CreateAgentUpdateTasksWithResponse Create Agent update tasks for one or more online nodes
+//
+// Takes a body of the `application/json` content type, and returns a wrapper object for the known response body format(s).
+//
+// Corresponds with POST /api/v1/agent-updates (the `CreateAgentUpdateTasks` operationId).
+func (c *ClientWithResponses) CreateAgentUpdateTasksWithResponse(ctx context.Context, params *CreateAgentUpdateTasksParams, body CreateAgentUpdateTasksJSONRequestBody, reqEditors ...RequestEditorFn) (*CreateAgentUpdateTasksResponse, error) {
+	rsp, err := c.CreateAgentUpdateTasks(ctx, params, body, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseCreateAgentUpdateTasksResponse(rsp)
+}
+
+// UpdateReleaseChannelWithBodyWithResponse Select the stable or release-candidate discovery channel
+//
+// Takes any type of body and a specified content type, and returns a wrapper object for the known response body format(s).
+//
+// Corresponds with PUT /api/v1/agent-updates/channel (the `UpdateReleaseChannel` operationId).
+func (c *ClientWithResponses) UpdateReleaseChannelWithBodyWithResponse(ctx context.Context, params *UpdateReleaseChannelParams, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*UpdateReleaseChannelResponse, error) {
+	rsp, err := c.UpdateReleaseChannelWithBody(ctx, params, contentType, body, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseUpdateReleaseChannelResponse(rsp)
+}
+
+// UpdateReleaseChannelWithResponse Select the stable or release-candidate discovery channel
+//
+// Takes a body of the `application/json` content type, and returns a wrapper object for the known response body format(s).
+//
+// Corresponds with PUT /api/v1/agent-updates/channel (the `UpdateReleaseChannel` operationId).
+func (c *ClientWithResponses) UpdateReleaseChannelWithResponse(ctx context.Context, params *UpdateReleaseChannelParams, body UpdateReleaseChannelJSONRequestBody, reqEditors ...RequestEditorFn) (*UpdateReleaseChannelResponse, error) {
+	rsp, err := c.UpdateReleaseChannel(ctx, params, body, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseUpdateReleaseChannelResponse(rsp)
+}
+
 // GetAgentConfigurationWithResponse Read the current complete desired Agent configuration
 //
 // Returns a wrapper object for the known response body format(s).
@@ -13461,6 +14222,140 @@ func ParseRotateAgentEnrollmentKeyResponse(rsp *http.Response) (*RotateAgentEnro
 			return nil, err
 		}
 		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 401:
+		var dest Unauthorized
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON401 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 403:
+		var dest Forbidden
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON403 = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseGetAgentUpdateStateResponse parses an HTTP response from a GetAgentUpdateStateWithResponse call
+func ParseGetAgentUpdateStateResponse(rsp *http.Response) (*GetAgentUpdateStateResponse, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &GetAgentUpdateStateResponse{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest AgentUpdateState
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 401:
+		var dest Unauthorized
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON401 = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseCreateAgentUpdateTasksResponse parses an HTTP response from a CreateAgentUpdateTasksWithResponse call
+func ParseCreateAgentUpdateTasksResponse(rsp *http.Response) (*CreateAgentUpdateTasksResponse, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &CreateAgentUpdateTasksResponse{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 202:
+		var dest AgentUpdateBatchResult
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON202 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 400:
+		var dest BadRequest
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON400 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 401:
+		var dest Unauthorized
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON401 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 403:
+		var dest Forbidden
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON403 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 409:
+		var dest Conflict
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON409 = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseUpdateReleaseChannelResponse parses an HTTP response from a UpdateReleaseChannelWithResponse call
+func ParseUpdateReleaseChannelResponse(rsp *http.Response) (*UpdateReleaseChannelResponse, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &UpdateReleaseChannelResponse{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest AgentUpdateState
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 400:
+		var dest BadRequest
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON400 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 401:
 		var dest Unauthorized

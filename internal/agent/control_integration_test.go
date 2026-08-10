@@ -19,6 +19,7 @@ import (
 	"github.com/ipchronicle/ipchronicle/internal/center/nodes"
 	"github.com/ipchronicle/ipchronicle/internal/center/notifications"
 	"github.com/ipchronicle/ipchronicle/internal/center/syncws"
+	centerupdates "github.com/ipchronicle/ipchronicle/internal/center/updates"
 )
 
 func TestAgentEnrollsOnceAndBecomesOnline(t *testing.T) {
@@ -39,13 +40,17 @@ func TestAgentEnrollsOnceAndBecomesOnline(t *testing.T) {
 		ConfigQueries: centerStore.ConfigQueries, HistoryQueries: centerStore.HistoryQueries,
 		MasterKey: centerStore.MasterKey, Executable: "/proc/self/exe",
 	})
+	updateService := centerupdates.NewService(centerupdates.ServiceOptions{
+		Queries: centerStore.ConfigQueries, Waker: syncHub,
+		CurrentVersion: "0.1.0-rc.1", CurrentRevision: "test-revision",
+	})
 	enrollment, err := nodeService.RotateEnrollmentKey(ctx)
 	if err != nil {
 		t.Fatal(err)
 	}
 	handler := center.NewHTTPHandler(center.HTTPOptions{
-		Version: "0.1.0-test", Web: http.NotFoundHandler(), Administrator: administrator,
-		Nodes: nodeService, Notifications: notificationService, SyncHub: syncHub, Store: centerStore,
+		Version: "0.1.0-test", Revision: "test-revision", Web: http.NotFoundHandler(), Administrator: administrator,
+		Nodes: nodeService, Notifications: notificationService, Updates: updateService, SyncHub: syncHub, Store: centerStore,
 	})
 	server := httptest.NewServer(handler)
 	t.Cleanup(server.Close)

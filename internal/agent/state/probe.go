@@ -183,6 +183,13 @@ func (s *Store) StartProbeRunAtRevision(
 	startedAt = startedAt.UTC().Truncate(time.Second)
 	var result ProbeRun
 	err := s.database.Update(func(transaction *bolt.Tx) error {
+		activeUpdate, err := activeAgentUpdate(transaction.Bucket(agentUpdatesBucket))
+		if err != nil {
+			return err
+		}
+		if activeUpdate {
+			return ErrProbeBusy
+		}
 		if task != nil {
 			if err := validateProbeTaskDelivery(*task); err != nil {
 				return err
@@ -277,6 +284,21 @@ func (s *Store) StartProbeRunAtRevision(
 		return nil
 	})
 	return result, err
+}
+
+func activeAgentUpdate(bucket *bolt.Bucket) (bool, error) {
+	active := false
+	err := bucket.ForEach(func(_, encoded []byte) error {
+		var update storedAgentUpdate
+		if err := decodeJSON(encoded, &update, "Agent update"); err != nil {
+			return err
+		}
+		if !agentUpdateTerminal(update.Status) && update.ConfirmedAt == nil {
+			active = true
+		}
+		return nil
+	})
+	return active, err
 }
 
 func (s *Store) RejectProbeTask(task ProbeTaskDelivery, reason string, now time.Time) (ProbeTaskReport, error) {

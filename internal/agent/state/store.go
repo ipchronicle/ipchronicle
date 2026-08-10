@@ -26,9 +26,13 @@ import (
 
 const (
 	masterKeySize         = 32
-	localSchemaVersion    = 5
+	localSchemaVersion    = 6
 	secretEnvelopeVersion = 1
 )
+
+func SchemaVersion() int {
+	return localSchemaVersion
+}
 
 var (
 	ErrNotEnrolled            = errors.New("Agent is not enrolled")
@@ -47,6 +51,7 @@ var (
 	probeTasksBucket          = []byte("probe-tasks")
 	probeControlBucket        = []byte("probe-control")
 	probeProcessBucket        = []byte("probe-process")
+	agentUpdatesBucket        = []byte("agent-updates")
 	schemaVersionKey          = []byte("schema-version")
 	centerURLKey              = []byte("center-url")
 	nodeIDKey                 = []byte("node-id")
@@ -142,6 +147,7 @@ type ControlState struct {
 type Store struct {
 	database        *bolt.DB
 	masterKey       [masterKeySize]byte
+	directory       string
 	resultDirectory string
 	probeMu         sync.Mutex
 }
@@ -171,7 +177,7 @@ func Open(directory string) (*Store, error) {
 	if err != nil {
 		return nil, fmt.Errorf("open Agent state database: %w", err)
 	}
-	store := &Store{database: database, masterKey: masterKey, resultDirectory: resultDirectory}
+	store := &Store{database: database, masterKey: masterKey, directory: directory, resultDirectory: resultDirectory}
 	if err := store.initialize(); err != nil {
 		_ = database.Close()
 		return nil, err
@@ -181,6 +187,10 @@ func Open(directory string) (*Store, error) {
 		return nil, err
 	}
 	if err := store.validateProbeControlState(); err != nil {
+		_ = database.Close()
+		return nil, err
+	}
+	if err := store.validateAgentUpdateState(); err != nil {
 		_ = database.Close()
 		return nil, err
 	}
@@ -205,6 +215,10 @@ func (s *Store) Close() error {
 		return nil
 	}
 	return s.database.Close()
+}
+
+func (s *Store) Directory() string {
+	return s.directory
 }
 
 func (s *Store) Identity() (Identity, error) {
@@ -457,7 +471,7 @@ func (s *Store) initialize() error {
 		for _, name := range [][]byte{
 			configurationBucket, addressCurrentBucket, addressEventsBucket, addressGapsBucket,
 			probeRunsBucket, probeExecutionsBucket, probeArtifactsBucket, probeSequencesBucket,
-			probeGapsBucket, probeTasksBucket, probeControlBucket, probeProcessBucket,
+			probeGapsBucket, probeTasksBucket, probeControlBucket, probeProcessBucket, agentUpdatesBucket,
 		} {
 			if _, err = transaction.CreateBucketIfNotExists(name); err != nil {
 				return err

@@ -7,6 +7,7 @@ import {
   Network,
   Radar,
   Server,
+  Settings2,
 } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { Link, useLocation } from "react-router";
@@ -60,6 +61,25 @@ export function AppSidebar() {
             <SidebarGroupLabel>{t("navigation.menu")}</SidebarGroupLabel>
             <SidebarGroupContent>
               <SidebarMenu>
+                <SidebarMenuItem>
+                  <SidebarMenuButton
+                    asChild
+                    isActive={location.pathname === "/settings/system"}
+                    tooltip={t("navigation.systemSettings")}
+                  >
+                    <SidebarLink
+                      to="/settings/system"
+                      aria-current={
+                        location.pathname === "/settings/system"
+                          ? "page"
+                          : undefined
+                      }
+                    >
+                      <Settings2 aria-hidden="true" />
+                      <span>{t("navigation.systemSettings")}</span>
+                    </SidebarLink>
+                  </SidebarMenuButton>
+                </SidebarMenuItem>
                 <SidebarMenuItem>
                   <SidebarMenuButton
                     asChild

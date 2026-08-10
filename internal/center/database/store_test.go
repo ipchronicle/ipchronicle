@@ -21,7 +21,7 @@ func TestFreshOpenAndRestart(t *testing.T) {
 		t.Fatal(err)
 	}
 	firstGeneration := store.HistoryGeneration
-	if store.ConfigSchemaVersion != 11 || store.HistorySchemaVersion != 5 {
+	if store.ConfigSchemaVersion != 12 || store.HistorySchemaVersion != 5 {
 		t.Fatalf("unexpected schema versions: %d/%d", store.ConfigSchemaVersion, store.HistorySchemaVersion)
 	}
 	if err := store.Close(); err != nil {
@@ -115,8 +115,8 @@ func TestVersionFiveNetworkEgressesMigrateToCurrentVersion(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer store.Close()
-	if store.ConfigSchemaVersion != 11 {
-		t.Fatalf("configuration schema = %d, want 11", store.ConfigSchemaVersion)
+	if store.ConfigSchemaVersion != 12 {
+		t.Fatalf("configuration schema = %d, want 12", store.ConfigSchemaVersion)
 	}
 	egress, err := store.ConfigQueries.GetNodeEgress(ctx, configdb.GetNodeEgressParams{NodeID: nodeID, ID: egressID})
 	if err != nil {
@@ -125,6 +125,84 @@ func TestVersionFiveNetworkEgressesMigrateToCurrentVersion(t *testing.T) {
 	if egress.Kind != "source" || egress.InterfaceName == nil || *egress.InterfaceName != "eth0" ||
 		egress.SourceAddress == nil || *egress.SourceAddress != "10.0.0.5" || egress.ProxyID != nil {
 		t.Fatalf("migrated egress = %#v", egress)
+	}
+}
+
+func TestVersionElevenProbeTasksMigrateToSharedAgentTaskSlot(t *testing.T) {
+	ctx := context.Background()
+	paths := PathsFromDataDirectory(t.TempDir())
+	if err := prepareDirectories(paths); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(paths.MasterKey, make([]byte, MasterKeySize), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	database, err := openSQLite(ctx, paths.ConfigDatabase)
+	if err != nil {
+		t.Fatal(err)
+	}
+	migrationMu.Lock()
+	goose.SetBaseFS(migrationFiles)
+	err = goose.SetDialect("sqlite3")
+	if err == nil {
+		err = goose.UpToContext(ctx, database, "migrations/config", 11)
+	}
+	migrationMu.Unlock()
+	if err != nil {
+		_ = database.Close()
+		t.Fatal(err)
+	}
+	nodeID := "7289cfa3-a75d-4a3f-ac06-8f1074446a85"
+	activeTaskID := "6fc6d7e8-bc63-49e2-91fc-d4c58b43ac16"
+	terminalTaskID := "e03f9d0a-5303-4f0f-91cc-ebf531436fc1"
+	if _, err := database.ExecContext(ctx, `
+		INSERT INTO nodes (
+			id, name, hostname, credential_digest, agent_version,
+			operating_system, architecture, desired_configuration_revision, registered_at
+		) VALUES (?, ?, ?, ?, ?, ?, ?, 1, ?)
+	`, nodeID, "edge-1", "edge-1", make([]byte, 32), "0.1.0", "linux", "amd64", 1); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := database.ExecContext(ctx, `
+		INSERT INTO probe_tasks (
+			id, node_id, kind, status, created_at, expires_at, acknowledged_at
+		) VALUES (?, ?, 'complete-probe', 'acknowledged', 10, 130, 20)
+	`, activeTaskID, nodeID); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := database.ExecContext(ctx, `
+		INSERT INTO probe_tasks (
+			id, node_id, kind, status, created_at, expires_at,
+			acknowledged_at, started_at, completed_at, run_id, terminal_confirmed_at
+		) VALUES (?, ?, 'complete-probe', 'succeeded', 1, 9, 2, 3, 8, ?, 8)
+	`, terminalTaskID, nodeID, terminalTaskID); err != nil {
+		t.Fatal(err)
+	}
+	if err := database.Close(); err != nil {
+		t.Fatal(err)
+	}
+
+	store, err := Open(ctx, paths)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer store.Close()
+	if store.ConfigSchemaVersion != 12 {
+		t.Fatalf("configuration schema = %d, want 12", store.ConfigSchemaVersion)
+	}
+	active, err := store.ConfigQueries.GetActiveNodeTask(ctx, nodeID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if active.ID != activeTaskID || active.Kind != "complete-probe" || active.Status != "acknowledged" || active.TargetVersion != nil {
+		t.Fatalf("migrated active task = %#v", active)
+	}
+	terminal, err := store.ConfigQueries.GetProbeTask(ctx, configdb.GetProbeTaskParams{ID: terminalTaskID, NodeID: nodeID})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if terminal.Status != "succeeded" || terminal.RunID == nil || *terminal.RunID != terminalTaskID || terminal.TargetVersion != nil {
+		t.Fatalf("migrated terminal task = %#v", terminal)
 	}
 }
 

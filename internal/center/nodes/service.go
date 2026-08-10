@@ -74,6 +74,7 @@ type Enrollment struct {
 type Metadata struct {
 	Hostname            string
 	AgentVersion        string
+	AgentRevision       *string
 	OperatingSystem     string
 	Architecture        string
 	Capabilities        []string
@@ -145,6 +146,7 @@ type Node struct {
 	Status                       string
 	Enabled                      bool
 	AgentVersion                 string
+	AgentRevision                *string
 	OperatingSystem              string
 	Architecture                 string
 	Capabilities                 []string
@@ -260,8 +262,9 @@ func (s *Service) Register(ctx context.Context, registrationKey string, metadata
 	if err := queries.CreateNode(ctx, configdb.CreateNodeParams{
 		ID: nodeID.String(), Name: initialNodeName(metadata.Hostname),
 		Hostname: metadata.Hostname, CredentialDigest: credentialDigest[:],
-		AgentVersion: metadata.AgentVersion, OperatingSystem: metadata.OperatingSystem,
-		Architecture: metadata.Architecture, RegisteredAt: now.Unix(),
+		AgentVersion: metadata.AgentVersion, AgentRevision: metadata.AgentRevision,
+		OperatingSystem: metadata.OperatingSystem,
+		Architecture:    metadata.Architecture, RegisteredAt: now.Unix(),
 	}); err != nil {
 		return Registration{}, err
 	}
@@ -317,7 +320,7 @@ func (s *Service) Poll(
 	defer transaction.Rollback()
 	queries := s.queries.WithTx(transaction)
 	changed, err := queries.UpdateNodeHeartbeat(ctx, configdb.UpdateNodeHeartbeatParams{
-		Hostname: metadata.Hostname, AgentVersion: metadata.AgentVersion,
+		Hostname: metadata.Hostname, AgentVersion: metadata.AgentVersion, AgentRevision: metadata.AgentRevision,
 		OperatingSystem: metadata.OperatingSystem, Architecture: metadata.Architecture,
 		AppliedConfigurationRevision: appliedRevision, ConfigurationError: configurationError,
 		ConfigurationErrorRevision: configurationErrorRevision, LastSeenAt: &now, ID: node.ID,
@@ -339,7 +342,8 @@ func (s *Service) Poll(
 		return Poll{}, ErrAgentRevoked
 	}
 	acceptedTerminalTaskID, err := s.applyProbeControlReport(
-		ctx, queries, node.ID, addressUpload.ProbeStatus, addressUpload.TaskReport, now,
+		ctx, queries, node.ID, node.AgentVersion, metadata.AgentVersion,
+		addressUpload.ProbeStatus, addressUpload.TaskReport, now,
 	)
 	if err != nil {
 		return Poll{}, err
@@ -387,7 +391,7 @@ func (s *Service) Poll(
 	if err != nil {
 		return Poll{}, err
 	}
-	task, err := s.deliverProbeTask(ctx, node.ID, now)
+	task, err := s.deliverAgentTask(ctx, node.ID, now)
 	if err != nil {
 		return Poll{}, err
 	}
@@ -535,7 +539,7 @@ func (s *Service) List(ctx context.Context) ([]Node, error) {
 		}
 		node := Node{
 			ID: id, Name: record.Name, Hostname: record.Hostname, Status: status,
-			Enabled: record.Enabled == 1, AgentVersion: record.AgentVersion,
+			Enabled: record.Enabled == 1, AgentVersion: record.AgentVersion, AgentRevision: record.AgentRevision,
 			OperatingSystem: record.OperatingSystem, Architecture: record.Architecture,
 			Capabilities:                 append([]string{}, capabilities[record.ID]...),
 			DesiredConfigurationRevision: record.DesiredConfigurationRevision,
@@ -990,24 +994,40 @@ func (s *Service) deleteNetworkEgressHistory(ctx context.Context, egressID strin
 	return transaction.Commit()
 }
 
-func (s *Service) authenticateAgent(ctx context.Context, credential string) (configdb.Node, error) {
+type authenticatedNode struct {
+	ID                           string
+	Enabled                      int64
+	RevokedAt                    *int64
+	AgentVersion                 string
+	DesiredConfigurationRevision int64
+	AppliedConfigurationRevision int64
+}
+
+func (s *Service) authenticateAgent(ctx context.Context, credential string) (authenticatedNode, error) {
 	digest := sha256.Sum256([]byte(credential))
 	node, err := s.queries.GetNodeByCredentialDigest(ctx, digest[:])
 	if err == nil {
 		if node.RevokedAt != nil {
-			return configdb.Node{}, ErrAgentRevoked
+			return authenticatedNode{}, ErrAgentRevoked
 		}
-		return node, nil
+		return authenticatedNode{
+			ID:                           node.ID,
+			Enabled:                      node.Enabled,
+			RevokedAt:                    node.RevokedAt,
+			AgentVersion:                 node.AgentVersion,
+			DesiredConfigurationRevision: node.DesiredConfigurationRevision,
+			AppliedConfigurationRevision: node.AppliedConfigurationRevision,
+		}, nil
 	}
 	if !errors.Is(err, sql.ErrNoRows) {
-		return configdb.Node{}, err
+		return authenticatedNode{}, err
 	}
 	if _, revokedErr := s.queries.GetRevokedAgentCredential(ctx, digest[:]); revokedErr == nil {
-		return configdb.Node{}, ErrAgentRevoked
+		return authenticatedNode{}, ErrAgentRevoked
 	} else if !errors.Is(revokedErr, sql.ErrNoRows) {
-		return configdb.Node{}, revokedErr
+		return authenticatedNode{}, revokedErr
 	}
-	return configdb.Node{}, ErrAgentUnauthenticated
+	return authenticatedNode{}, ErrAgentUnauthenticated
 }
 
 func deletionFromRecord(record configdb.NodeDeletionOperation) (Deletion, error) {
@@ -1053,6 +1073,11 @@ func validateMetadata(metadata Metadata) (Metadata, error) {
 	if metadata.AgentVersion != strings.TrimSpace(metadata.AgentVersion) ||
 		utf8.RuneCountInString(metadata.AgentVersion) < 1 || utf8.RuneCountInString(metadata.AgentVersion) > 64 ||
 		strings.ContainsAny(metadata.AgentVersion, "\x00\r\n\t") {
+		return Metadata{}, ErrInvalidMetadata
+	}
+	if metadata.AgentRevision != nil && (*metadata.AgentRevision != strings.TrimSpace(*metadata.AgentRevision) ||
+		utf8.RuneCountInString(*metadata.AgentRevision) < 1 || utf8.RuneCountInString(*metadata.AgentRevision) > 64 ||
+		strings.ContainsAny(*metadata.AgentRevision, "\x00\r\n\t")) {
 		return Metadata{}, ErrInvalidMetadata
 	}
 	if metadata.OperatingSystem != "linux" || (metadata.Architecture != "amd64" && metadata.Architecture != "arm64") ||

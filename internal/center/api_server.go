@@ -14,14 +14,17 @@ import (
 	centerhistory "github.com/ipchronicle/ipchronicle/internal/center/history"
 	"github.com/ipchronicle/ipchronicle/internal/center/nodes"
 	"github.com/ipchronicle/ipchronicle/internal/center/notifications"
+	centerupdates "github.com/ipchronicle/ipchronicle/internal/center/updates"
 	"github.com/ipchronicle/ipchronicle/internal/generated/api"
 )
 
 type apiServer struct {
 	version                  string
+	revision                 string
 	administrator            *admin.Service
 	nodes                    *nodes.Service
 	notifications            *notifications.Service
+	updates                  *centerupdates.Service
 	configSchemaVersion      int64
 	historySchemaVersion     int64
 	externalOriginConfigured bool
@@ -298,6 +301,7 @@ func (s apiServer) GetSystemStatus(ctx context.Context, _ api.GetSystemStatusReq
 		Service:                  api.IpchronicleCenter,
 		Status:                   api.Ok,
 		Version:                  s.version,
+		SourceRevision:           s.revision,
 		ConfigSchemaVersion:      s.configSchemaVersion,
 		HistorySchemaVersion:     s.historySchemaVersion,
 		TransportSecurity:        transport,
@@ -1188,8 +1192,9 @@ func (s apiServer) PollAgent(ctx context.Context, request api.PollAgentRequestOb
 	}
 	if poll.Task != nil {
 		result.Task = &api.AgentTask{
-			Id: poll.Task.ID, Kind: api.AgentTaskKind("complete-probe"),
+			Id: poll.Task.ID, Kind: api.AgentTaskKind(poll.Task.Kind),
 			CreatedAt: poll.Task.CreatedAt, ExpiresAt: poll.Task.ExpiresAt,
+			TargetVersion: poll.Task.TargetVersion,
 		}
 	}
 	result.AcceptedTerminalTaskId = poll.AcceptedTerminalTaskID
@@ -1334,7 +1339,7 @@ func agentForbidden(code api.ErrorCode) api.AgentForbiddenJSONResponse {
 
 func metadataFromAPI(metadata api.AgentMetadata) nodes.Metadata {
 	return nodes.Metadata{
-		Hostname: metadata.Hostname, AgentVersion: metadata.AgentVersion,
+		Hostname: metadata.Hostname, AgentVersion: metadata.AgentVersion, AgentRevision: metadata.SourceRevision,
 		OperatingSystem: string(metadata.OperatingSystem), Architecture: string(metadata.Architecture),
 		Capabilities: metadata.Capabilities, PhysicalMemoryBytes: metadata.PhysicalMemoryBytes,
 	}
@@ -1393,7 +1398,7 @@ func enrollmentResponse(enrollment nodes.Enrollment, centerURL, centerVersion st
 func nodeResponse(node nodes.Node) api.Node {
 	return api.Node{
 		Id: node.ID, Name: node.Name, Hostname: node.Hostname, Status: api.NodeStatus(node.Status),
-		Enabled: node.Enabled, AgentVersion: node.AgentVersion,
+		Enabled: node.Enabled, AgentVersion: node.AgentVersion, SourceRevision: node.AgentRevision,
 		OperatingSystem: api.AgentPlatform(node.OperatingSystem), Architecture: api.AgentArchitecture(node.Architecture),
 		Capabilities:                 node.Capabilities,
 		DesiredConfigurationRevision: node.DesiredConfigurationRevision,
@@ -1748,6 +1753,8 @@ func taskReportFromAPI(report *api.AgentTaskReport) *nodes.TaskReport {
 	result := &nodes.TaskReport{
 		ID: report.Id, Status: string(report.Status), AcknowledgedAt: report.AcknowledgedAt,
 		StartedAt: report.StartedAt, CompletedAt: report.CompletedAt, RunID: report.RunId,
+		PreviousVersion: report.PreviousVersion, ResultVersion: report.ResultVersion,
+		FailureCode: report.FailureCode, Diagnostic: report.Diagnostic,
 	}
 	if report.RejectionReason != nil {
 		value := string(*report.RejectionReason)

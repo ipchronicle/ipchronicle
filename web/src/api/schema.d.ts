@@ -274,6 +274,41 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/agent-updates": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Discover the current channel release and recent Agent update tasks */
+        get: operations["getAgentUpdateState"];
+        put?: never;
+        /** Create Agent update tasks for one or more online nodes */
+        post: operations["createAgentUpdateTasks"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/agent-updates/channel": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /** Select the stable or release-candidate discovery channel */
+        put: operations["updateReleaseChannel"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/probe-runs/{runId}": {
         parameters: {
             query?: never;
@@ -863,6 +898,7 @@ export interface components {
             /** @enum {string} */
             status: "ok";
             version: string;
+            sourceRevision: string;
             /** Format: int64 */
             configSchemaVersion: number;
             /** Format: int64 */
@@ -890,6 +926,7 @@ export interface components {
         AgentMetadata: {
             hostname: string;
             agentVersion: string;
+            sourceRevision?: string;
             operatingSystem: components["schemas"]["AgentPlatform"];
             architecture: components["schemas"]["AgentArchitecture"];
             capabilities: string[];
@@ -1265,17 +1302,18 @@ export interface components {
             /** Format: uuid */
             id: string;
             /** @enum {string} */
-            kind: "complete-probe";
+            kind: "complete-probe" | "agent-update";
             /** Format: date-time */
             createdAt: string;
             /** Format: date-time */
             expiresAt: string;
+            targetVersion?: string;
         };
         AgentTaskReport: {
             /** Format: uuid */
             id: string;
             /** @enum {string} */
-            status: "acknowledged" | "running" | "succeeded" | "partial" | "failed" | "rejected";
+            status: "acknowledged" | "running" | "verifying" | "installing" | "restarting" | "succeeded" | "partial" | "failed" | "rolled-back" | "rejected";
             /** Format: date-time */
             acknowledgedAt: string;
             /** Format: date-time */
@@ -1285,6 +1323,78 @@ export interface components {
             /** Format: uuid */
             runId?: string;
             rejectionReason?: components["schemas"]["AgentProbeSkipReason"];
+            previousVersion?: string;
+            resultVersion?: string;
+            failureCode?: string;
+            diagnostic?: string;
+        };
+        /** @enum {string} */
+        ReleaseChannel: "stable" | "rc";
+        ReleaseChannelUpdate: {
+            channel: components["schemas"]["ReleaseChannel"];
+        };
+        AgentUpdateRelease: {
+            version: string;
+            tag: string;
+            channel: components["schemas"]["ReleaseChannel"];
+            revision: string;
+            /** Format: date-time */
+            publishedAt: string;
+            agentCapabilities: string[];
+        };
+        /** @enum {string} */
+        AgentUpdateTaskStatus: "pending" | "acknowledged" | "verifying" | "installing" | "restarting" | "succeeded" | "failed" | "rolled-back" | "rejected" | "expired";
+        AgentUpdateTask: {
+            /** Format: uuid */
+            id: string;
+            /** Format: uuid */
+            nodeId: string;
+            targetVersion: string;
+            status: components["schemas"]["AgentUpdateTaskStatus"];
+            /** Format: date-time */
+            createdAt: string;
+            /** Format: date-time */
+            expiresAt: string;
+            /** Format: date-time */
+            acknowledgedAt?: string;
+            /** Format: date-time */
+            startedAt?: string;
+            /** Format: date-time */
+            completedAt?: string;
+            previousVersion?: string;
+            resultVersion?: string;
+            failureCode?: string;
+            diagnostic?: string;
+            offline: boolean;
+        };
+        /** @enum {string} */
+        AgentUpdateDiscoveryError: "release-discovery-failed" | "current-version-invalid";
+        AgentUpdateState: {
+            channel: components["schemas"]["ReleaseChannel"];
+            currentVersion: string;
+            currentRevision: string;
+            /** Format: date-time */
+            checkedAt: string;
+            availableRelease?: components["schemas"]["AgentUpdateRelease"];
+            discoveryError?: components["schemas"]["AgentUpdateDiscoveryError"];
+            tasks: components["schemas"]["AgentUpdateTask"][];
+        };
+        AgentUpdateBatchRequest: {
+            nodeIds: string[];
+            targetVersion: string;
+        };
+        AgentUpdateBatchItem: {
+            /** Format: uuid */
+            nodeId: string;
+            accepted: boolean;
+            task?: components["schemas"]["AgentUpdateTask"];
+            error?: components["schemas"]["AgentUpdateErrorCode"];
+        };
+        /** @enum {string} */
+        AgentUpdateErrorCode: "agent_update_node_not_found" | "agent_update_node_revoked" | "agent_update_node_disabled" | "agent_update_node_offline" | "agent_update_task_slot_occupied" | "agent_update_unsupported" | "agent_update_not_available" | "agent_update_target_invalid";
+        AgentUpdateBatchResult: {
+            targetVersion: string;
+            items: components["schemas"]["AgentUpdateBatchItem"][];
         };
         AgentProbeExecutionManifest: {
             /** Format: uuid */
@@ -1862,6 +1972,7 @@ export interface components {
             status: components["schemas"]["NodeStatus"];
             enabled: boolean;
             agentVersion: string;
+            sourceRevision?: string;
             operatingSystem: components["schemas"]["AgentPlatform"];
             architecture: components["schemas"]["AgentArchitecture"];
             capabilities: string[];
@@ -2522,6 +2633,86 @@ export interface operations {
             403: components["responses"]["Forbidden"];
             404: components["responses"]["NotFound"];
             409: components["responses"]["Conflict"];
+        };
+    };
+    getAgentUpdateState: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Current release channel, discovery result, and update tasks. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AgentUpdateState"];
+                };
+            };
+            401: components["responses"]["Unauthorized"];
+        };
+    };
+    createAgentUpdateTasks: {
+        parameters: {
+            query?: never;
+            header?: {
+                "X-CSRF-Token"?: components["parameters"]["CSRFToken"];
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["AgentUpdateBatchRequest"];
+            };
+        };
+        responses: {
+            /** @description Per-node task creation outcomes. */
+            202: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AgentUpdateBatchResult"];
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            409: components["responses"]["Conflict"];
+        };
+    };
+    updateReleaseChannel: {
+        parameters: {
+            query?: never;
+            header?: {
+                "X-CSRF-Token"?: components["parameters"]["CSRFToken"];
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ReleaseChannelUpdate"];
+            };
+        };
+        responses: {
+            /** @description Updated release discovery state. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AgentUpdateState"];
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
         };
     };
     getProbeRun: {

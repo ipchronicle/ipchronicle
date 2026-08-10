@@ -84,9 +84,15 @@ DELETE FROM administrator_sessions
 WHERE expires_at <= ?;
 
 -- name: GetSystemState :one
-SELECT id, history_generation, pending_history_generation, history_reset_at
+SELECT id, history_generation, pending_history_generation, history_reset_at,
+       release_channel
 FROM system_state
 WHERE id = 1;
+
+-- name: SetReleaseChannel :execrows
+UPDATE system_state
+SET release_channel = ?
+WHERE id = 1 AND release_channel != ?;
 
 -- name: GetHistoryRetentionSettings :one
 SELECT id, mode, max_age_days, max_logical_bytes, updated_at
@@ -142,13 +148,13 @@ WHERE id = 1;
 
 -- name: CreateNode :exec
 INSERT INTO nodes (
-    id, name, hostname, credential_digest, agent_version,
+    id, name, hostname, credential_digest, agent_version, agent_revision,
     operating_system, architecture, desired_configuration_revision, registered_at
-) VALUES (?, ?, ?, ?, ?, ?, ?, 1, ?);
+) VALUES (?, ?, ?, ?, ?, ?, ?, ?, 1, ?);
 
 -- name: GetNodeByCredentialDigest :one
 SELECT id, name, hostname, credential_digest, enabled, revoked_at,
-       agent_version, operating_system, architecture,
+       agent_version, agent_revision, operating_system, architecture,
        desired_configuration_revision, applied_configuration_revision,
        configuration_error, registered_at, last_seen_at,
        configuration_error_revision, physical_memory_bytes,
@@ -159,7 +165,7 @@ WHERE credential_digest = ?;
 
 -- name: GetNodeByID :one
 SELECT id, name, hostname, credential_digest, enabled, revoked_at,
-       agent_version, operating_system, architecture,
+       agent_version, agent_revision, operating_system, architecture,
        desired_configuration_revision, applied_configuration_revision,
        configuration_error, registered_at, last_seen_at,
        configuration_error_revision, physical_memory_bytes,
@@ -170,14 +176,14 @@ WHERE id = ?;
 
 -- name: UpdateNodeHeartbeat :execrows
 UPDATE nodes
-SET hostname = ?, agent_version = ?, operating_system = ?, architecture = ?,
+SET hostname = ?, agent_version = ?, agent_revision = ?, operating_system = ?, architecture = ?,
     applied_configuration_revision = ?, configuration_error = ?,
     configuration_error_revision = ?, last_seen_at = ?
 WHERE id = ? AND revoked_at IS NULL;
 
 -- name: ListNodes :many
 SELECT id, name, hostname, credential_digest, enabled, revoked_at,
-       agent_version, operating_system, architecture,
+       agent_version, agent_revision, operating_system, architecture,
        desired_configuration_revision, applied_configuration_revision,
        configuration_error, registered_at, last_seen_at,
        configuration_error_revision, physical_memory_bytes,
@@ -611,30 +617,68 @@ INSERT INTO probe_tasks (
     id, node_id, kind, status, created_at, expires_at
 ) VALUES (?, ?, 'complete-probe', 'pending', ?, ?);
 
+-- name: CreateAgentUpdateTask :exec
+INSERT INTO probe_tasks (
+    id, node_id, kind, status, target_version, created_at, expires_at
+) VALUES (?, ?, 'agent-update', 'pending', ?, ?, ?);
+
 -- name: GetProbeTask :one
 SELECT id, node_id, kind, status, created_at, expires_at, acknowledged_at,
        started_at, completed_at, run_id, rejection_reason,
+       target_version, previous_version, result_version, failure_code, diagnostic,
        terminal_confirmed_at
 FROM probe_tasks
 WHERE id = ? AND node_id = ?;
 
--- name: GetActiveProbeTask :one
+-- name: GetActiveNodeTask :one
 SELECT id, node_id, kind, status, created_at, expires_at, acknowledged_at,
        started_at, completed_at, run_id, rejection_reason,
+       target_version, previous_version, result_version, failure_code, diagnostic,
        terminal_confirmed_at
 FROM probe_tasks
-WHERE node_id = ? AND status IN ('pending', 'acknowledged', 'running')
+WHERE node_id = ? AND status IN (
+    'pending', 'acknowledged', 'running', 'verifying', 'installing', 'restarting'
+)
 ORDER BY created_at, id
 LIMIT 1;
 
 -- name: GetLatestProbeTask :one
 SELECT id, node_id, kind, status, created_at, expires_at, acknowledged_at,
        started_at, completed_at, run_id, rejection_reason,
+       target_version, previous_version, result_version, failure_code, diagnostic,
        terminal_confirmed_at
 FROM probe_tasks
-WHERE node_id = ?
+WHERE node_id = ? AND kind = 'complete-probe'
 ORDER BY created_at DESC, id DESC
 LIMIT 1;
+
+-- name: GetLatestAgentUpdateTask :one
+SELECT id, node_id, kind, status, created_at, expires_at, acknowledged_at,
+       started_at, completed_at, run_id, rejection_reason,
+       target_version, previous_version, result_version, failure_code, diagnostic,
+       terminal_confirmed_at
+FROM probe_tasks
+WHERE node_id = ? AND kind = 'agent-update'
+ORDER BY created_at DESC, id DESC
+LIMIT 1;
+
+-- name: ListLatestAgentUpdateTasks :many
+SELECT task.id, task.node_id, task.kind, task.status, task.created_at,
+       task.expires_at, task.acknowledged_at, task.started_at,
+       task.completed_at, task.run_id, task.rejection_reason,
+       task.target_version, task.previous_version, task.result_version,
+       task.failure_code, task.diagnostic, task.terminal_confirmed_at
+FROM probe_tasks AS task
+WHERE task.kind = 'agent-update'
+  AND task.id = (
+      SELECT latest.id
+      FROM probe_tasks AS latest
+      WHERE latest.node_id = task.node_id AND latest.kind = 'agent-update'
+      ORDER BY latest.created_at DESC, latest.id DESC
+      LIMIT 1
+  )
+ORDER BY task.created_at DESC, task.id DESC
+LIMIT 70;
 
 -- name: ExpireProbeTask :execrows
 UPDATE probe_tasks
@@ -644,14 +688,17 @@ WHERE id = ? AND node_id = ? AND status = 'pending' AND expires_at <= ?;
 -- name: UpdateProbeTaskReport :execrows
 UPDATE probe_tasks
 SET status = ?, acknowledged_at = ?, started_at = ?, completed_at = ?,
-    run_id = ?, rejection_reason = ?, terminal_confirmed_at = ?
+    run_id = ?, rejection_reason = ?, previous_version = ?, result_version = ?,
+    failure_code = ?, diagnostic = ?, terminal_confirmed_at = ?
 WHERE id = ? AND node_id = ?
-  AND status IN ('pending', 'acknowledged', 'running');
+  AND status IN (
+      'pending', 'acknowledged', 'running', 'verifying', 'installing', 'restarting'
+  );
 
 -- name: DeleteTerminalProbeTasksBefore :exec
 DELETE FROM probe_tasks
 WHERE completed_at IS NOT NULL AND completed_at < ?
-  AND status IN ('succeeded', 'partial', 'failed', 'rejected', 'expired');
+  AND status IN ('succeeded', 'partial', 'failed', 'rolled-back', 'rejected', 'expired');
 
 -- name: CreateNotificationSender :exec
 INSERT INTO notification_senders (

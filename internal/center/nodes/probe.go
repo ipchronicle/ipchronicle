@@ -64,11 +64,16 @@ type TaskReport struct {
 	CompletedAt     *time.Time
 	RunID           *uuid.UUID
 	RejectionReason *string
+	PreviousVersion *string
+	ResultVersion   *string
+	FailureCode     *string
+	Diagnostic      *string
 }
 
 type Task struct {
 	ID              uuid.UUID
 	NodeID          uuid.UUID
+	Kind            string
 	Status          string
 	CreatedAt       time.Time
 	ExpiresAt       time.Time
@@ -77,6 +82,7 @@ type Task struct {
 	CompletedAt     *time.Time
 	RunID           *uuid.UUID
 	RejectionReason *string
+	TargetVersion   *string
 	Offline         bool
 }
 
@@ -220,6 +226,8 @@ func (s *Service) applyProbeControlReport(
 	ctx context.Context,
 	queries *configdb.Queries,
 	nodeID string,
+	previousAgentVersion string,
+	reportedAgentVersion string,
 	status *ProbeStatus,
 	report *TaskReport,
 	now int64,
@@ -259,6 +267,9 @@ func (s *Service) applyProbeControlReport(
 	if err := validateTaskReport(record, *report); err != nil {
 		return nil, err
 	}
+	if record.Kind == "agent-update" && !agentUpdateReportMatchesRunningVersion(record, *report, previousAgentVersion, reportedAgentVersion) {
+		return nil, ErrInvalidMetadata
+	}
 	if taskTerminal(record.Status) {
 		if !sameTerminalTask(record, *report) {
 			return nil, ErrInvalidMetadata
@@ -282,6 +293,8 @@ func (s *Service) applyProbeControlReport(
 		Status: report.Status, AcknowledgedAt: unixPointer(&report.AcknowledgedAt),
 		StartedAt: unixPointer(report.StartedAt), CompletedAt: unixPointer(report.CompletedAt),
 		RunID: runID, RejectionReason: report.RejectionReason,
+		PreviousVersion: report.PreviousVersion, ResultVersion: report.ResultVersion,
+		FailureCode: report.FailureCode, Diagnostic: report.Diagnostic,
 		TerminalConfirmedAt: terminalConfirmedAt, ID: report.ID.String(), NodeID: nodeID,
 	})
 	if err != nil {
@@ -297,8 +310,28 @@ func (s *Service) applyProbeControlReport(
 	return nil, nil
 }
 
-func (s *Service) deliverProbeTask(ctx context.Context, nodeID string, now int64) (*Task, error) {
-	record, err := s.queries.GetActiveProbeTask(ctx, nodeID)
+func agentUpdateReportMatchesRunningVersion(
+	record configdb.ProbeTask,
+	report TaskReport,
+	previousAgentVersion string,
+	reportedAgentVersion string,
+) bool {
+	switch report.Status {
+	case "acknowledged":
+		return reportedAgentVersion == previousAgentVersion
+	case "verifying", "installing", "failed", "rejected":
+		return report.PreviousVersion != nil && reportedAgentVersion == *report.PreviousVersion
+	case "restarting":
+		return record.TargetVersion != nil && reportedAgentVersion == *record.TargetVersion
+	case "succeeded", "rolled-back":
+		return report.ResultVersion != nil && reportedAgentVersion == *report.ResultVersion
+	default:
+		return false
+	}
+}
+
+func (s *Service) deliverAgentTask(ctx context.Context, nodeID string, now int64) (*Task, error) {
+	record, err := s.queries.GetActiveNodeTask(ctx, nodeID)
 	if errors.Is(err, sql.ErrNoRows) {
 		return nil, nil
 	}
@@ -343,7 +376,7 @@ func (s *Service) CreateCompleteProbeTask(ctx context.Context, nodeID uuid.UUID)
 	} else if statusErr != nil && !errors.Is(statusErr, sql.ErrNoRows) {
 		return Task{}, statusErr
 	}
-	if _, err := s.queries.GetActiveProbeTask(ctx, nodeID.String()); err == nil {
+	if _, err := s.queries.GetActiveNodeTask(ctx, nodeID.String()); err == nil {
 		return Task{}, ErrProbeTaskSlotOccupied
 	} else if !errors.Is(err, sql.ErrNoRows) {
 		return Task{}, err
@@ -366,7 +399,7 @@ func (s *Service) CreateCompleteProbeTask(ctx context.Context, nodeID uuid.UUID)
 		return Task{}, err
 	}
 	s.sync.Wake(nodeID.String())
-	return Task{ID: id, NodeID: nodeID, Status: "pending", CreatedAt: now, ExpiresAt: expiresAt}, nil
+	return Task{ID: id, NodeID: nodeID, Kind: "complete-probe", Status: "pending", CreatedAt: now, ExpiresAt: expiresAt}, nil
 }
 
 func (s *Service) Probe(ctx context.Context, nodeID uuid.UUID) (ProbeState, error) {
@@ -1080,11 +1113,17 @@ func validateProbeStatus(status *ProbeStatus) error {
 
 func validateTaskReport(record configdb.ProbeTask, report TaskReport) error {
 	if report.ID == uuid.Nil || report.AcknowledgedAt.IsZero() || report.AcknowledgedAt.Unix() < record.CreatedAt ||
-		report.AcknowledgedAt.Unix() > record.ExpiresAt ||
-		!validTaskReportStatus(report.Status) {
+		report.AcknowledgedAt.Unix() > record.ExpiresAt {
 		return ErrInvalidMetadata
 	}
 	if report.StartedAt != nil && report.StartedAt.Before(report.AcknowledgedAt) || report.CompletedAt != nil && report.CompletedAt.Before(report.AcknowledgedAt) {
+		return ErrInvalidMetadata
+	}
+	if record.Kind == "agent-update" {
+		return validateAgentUpdateTaskReport(record, report)
+	}
+	if record.Kind != "complete-probe" || report.PreviousVersion != nil || report.ResultVersion != nil ||
+		report.FailureCode != nil || report.Diagnostic != nil || !validProbeTaskReportStatus(report.Status) {
 		return ErrInvalidMetadata
 	}
 	if report.Status == "acknowledged" {
@@ -1113,6 +1152,65 @@ func validateTaskReport(record configdb.ProbeTask, report TaskReport) error {
 		return ErrInvalidMetadata
 	}
 	return nil
+}
+
+func validateAgentUpdateTaskReport(record configdb.ProbeTask, report TaskReport) error {
+	if record.TargetVersion == nil || report.RunID != nil || report.RejectionReason != nil ||
+		!validAgentUpdateTaskReportStatus(report.Status) {
+		return ErrInvalidMetadata
+	}
+	if report.Status == "acknowledged" {
+		if report.StartedAt != nil || report.CompletedAt != nil || report.PreviousVersion != nil ||
+			report.ResultVersion != nil || report.FailureCode != nil || report.Diagnostic != nil {
+			return ErrInvalidMetadata
+		}
+		return nil
+	}
+	if report.Status == "rejected" {
+		if report.StartedAt != nil || report.CompletedAt == nil || !validTaskText(report.PreviousVersion, 64, false) ||
+			report.ResultVersion != nil || !validTaskText(report.FailureCode, 64, false) || !validTaskText(report.Diagnostic, 4096, true) {
+			return ErrInvalidMetadata
+		}
+		return nil
+	}
+	if report.StartedAt == nil || !validTaskText(report.PreviousVersion, 64, false) {
+		return ErrInvalidMetadata
+	}
+	if report.Status == "verifying" || report.Status == "installing" || report.Status == "restarting" {
+		if report.CompletedAt != nil || report.ResultVersion != nil || report.FailureCode != nil || report.Diagnostic != nil {
+			return ErrInvalidMetadata
+		}
+		return nil
+	}
+	if report.CompletedAt == nil || report.CompletedAt.Before(*report.StartedAt) {
+		return ErrInvalidMetadata
+	}
+	switch report.Status {
+	case "succeeded":
+		if report.ResultVersion == nil || *report.ResultVersion != *record.TargetVersion || report.FailureCode != nil || report.Diagnostic != nil {
+			return ErrInvalidMetadata
+		}
+	case "failed":
+		if report.ResultVersion != nil || !validTaskText(report.FailureCode, 64, false) || !validTaskText(report.Diagnostic, 4096, true) {
+			return ErrInvalidMetadata
+		}
+	case "rolled-back":
+		if report.ResultVersion == nil || *report.ResultVersion != *report.PreviousVersion ||
+			!validTaskText(report.FailureCode, 64, false) || !validTaskText(report.Diagnostic, 4096, true) {
+			return ErrInvalidMetadata
+		}
+	default:
+		return ErrInvalidMetadata
+	}
+	return nil
+}
+
+func validTaskText(value *string, limit int, optional bool) bool {
+	if value == nil {
+		return optional
+	}
+	length := utf8.RuneCountInString(*value)
+	return length >= 1 && length <= limit && !strings.ContainsRune(*value, '\x00')
 }
 
 func validProbeJSONObject(raw []byte) bool {
@@ -1173,11 +1271,12 @@ func taskFromRecord(record configdb.ProbeTask, offline bool) (Task, error) {
 		runID = &value
 	}
 	return Task{
-		ID: id, NodeID: nodeID, Status: record.Status,
+		ID: id, NodeID: nodeID, Kind: record.Kind, Status: record.Status,
 		CreatedAt: time.Unix(record.CreatedAt, 0).UTC(), ExpiresAt: time.Unix(record.ExpiresAt, 0).UTC(),
 		AcknowledgedAt: timePointer(record.AcknowledgedAt), StartedAt: timePointer(record.StartedAt),
 		CompletedAt: timePointer(record.CompletedAt), RunID: runID, RejectionReason: record.RejectionReason,
-		Offline: offline,
+		TargetVersion: record.TargetVersion,
+		Offline:       offline,
 	}, nil
 }
 
@@ -1297,7 +1396,9 @@ func sameTerminalExecution(record historydb.ProbeExecution, execution ProbeExecu
 func sameTerminalTask(record configdb.ProbeTask, report TaskReport) bool {
 	return record.Status == report.Status && pointerInt64(record.AcknowledgedAt) == report.AcknowledgedAt.Unix() &&
 		pointerInt64(record.StartedAt) == unixValue(report.StartedAt) && pointerInt64(record.CompletedAt) == unixValue(report.CompletedAt) &&
-		pointerString(record.RunID) == uuidPointerString(report.RunID) && pointerString(record.RejectionReason) == pointerString(report.RejectionReason)
+		pointerString(record.RunID) == uuidPointerString(report.RunID) && pointerString(record.RejectionReason) == pointerString(report.RejectionReason) &&
+		pointerString(record.PreviousVersion) == pointerString(report.PreviousVersion) && pointerString(record.ResultVersion) == pointerString(report.ResultVersion) &&
+		pointerString(record.FailureCode) == pointerString(report.FailureCode) && pointerString(record.Diagnostic) == pointerString(report.Diagnostic)
 }
 
 func validProbeTrigger(value string) bool {
@@ -1329,7 +1430,7 @@ func validRunTerminal(status string, completedAt *time.Time) bool {
 	return (status == "succeeded" || status == "partial" || status == "failed") && completedAt != nil
 }
 
-func validTaskReportStatus(value string) bool {
+func validProbeTaskReportStatus(value string) bool {
 	switch value {
 	case "acknowledged", "running", "succeeded", "partial", "failed", "rejected":
 		return true
@@ -1338,8 +1439,17 @@ func validTaskReportStatus(value string) bool {
 	}
 }
 
+func validAgentUpdateTaskReportStatus(value string) bool {
+	switch value {
+	case "acknowledged", "verifying", "installing", "restarting", "succeeded", "failed", "rolled-back", "rejected":
+		return true
+	default:
+		return false
+	}
+}
+
 func taskTerminal(value string) bool {
-	return value == "succeeded" || value == "partial" || value == "failed" || value == "rejected" || value == "expired"
+	return value == "succeeded" || value == "partial" || value == "failed" || value == "rolled-back" || value == "rejected" || value == "expired"
 }
 
 func taskStatusRank(value string) int {
@@ -1350,8 +1460,14 @@ func taskStatusRank(value string) int {
 		return 1
 	case "running":
 		return 2
-	default:
+	case "verifying":
+		return 2
+	case "installing":
 		return 3
+	case "restarting":
+		return 4
+	default:
+		return 5
 	}
 }
 

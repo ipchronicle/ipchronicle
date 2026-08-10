@@ -68,8 +68,8 @@ func TestPollCarriesProbeStatusAndTaskReportAndAcceptsTask(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if outcome.task == nil || outcome.task.ID != newTaskID.String() || outcome.task.ExpiresAt != now.Add(2*time.Minute) {
-		t.Fatalf("poll task = %#v", outcome.task)
+	if outcome.probeTask == nil || outcome.probeTask.ID != newTaskID.String() || outcome.probeTask.ExpiresAt != now.Add(2*time.Minute) {
+		t.Fatalf("poll task = %#v", outcome.probeTask)
 	}
 	if received.ProbeStatus == nil || received.ProbeStatus.LastSkipReason == nil ||
 		*received.ProbeStatus.LastSkipReason != agentapi.AgentProbeSkipReason("busy") {

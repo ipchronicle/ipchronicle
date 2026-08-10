@@ -117,6 +117,31 @@ func (q *Queries) CreateAdministratorSession(ctx context.Context, arg CreateAdmi
 	return err
 }
 
+const createAgentUpdateTask = `-- name: CreateAgentUpdateTask :exec
+INSERT INTO probe_tasks (
+    id, node_id, kind, status, target_version, created_at, expires_at
+) VALUES (?, ?, 'agent-update', 'pending', ?, ?, ?)
+`
+
+type CreateAgentUpdateTaskParams struct {
+	ID            string
+	NodeID        string
+	TargetVersion *string
+	CreatedAt     int64
+	ExpiresAt     int64
+}
+
+func (q *Queries) CreateAgentUpdateTask(ctx context.Context, arg CreateAgentUpdateTaskParams) error {
+	_, err := q.db.ExecContext(ctx, createAgentUpdateTask,
+		arg.ID,
+		arg.NodeID,
+		arg.TargetVersion,
+		arg.CreatedAt,
+		arg.ExpiresAt,
+	)
+	return err
+}
+
 const createEgressDeletion = `-- name: CreateEgressDeletion :exec
 INSERT INTO egress_deletion_operations (
     egress_id, node_id, status, requested_at, updated_at
@@ -182,9 +207,9 @@ func (q *Queries) CreateNetworkProxy(ctx context.Context, arg CreateNetworkProxy
 
 const createNode = `-- name: CreateNode :exec
 INSERT INTO nodes (
-    id, name, hostname, credential_digest, agent_version,
+    id, name, hostname, credential_digest, agent_version, agent_revision,
     operating_system, architecture, desired_configuration_revision, registered_at
-) VALUES (?, ?, ?, ?, ?, ?, ?, 1, ?)
+) VALUES (?, ?, ?, ?, ?, ?, ?, ?, 1, ?)
 `
 
 type CreateNodeParams struct {
@@ -193,6 +218,7 @@ type CreateNodeParams struct {
 	Hostname         string
 	CredentialDigest []byte
 	AgentVersion     string
+	AgentRevision    *string
 	OperatingSystem  string
 	Architecture     string
 	RegisteredAt     int64
@@ -205,6 +231,7 @@ func (q *Queries) CreateNode(ctx context.Context, arg CreateNodeParams) error {
 		arg.Hostname,
 		arg.CredentialDigest,
 		arg.AgentVersion,
+		arg.AgentRevision,
 		arg.OperatingSystem,
 		arg.Architecture,
 		arg.RegisteredAt,
@@ -532,7 +559,7 @@ func (q *Queries) DeleteNotificationSender(ctx context.Context, id string) (int6
 const deleteTerminalProbeTasksBefore = `-- name: DeleteTerminalProbeTasksBefore :exec
 DELETE FROM probe_tasks
 WHERE completed_at IS NOT NULL AND completed_at < ?
-  AND status IN ('succeeded', 'partial', 'failed', 'rejected', 'expired')
+  AND status IN ('succeeded', 'partial', 'failed', 'rolled-back', 'rejected', 'expired')
 `
 
 func (q *Queries) DeleteTerminalProbeTasksBefore(ctx context.Context, completedAt *int64) error {
@@ -678,18 +705,21 @@ func (q *Queries) GetActiveNodeSyncSessionByID(ctx context.Context, arg GetActiv
 	return i, err
 }
 
-const getActiveProbeTask = `-- name: GetActiveProbeTask :one
+const getActiveNodeTask = `-- name: GetActiveNodeTask :one
 SELECT id, node_id, kind, status, created_at, expires_at, acknowledged_at,
        started_at, completed_at, run_id, rejection_reason,
+       target_version, previous_version, result_version, failure_code, diagnostic,
        terminal_confirmed_at
 FROM probe_tasks
-WHERE node_id = ? AND status IN ('pending', 'acknowledged', 'running')
+WHERE node_id = ? AND status IN (
+    'pending', 'acknowledged', 'running', 'verifying', 'installing', 'restarting'
+)
 ORDER BY created_at, id
 LIMIT 1
 `
 
-func (q *Queries) GetActiveProbeTask(ctx context.Context, nodeID string) (ProbeTask, error) {
-	row := q.db.QueryRowContext(ctx, getActiveProbeTask, nodeID)
+func (q *Queries) GetActiveNodeTask(ctx context.Context, nodeID string) (ProbeTask, error) {
+	row := q.db.QueryRowContext(ctx, getActiveNodeTask, nodeID)
 	var i ProbeTask
 	err := row.Scan(
 		&i.ID,
@@ -703,6 +733,11 @@ func (q *Queries) GetActiveProbeTask(ctx context.Context, nodeID string) (ProbeT
 		&i.CompletedAt,
 		&i.RunID,
 		&i.RejectionReason,
+		&i.TargetVersion,
+		&i.PreviousVersion,
+		&i.ResultVersion,
+		&i.FailureCode,
+		&i.Diagnostic,
 		&i.TerminalConfirmedAt,
 	)
 	return i, err
@@ -888,12 +923,49 @@ func (q *Queries) GetHistoryRetentionSettings(ctx context.Context) (HistoryReten
 	return i, err
 }
 
+const getLatestAgentUpdateTask = `-- name: GetLatestAgentUpdateTask :one
+SELECT id, node_id, kind, status, created_at, expires_at, acknowledged_at,
+       started_at, completed_at, run_id, rejection_reason,
+       target_version, previous_version, result_version, failure_code, diagnostic,
+       terminal_confirmed_at
+FROM probe_tasks
+WHERE node_id = ? AND kind = 'agent-update'
+ORDER BY created_at DESC, id DESC
+LIMIT 1
+`
+
+func (q *Queries) GetLatestAgentUpdateTask(ctx context.Context, nodeID string) (ProbeTask, error) {
+	row := q.db.QueryRowContext(ctx, getLatestAgentUpdateTask, nodeID)
+	var i ProbeTask
+	err := row.Scan(
+		&i.ID,
+		&i.NodeID,
+		&i.Kind,
+		&i.Status,
+		&i.CreatedAt,
+		&i.ExpiresAt,
+		&i.AcknowledgedAt,
+		&i.StartedAt,
+		&i.CompletedAt,
+		&i.RunID,
+		&i.RejectionReason,
+		&i.TargetVersion,
+		&i.PreviousVersion,
+		&i.ResultVersion,
+		&i.FailureCode,
+		&i.Diagnostic,
+		&i.TerminalConfirmedAt,
+	)
+	return i, err
+}
+
 const getLatestProbeTask = `-- name: GetLatestProbeTask :one
 SELECT id, node_id, kind, status, created_at, expires_at, acknowledged_at,
        started_at, completed_at, run_id, rejection_reason,
+       target_version, previous_version, result_version, failure_code, diagnostic,
        terminal_confirmed_at
 FROM probe_tasks
-WHERE node_id = ?
+WHERE node_id = ? AND kind = 'complete-probe'
 ORDER BY created_at DESC, id DESC
 LIMIT 1
 `
@@ -913,6 +985,11 @@ func (q *Queries) GetLatestProbeTask(ctx context.Context, nodeID string) (ProbeT
 		&i.CompletedAt,
 		&i.RunID,
 		&i.RejectionReason,
+		&i.TargetVersion,
+		&i.PreviousVersion,
+		&i.ResultVersion,
+		&i.FailureCode,
+		&i.Diagnostic,
 		&i.TerminalConfirmedAt,
 	)
 	return i, err
@@ -1015,7 +1092,7 @@ func (q *Queries) GetNetworkProxyByName(ctx context.Context, name string) (Netwo
 
 const getNodeByCredentialDigest = `-- name: GetNodeByCredentialDigest :one
 SELECT id, name, hostname, credential_digest, enabled, revoked_at,
-       agent_version, operating_system, architecture,
+       agent_version, agent_revision, operating_system, architecture,
        desired_configuration_revision, applied_configuration_revision,
        configuration_error, registered_at, last_seen_at,
        configuration_error_revision, physical_memory_bytes,
@@ -1025,9 +1102,33 @@ FROM nodes
 WHERE credential_digest = ?
 `
 
-func (q *Queries) GetNodeByCredentialDigest(ctx context.Context, credentialDigest []byte) (Node, error) {
+type GetNodeByCredentialDigestRow struct {
+	ID                           string
+	Name                         string
+	Hostname                     string
+	CredentialDigest             []byte
+	Enabled                      int64
+	RevokedAt                    *int64
+	AgentVersion                 string
+	AgentRevision                *string
+	OperatingSystem              string
+	Architecture                 string
+	DesiredConfigurationRevision int64
+	AppliedConfigurationRevision int64
+	ConfigurationError           *string
+	RegisteredAt                 int64
+	LastSeenAt                   *int64
+	ConfigurationErrorRevision   *int64
+	PhysicalMemoryBytes          *int64
+	ProbeScheduleEnabled         int64
+	ProbeScheduleCron            string
+	ProbeScheduleTimezone        string
+	ProbeLowMemoryOverride       int64
+}
+
+func (q *Queries) GetNodeByCredentialDigest(ctx context.Context, credentialDigest []byte) (GetNodeByCredentialDigestRow, error) {
 	row := q.db.QueryRowContext(ctx, getNodeByCredentialDigest, credentialDigest)
-	var i Node
+	var i GetNodeByCredentialDigestRow
 	err := row.Scan(
 		&i.ID,
 		&i.Name,
@@ -1036,6 +1137,7 @@ func (q *Queries) GetNodeByCredentialDigest(ctx context.Context, credentialDiges
 		&i.Enabled,
 		&i.RevokedAt,
 		&i.AgentVersion,
+		&i.AgentRevision,
 		&i.OperatingSystem,
 		&i.Architecture,
 		&i.DesiredConfigurationRevision,
@@ -1055,7 +1157,7 @@ func (q *Queries) GetNodeByCredentialDigest(ctx context.Context, credentialDiges
 
 const getNodeByID = `-- name: GetNodeByID :one
 SELECT id, name, hostname, credential_digest, enabled, revoked_at,
-       agent_version, operating_system, architecture,
+       agent_version, agent_revision, operating_system, architecture,
        desired_configuration_revision, applied_configuration_revision,
        configuration_error, registered_at, last_seen_at,
        configuration_error_revision, physical_memory_bytes,
@@ -1065,9 +1167,33 @@ FROM nodes
 WHERE id = ?
 `
 
-func (q *Queries) GetNodeByID(ctx context.Context, id string) (Node, error) {
+type GetNodeByIDRow struct {
+	ID                           string
+	Name                         string
+	Hostname                     string
+	CredentialDigest             []byte
+	Enabled                      int64
+	RevokedAt                    *int64
+	AgentVersion                 string
+	AgentRevision                *string
+	OperatingSystem              string
+	Architecture                 string
+	DesiredConfigurationRevision int64
+	AppliedConfigurationRevision int64
+	ConfigurationError           *string
+	RegisteredAt                 int64
+	LastSeenAt                   *int64
+	ConfigurationErrorRevision   *int64
+	PhysicalMemoryBytes          *int64
+	ProbeScheduleEnabled         int64
+	ProbeScheduleCron            string
+	ProbeScheduleTimezone        string
+	ProbeLowMemoryOverride       int64
+}
+
+func (q *Queries) GetNodeByID(ctx context.Context, id string) (GetNodeByIDRow, error) {
 	row := q.db.QueryRowContext(ctx, getNodeByID, id)
-	var i Node
+	var i GetNodeByIDRow
 	err := row.Scan(
 		&i.ID,
 		&i.Name,
@@ -1076,6 +1202,7 @@ func (q *Queries) GetNodeByID(ctx context.Context, id string) (Node, error) {
 		&i.Enabled,
 		&i.RevokedAt,
 		&i.AgentVersion,
+		&i.AgentRevision,
 		&i.OperatingSystem,
 		&i.Architecture,
 		&i.DesiredConfigurationRevision,
@@ -1390,6 +1517,7 @@ func (q *Queries) GetNotificationSender(ctx context.Context, id string) (Notific
 const getProbeTask = `-- name: GetProbeTask :one
 SELECT id, node_id, kind, status, created_at, expires_at, acknowledged_at,
        started_at, completed_at, run_id, rejection_reason,
+       target_version, previous_version, result_version, failure_code, diagnostic,
        terminal_confirmed_at
 FROM probe_tasks
 WHERE id = ? AND node_id = ?
@@ -1415,6 +1543,11 @@ func (q *Queries) GetProbeTask(ctx context.Context, arg GetProbeTaskParams) (Pro
 		&i.CompletedAt,
 		&i.RunID,
 		&i.RejectionReason,
+		&i.TargetVersion,
+		&i.PreviousVersion,
+		&i.ResultVersion,
+		&i.FailureCode,
+		&i.Diagnostic,
 		&i.TerminalConfirmedAt,
 	)
 	return i, err
@@ -1434,7 +1567,8 @@ func (q *Queries) GetRevokedAgentCredential(ctx context.Context, credentialDiges
 }
 
 const getSystemState = `-- name: GetSystemState :one
-SELECT id, history_generation, pending_history_generation, history_reset_at
+SELECT id, history_generation, pending_history_generation, history_reset_at,
+       release_channel
 FROM system_state
 WHERE id = 1
 `
@@ -1447,6 +1581,7 @@ func (q *Queries) GetSystemState(ctx context.Context) (SystemState, error) {
 		&i.HistoryGeneration,
 		&i.PendingHistoryGeneration,
 		&i.HistoryResetAt,
+		&i.ReleaseChannel,
 	)
 	return i, err
 }
@@ -1701,6 +1836,66 @@ func (q *Queries) ListEnabledNotificationRules(ctx context.Context) ([]ListEnabl
 	return items, nil
 }
 
+const listLatestAgentUpdateTasks = `-- name: ListLatestAgentUpdateTasks :many
+SELECT task.id, task.node_id, task.kind, task.status, task.created_at,
+       task.expires_at, task.acknowledged_at, task.started_at,
+       task.completed_at, task.run_id, task.rejection_reason,
+       task.target_version, task.previous_version, task.result_version,
+       task.failure_code, task.diagnostic, task.terminal_confirmed_at
+FROM probe_tasks AS task
+WHERE task.kind = 'agent-update'
+  AND task.id = (
+      SELECT latest.id
+      FROM probe_tasks AS latest
+      WHERE latest.node_id = task.node_id AND latest.kind = 'agent-update'
+      ORDER BY latest.created_at DESC, latest.id DESC
+      LIMIT 1
+  )
+ORDER BY task.created_at DESC, task.id DESC
+LIMIT 70
+`
+
+func (q *Queries) ListLatestAgentUpdateTasks(ctx context.Context) ([]ProbeTask, error) {
+	rows, err := q.db.QueryContext(ctx, listLatestAgentUpdateTasks)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []ProbeTask{}
+	for rows.Next() {
+		var i ProbeTask
+		if err := rows.Scan(
+			&i.ID,
+			&i.NodeID,
+			&i.Kind,
+			&i.Status,
+			&i.CreatedAt,
+			&i.ExpiresAt,
+			&i.AcknowledgedAt,
+			&i.StartedAt,
+			&i.CompletedAt,
+			&i.RunID,
+			&i.RejectionReason,
+			&i.TargetVersion,
+			&i.PreviousVersion,
+			&i.ResultVersion,
+			&i.FailureCode,
+			&i.Diagnostic,
+			&i.TerminalConfirmedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const listNetworkProxies = `-- name: ListNetworkProxies :many
 SELECT id, name, scheme, host, port, username, password_encrypted, created_at, updated_at
 FROM network_proxies
@@ -1932,7 +2127,7 @@ func (q *Queries) ListNodeSyncSessions(ctx context.Context, expiresAt int64) ([]
 
 const listNodes = `-- name: ListNodes :many
 SELECT id, name, hostname, credential_digest, enabled, revoked_at,
-       agent_version, operating_system, architecture,
+       agent_version, agent_revision, operating_system, architecture,
        desired_configuration_revision, applied_configuration_revision,
        configuration_error, registered_at, last_seen_at,
        configuration_error_revision, physical_memory_bytes,
@@ -1942,15 +2137,39 @@ FROM nodes
 ORDER BY name COLLATE NOCASE, id
 `
 
-func (q *Queries) ListNodes(ctx context.Context) ([]Node, error) {
+type ListNodesRow struct {
+	ID                           string
+	Name                         string
+	Hostname                     string
+	CredentialDigest             []byte
+	Enabled                      int64
+	RevokedAt                    *int64
+	AgentVersion                 string
+	AgentRevision                *string
+	OperatingSystem              string
+	Architecture                 string
+	DesiredConfigurationRevision int64
+	AppliedConfigurationRevision int64
+	ConfigurationError           *string
+	RegisteredAt                 int64
+	LastSeenAt                   *int64
+	ConfigurationErrorRevision   *int64
+	PhysicalMemoryBytes          *int64
+	ProbeScheduleEnabled         int64
+	ProbeScheduleCron            string
+	ProbeScheduleTimezone        string
+	ProbeLowMemoryOverride       int64
+}
+
+func (q *Queries) ListNodes(ctx context.Context) ([]ListNodesRow, error) {
 	rows, err := q.db.QueryContext(ctx, listNodes)
 	if err != nil {
 		return nil, err
 	}
 	defer rows.Close()
-	items := []Node{}
+	items := []ListNodesRow{}
 	for rows.Next() {
-		var i Node
+		var i ListNodesRow
 		if err := rows.Scan(
 			&i.ID,
 			&i.Name,
@@ -1959,6 +2178,7 @@ func (q *Queries) ListNodes(ctx context.Context) ([]Node, error) {
 			&i.Enabled,
 			&i.RevokedAt,
 			&i.AgentVersion,
+			&i.AgentRevision,
 			&i.OperatingSystem,
 			&i.Architecture,
 			&i.DesiredConfigurationRevision,
@@ -2320,6 +2540,25 @@ func (q *Queries) SetPendingHistoryGeneration(ctx context.Context, pendingHistor
 	return err
 }
 
+const setReleaseChannel = `-- name: SetReleaseChannel :execrows
+UPDATE system_state
+SET release_channel = ?
+WHERE id = 1 AND release_channel != ?
+`
+
+type SetReleaseChannelParams struct {
+	ReleaseChannel   string
+	ReleaseChannel_2 string
+}
+
+func (q *Queries) SetReleaseChannel(ctx context.Context, arg SetReleaseChannelParams) (int64, error) {
+	result, err := q.db.ExecContext(ctx, setReleaseChannel, arg.ReleaseChannel, arg.ReleaseChannel_2)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected()
+}
+
 const setTOTPEnrollment = `-- name: SetTOTPEnrollment :exec
 UPDATE administrators
 SET totp_secret_encrypted = ?, totp_enabled = 0,
@@ -2500,7 +2739,7 @@ func (q *Queries) UpdateNodeEgressSettings(ctx context.Context, arg UpdateNodeEg
 
 const updateNodeHeartbeat = `-- name: UpdateNodeHeartbeat :execrows
 UPDATE nodes
-SET hostname = ?, agent_version = ?, operating_system = ?, architecture = ?,
+SET hostname = ?, agent_version = ?, agent_revision = ?, operating_system = ?, architecture = ?,
     applied_configuration_revision = ?, configuration_error = ?,
     configuration_error_revision = ?, last_seen_at = ?
 WHERE id = ? AND revoked_at IS NULL
@@ -2509,6 +2748,7 @@ WHERE id = ? AND revoked_at IS NULL
 type UpdateNodeHeartbeatParams struct {
 	Hostname                     string
 	AgentVersion                 string
+	AgentRevision                *string
 	OperatingSystem              string
 	Architecture                 string
 	AppliedConfigurationRevision int64
@@ -2522,6 +2762,7 @@ func (q *Queries) UpdateNodeHeartbeat(ctx context.Context, arg UpdateNodeHeartbe
 	result, err := q.db.ExecContext(ctx, updateNodeHeartbeat,
 		arg.Hostname,
 		arg.AgentVersion,
+		arg.AgentRevision,
 		arg.OperatingSystem,
 		arg.Architecture,
 		arg.AppliedConfigurationRevision,
@@ -2660,9 +2901,12 @@ func (q *Queries) UpdateNotificationSender(ctx context.Context, arg UpdateNotifi
 const updateProbeTaskReport = `-- name: UpdateProbeTaskReport :execrows
 UPDATE probe_tasks
 SET status = ?, acknowledged_at = ?, started_at = ?, completed_at = ?,
-    run_id = ?, rejection_reason = ?, terminal_confirmed_at = ?
+    run_id = ?, rejection_reason = ?, previous_version = ?, result_version = ?,
+    failure_code = ?, diagnostic = ?, terminal_confirmed_at = ?
 WHERE id = ? AND node_id = ?
-  AND status IN ('pending', 'acknowledged', 'running')
+  AND status IN (
+      'pending', 'acknowledged', 'running', 'verifying', 'installing', 'restarting'
+  )
 `
 
 type UpdateProbeTaskReportParams struct {
@@ -2672,6 +2916,10 @@ type UpdateProbeTaskReportParams struct {
 	CompletedAt         *int64
 	RunID               *string
 	RejectionReason     *string
+	PreviousVersion     *string
+	ResultVersion       *string
+	FailureCode         *string
+	Diagnostic          *string
 	TerminalConfirmedAt *int64
 	ID                  string
 	NodeID              string
@@ -2685,6 +2933,10 @@ func (q *Queries) UpdateProbeTaskReport(ctx context.Context, arg UpdateProbeTask
 		arg.CompletedAt,
 		arg.RunID,
 		arg.RejectionReason,
+		arg.PreviousVersion,
+		arg.ResultVersion,
+		arg.FailureCode,
+		arg.Diagnostic,
 		arg.TerminalConfirmedAt,
 		arg.ID,
 		arg.NodeID,

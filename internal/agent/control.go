@@ -13,6 +13,7 @@ import (
 	"net/url"
 	"os"
 	"runtime"
+	"slices"
 	"strconv"
 	"strings"
 	"sync"
@@ -23,7 +24,9 @@ import (
 	"github.com/ipchronicle/ipchronicle/internal/agent/observation"
 	agentprobe "github.com/ipchronicle/ipchronicle/internal/agent/probe"
 	"github.com/ipchronicle/ipchronicle/internal/agent/state"
+	agentupdate "github.com/ipchronicle/ipchronicle/internal/agent/update"
 	"github.com/ipchronicle/ipchronicle/internal/generated/agentapi"
+	productversion "github.com/ipchronicle/ipchronicle/internal/version"
 )
 
 const controlCapability = "control-v1"
@@ -41,7 +44,8 @@ type pollOutcome struct {
 	applied     bool
 	received    bool
 	syncSession *agentapi.AgentSyncSession
-	task        *state.ProbeTaskDelivery
+	probeTask   *state.ProbeTaskDelivery
+	updateTask  *state.AgentUpdateDelivery
 }
 
 func NewControlClient(centerURL string) (*ControlClient, error) {
@@ -76,6 +80,10 @@ func NormalizeCenterURL(value string) (string, error) {
 }
 
 func Enroll(ctx context.Context, store *state.Store, centerURL, registrationKey, version string) (state.Identity, error) {
+	return EnrollWithCapabilities(ctx, store, centerURL, registrationKey, version, false)
+}
+
+func EnrollWithCapabilities(ctx context.Context, store *state.Store, centerURL, registrationKey, version string, updateCapable bool) (state.Identity, error) {
 	normalized, err := NormalizeCenterURL(centerURL)
 	if err != nil {
 		return state.Identity{}, err
@@ -97,7 +105,7 @@ func Enroll(ctx context.Context, store *state.Store, centerURL, registrationKey,
 	if err != nil {
 		return state.Identity{}, err
 	}
-	metadata, err := currentMetadata(version)
+	metadata, err := currentMetadata(version, updateCapable)
 	if err != nil {
 		return state.Identity{}, err
 	}
@@ -121,7 +129,19 @@ func Enroll(ctx context.Context, store *state.Store, centerURL, registrationKey,
 	return identity, nil
 }
 
+type RunOptions struct {
+	UpdateConfig             *agentupdate.Config
+	UpdateHTTPClient         *http.Client
+	UpdateReleaseDownloadURL string
+	UpdateTrigger            agentupdate.Trigger
+	UpdateNow                func() time.Time
+}
+
 func Run(ctx context.Context, store *state.Store, version string, logger *log.Logger) error {
+	return RunWithOptions(ctx, store, version, logger, RunOptions{})
+}
+
+func RunWithOptions(ctx context.Context, store *state.Store, version string, logger *log.Logger, options RunOptions) error {
 	if logger == nil {
 		logger = log.Default()
 	}
@@ -133,13 +153,75 @@ func Run(ctx context.Context, store *state.Store, version string, logger *log.Lo
 	if err != nil {
 		return err
 	}
-	metadata, err := currentMetadata(version)
+	var updateManager *agentupdate.Manager
+	if options.UpdateConfig != nil {
+		if err := options.UpdateConfig.Validate(); err != nil {
+			return err
+		}
+		updateManager, err = agentupdate.NewManager(agentupdate.ManagerOptions{
+			Store: store, CurrentVersion: version, Config: *options.UpdateConfig, Logger: logger,
+			HTTPClient: options.UpdateHTTPClient, ReleaseDownloadURL: options.UpdateReleaseDownloadURL,
+			Trigger: options.UpdateTrigger, Now: options.UpdateNow,
+		})
+		if err != nil {
+			return err
+		}
+	}
+	metadata, err := currentMetadata(version, updateManager != nil)
 	if err != nil {
 		return err
 	}
 	interval := 30 * time.Second
 	syncManager := newSyncManager(ctx, identity.CenterURL, identity.Credential, logger)
 	defer syncManager.Close()
+	pendingUpdate, hasPendingUpdate, err := store.PendingAgentUpdate()
+	if err != nil {
+		return err
+	}
+	requiresHealthCommit := hasPendingUpdate && pendingUpdate.Status == "restarting"
+	if requiresHealthCommit {
+		hasCheckpoint, checkpointErr := agentupdate.HasCheckpoint(store.Directory(), pendingUpdate.ID)
+		if checkpointErr != nil {
+			return checkpointErr
+		}
+		if !hasCheckpoint {
+			return errors.New("Agent update checkpoint is missing while the new Agent is restarting")
+		}
+	}
+	if hasPendingUpdate && pendingUpdate.Status == "succeeded" {
+		hasCheckpoint, checkpointErr := agentupdate.HasCheckpoint(store.Directory(), pendingUpdate.ID)
+		if checkpointErr != nil {
+			return checkpointErr
+		}
+		requiresHealthCommit = hasCheckpoint
+	}
+	if requiresHealthCommit {
+		if updateManager == nil {
+			return errors.New("Agent update health commitment requires an installed update supervisor")
+		}
+		if pendingUpdate.TargetVersion != version || pendingUpdate.Status == "succeeded" &&
+			(pendingUpdate.ResultVersion == nil || *pendingUpdate.ResultVersion != version) {
+			return errors.New("running Agent version does not match its pending update")
+		}
+		outcome, healthErr := waitForUpdateHealth(ctx, client, store, identity, metadata, pendingUpdate, syncManager, logger)
+		if healthErr != nil {
+			return healthErr
+		}
+		if outcome.interval >= 5*time.Second && outcome.interval <= time.Hour {
+			interval = outcome.interval
+		}
+		if pendingUpdate.Status == "restarting" {
+			if _, err := store.CommitAgentUpdateHealth(pendingUpdate.ID, version, time.Now().UTC()); err != nil {
+				return fmt.Errorf("commit Agent update health: %w", err)
+			}
+		}
+		if err := agentupdate.WriteHealthMarker(store.Directory(), pendingUpdate.ID); err != nil {
+			return fmt.Errorf("publish Agent update health: %w", err)
+		}
+		if err := updateManager.StartSupervisor(ctx); err != nil {
+			return fmt.Errorf("resume Agent update supervisor: %w", err)
+		}
+	}
 	workerContext, stopWorkers := context.WithCancel(ctx)
 	var workers sync.WaitGroup
 	defer func() {
@@ -168,6 +250,16 @@ func Run(ctx context.Context, store *state.Store, version string, logger *log.Lo
 		defer workers.Done()
 		uploaderDone <- client.runProbeUploader(workerContext, store, identity, probeManager.UploadWake(), logger)
 	}()
+	var updateDone <-chan error
+	if updateManager != nil {
+		done := make(chan error, 1)
+		updateDone = done
+		workers.Add(1)
+		go func() {
+			defer workers.Done()
+			done <- updateManager.Run(workerContext)
+		}()
+	}
 	logger.Printf("Agent %s polling %s", identity.NodeID, identity.CenterURL)
 	for {
 		select {
@@ -190,6 +282,11 @@ func Run(ctx context.Context, store *state.Store, version string, logger *log.Lo
 			}
 			if uploaderErr != nil {
 				return fmt.Errorf("run complete-probe uploader: %w", uploaderErr)
+			}
+			return nil
+		case updateErr := <-updateDone:
+			if updateErr != nil {
+				return fmt.Errorf("run Agent update manager: %w", updateErr)
 			}
 			return nil
 		default:
@@ -217,9 +314,17 @@ func Run(ctx context.Context, store *state.Store, version string, logger *log.Lo
 		if outcome.received {
 			syncManager.Update(outcome.syncSession)
 		}
-		if err == nil && outcome.task != nil {
-			if taskErr := probeManager.AcceptTask(workerContext, *outcome.task); taskErr != nil {
+		if err == nil && outcome.probeTask != nil {
+			if taskErr := probeManager.AcceptTask(workerContext, *outcome.probeTask); taskErr != nil {
 				return fmt.Errorf("accept complete-probe task: %w", taskErr)
+			}
+		}
+		if err == nil && outcome.updateTask != nil {
+			if updateManager == nil {
+				return errors.New("Agent update task received without an installed update supervisor")
+			}
+			if taskErr := updateManager.AcceptTask(*outcome.updateTask); taskErr != nil {
+				return fmt.Errorf("accept Agent update task: %w", taskErr)
 			}
 		}
 		if outcome.interval >= 5*time.Second && outcome.interval <= time.Hour {
@@ -274,6 +379,62 @@ func Run(ctx context.Context, store *state.Store, version string, logger *log.Lo
 				return fmt.Errorf("run complete-probe uploader: %w", uploaderErr)
 			}
 			return nil
+		case updateErr := <-updateDone:
+			if !timer.Stop() {
+				<-timer.C
+			}
+			if updateErr != nil {
+				return fmt.Errorf("run Agent update manager: %w", updateErr)
+			}
+			return nil
+		}
+	}
+}
+
+func waitForUpdateHealth(
+	ctx context.Context,
+	client *ControlClient,
+	store *state.Store,
+	identity state.Identity,
+	metadata agentapi.AgentMetadata,
+	pending state.AgentUpdate,
+	syncManager *syncManager,
+	logger *log.Logger,
+) (pollOutcome, error) {
+	const retryInterval = 5 * time.Second
+	for {
+		controlState, err := store.ControlState()
+		if err != nil {
+			return pollOutcome{}, err
+		}
+		inventory, inventoryError := captureNetworkInventory()
+		outcome, pollErr := client.poll(ctx, store, identity, metadata, controlState, inventory, inventoryError)
+		if outcome.received {
+			syncManager.Update(outcome.syncSession)
+		}
+		if pollErr == nil {
+			if outcome.probeTask != nil {
+				return pollOutcome{}, errors.New("center delivered a complete-probe task while an Agent update was restarting")
+			}
+			if outcome.updateTask != nil && (outcome.updateTask.ID != pending.ID || outcome.updateTask.TargetVersion != pending.TargetVersion) {
+				return pollOutcome{}, errors.New("center delivered a different task while an Agent update was restarting")
+			}
+			return outcome, nil
+		}
+		if errors.Is(pollErr, ErrAgentRevoked) {
+			return pollOutcome{}, pollErr
+		}
+		if !errors.Is(pollErr, context.Canceled) {
+			logger.Printf("Agent update health poll failed: %v", pollErr)
+		}
+		timer := time.NewTimer(retryInterval)
+		select {
+		case <-ctx.Done():
+			if !timer.Stop() {
+				<-timer.C
+			}
+			return pollOutcome{}, ctx.Err()
+		case <-timer.C:
 		}
 	}
 }
@@ -295,7 +456,7 @@ func (c *ControlClient) poll(
 	if err != nil {
 		return pollOutcome{}, err
 	}
-	probeStatus, taskReport, err := store.ProbeControlReport()
+	probeStatus, probeTaskReport, err := store.ProbeControlReport()
 	if err != nil {
 		return pollOutcome{}, err
 	}
@@ -303,9 +464,22 @@ func (c *ControlClient) poll(
 	if err != nil {
 		return pollOutcome{}, err
 	}
-	taskReportAPI, err := taskReportToAPI(taskReport)
+	updateTaskReport, err := store.AgentUpdateControlReport()
 	if err != nil {
 		return pollOutcome{}, err
+	}
+	if probeTaskReport != nil && updateTaskReport != nil {
+		return pollOutcome{}, errors.New("multiple unconfirmed Agent task reports")
+	}
+	taskReportAPI, err := taskReportToAPI(probeTaskReport)
+	if err != nil {
+		return pollOutcome{}, err
+	}
+	if updateTaskReport != nil {
+		taskReportAPI, err = agentUpdateReportToAPI(updateTaskReport)
+		if err != nil {
+			return pollOutcome{}, err
+		}
 	}
 	response, err := c.client.PollAgentWithResponse(ctx, agentapi.AgentPollRequest{
 		AppliedConfigurationRevision: controlState.AppliedConfigurationRevision,
@@ -333,8 +507,15 @@ func (c *ControlClient) poll(
 		return pollOutcome{}, fmt.Errorf("acknowledge address upload: %w", err)
 	}
 	if response.JSON200.AcceptedTerminalTaskId != nil {
-		if err := store.ConfirmTerminalProbeTask(response.JSON200.AcceptedTerminalTaskId.String(), time.Now().UTC()); err != nil {
-			return pollOutcome{}, fmt.Errorf("confirm terminal probe task: %w", err)
+		acceptedID := response.JSON200.AcceptedTerminalTaskId.String()
+		found, err := store.ConfirmTerminalAgentUpdate(acceptedID, time.Now().UTC())
+		if err != nil {
+			return pollOutcome{}, fmt.Errorf("confirm terminal Agent update: %w", err)
+		}
+		if !found {
+			if err := store.ConfirmTerminalProbeTask(acceptedID, time.Now().UTC()); err != nil {
+				return pollOutcome{}, fmt.Errorf("confirm terminal probe task: %w", err)
+			}
 		}
 	}
 	outcome := pollOutcome{
@@ -342,12 +523,25 @@ func (c *ControlClient) poll(
 		received: true, syncSession: response.JSON200.SyncSession,
 	}
 	if response.JSON200.Task != nil {
-		if response.JSON200.Task.Kind != agentapi.CompleteProbe {
+		switch response.JSON200.Task.Kind {
+		case agentapi.CompleteProbe:
+			if response.JSON200.Task.TargetVersion != nil {
+				return pollOutcome{}, errors.New("complete-probe task contains an update target")
+			}
+			outcome.probeTask = &state.ProbeTaskDelivery{
+				ID: response.JSON200.Task.Id.String(), CreatedAt: response.JSON200.Task.CreatedAt,
+				ExpiresAt: response.JSON200.Task.ExpiresAt,
+			}
+		case agentapi.AgentUpdate:
+			if response.JSON200.Task.TargetVersion == nil {
+				return pollOutcome{}, errors.New("Agent update task omits its target version")
+			}
+			outcome.updateTask = &state.AgentUpdateDelivery{
+				ID: response.JSON200.Task.Id.String(), TargetVersion: *response.JSON200.Task.TargetVersion,
+				CreatedAt: response.JSON200.Task.CreatedAt, ExpiresAt: response.JSON200.Task.ExpiresAt,
+			}
+		default:
 			return pollOutcome{}, errors.New("center returned an unsupported Agent task kind")
-		}
-		outcome.task = &state.ProbeTaskDelivery{
-			ID: response.JSON200.Task.Id.String(), CreatedAt: response.JSON200.Task.CreatedAt,
-			ExpiresAt: response.JSON200.Task.ExpiresAt,
 		}
 	}
 	if response.JSON200.DesiredConfigurationRevision == controlState.AppliedConfigurationRevision {
@@ -432,7 +626,7 @@ func ensureJSONEnd(decoder *json.Decoder) error {
 	return errors.New("Agent configuration contains multiple JSON values")
 }
 
-func currentMetadata(version string) (agentapi.AgentMetadata, error) {
+func currentMetadata(version string, updateCapable bool) (agentapi.AgentMetadata, error) {
 	if runtime.GOOS != "linux" || (runtime.GOARCH != "amd64" && runtime.GOARCH != "arm64") {
 		return agentapi.AgentMetadata{}, fmt.Errorf("unsupported Agent platform %s/%s", runtime.GOOS, runtime.GOARCH)
 	}
@@ -448,10 +642,16 @@ func currentMetadata(version string) (agentapi.AgentMetadata, error) {
 	if err != nil {
 		return agentapi.AgentMetadata{}, fmt.Errorf("read physical memory: %w", err)
 	}
+	capabilities := []string{controlCapability, "configuration-v5", "network-inventory-v1", "address-observation-v1", "complete-probe-v1", syncWakeCapability}
+	if updateCapable {
+		capabilities = append(capabilities, "agent-update-v1")
+	}
+	slices.Sort(capabilities)
 	return agentapi.AgentMetadata{
 		Hostname: hostname, AgentVersion: version,
+		SourceRevision:  &productversion.Revision,
 		OperatingSystem: agentapi.Linux, Architecture: agentapi.AgentArchitecture(runtime.GOARCH),
-		Capabilities:        []string{controlCapability, "configuration-v5", "network-inventory-v1", "address-observation-v1", "complete-probe-v1", syncWakeCapability},
+		Capabilities:        capabilities,
 		PhysicalMemoryBytes: physicalMemoryBytes,
 	}, nil
 }

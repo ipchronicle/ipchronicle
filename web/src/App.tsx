@@ -19,6 +19,7 @@ import { ProbeRunPage } from "@/pages/probe-run-page";
 import { ProbeComparisonPage } from "@/pages/probe-comparison-page";
 import { ProbeSnapshotPage } from "@/pages/probe-snapshot-page";
 import { SystemStatusPage } from "@/pages/system-status-page";
+import { SystemSettingsPage } from "@/pages/system-settings-page";
 
 function App() {
   const { state } = useAuth();
@@ -63,6 +64,7 @@ function App() {
             element={<ProbeSnapshotPage />}
           />
           <Route path="/settings/account" element={<AccountPage />} />
+          <Route path="/settings/system" element={<SystemSettingsPage />} />
           <Route path="/settings/network" element={<NetworkSettingsPage />} />
           <Route path="/settings/history" element={<HistorySettingsPage />} />
           <Route path="/login" element={<Navigate to="/" replace />} />

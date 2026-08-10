@@ -112,6 +112,7 @@ type Node struct {
 	ProbeScheduleCron            string
 	ProbeScheduleTimezone        string
 	ProbeLowMemoryOverride       int64
+	AgentRevision                *string
 }
 
 type NodeCapability struct {
@@ -194,6 +195,11 @@ type ProbeTask struct {
 	CompletedAt         *int64
 	RunID               *string
 	RejectionReason     *string
+	TargetVersion       *string
+	PreviousVersion     *string
+	ResultVersion       *string
+	FailureCode         *string
+	Diagnostic          *string
 	TerminalConfirmedAt *int64
 }
 
@@ -208,4 +214,5 @@ type SystemState struct {
 	HistoryGeneration        string
 	PendingHistoryGeneration *string
 	HistoryResetAt           *int64
+	ReleaseChannel           string
 }

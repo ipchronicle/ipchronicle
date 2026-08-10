@@ -19,6 +19,7 @@ import (
 	"github.com/ipchronicle/ipchronicle/internal/center/nodes"
 	"github.com/ipchronicle/ipchronicle/internal/center/notifications"
 	"github.com/ipchronicle/ipchronicle/internal/center/syncws"
+	centerupdates "github.com/ipchronicle/ipchronicle/internal/center/updates"
 	"github.com/ipchronicle/ipchronicle/internal/version"
 	"github.com/ipchronicle/ipchronicle/internal/webui"
 )
@@ -72,15 +73,21 @@ func serve() error {
 		ConfigQueries: store.ConfigQueries, HistoryQueries: store.HistoryQueries,
 		MasterKey: store.MasterKey, ExternalOrigin: configuration.ExternalOrigin,
 	})
+	updateService := centerupdates.NewService(centerupdates.ServiceOptions{
+		Queries: store.ConfigQueries, Waker: syncHub,
+		CurrentVersion: version.Value, CurrentRevision: version.Revision,
+	})
 
 	server := &http.Server{
 		Addr: configuration.ListenAddress,
 		Handler: center.NewHTTPHandler(center.HTTPOptions{
 			Version:        version.Value,
+			Revision:       version.Revision,
 			Web:            webui.Handler(),
 			Administrator:  administrator,
 			Nodes:          nodeService,
 			Notifications:  notificationService,
+			Updates:        updateService,
 			SyncHub:        syncHub,
 			Store:          store,
 			ExternalOrigin: configuration.ExternalOrigin,

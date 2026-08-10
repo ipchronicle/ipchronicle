@@ -463,6 +463,73 @@ paths:
           $ref: "#/components/responses/NotFound"
         "409":
           $ref: "#/components/responses/Conflict"
+  /api/v1/agent-updates:
+    get:
+      operationId: getAgentUpdateState
+      summary: Discover the current channel release and recent Agent update tasks
+      tags: [agent-updates]
+      responses:
+        "200":
+          description: Current release channel, discovery result, and update tasks.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AgentUpdateState"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+    post:
+      operationId: createAgentUpdateTasks
+      summary: Create Agent update tasks for one or more online nodes
+      tags: [agent-updates]
+      parameters:
+        - $ref: "#/components/parameters/CSRFToken"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/AgentUpdateBatchRequest"
+      responses:
+        "202":
+          description: Per-node task creation outcomes.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AgentUpdateBatchResult"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "409":
+          $ref: "#/components/responses/Conflict"
+  /api/v1/agent-updates/channel:
+    put:
+      operationId: updateReleaseChannel
+      summary: Select the stable or release-candidate discovery channel
+      tags: [agent-updates]
+      parameters:
+        - $ref: "#/components/parameters/CSRFToken"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ReleaseChannelUpdate"
+      responses:
+        "200":
+          description: Updated release discovery state.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AgentUpdateState"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
   /api/v1/probe-runs/{runId}:
     parameters:
       - $ref: "#/components/parameters/RunId"
@@ -1757,6 +1824,7 @@ components:
         - service
         - status
         - version
+        - sourceRevision
         - configSchemaVersion
         - historySchemaVersion
         - transportSecurity
@@ -1771,6 +1839,9 @@ components:
           type: string
           enum: [ok]
         version:
+          type: string
+          minLength: 1
+        sourceRevision:
           type: string
           minLength: 1
         configSchemaVersion:
@@ -1828,6 +1899,10 @@ components:
           minLength: 1
           maxLength: 253
         agentVersion:
+          type: string
+          minLength: 1
+          maxLength: 64
+        sourceRevision:
           type: string
           minLength: 1
           maxLength: 64
@@ -2738,13 +2813,17 @@ components:
           format: uuid
         kind:
           type: string
-          enum: [complete-probe]
+          enum: [complete-probe, agent-update]
         createdAt:
           type: string
           format: date-time
         expiresAt:
           type: string
           format: date-time
+        targetVersion:
+          type: string
+          minLength: 5
+          maxLength: 64
     AgentTaskReport:
       type: object
       additionalProperties: false
@@ -2755,7 +2834,7 @@ components:
           format: uuid
         status:
           type: string
-          enum: [acknowledged, running, succeeded, partial, failed, rejected]
+          enum: [acknowledged, running, verifying, installing, restarting, succeeded, partial, failed, rolled-back, rejected]
         acknowledgedAt:
           type: string
           format: date-time
@@ -2770,6 +2849,199 @@ components:
           format: uuid
         rejectionReason:
           $ref: "#/components/schemas/AgentProbeSkipReason"
+        previousVersion:
+          type: string
+          minLength: 1
+          maxLength: 64
+        resultVersion:
+          type: string
+          minLength: 1
+          maxLength: 64
+        failureCode:
+          type: string
+          minLength: 1
+          maxLength: 64
+        diagnostic:
+          type: string
+          minLength: 1
+          maxLength: 4096
+    ReleaseChannel:
+      type: string
+      enum: [stable, rc]
+    ReleaseChannelUpdate:
+      type: object
+      additionalProperties: false
+      required: [channel]
+      properties:
+        channel:
+          $ref: "#/components/schemas/ReleaseChannel"
+    AgentUpdateRelease:
+      type: object
+      additionalProperties: false
+      required: [version, tag, channel, revision, publishedAt, agentCapabilities]
+      properties:
+        version:
+          type: string
+          minLength: 5
+          maxLength: 64
+        tag:
+          type: string
+          minLength: 6
+          maxLength: 65
+        channel:
+          $ref: "#/components/schemas/ReleaseChannel"
+        revision:
+          type: string
+          pattern: "^[0-9a-f]{40}$"
+        publishedAt:
+          type: string
+          format: date-time
+        agentCapabilities:
+          type: array
+          maxItems: 64
+          uniqueItems: true
+          items:
+            type: string
+            minLength: 1
+            maxLength: 64
+    AgentUpdateTaskStatus:
+      type: string
+      enum: [pending, acknowledged, verifying, installing, restarting, succeeded, failed, rolled-back, rejected, expired]
+    AgentUpdateTask:
+      type: object
+      additionalProperties: false
+      required: [id, nodeId, targetVersion, status, createdAt, expiresAt, offline]
+      properties:
+        id:
+          type: string
+          format: uuid
+        nodeId:
+          type: string
+          format: uuid
+        targetVersion:
+          type: string
+          minLength: 5
+          maxLength: 64
+        status:
+          $ref: "#/components/schemas/AgentUpdateTaskStatus"
+        createdAt:
+          type: string
+          format: date-time
+        expiresAt:
+          type: string
+          format: date-time
+        acknowledgedAt:
+          type: string
+          format: date-time
+        startedAt:
+          type: string
+          format: date-time
+        completedAt:
+          type: string
+          format: date-time
+        previousVersion:
+          type: string
+          minLength: 1
+          maxLength: 64
+        resultVersion:
+          type: string
+          minLength: 1
+          maxLength: 64
+        failureCode:
+          type: string
+          minLength: 1
+          maxLength: 64
+        diagnostic:
+          type: string
+          minLength: 1
+          maxLength: 4096
+        offline:
+          type: boolean
+    AgentUpdateDiscoveryError:
+      type: string
+      enum: [release-discovery-failed, current-version-invalid]
+    AgentUpdateState:
+      type: object
+      additionalProperties: false
+      required: [channel, currentVersion, currentRevision, checkedAt, tasks]
+      properties:
+        channel:
+          $ref: "#/components/schemas/ReleaseChannel"
+        currentVersion:
+          type: string
+          minLength: 1
+        currentRevision:
+          type: string
+          minLength: 1
+        checkedAt:
+          type: string
+          format: date-time
+        availableRelease:
+          $ref: "#/components/schemas/AgentUpdateRelease"
+        discoveryError:
+          $ref: "#/components/schemas/AgentUpdateDiscoveryError"
+        tasks:
+          type: array
+          maxItems: 70
+          items:
+            $ref: "#/components/schemas/AgentUpdateTask"
+    AgentUpdateBatchRequest:
+      type: object
+      additionalProperties: false
+      required: [nodeIds, targetVersion]
+      properties:
+        nodeIds:
+          type: array
+          minItems: 1
+          maxItems: 70
+          uniqueItems: true
+          items:
+            type: string
+            format: uuid
+        targetVersion:
+          type: string
+          minLength: 5
+          maxLength: 64
+    AgentUpdateBatchItem:
+      type: object
+      additionalProperties: false
+      required: [nodeId, accepted]
+      properties:
+        nodeId:
+          type: string
+          format: uuid
+        accepted:
+          type: boolean
+        task:
+          $ref: "#/components/schemas/AgentUpdateTask"
+        error:
+          $ref: "#/components/schemas/AgentUpdateErrorCode"
+    AgentUpdateErrorCode:
+      type: string
+      enum:
+        - agent_update_node_not_found
+        - agent_update_node_revoked
+        - agent_update_node_disabled
+        - agent_update_node_offline
+        - agent_update_task_slot_occupied
+        - agent_update_unsupported
+        - agent_update_not_available
+        - agent_update_target_invalid
+    AgentUpdateBatchResult:
+      type: object
+      additionalProperties: false
+      required: [targetVersion, items]
+      properties:
+        targetVersion:
+          type: string
+          minLength: 5
+          maxLength: 64
+        items:
+          type: array
+          minItems: 1
+          maxItems: 70
+          items:
+            $ref: "#/components/schemas/AgentUpdateBatchItem"
     AgentProbeExecutionManifest:
       type: object
       additionalProperties: false
@@ -4024,6 +4296,10 @@ components:
         enabled:
           type: boolean
         agentVersion:
+          type: string
+          minLength: 1
+          maxLength: 64
+        sourceRevision:
           type: string
           minLength: 1
           maxLength: 64

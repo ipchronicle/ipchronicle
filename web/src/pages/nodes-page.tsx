@@ -1,6 +1,7 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import {
   Check,
+  CircleArrowUp,
   Clipboard,
   KeyRound,
   LoaderCircle,
@@ -12,6 +13,7 @@ import {
   RotateCw,
   ScanSearch,
   Server,
+  Search,
   ShieldX,
   Terminal,
   Trash2,
@@ -22,6 +24,7 @@ import {
 } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { Link } from "react-router";
+import { gt, major, valid } from "semver";
 
 import {
   deleteNode,
@@ -37,6 +40,13 @@ import {
   type Node,
   type NodeDeletion,
 } from "@/api/nodes";
+import {
+  createAgentUpdateTasks,
+  getAgentUpdateState,
+  type AgentUpdateBatchResult,
+  type AgentUpdateState,
+  type AgentUpdateTask,
+} from "@/api/updates";
 import { useAuth } from "@/auth-context";
 import {
   AlertDialog,
@@ -61,6 +71,8 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
+import { Checkbox } from "@/components/ui/checkbox";
+import { Input } from "@/components/ui/input";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Switch } from "@/components/ui/switch";
 import {
@@ -84,6 +96,8 @@ type ViewState =
       kind: "success";
       nodes: Node[];
       enrollment: AgentEnrollmentSettings;
+      updates?: AgentUpdateState;
+      updateLoadFailed: boolean;
     }
   | { kind: "error" };
 
@@ -97,11 +111,23 @@ export function NodesPage() {
     if (initial) setState({ kind: "loading" });
     else setRefreshing(true);
     try {
-      const [nodes, enrollment] = await Promise.all([
+      const [nodes, enrollment, updates] = await Promise.all([
         listNodes(signal),
         getAgentEnrollment(signal),
+        getAgentUpdateState(signal).catch((error: unknown) => {
+          if (error instanceof DOMException && error.name === "AbortError") {
+            throw error;
+          }
+          return undefined;
+        }),
       ]);
-      setState({ kind: "success", nodes, enrollment });
+      setState({
+        kind: "success",
+        nodes,
+        enrollment,
+        updates,
+        updateLoadFailed: updates === undefined,
+      });
     } catch (error) {
       if (error instanceof DOMException && error.name === "AbortError") return;
       if (initial) setState({ kind: "error" });
@@ -119,15 +145,18 @@ export function NodesPage() {
   const hasActiveSync =
     state.kind === "success" &&
     state.nodes.some((node) => node.syncStatus !== undefined);
+  const hasActiveUpdate =
+    state.kind === "success" &&
+    state.updates?.tasks.some((task) => !isTerminalUpdateTask(task.status));
 
   useEffect(() => {
     if (state.kind !== "success") return;
     const interval = window.setInterval(
       () => void load(),
-      hasActiveSync ? 3_000 : 30_000,
+      hasActiveSync || hasActiveUpdate ? 3_000 : 30_000,
     );
     return () => window.clearInterval(interval);
-  }, [hasActiveSync, load, state.kind]);
+  }, [hasActiveSync, hasActiveUpdate, load, state.kind]);
 
   const csrfToken =
     authState.status === "authenticated" ? authState.session.csrfToken : "";
@@ -194,6 +223,8 @@ export function NodesPage() {
             />
             <NodeListCard
               nodes={state.nodes}
+              updates={state.updates}
+              updateLoadFailed={state.updateLoadFailed}
               csrfToken={csrfToken}
               onNodeChange={(node) =>
                 setState((current) =>
@@ -226,6 +257,35 @@ export function NodesPage() {
                       }
                     : current,
                 )
+              }
+              onUpdateTasksCreated={(result) =>
+                setState((current) => {
+                  if (
+                    current.kind !== "success" ||
+                    current.updates === undefined
+                  ) {
+                    return current;
+                  }
+                  const replacements = new Map(
+                    result.items.flatMap((item) =>
+                      item.task === undefined
+                        ? []
+                        : ([[item.nodeId, item.task]] as const),
+                    ),
+                  );
+                  return {
+                    ...current,
+                    updates: {
+                      ...current.updates,
+                      tasks: [
+                        ...replacements.values(),
+                        ...current.updates.tasks.filter(
+                          (task) => !replacements.has(task.nodeId),
+                        ),
+                      ],
+                    },
+                  };
+                })
               }
             />
           </>
@@ -442,16 +502,126 @@ function EnrollmentCard({
 
 function NodeListCard({
   nodes,
+  updates,
+  updateLoadFailed,
   csrfToken,
   onNodeChange,
   onDeletionQueued,
+  onUpdateTasksCreated,
 }: {
   nodes: Node[];
+  updates?: AgentUpdateState;
+  updateLoadFailed: boolean;
   csrfToken: string;
   onNodeChange: (node: Node) => void;
   onDeletionQueued: (deletion: NodeDeletion) => void;
+  onUpdateTasksCreated: (result: AgentUpdateBatchResult) => void;
 }) {
   const { t } = useTranslation();
+  const [query, setQuery] = useState("");
+  const [updatesOnly, setUpdatesOnly] = useState(false);
+  const [selectedNodeIds, setSelectedNodeIds] = useState<Set<string>>(
+    () => new Set(),
+  );
+  const [updating, setUpdating] = useState(false);
+  const [updateFeedback, setUpdateFeedback] = useState<UpdateFeedback>();
+
+  const tasksByNode = useMemo(
+    () => new Map(updates?.tasks.map((task) => [task.nodeId, task]) ?? []),
+    [updates?.tasks],
+  );
+  const normalizedQuery = query.trim().toLocaleLowerCase();
+  const visibleNodes = nodes.filter((node) => {
+    const matchesQuery =
+      normalizedQuery.length === 0 ||
+      [
+        node.name,
+        node.hostname,
+        node.agentVersion,
+        node.sourceRevision ?? "",
+      ].some((value) => value.toLocaleLowerCase().includes(normalizedQuery));
+    return (
+      matchesQuery && (!updatesOnly || nodeHasAvailableUpdate(node, updates))
+    );
+  });
+  const selectableVisibleNodes = visibleNodes.filter((node) =>
+    canRequestAgentUpdate(node, tasksByNode.get(node.id), updates),
+  );
+  const allVisibleSelected =
+    selectableVisibleNodes.length > 0 &&
+    selectableVisibleNodes.every((node) => selectedNodeIds.has(node.id));
+  const someVisibleSelected = selectableVisibleNodes.some((node) =>
+    selectedNodeIds.has(node.id),
+  );
+
+  useEffect(() => {
+    setSelectedNodeIds((current) => {
+      const next = new Set(
+        [...current].filter((nodeId) => {
+          const node = nodes.find((item) => item.id === nodeId);
+          return (
+            node !== undefined &&
+            canRequestAgentUpdate(node, tasksByNode.get(node.id), updates)
+          );
+        }),
+      );
+      return next.size === current.size ? current : next;
+    });
+  }, [nodes, tasksByNode, updates]);
+
+  async function requestUpdates(nodeIds: string[]) {
+    const targetVersion = updates?.availableRelease?.version;
+    if (targetVersion === undefined || nodeIds.length === 0) return;
+    setUpdating(true);
+    setUpdateFeedback(undefined);
+    try {
+      const result = await createAgentUpdateTasks(
+        nodeIds,
+        targetVersion,
+        csrfToken,
+      );
+      onUpdateTasksCreated(result);
+      const failures = result.items.flatMap((item) => {
+        if (item.accepted || item.error === undefined) return [];
+        return [
+          {
+            nodeName:
+              nodes.find((node) => node.id === item.nodeId)?.name ??
+              item.nodeId,
+            code: item.error,
+          },
+        ];
+      });
+      const acceptedCount = result.items.filter((item) => item.accepted).length;
+      setUpdateFeedback({ acceptedCount, failures });
+      setSelectedNodeIds((current) => {
+        const next = new Set(current);
+        result.items.forEach((item) => {
+          if (item.accepted) next.delete(item.nodeId);
+        });
+        return next;
+      });
+    } catch (cause) {
+      setUpdateFeedback({
+        acceptedCount: 0,
+        failures: [{ nodeName: "", message: formatAPIError(cause, t) }],
+      });
+    } finally {
+      setUpdating(false);
+    }
+  }
+
+  function toggleVisibleSelection(checked: boolean) {
+    setSelectedNodeIds((current) => {
+      const next = new Set(current);
+      selectableVisibleNodes.forEach((node) => {
+        if (checked) next.add(node.id);
+        else next.delete(node.id);
+      });
+      return next;
+    });
+  }
+
   return (
     <Card>
       <CardHeader>
@@ -480,109 +650,447 @@ function NodeListCard({
         </CardContent>
       ) : (
         <>
-          <div className="hidden lg:block">
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>{t("nodes.inventory.node")}</TableHead>
-                  <TableHead>{t("nodes.inventory.status")}</TableHead>
-                  <TableHead>{t("nodes.inventory.agent")}</TableHead>
-                  <TableHead>{t("nodes.inventory.configuration")}</TableHead>
-                  <TableHead className="text-right">
-                    {t("nodes.inventory.lastSeen")}
-                  </TableHead>
-                  <TableHead className="w-36 text-right">
-                    <span className="sr-only">{t("nodes.actions.title")}</span>
-                  </TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {nodes.map((node) => (
-                  <TableRow key={node.id}>
-                    <TableCell>
-                      <p className="font-medium">{node.name}</p>
-                      <p className="mt-1 text-xs text-muted-foreground">
-                        {node.hostname}
-                      </p>
-                    </TableCell>
-                    <TableCell>
-                      <NodeStatusBadge node={node} />
-                    </TableCell>
-                    <TableCell>
-                      <p>{node.agentVersion}</p>
-                      <p className="mt-1 text-xs text-muted-foreground">
-                        {node.operatingSystem}/{node.architecture}
-                      </p>
-                    </TableCell>
-                    <TableCell>
-                      <ConfigurationStatus node={node} />
-                    </TableCell>
-                    <TableCell className="text-right text-muted-foreground">
-                      <NodeTime value={node.lastSeenAt} />
-                    </TableCell>
-                    <TableCell>
-                      <NodeActions
-                        node={node}
-                        csrfToken={csrfToken}
-                        onNodeChange={onNodeChange}
-                        onDeletionQueued={onDeletionQueued}
-                      />
-                    </TableCell>
-                  </TableRow>
-                ))}
-              </TableBody>
-            </Table>
-          </div>
-          <CardContent className="divide-y p-0 lg:hidden">
-            {nodes.map((node) => (
-              <div className="space-y-4 p-4" key={node.id}>
-                <div className="flex items-start justify-between gap-3">
-                  <div className="min-w-0">
-                    <p className="truncate font-medium">{node.name}</p>
-                    <p className="mt-1 truncate text-xs text-muted-foreground">
-                      {node.hostname}
-                    </p>
-                  </div>
-                  <NodeStatusBadge node={node} />
-                </div>
-                <dl className="grid grid-cols-2 gap-3 text-xs">
-                  <div>
-                    <dt className="text-muted-foreground">
-                      {t("nodes.inventory.agent")}
-                    </dt>
-                    <dd className="mt-1">
-                      {node.agentVersion} · {node.architecture}
-                    </dd>
-                  </div>
-                  <div>
-                    <dt className="text-muted-foreground">
-                      {t("nodes.inventory.configuration")}
-                    </dt>
-                    <dd className="mt-1">
-                      <ConfigurationStatus node={node} />
-                    </dd>
-                  </div>
-                  <div className="col-span-2">
-                    <dt className="text-muted-foreground">
-                      {t("nodes.inventory.lastSeen")}
-                    </dt>
-                    <dd className="mt-1">
-                      <NodeTime value={node.lastSeenAt} />
-                    </dd>
-                  </div>
-                </dl>
-                <NodeActions
-                  node={node}
-                  csrfToken={csrfToken}
-                  onNodeChange={onNodeChange}
-                  onDeletionQueued={onDeletionQueued}
+          <CardContent className="space-y-4 border-b">
+            {updateLoadFailed ? (
+              <Alert>
+                <TriangleAlert aria-hidden="true" />
+                <AlertTitle>{t("nodes.updates.loadFailed")}</AlertTitle>
+                <AlertDescription>
+                  {t("nodes.updates.loadFailedDetail")}
+                </AlertDescription>
+              </Alert>
+            ) : null}
+            {updateFeedback !== undefined ? (
+              <AgentUpdateFeedback value={updateFeedback} />
+            ) : null}
+            <div className="flex flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-center">
+              <div className="relative min-w-0 flex-1 sm:min-w-64">
+                <Search
+                  aria-hidden="true"
+                  className="absolute top-1/2 left-3 size-4 -translate-y-1/2 text-muted-foreground"
+                />
+                <Input
+                  className="pl-9"
+                  value={query}
+                  onChange={(event) => setQuery(event.target.value)}
+                  placeholder={t("nodes.inventory.searchPlaceholder")}
+                  aria-label={t("nodes.inventory.search")}
                 />
               </div>
-            ))}
+              <label className="flex min-h-8 items-center gap-2 text-sm">
+                <Switch
+                  size="sm"
+                  checked={updatesOnly}
+                  disabled={updates === undefined}
+                  onCheckedChange={setUpdatesOnly}
+                  aria-label={t("nodes.updates.filter")}
+                />
+                {t("nodes.updates.filter")}
+              </label>
+              <Button
+                onClick={() => void requestUpdates([...selectedNodeIds])}
+                disabled={
+                  updating ||
+                  selectedNodeIds.size === 0 ||
+                  updates?.availableRelease === undefined
+                }
+              >
+                {updating ? (
+                  <LoaderCircle
+                    className="animate-spin"
+                    data-icon="inline-start"
+                    aria-hidden="true"
+                  />
+                ) : (
+                  <CircleArrowUp data-icon="inline-start" aria-hidden="true" />
+                )}
+                {t("nodes.updates.updateSelected", {
+                  count: selectedNodeIds.size,
+                })}
+              </Button>
+            </div>
           </CardContent>
+
+          {visibleNodes.length === 0 ? (
+            <CardContent>
+              <div className="flex flex-col items-center py-10 text-center">
+                <Search
+                  aria-hidden="true"
+                  className="size-5 text-muted-foreground"
+                />
+                <p className="mt-4 font-medium">
+                  {t("nodes.inventory.noMatches")}
+                </p>
+                <Button
+                  className="mt-3"
+                  variant="outline"
+                  size="sm"
+                  onClick={() => {
+                    setQuery("");
+                    setUpdatesOnly(false);
+                  }}
+                >
+                  {t("nodes.inventory.clearFilters")}
+                </Button>
+              </div>
+            </CardContent>
+          ) : null}
+
+          {visibleNodes.length > 0 ? (
+            <div className="hidden lg:block">
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead className="w-10">
+                      <Checkbox
+                        checked={
+                          allVisibleSelected
+                            ? true
+                            : someVisibleSelected
+                              ? "indeterminate"
+                              : false
+                        }
+                        disabled={selectableVisibleNodes.length === 0}
+                        onCheckedChange={(checked) =>
+                          toggleVisibleSelection(checked === true)
+                        }
+                        aria-label={t("nodes.updates.selectAvailable")}
+                      />
+                    </TableHead>
+                    <TableHead>{t("nodes.inventory.node")}</TableHead>
+                    <TableHead>{t("nodes.inventory.status")}</TableHead>
+                    <TableHead>{t("nodes.inventory.agent")}</TableHead>
+                    <TableHead>{t("nodes.inventory.configuration")}</TableHead>
+                    <TableHead className="text-right">
+                      {t("nodes.inventory.lastSeen")}
+                    </TableHead>
+                    <TableHead className="w-36 text-right">
+                      <span className="sr-only">
+                        {t("nodes.actions.title")}
+                      </span>
+                    </TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {visibleNodes.map((node) => {
+                    const task = tasksByNode.get(node.id);
+                    const updateAvailable = nodeHasAvailableUpdate(
+                      node,
+                      updates,
+                    );
+                    const canUpdate = canRequestAgentUpdate(
+                      node,
+                      task,
+                      updates,
+                    );
+                    return (
+                      <TableRow key={node.id}>
+                        <TableCell>
+                          <Checkbox
+                            checked={selectedNodeIds.has(node.id)}
+                            disabled={!canUpdate}
+                            onCheckedChange={(checked) =>
+                              setSelectedNodeIds((current) => {
+                                const next = new Set(current);
+                                if (checked === true) next.add(node.id);
+                                else next.delete(node.id);
+                                return next;
+                              })
+                            }
+                            aria-label={t("nodes.updates.selectNode", {
+                              name: node.name,
+                            })}
+                          />
+                        </TableCell>
+                        <TableCell>
+                          <p className="font-medium">{node.name}</p>
+                          <p className="mt-1 text-xs text-muted-foreground">
+                            {node.hostname}
+                          </p>
+                        </TableCell>
+                        <TableCell>
+                          <NodeStatusBadge node={node} />
+                        </TableCell>
+                        <TableCell>
+                          <p>{node.agentVersion}</p>
+                          <AgentSourceRevision value={node.sourceRevision} />
+                          <p className="mt-1 text-xs text-muted-foreground">
+                            {node.operatingSystem}/{node.architecture}
+                          </p>
+                          <AgentUpdateStatus
+                            task={task}
+                            updateAvailable={updateAvailable}
+                            targetVersion={updates?.availableRelease?.version}
+                          />
+                        </TableCell>
+                        <TableCell>
+                          <ConfigurationStatus node={node} />
+                        </TableCell>
+                        <TableCell className="text-right text-muted-foreground">
+                          <NodeTime value={node.lastSeenAt} />
+                        </TableCell>
+                        <TableCell>
+                          <NodeActions
+                            node={node}
+                            csrfToken={csrfToken}
+                            onNodeChange={onNodeChange}
+                            onDeletionQueued={onDeletionQueued}
+                            updateAvailable={updateAvailable}
+                            updateTask={task}
+                            updating={updating}
+                            onUpdate={() => void requestUpdates([node.id])}
+                          />
+                        </TableCell>
+                      </TableRow>
+                    );
+                  })}
+                </TableBody>
+              </Table>
+            </div>
+          ) : null}
+          {visibleNodes.length > 0 ? (
+            <CardContent className="divide-y p-0 lg:hidden">
+              {visibleNodes.map((node) => {
+                const task = tasksByNode.get(node.id);
+                const updateAvailable = nodeHasAvailableUpdate(node, updates);
+                const canUpdate = canRequestAgentUpdate(node, task, updates);
+                return (
+                  <div className="space-y-4 p-4" key={node.id}>
+                    <div className="flex items-start justify-between gap-3">
+                      <div className="flex min-w-0 items-start gap-3">
+                        <Checkbox
+                          className="mt-1"
+                          checked={selectedNodeIds.has(node.id)}
+                          disabled={!canUpdate}
+                          onCheckedChange={(checked) =>
+                            setSelectedNodeIds((current) => {
+                              const next = new Set(current);
+                              if (checked === true) next.add(node.id);
+                              else next.delete(node.id);
+                              return next;
+                            })
+                          }
+                          aria-label={t("nodes.updates.selectNode", {
+                            name: node.name,
+                          })}
+                        />
+                        <div className="min-w-0">
+                          <p className="truncate font-medium">{node.name}</p>
+                          <p className="mt-1 truncate text-xs text-muted-foreground">
+                            {node.hostname}
+                          </p>
+                        </div>
+                      </div>
+                      <NodeStatusBadge node={node} />
+                    </div>
+                    <dl className="grid grid-cols-2 gap-3 text-xs">
+                      <div>
+                        <dt className="text-muted-foreground">
+                          {t("nodes.inventory.agent")}
+                        </dt>
+                        <dd className="mt-1">
+                          {node.agentVersion} · {node.architecture}
+                          <AgentSourceRevision value={node.sourceRevision} />
+                          <AgentUpdateStatus
+                            task={task}
+                            updateAvailable={updateAvailable}
+                            targetVersion={updates?.availableRelease?.version}
+                          />
+                        </dd>
+                      </div>
+                      <div>
+                        <dt className="text-muted-foreground">
+                          {t("nodes.inventory.configuration")}
+                        </dt>
+                        <dd className="mt-1">
+                          <ConfigurationStatus node={node} />
+                        </dd>
+                      </div>
+                      <div className="col-span-2">
+                        <dt className="text-muted-foreground">
+                          {t("nodes.inventory.lastSeen")}
+                        </dt>
+                        <dd className="mt-1">
+                          <NodeTime value={node.lastSeenAt} />
+                        </dd>
+                      </div>
+                    </dl>
+                    <NodeActions
+                      node={node}
+                      csrfToken={csrfToken}
+                      onNodeChange={onNodeChange}
+                      onDeletionQueued={onDeletionQueued}
+                      updateAvailable={updateAvailable}
+                      updateTask={task}
+                      updating={updating}
+                      onUpdate={() => void requestUpdates([node.id])}
+                    />
+                  </div>
+                );
+              })}
+            </CardContent>
+          ) : null}
         </>
       )}
     </Card>
+  );
+}
+
+type UpdateFeedback = {
+  acceptedCount: number;
+  failures: Array<{
+    nodeName: string;
+    code?: string;
+    message?: string;
+  }>;
+};
+
+function AgentUpdateFeedback({ value }: { value: UpdateFeedback }) {
+  const { t } = useTranslation();
+  const hasFailures = value.failures.length > 0;
+  return (
+    <Alert variant={hasFailures ? "destructive" : "default"}>
+      {hasFailures ? (
+        <TriangleAlert aria-hidden="true" />
+      ) : (
+        <Check aria-hidden="true" />
+      )}
+      <AlertTitle>
+        {t(
+          hasFailures
+            ? value.acceptedCount > 0
+              ? "nodes.updates.partial"
+              : "nodes.updates.failed"
+            : "nodes.updates.accepted",
+          { count: value.acceptedCount },
+        )}
+      </AlertTitle>
+      {hasFailures ? (
+        <AlertDescription>
+          <ul className="mt-1 list-disc space-y-1 pl-4">
+            {value.failures.map((failure, index) => (
+              <li key={`${failure.nodeName}-${failure.code ?? index}`}>
+                {failure.nodeName === "" ? null : `${failure.nodeName}: `}
+                {failure.message ??
+                  t(`nodes.updates.errors.${failure.code ?? "unknown"}`)}
+              </li>
+            ))}
+          </ul>
+        </AlertDescription>
+      ) : null}
+    </Alert>
+  );
+}
+
+function AgentSourceRevision({ value }: { value?: string }) {
+  const { t } = useTranslation();
+  if (value === undefined) return null;
+  return (
+    <p
+      className="mt-1 truncate font-mono text-xs text-muted-foreground"
+      title={value}
+    >
+      {t("nodes.inventory.sourceRevision", { value: value.slice(0, 12) })}
+    </p>
+  );
+}
+
+function AgentUpdateStatus({
+  task,
+  updateAvailable,
+  targetVersion,
+}: {
+  task?: AgentUpdateTask;
+  updateAvailable: boolean;
+  targetVersion?: string;
+}) {
+  const { t } = useTranslation();
+  if (task === undefined) {
+    if (!updateAvailable || targetVersion === undefined) return null;
+    return (
+      <div className="mt-2">
+        <Badge variant="secondary">
+          <CircleArrowUp aria-hidden="true" />
+          {t("nodes.updates.available", { version: targetVersion })}
+        </Badge>
+      </div>
+    );
+  }
+
+  const failed = ["failed", "rejected", "rolled-back", "expired"].includes(
+    task.status,
+  );
+  const active = !isTerminalUpdateTask(task.status);
+  return (
+    <div className="mt-2 max-w-sm space-y-1.5">
+      <Badge
+        variant={failed ? "destructive" : active ? "secondary" : "outline"}
+      >
+        {active ? (
+          <LoaderCircle
+            className={task.offline ? undefined : "animate-spin"}
+            aria-hidden="true"
+          />
+        ) : task.status === "succeeded" ? (
+          <Check aria-hidden="true" />
+        ) : (
+          <TriangleAlert aria-hidden="true" />
+        )}
+        {task.offline && active
+          ? t("nodes.updates.status.offlineWithPhase", {
+              phase: t(`nodes.updates.status.${task.status}`),
+            })
+          : t(`nodes.updates.status.${task.status}`)}
+      </Badge>
+      <p className="text-xs text-muted-foreground">
+        {t("nodes.updates.target", { version: task.targetVersion })}
+        {task.resultVersion === undefined
+          ? null
+          : ` · ${t("nodes.updates.result", { version: task.resultVersion })}`}
+      </p>
+      {task.failureCode !== undefined ? (
+        <p className="break-words font-mono text-xs text-destructive">
+          {t("nodes.updates.failureCode", { code: task.failureCode })}
+        </p>
+      ) : null}
+      {task.diagnostic !== undefined ? (
+        <p className="break-words text-xs text-destructive">
+          {task.diagnostic}
+        </p>
+      ) : null}
+    </div>
+  );
+}
+
+function nodeHasAvailableUpdate(node: Node, updates?: AgentUpdateState) {
+  const targetVersion = valid(updates?.availableRelease?.version ?? "");
+  const currentVersion = valid(node.agentVersion);
+  return (
+    node.capabilities.includes("agent-update-v1") &&
+    targetVersion !== null &&
+    currentVersion !== null &&
+    major(targetVersion) === major(currentVersion) &&
+    gt(targetVersion, currentVersion)
+  );
+}
+
+function canRequestAgentUpdate(
+  node: Node,
+  task: AgentUpdateTask | undefined,
+  updates?: AgentUpdateState,
+) {
+  return (
+    nodeHasAvailableUpdate(node, updates) &&
+    node.enabled &&
+    node.status === "online" &&
+    node.deletionStatus === undefined &&
+    (task === undefined || isTerminalUpdateTask(task.status))
+  );
+}
+
+function isTerminalUpdateTask(status: AgentUpdateTask["status"]) {
+  return ["succeeded", "failed", "rolled-back", "rejected", "expired"].includes(
+    status,
   );
 }
 
@@ -629,11 +1137,19 @@ function NodeActions({
   csrfToken,
   onNodeChange,
   onDeletionQueued,
+  updateAvailable,
+  updateTask,
+  updating,
+  onUpdate,
 }: {
   node: Node;
   csrfToken: string;
   onNodeChange: (node: Node) => void;
   onDeletionQueued: (deletion: NodeDeletion) => void;
+  updateAvailable: boolean;
+  updateTask?: AgentUpdateTask;
+  updating: boolean;
+  onUpdate: () => void;
 }) {
   const { t } = useTranslation();
   const [working, setWorking] = useState<
@@ -642,6 +1158,13 @@ function NodeActions({
   const [error, setError] = useState<string>();
   const deletionPending = node.deletionStatus === "pending";
   const supportsSync = node.capabilities.includes("sync-wakeup-v1");
+  const activeUpdate =
+    updateTask !== undefined && !isTerminalUpdateTask(updateTask.status);
+  const updateDisabledReason = !node.enabled
+    ? t("nodes.updates.disabledReason")
+    : node.status !== "online"
+      ? t("nodes.updates.offlineReason")
+      : undefined;
 
   async function toggleEnabled() {
     setWorking("toggle");
@@ -724,6 +1247,34 @@ function NodeActions({
         </TooltipTrigger>
         <TooltipContent>{t("nodes.actions.probe")}</TooltipContent>
       </Tooltip>
+
+      {updateAvailable && !activeUpdate ? (
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <span className="inline-flex">
+              <Button
+                variant="ghost"
+                size="icon-sm"
+                disabled={updating || updateDisabledReason !== undefined}
+                aria-label={t("nodes.updates.updateNode", {
+                  name: node.name,
+                })}
+                onClick={onUpdate}
+              >
+                {updating ? (
+                  <LoaderCircle className="animate-spin" aria-hidden="true" />
+                ) : (
+                  <CircleArrowUp aria-hidden="true" />
+                )}
+              </Button>
+            </span>
+          </TooltipTrigger>
+          <TooltipContent>
+            {updateDisabledReason ??
+              t("nodes.updates.updateNode", { name: node.name })}
+          </TooltipContent>
+        </Tooltip>
+      ) : null}
 
       {node.status !== "revoked" && node.deletionStatus === undefined ? (
         <Tooltip>
