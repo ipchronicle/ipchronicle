@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
@@ -9,6 +10,7 @@ import (
 	"net/http"
 	"os"
 	"os/signal"
+	"runtime"
 	"strings"
 	"syscall"
 	"time"
@@ -20,6 +22,7 @@ import (
 	"github.com/ipchronicle/ipchronicle/internal/center/notifications"
 	"github.com/ipchronicle/ipchronicle/internal/center/syncws"
 	centerupdates "github.com/ipchronicle/ipchronicle/internal/center/updates"
+	"github.com/ipchronicle/ipchronicle/internal/releaseinfo"
 	"github.com/ipchronicle/ipchronicle/internal/version"
 	"github.com/ipchronicle/ipchronicle/internal/webui"
 )
@@ -34,6 +37,12 @@ func run(arguments []string) error {
 	if len(arguments) == 1 && arguments[0] == "notification-worker" {
 		return notifications.RunJavaScriptWorker(os.Stdin, os.Stdout)
 	}
+	if len(arguments) == 2 && arguments[0] == "version" && arguments[1] == "--json" {
+		return json.NewEncoder(os.Stdout).Encode(releaseinfo.BinaryInfo{
+			Version: version.Value, Revision: version.Revision, Component: "center",
+			OS: runtime.GOOS, Arch: runtime.GOARCH,
+		})
+	}
 	if len(arguments) == 1 {
 		switch arguments[0] {
 		case "version", "--version":
@@ -47,7 +56,7 @@ func run(arguments []string) error {
 		return runAdministratorCommand(arguments[1:])
 	}
 	if len(arguments) != 0 {
-		return errors.New("usage: ipchronicle-center [version|healthcheck|admin reset-password --password-stdin|admin disable-totp]")
+		return errors.New("usage: ipchronicle-center [version [--json]|healthcheck|admin reset-password --password-stdin|admin disable-totp]")
 	}
 	return serve()
 }
@@ -112,7 +121,7 @@ func serve() error {
 		}
 	}()
 
-	log.Printf("IPChronicle center %s listening on %s", version.Value, configuration.ListenAddress)
+	log.Printf("IPChronicle center %s (%s) listening on %s", version.Value, version.Revision, configuration.ListenAddress)
 	err = server.ListenAndServe()
 	if errors.Is(err, http.ErrServerClosed) {
 		return nil

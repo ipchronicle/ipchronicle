@@ -8,8 +8,10 @@ SQLC_IMAGE := sqlc/sqlc:1.31.0
 CONTAINER_USER := $(shell id -u):$(shell id -g)
 ROOT := /workspace
 VERSION ?= dev
-REVISION ?= $(shell git rev-parse --short HEAD 2>/dev/null || printf unknown)
+REVISION ?= $(shell git rev-parse HEAD 2>/dev/null || printf unknown)
 VERSION_PACKAGE := github.com/ipchronicle/ipchronicle/internal/version.Value
+REVISION_PACKAGE := github.com/ipchronicle/ipchronicle/internal/version.Revision
+GO_LDFLAGS := -s -w -buildid= -extldflags=-Wl,--build-id=none -X $(VERSION_PACKAGE)=$(VERSION) -X $(REVISION_PACKAGE)=$(REVISION)
 GO_RUN := docker run --rm --user $(CONTAINER_USER) -e HOME=/tmp -e GOCACHE=/tmp/go-build -e GOMODCACHE=/tmp/go-mod -v $(CURDIR):$(ROOT) -w $(ROOT) $(GO_IMAGE)
 NODE_RUN := docker run --rm --user $(CONTAINER_USER) -e HOME=/tmp -v $(CURDIR):$(ROOT) -w $(ROOT)/web $(NODE_IMAGE)
 SQLC_RUN := docker run --rm --user $(CONTAINER_USER) -v $(CURDIR):/src -w /src $(SQLC_IMAGE)
@@ -34,7 +36,7 @@ web-assets: web-check
 	./scripts/sync-web-assets.sh
 
 go-check:
-	$(GO_RUN) sh -ceu 'go mod tidy; unformatted=$$(gofmt -l $$(find . -type f -name "*.go" -not -path "./web/node_modules/*")); test -z "$$unformatted" || { printf "Unformatted Go files:\n%s\n" "$$unformatted"; exit 1; }; go vet ./...; go test ./...; go test -race ./...; go build -trimpath -ldflags "-s -w -X $(VERSION_PACKAGE)=$(VERSION)" -o /tmp/ipchronicle-center ./cmd/ipchronicle-center; CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -trimpath -ldflags "-s -w -X $(VERSION_PACKAGE)=$(VERSION)" -o /tmp/ipchronicle-agent-amd64 ./cmd/ipchronicle-agent; CGO_ENABLED=0 GOOS=linux GOARCH=arm64 go build -trimpath -ldflags "-s -w -X $(VERSION_PACKAGE)=$(VERSION)" -o /tmp/ipchronicle-agent-arm64 ./cmd/ipchronicle-agent'
+	$(GO_RUN) sh -ceu 'go mod tidy; unformatted=$$(gofmt -l $$(find . -type f -name "*.go" -not -path "./web/node_modules/*")); test -z "$$unformatted" || { printf "Unformatted Go files:\n%s\n" "$$unformatted"; exit 1; }; go vet ./...; go test ./...; go test -race ./...; go build -trimpath -buildvcs=false -ldflags "$(GO_LDFLAGS)" -o /tmp/ipchronicle-center ./cmd/ipchronicle-center; CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -trimpath -buildvcs=false -ldflags "$(GO_LDFLAGS)" -o /tmp/ipchronicle-agent-amd64 ./cmd/ipchronicle-agent; CGO_ENABLED=0 GOOS=linux GOARCH=arm64 go build -trimpath -buildvcs=false -ldflags "$(GO_LDFLAGS)" -o /tmp/ipchronicle-agent-arm64 ./cmd/ipchronicle-agent'
 	git diff --exit-code -- go.mod go.sum
 
 check: generate
@@ -45,7 +47,7 @@ check: generate
 
 build: generate web-assets
 	mkdir -p bin
-	$(GO_RUN) sh -ceu 'go build -trimpath -ldflags "-s -w -X $(VERSION_PACKAGE)=$(VERSION)" -o bin/ipchronicle-center ./cmd/ipchronicle-center; CGO_ENABLED=0 go build -trimpath -ldflags "-s -w -X $(VERSION_PACKAGE)=$(VERSION)" -o bin/ipchronicle-agent ./cmd/ipchronicle-agent'
+	$(GO_RUN) sh -ceu 'go build -trimpath -buildvcs=false -ldflags "$(GO_LDFLAGS)" -o bin/ipchronicle-center ./cmd/ipchronicle-center; CGO_ENABLED=0 go build -trimpath -buildvcs=false -ldflags "$(GO_LDFLAGS)" -o bin/ipchronicle-agent ./cmd/ipchronicle-agent'
 
 compose-smoke:
 	./scripts/compose-smoke.sh

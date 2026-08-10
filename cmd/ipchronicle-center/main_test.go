@@ -2,16 +2,34 @@ package main
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
+	"io"
 	"os"
 	"path/filepath"
+	"runtime"
 	"testing"
 	"time"
 
 	"github.com/ipchronicle/ipchronicle/internal/center/admin"
 	"github.com/ipchronicle/ipchronicle/internal/center/database"
+	"github.com/ipchronicle/ipchronicle/internal/releaseinfo"
 	"github.com/pquerna/otp/totp"
 )
+
+func TestVersionJSONCommand(t *testing.T) {
+	output := captureStandardOutput(t, func() error {
+		return run([]string{"version", "--json"})
+	})
+	var info releaseinfo.BinaryInfo
+	if err := json.Unmarshal(output, &info); err != nil {
+		t.Fatal(err)
+	}
+	if info.Version == "" || info.Revision == "" || info.Component != "center" ||
+		info.OS != runtime.GOOS || info.Arch != runtime.GOARCH {
+		t.Fatalf("unexpected Center metadata: %#v", info)
+	}
+}
 
 func TestAdministratorResetPasswordCommand(t *testing.T) {
 	paths := prepareAdministratorInstallation(t)
@@ -135,6 +153,32 @@ func withStandardInput(t *testing.T, input string, action func()) {
 		_ = file.Close()
 	})
 	action()
+}
+
+func captureStandardOutput(t *testing.T, action func() error) []byte {
+	t.Helper()
+	reader, writer, err := os.Pipe()
+	if err != nil {
+		t.Fatal(err)
+	}
+	previous := os.Stdout
+	os.Stdout = writer
+	defer func() {
+		os.Stdout = previous
+		_ = reader.Close()
+		_ = writer.Close()
+	}()
+	if err := action(); err != nil {
+		t.Fatal(err)
+	}
+	if err := writer.Close(); err != nil {
+		t.Fatal(err)
+	}
+	output, err := io.ReadAll(reader)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return output
 }
 
 func nextTOTPCode(t *testing.T, secret string) string {
