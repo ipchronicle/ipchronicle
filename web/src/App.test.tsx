@@ -371,7 +371,7 @@ describe("administrator application", () => {
     expect(sidebar).toHaveAttribute("data-state", "expanded");
     fireEvent.click(screen.getByRole("button", { name: "Toggle sidebar" }));
     expect(sidebar).toHaveAttribute("data-state", "collapsed");
-    expect(screen.getByText("Operational")).toBeInTheDocument();
+    expect(await screen.findByText("Operational")).toBeInTheDocument();
     expect(
       screen.getByText("Default credentials are still active"),
     ).toBeInTheDocument();
@@ -421,7 +421,7 @@ describe("administrator application", () => {
     expect(
       await screen.findByRole("heading", { name: "System" }),
     ).toBeInTheDocument();
-    expect(screen.getByText("0.1.1")).toBeInTheDocument();
+    expect(await screen.findByText("0.1.1")).toBeInTheDocument();
     expect(
       screen.getByText("2222222222222222222222222222222222222222"),
     ).toBeInTheDocument();
@@ -491,7 +491,7 @@ describe("administrator application", () => {
       "aria-current",
       "page",
     );
-    fireEvent.click(screen.getByRole("button", { name: "Send test" }));
+    fireEvent.click(await screen.findByRole("button", { name: "Send test" }));
     await waitFor(() =>
       expect(createNotificationTestDeliveryMock).toHaveBeenCalledWith(
         sender.id,
@@ -677,7 +677,9 @@ describe("administrator application", () => {
       "page",
     );
     fireEvent.click(
-      screen.getByRole("switch", { name: "Allow automatic registration" }),
+      await screen.findByRole("switch", {
+        name: "Allow automatic registration",
+      }),
     );
     await waitFor(() =>
       expect(updateEnrollmentMock).toHaveBeenCalledWith(
@@ -764,7 +766,7 @@ describe("administrator application", () => {
     renderApplication("/nodes");
 
     await screen.findByRole("heading", { name: "Nodes" });
-    expect(screen.getAllByText("Source 111111111111")).toHaveLength(4);
+    expect(await screen.findAllByText("Source 111111111111")).toHaveLength(4);
     fireEvent.click(screen.getByRole("switch", { name: "Updates available" }));
     expect(screen.getAllByText("Update available: 0.2.0")).toHaveLength(4);
     fireEvent.click(
@@ -947,7 +949,9 @@ describe("administrator application", () => {
     expect(
       await screen.findByRole("heading", { name: "edge-1" }),
     ).toBeInTheDocument();
-    expect(screen.getAllByText("Default IPv4").length).toBeGreaterThan(0);
+    expect((await screen.findAllByText("Default IPv4")).length).toBeGreaterThan(
+      0,
+    );
     expect(screen.getAllByText("Temporary IPv6").length).toBeGreaterThan(0);
     expect(screen.getByText("Primary proxy · SOCKS5")).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Enable path" })).toBeDisabled();
@@ -1019,7 +1023,7 @@ describe("administrator application", () => {
       await screen.findByRole("heading", { name: "edge-1" }),
     ).toBeInTheDocument();
     expect(
-      screen.getByText("Complete probes are paused for low memory"),
+      await screen.findByText("Complete probes are paused for low memory"),
     ).toBeInTheDocument();
     expect(
       screen.getByRole("button", { name: "Run complete probe" }),
