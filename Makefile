@@ -1,10 +1,7 @@
 SHELL := /bin/bash
 
-GO_IMAGE := golang:1.26.5-bookworm
-NODE_IMAGE := node:24.19.0-bookworm-slim
-PLAYWRIGHT_IMAGE := mcr.microsoft.com/playwright:v1.62.1-noble
-GITLEAKS_IMAGE := zricethezav/gitleaks:v8.30.1
-SQLC_IMAGE := sqlc/sqlc:1.31.0
+include scripts/release-images.env
+
 CONTAINER_USER := $(shell id -u):$(shell id -g)
 ROOT := /workspace
 VERSION ?= dev
@@ -16,7 +13,7 @@ GO_RUN := docker run --rm --user $(CONTAINER_USER) -e HOME=/tmp -e GOCACHE=/tmp/
 NODE_RUN := docker run --rm --user $(CONTAINER_USER) -e HOME=/tmp -v $(CURDIR):$(ROOT) -w $(ROOT)/web $(NODE_IMAGE)
 SQLC_RUN := docker run --rm --user $(CONTAINER_USER) -v $(CURDIR):/src -w /src $(SQLC_IMAGE)
 
-.PHONY: all browser-test build check compose-smoke format generate go-check secret-scan web-assets web-check
+.PHONY: all browser-test build check compose-smoke format generate go-check release-candidate secret-scan verify-release-candidate web-assets web-check
 
 all: check
 
@@ -54,6 +51,12 @@ compose-smoke:
 
 browser-test:
 	PLAYWRIGHT_IMAGE=$(PLAYWRIGHT_IMAGE) ./scripts/browser-test.sh
+
+release-candidate:
+	./scripts/build-release-candidate.sh "$(VERSION)"
+
+verify-release-candidate:
+	./scripts/verify-release-candidate.sh "dist/release/$(VERSION)"
 
 secret-scan:
 	docker run --rm -v $(CURDIR):/repo $(GITLEAKS_IMAGE) dir /repo --redact --no-banner

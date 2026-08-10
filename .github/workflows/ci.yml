@@ -18,7 +18,7 @@ jobs:
       - name: Run repository checks
         run: make check
       - name: Scan committed source for secrets
-        run: docker run --rm -v "$PWD:/repo" zricethezav/gitleaks:v8.30.1 git /repo --redact --no-banner
+        run: docker run --rm -v "$PWD:/repo" zricethezav/gitleaks:v8.30.1@sha256:c00b6bd0aeb3071cbcb79009cb16a60dd9e0a7c60e2be9ab65d25e6bc8abbb7f git /repo --redact --no-banner
 
   image:
     needs: check
@@ -36,7 +36,18 @@ jobs:
       - name: Build center image
         run: docker buildx build --platform "${{ matrix.platform }}" --load --tag ipchronicle-center:ci .
       - name: Check image metadata
-        run: docker image inspect ipchronicle-center:ci --format '{{ index .Config.Labels "org.opencontainers.image.licenses" }}' | grep -Fx AGPL-3.0-only
+        env:
+          PLATFORM: ${{ matrix.platform }}
+        run: |
+          docker image inspect ipchronicle-center:ci --format '{{ index .Config.Labels "org.opencontainers.image.licenses" }}' | grep -Fx AGPL-3.0-only
+          architecture=${PLATFORM#linux/}
+          metadata=$(docker run --rm --platform "$PLATFORM" \
+            --network none --read-only --cap-drop ALL --security-opt no-new-privileges \
+            --memory 64m --cpus 1 --pids-limit 64 ipchronicle-center:ci version --json)
+          jq -e --arg arch "$architecture" \
+            '.version == "dev" and .component == "center" and .os == "linux" and .arch == $arch' \
+            <<<"$metadata" >/dev/null
+          test "$(docker run --rm --platform "$PLATFORM" --entrypoint id ipchronicle-center:ci -u)" = 10001
 
   compose:
     needs: check

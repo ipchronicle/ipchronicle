@@ -3,9 +3,20 @@
 .env
 .env.*
 !.env.example
+AGENTS.md
+README.md
 bin
 coverage
+cmd/ipchronicle-agent
+cmd/ipchronicle-release-tool
+deploy
+dist
+docs
+internal/agent
+internal/releasetool
 internal/webui/dist
+scripts
+sqlc.yaml
 web/dist
 web/node_modules
 web/playwright-report
@@ -13,3 +24,4 @@ web/test-results
 *.db
 *.db-shm
 *.db-wal
+**/*_test.go

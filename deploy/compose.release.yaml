@@ -1,0 +1,40 @@
+name: ipchronicle
+
+services:
+  center:
+    image: ghcr.io/ipchronicle/ipchronicle-center:IPCHRONICLE_VERSION_PLACEHOLDER
+    user: "10001:10001"
+    restart: unless-stopped
+    init: true
+    read_only: true
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    environment:
+      IPCHRONICLE_LISTEN_ADDRESS: :8080
+      IPCHRONICLE_CONFIG_DATABASE_PATH: /var/lib/ipchronicle/config/config.db
+      IPCHRONICLE_HISTORY_DATABASE_PATH: /var/lib/ipchronicle/history/history.db
+      IPCHRONICLE_MASTER_KEY_PATH: /var/lib/ipchronicle/config/master.key
+      IPCHRONICLE_ADMIN_USERNAME: ${IPCHRONICLE_ADMIN_USERNAME:-admin}
+      IPCHRONICLE_ADMIN_PASSWORD: ${IPCHRONICLE_ADMIN_PASSWORD:-admin}
+      IPCHRONICLE_EXTERNAL_URL: ${IPCHRONICLE_EXTERNAL_URL:-}
+      IPCHRONICLE_TRUSTED_PROXIES: ${IPCHRONICLE_TRUSTED_PROXIES:-}
+    ports:
+      - "${IPCHRONICLE_HTTP_PORT:-8080}:8080"
+    volumes:
+      - center-config:/var/lib/ipchronicle/config
+      - center-history:/var/lib/ipchronicle/history
+    tmpfs:
+      - /tmp:size=64m,mode=1777
+    healthcheck:
+      test: ["CMD", "/usr/local/bin/ipchronicle-center", "healthcheck"]
+      interval: 10s
+      timeout: 5s
+      start_period: 5s
+      retries: 6
+    stop_grace_period: 30s
+
+volumes:
+  center-config:
+  center-history:
