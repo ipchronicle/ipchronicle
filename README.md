@@ -19,12 +19,13 @@ decisions are maintained in the
 
 - [Operator guide](OPERATOR_GUIDE.md)
 - [Notification senders and delivery behavior](NOTIFICATIONS.md)
+- [Release readiness](RELEASE_READINESS.md)
 
 The operator guide is the starting point for installation, reverse proxying,
 Agent enrollment, network egresses, probes, history, updates, recovery, and
 uninstallation. Every published release contains these documents together
 with its versioned Compose file, Agent installer, checksums, manifest, SBOMs,
-and build metadata.
+build metadata, and release-readiness report.
 
 ## Development
 
