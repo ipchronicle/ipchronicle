@@ -89,3 +89,27 @@ jobs:
           DISTRIBUTION: ${{ matrix.distribution }}
           VERSION: ${{ inputs.version }}
         run: scripts/test-release-distribution.sh "dist/release/$VERSION" "$DISTRIBUTION" "$ARCHITECTURE"
+
+  resources:
+    needs: candidate
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - architecture: amd64
+            runner: ubuntu-24.04
+          - architecture: arm64
+            runner: ubuntu-24.04-arm
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
+        with:
+          name: ipchronicle-v${{ inputs.version }}-${{ github.sha }}
+          path: dist/release/${{ inputs.version }}
+      - name: Test release resource limits and live IPQuality execution
+        env:
+          ARCHITECTURE: ${{ matrix.architecture }}
+          VERSION: ${{ inputs.version }}
+        run: scripts/test-release-resources.sh "dist/release/$VERSION" "$ARCHITECTURE"

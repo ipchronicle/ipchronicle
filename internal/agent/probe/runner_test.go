@@ -41,6 +41,19 @@ func TestRunnerExecutesOneBoundedJSONProbe(t *testing.T) {
 	}
 }
 
+func TestRunnerAcceptsIPQualitySingleFamilyCompletion(t *testing.T) {
+	runner := testRunner(t, &fakeProcessState{}, `printf '\033[H\033[J\r\r%s\r\n' '{"field":{"value":1}}'; exit 1`)
+	configuration, egress := probeTestConfiguration("default", "ipv4")
+	runner.discover = func() (agentnetwork.Inventory, error) { return probeTestInventory(), nil }
+	outcome, err := runner.Run(context.Background(), configuration, egress, time.Now())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if outcome.Status != "succeeded" || string(outcome.RawResult) != `{"field":{"value":1}}` {
+		t.Fatalf("outcome = %#v", outcome)
+	}
+}
+
 func TestRunnerReportsInvalidAndOversizedJSON(t *testing.T) {
 	tests := []struct {
 		name       string
@@ -64,6 +77,19 @@ func TestRunnerReportsInvalidAndOversizedJSON(t *testing.T) {
 				t.Fatalf("outcome = %#v", outcome)
 			}
 		})
+	}
+}
+
+func TestTailCaptureRetainsRecentDiagnostic(t *testing.T) {
+	capture := newTailCapture(5)
+	if _, err := capture.Write([]byte("abc")); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := capture.Write([]byte("defg")); err != nil {
+		t.Fatal(err)
+	}
+	if got := capture.String(); got != "cdefg" || !capture.Overflowed() {
+		t.Fatalf("capture = %q, overflowed = %t", got, capture.Overflowed())
 	}
 }
 

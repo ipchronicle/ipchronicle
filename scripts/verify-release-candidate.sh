@@ -22,11 +22,11 @@ done
 
 container_user="$(id -u):$(id -g)"
 scratch_directory=$(mktemp -d)
-loaded_image_ref=""
+loaded_image_refs=()
 cleanup() {
-  if [ -n "$loaded_image_ref" ]; then
-    docker image rm "$loaded_image_ref" >/dev/null 2>&1 || true
-  fi
+  for image_ref in "${loaded_image_refs[@]}"; do
+    docker image rm "$image_ref" >/dev/null 2>&1 || true
+  done
   rm -rf "$scratch_directory"
 }
 trap cleanup EXIT HUP INT TERM
@@ -87,7 +87,7 @@ for architecture in amd64 arm64; do
     "docker-archive:/scratch/ipchronicle-center-linux-$architecture.docker.tar:$image_ref" >/dev/null
   docker load --input "$docker_archive" >/dev/null
   rm -f "$docker_archive"
-  loaded_image_ref=$image_ref
+  loaded_image_refs+=("$image_ref")
   center_metadata=$(docker run --rm --platform "linux/$architecture" \
     --network none --read-only --cap-drop ALL --security-opt no-new-privileges \
     --user 10001:10001 --memory 64m --cpus 1 --pids-limit 64 \
@@ -97,19 +97,39 @@ for architecture in amd64 arm64; do
     .os == "linux" and .arch == $arch
   ' <<<"$center_metadata" >/dev/null
   docker image rm "$image_ref" >/dev/null
-  loaded_image_ref=""
 
-  for runtime_image in "$ALPINE_IMAGE" "$DEBIAN_IMAGE"; do
+  for runtime_name in alpine debian; do
+    case "$runtime_name" in
+      alpine) runtime_image=$ALPINE_IMAGE ;;
+      debian) runtime_image=$DEBIAN_IMAGE ;;
+    esac
+    runtime_name_with_tag=${runtime_image%@*}
+    runtime_source="${runtime_name_with_tag%:*}@${runtime_image##*@}"
+    runtime_ref="ipchronicle-verify-$runtime_name-$architecture:v$version"
+    if docker image inspect "$runtime_ref" >/dev/null 2>&1; then
+      echo "refusing to replace existing local image $runtime_ref during verification" >&2
+      exit 1
+    fi
+    runtime_archive="$scratch_directory/runtime-$runtime_name-$architecture.docker.tar"
+    docker run --rm --user "$container_user" -e HOME=/tmp \
+      -v "$scratch_directory:/scratch" "$SKOPEO_IMAGE" copy --insecure-policy \
+      --override-os linux --override-arch "$architecture" \
+      "docker://$runtime_source" \
+      "docker-archive:/scratch/runtime-$runtime_name-$architecture.docker.tar:$runtime_ref" >/dev/null
+    docker load --input "$runtime_archive" >/dev/null
+    rm -f "$runtime_archive"
+    loaded_image_refs+=("$runtime_ref")
     metadata=$(docker run --rm --platform "linux/$architecture" \
       --network none --read-only --cap-drop ALL --security-opt no-new-privileges \
       --user 65534:65534 --memory 64m --cpus 1 --pids-limit 64 \
       -v "$directory:/release:ro" --entrypoint "/release/ipchronicle-agent-linux-$architecture" \
-      "$runtime_image" version --json)
+      "$runtime_ref" version --json)
     jq -e --arg version "$version" --arg revision "$revision" --arg arch "$architecture" '
       .version == $version and .revision == $revision and .component == "agent" and
       .os == "linux" and .arch == $arch and .stateSchemaVersion >= 1 and
       (.capabilities | index("agent-update-v1") != null)
     ' <<<"$metadata" >/dev/null
+    docker image rm "$runtime_ref" >/dev/null
   done
 
   jq -e --arg name "ipchronicle-agent-linux-$architecture" '

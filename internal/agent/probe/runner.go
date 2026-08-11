@@ -25,10 +25,11 @@ import (
 )
 
 const (
-	officialScriptURL   = "https://IP.Check.Place"
-	maxScriptBytes      = 2 * 1024 * 1024
-	scriptDownloadLimit = 30 * time.Second
-	defaultProbeTimeout = 15 * time.Minute
+	officialScriptURL    = "https://IP.Check.Place"
+	ipQualityClearPrefix = "\x1b[H\x1b[J"
+	maxScriptBytes       = 2 * 1024 * 1024
+	scriptDownloadLimit  = 30 * time.Second
+	defaultProbeTimeout  = 15 * time.Minute
 )
 
 type processState interface {
@@ -108,7 +109,7 @@ func (runner *Runner) Run(
 	}
 
 	stdout := newBoundedCapture(state.MaxProbeResultBytes)
-	stderr := newBoundedCapture(state.MaxProbeDiagnosticBytes)
+	stderr := newTailCapture(state.MaxProbeDiagnosticBytes)
 	command := exec.Command(runner.bashPath, append([]string{"-s", "--"}, arguments...)...)
 	command.Stdin = bytes.NewReader(script)
 	command.Stdout = stdout
@@ -167,13 +168,15 @@ func (runner *Runner) Run(
 		outcome.Status = "interrupted"
 		return outcome, nil
 	}
-	if waitErr != nil {
-		return failure("process", diagnostic), nil
-	}
 	raw, err := validateProbeJSON(stdout.Bytes())
 	if err != nil {
+		if waitErr != nil {
+			return failure("process", joinDiagnostic(err.Error(), diagnostic, errorText(waitErr))), nil
+		}
 		return failure("output", joinDiagnostic(err.Error(), diagnostic)), nil
 	}
+	// IPQuality currently exits non-zero after a successful single-family run.
+	// Its bounded, valid JSON object is the result contract for a completed process.
 	completedAt := runner.now().UTC()
 	return state.ProbeExecutionOutcome{
 		Status: "succeeded", StartedAt: &startedAt, CompletedAt: completedAt, RawResult: raw,
@@ -279,6 +282,7 @@ type boundedCapture struct {
 	mu         sync.Mutex
 	buffer     bytes.Buffer
 	limit      int
+	retainTail bool
 	overflow   chan struct{}
 	overflowed bool
 }
@@ -287,9 +291,16 @@ func newBoundedCapture(limit int) *boundedCapture {
 	return &boundedCapture{limit: limit, overflow: make(chan struct{})}
 }
 
+func newTailCapture(limit int) *boundedCapture {
+	return &boundedCapture{limit: limit, retainTail: true, overflow: make(chan struct{})}
+}
+
 func (capture *boundedCapture) Write(value []byte) (int, error) {
 	capture.mu.Lock()
 	defer capture.mu.Unlock()
+	if capture.retainTail {
+		return capture.writeTail(value)
+	}
 	remaining := capture.limit - capture.buffer.Len()
 	if remaining > 0 {
 		retained := min(remaining, len(value))
@@ -300,6 +311,28 @@ func (capture *boundedCapture) Write(value []byte) (int, error) {
 		close(capture.overflow)
 	}
 	return len(value), nil
+}
+
+func (capture *boundedCapture) writeTail(value []byte) (int, error) {
+	written := len(value)
+	overflow := capture.buffer.Len()+written > capture.limit
+	if written >= capture.limit {
+		capture.buffer.Reset()
+		if capture.limit > 0 {
+			_, _ = capture.buffer.Write(value[written-capture.limit:])
+		}
+	} else {
+		discard := capture.buffer.Len() + written - capture.limit
+		if discard > 0 {
+			capture.buffer.Next(discard)
+		}
+		_, _ = capture.buffer.Write(value)
+	}
+	if overflow && !capture.overflowed {
+		capture.overflowed = true
+		close(capture.overflow)
+	}
+	return written, nil
 }
 
 func (capture *boundedCapture) Bytes() []byte {
@@ -324,6 +357,8 @@ func (capture *boundedCapture) Overflowed() bool {
 
 func validateProbeJSON(raw []byte) ([]byte, error) {
 	trimmed := bytes.TrimSpace(raw)
+	trimmed = bytes.TrimPrefix(trimmed, []byte(ipQualityClearPrefix))
+	trimmed = bytes.TrimSpace(trimmed)
 	if len(trimmed) == 0 {
 		return nil, errors.New("IPQuality produced no JSON output")
 	}
