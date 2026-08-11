@@ -57,7 +57,7 @@ jq -e --arg version "$version" --arg revision "$revision" '
 ' "$directory/build-metadata.json" >/dev/null
 
 compose_json=$(IPCHRONICLE_ADMIN_USERNAME=admin IPCHRONICLE_ADMIN_PASSWORD=admin \
-  docker compose --env-file "$directory/.env.example" -f "$directory/compose.yaml" config --format json)
+  docker compose --env-file "$directory/default.env.example" -f "$directory/compose.yaml" config --format json)
 jq -e --arg image "ghcr.io/ipchronicle/ipchronicle-center:v$version" '
   .services.center.image == $image and
   .services.center.read_only == true and

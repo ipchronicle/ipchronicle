@@ -1,4 +1,4 @@
-# IPChronicle v0.1.0-rc.1 Release Readiness
+# IPChronicle v0.1.0-rc.2 Release Readiness
 
 Status: Pre-publication validation in progress
 
@@ -11,8 +11,8 @@ for the manifest revision, and the final run links must be recorded here.
 
 ## Candidate Identity
 
-- Version: `0.1.0-rc.1`
-- Proposed tag: `v0.1.0-rc.1`
+- Version: `0.1.0-rc.2`
+- Proposed tag: `v0.1.0-rc.2`
 - Channel: `rc`
 - License: `AGPL-3.0-only`
 - Source: <https://github.com/ipchronicle/ipchronicle>
@@ -45,7 +45,7 @@ not a pass.
 | Production Center image and Compose boundary | `make compose-smoke`; GitHub Actions `CI / compose` | Pass |
 | Simplified Chinese and English desktop/mobile workflows | `make browser-test`; GitHub Actions `CI / browser` | Pass |
 | AMD64 and ARM64 Center image metadata | GitHub Actions `CI / image (linux/amd64)` and `CI / image (linux/arm64)` | Pass |
-| Candidate creation, manifest, checksums, SBOMs, and artifact contract | `make release-candidate VERSION=0.1.0-rc.1`; `make verify-release-candidate VERSION=0.1.0-rc.1`; `Release candidate artifact / candidate` | Pass |
+| Candidate creation, manifest, checksums, SBOMs, and artifact contract | `make release-candidate VERSION=0.1.0-rc.2`; `make verify-release-candidate VERSION=0.1.0-rc.2`; `Release candidate artifact / candidate` | Pass |
 | Install, reinstall, uninstall, migration, history reset, outage, restart, unavailable selector, update rollback, and queue overflow | `make release-failure-gate`; `Release candidate artifact / candidate` | Pass |
 | Supported distribution and init lifecycle | 17 distributions x AMD64/ARM64 in `Release candidate artifact / distribution` | All 34 pass |
 | Native resource limits and live official IPQuality execution | AMD64 and ARM64 `Release candidate artifact / resources` | Both pass at 256 MiB Agent and 512 MiB Center limits |
@@ -70,7 +70,7 @@ assets:
 - no-CGO Agent binaries for Linux AMD64 and ARM64;
 - OCI Center images for Linux AMD64 and ARM64;
 - CycloneDX SBOMs for both Agent binaries and both Center images;
-- `compose.yaml` and `.env.example`;
+- `compose.yaml` and `default.env.example`;
 - `install-agent.sh`;
 - `README.md`, `OPERATOR_GUIDE.md`, `NOTIFICATIONS.md`, and this report;
 - `LICENSE`, `THIRD_PARTY_NOTICES.md`, and `build-metadata.json`;
@@ -116,6 +116,8 @@ isolation, and redaction behavior.
 
 After every gate passes, this report must identify the exact candidate revision
 and successful run URLs. Publication then still requires an explicit human
-decision. Creating `v0.1.0-rc.1`, publishing a GitHub Release, uploading the
-Center images, or changing a stable channel is outside automated validation and
-must not happen implicitly.
+decision and an immutable tag for that revision. An explicit dispatch of the
+`Publish release` workflow revalidates the final candidate artifact, publishes
+and anonymously verifies both Center image platforms, verifies every GitHub
+Release asset, and only then publishes the prerelease. Publication must not
+happen implicitly, and changing a stable channel remains outside this workflow.

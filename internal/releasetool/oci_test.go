@@ -46,7 +46,7 @@ func writeTestOCI(t *testing.T, path, architecture, version, revision string, wr
 	labels := map[string]string{
 		"org.opencontainers.image.licenses": "AGPL-3.0-only",
 		"org.opencontainers.image.revision": revision,
-		"org.opencontainers.image.source":   "https://github.com/ipchronicle/ipchronicle/tree/v" + version,
+		"org.opencontainers.image.source":   "https://github.com/ipchronicle/ipchronicle",
 		"org.opencontainers.image.url":      "https://github.com/ipchronicle/ipchronicle/tree/v" + version,
 		"org.opencontainers.image.version":  version,
 	}

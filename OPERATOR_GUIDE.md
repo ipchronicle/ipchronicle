@@ -36,20 +36,20 @@ Choose the release version, create an empty installation directory, and
 download the deployment assets. The version must omit the leading `v`.
 
 ```sh
-IPCHRONICLE_VERSION=0.1.0-rc.1
+IPCHRONICLE_VERSION=0.1.0-rc.2
 mkdir ipchronicle
 cd ipchronicle
 curl --proto '=https' --tlsv1.2 -fLO \
   "https://github.com/ipchronicle/ipchronicle/releases/download/v${IPCHRONICLE_VERSION}/compose.yaml"
 curl --proto '=https' --tlsv1.2 -fL \
-  "https://github.com/ipchronicle/ipchronicle/releases/download/v${IPCHRONICLE_VERSION}/.env.example" \
+  "https://github.com/ipchronicle/ipchronicle/releases/download/v${IPCHRONICLE_VERSION}/default.env.example" \
   -o .env
 curl --proto '=https' --tlsv1.2 -fLO \
   "https://github.com/ipchronicle/ipchronicle/releases/download/v${IPCHRONICLE_VERSION}/checksums.txt"
 curl --proto '=https' --tlsv1.2 -fLO \
   "https://github.com/ipchronicle/ipchronicle/releases/download/v${IPCHRONICLE_VERSION}/release-manifest.json"
-grep -E '  (\.env\.example|compose\.yaml|release-manifest\.json)$' checksums.txt |
-  sed 's/  \.env\.example$/  .env/' | sha256sum --check
+grep -E '  (default\.env\.example|compose\.yaml|release-manifest\.json)$' checksums.txt |
+  sed 's/  default\.env\.example$/  .env/' | sha256sum --check
 chmod 0600 .env
 ```
 
@@ -82,7 +82,7 @@ without it.
 
 ## Environment Variables
 
-The release `.env.example` exposes these operator settings:
+The release `default.env.example` exposes these operator settings:
 
 | Variable | Default | Purpose |
 | --- | --- | --- |
@@ -273,7 +273,7 @@ limits, retries, and redaction behavior.
 ## Agent And Center Updates
 
 The Center is upgraded by the server operator with Docker Compose. Download the
-new release's `compose.yaml` and `.env.example`, compare new environment
+new release's `compose.yaml` and `default.env.example`, compare new environment
 settings with the existing `.env`, then replace only `compose.yaml`:
 
 ```sh
@@ -300,7 +300,7 @@ the single immediate-task slot.
 Use the installer from the same release as root:
 
 ```sh
-IPCHRONICLE_VERSION=0.1.0-rc.1
+IPCHRONICLE_VERSION=0.1.0-rc.2
 curl --proto '=https' --tlsv1.2 -fsSL \
   "https://github.com/ipchronicle/ipchronicle/releases/download/v${IPCHRONICLE_VERSION}/install-agent.sh" |
   sh -s -- --uninstall

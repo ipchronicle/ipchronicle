@@ -43,6 +43,14 @@ func TestCreateAndVerifyRelease(t *testing.T) {
 	}
 }
 
+func TestReleaseArtifactNamesAreUploadSafe(t *testing.T) {
+	for _, definition := range ArtifactDefinitions {
+		if strings.HasPrefix(definition.Name, ".") || strings.HasSuffix(definition.Name, ".") {
+			t.Errorf("release artifact name %q will be rewritten by GitHub", definition.Name)
+		}
+	}
+}
+
 func TestVerifyRejectsTamperingAndUnexpectedFiles(t *testing.T) {
 	for _, test := range []struct {
 		name   string

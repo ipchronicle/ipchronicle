@@ -104,7 +104,7 @@ cp "$root_dir/OPERATOR_GUIDE.md" "$payload_directory/OPERATOR_GUIDE.md"
 cp "$root_dir/README.md" "$payload_directory/README.md"
 cp "$root_dir/RELEASE_READINESS.md" "$payload_directory/RELEASE_READINESS.md"
 cp "$root_dir/THIRD_PARTY_NOTICES.md" "$payload_directory/THIRD_PARTY_NOTICES.md"
-cp "$root_dir/.env.example" "$payload_directory/.env.example"
+cp "$root_dir/.env.example" "$payload_directory/default.env.example"
 cp "$root_dir/scripts/install-agent.sh" "$payload_directory/install-agent.sh"
 chmod 0755 "$payload_directory/install-agent.sh"
 sed "s|IPCHRONICLE_VERSION_PLACEHOLDER|v$version|g" \
