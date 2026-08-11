@@ -34,6 +34,8 @@ jobs:
         env:
           VERSION: ${{ inputs.version }}
         run: make verify-release-candidate VERSION="$VERSION"
+      - name: Run deterministic release failure gate
+        run: make release-failure-gate
       - name: Upload temporary candidate artifact
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
@@ -83,6 +85,10 @@ jobs:
         with:
           name: ipchronicle-v${{ inputs.version }}-${{ github.sha }}
           path: dist/release/${{ inputs.version }}
+      - name: Restore executable modes after artifact transport
+        env:
+          VERSION: ${{ inputs.version }}
+        run: chmod +x "dist/release/$VERSION/install-agent.sh" dist/release/"$VERSION"/ipchronicle-agent-linux-*
       - name: Test Agent distribution lifecycle
         env:
           ARCHITECTURE: ${{ matrix.architecture }}
@@ -108,6 +114,10 @@ jobs:
         with:
           name: ipchronicle-v${{ inputs.version }}-${{ github.sha }}
           path: dist/release/${{ inputs.version }}
+      - name: Restore executable modes after artifact transport
+        env:
+          VERSION: ${{ inputs.version }}
+        run: chmod +x "dist/release/$VERSION/install-agent.sh" dist/release/"$VERSION"/ipchronicle-agent-linux-*
       - name: Test release resource limits and live IPQuality execution
         env:
           ARCHITECTURE: ${{ matrix.architecture }}

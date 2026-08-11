@@ -182,6 +182,37 @@ func TestFailedWebhookReachesTerminalAttemptLimit(t *testing.T) {
 	}
 }
 
+func TestNotificationQueueOverflowIsTerminal(t *testing.T) {
+	service, store, _, _ := newNotificationTestService(t)
+	sender, err := service.CreateSender(context.Background(), SenderCreate{
+		Name: "bounded webhook", Kind: SenderWebhook, Enabled: true,
+		Configuration: SenderConfiguration{Webhook: &WebhookConfiguration{
+			URL: "https://notification.invalid/delivery", Headers: map[string]string{},
+		}},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	for index := 0; index < maximumActiveDeliveriesPerSender; index++ {
+		delivery, err := service.CreateTestDelivery(context.Background(), sender.ID)
+		if err != nil || delivery.Status != "pending" {
+			t.Fatalf("active delivery %d = %#v, %v", index, delivery, err)
+		}
+	}
+	overflow, err := service.CreateTestDelivery(context.Background(), sender.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if overflow.Status != "failed" || overflow.ErrorCode == nil || *overflow.ErrorCode != "queue-full" ||
+		overflow.CompletedAt == nil || overflow.NextAttemptAt != nil {
+		t.Fatalf("overflow delivery = %#v", overflow)
+	}
+	active, err := store.HistoryQueries.CountActiveNotificationDeliveriesForSender(context.Background(), sender.ID.String())
+	if err != nil || active != maximumActiveDeliveriesPerSender {
+		t.Fatalf("active deliveries = %d, want %d: %v", active, maximumActiveDeliveriesPerSender, err)
+	}
+}
+
 func TestJavaScriptWorkerHTTPAndIsolation(t *testing.T) {
 	received := make(chan string, 1)
 	receiver := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, request *http.Request) {

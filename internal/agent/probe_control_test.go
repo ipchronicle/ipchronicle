@@ -90,11 +90,16 @@ func TestPollCarriesProbeStatusAndTaskReportAndAcceptsTask(t *testing.T) {
 	}
 }
 
-func TestProbeUploaderRetransmitsArtifactsWithoutExecuting(t *testing.T) {
+func TestProbeUploaderSurvivesCenterOutageAndRetransmitsWithoutExecuting(t *testing.T) {
 	var received []agentapi.AgentProbeArtifact
+	centerAvailable := false
 	server := httptest.NewServer(http.HandlerFunc(func(response http.ResponseWriter, request *http.Request) {
 		if request.URL.Path != "/api/v1/agent/probe-artifacts" {
 			http.NotFound(response, request)
+			return
+		}
+		if !centerAvailable {
+			http.Error(response, "temporarily unavailable", http.StatusServiceUnavailable)
 			return
 		}
 		var artifact agentapi.AgentProbeArtifact
@@ -135,6 +140,18 @@ func TestProbeUploaderRetransmitsArtifactsWithoutExecuting(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	queuedBeforeOutage, err := store.NextProbeArtifact()
+	if err != nil || queuedBeforeOutage.ID == "" {
+		t.Fatalf("queued artifact before outage = %#v, %v", queuedBeforeOutage, err)
+	}
+	if found, err := client.uploadNextProbeArtifact(context.Background(), store, identity); err == nil || found {
+		t.Fatalf("upload during Center outage = %v, %v", found, err)
+	}
+	queuedAfterOutage, err := store.NextProbeArtifact()
+	if err != nil || queuedAfterOutage.ID != queuedBeforeOutage.ID || queuedAfterOutage.Revision != queuedBeforeOutage.Revision {
+		t.Fatalf("queued artifact after outage = %#v, want %#v: %v", queuedAfterOutage, queuedBeforeOutage, err)
+	}
+	centerAvailable = true
 	for {
 		found, err := client.uploadNextProbeArtifact(context.Background(), store, identity)
 		if err != nil {

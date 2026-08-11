@@ -13,7 +13,7 @@ GO_RUN := docker run --rm --user $(CONTAINER_USER) -e HOME=/tmp -e GOCACHE=/tmp/
 NODE_RUN := docker run --rm --user $(CONTAINER_USER) -e HOME=/tmp -v $(CURDIR):$(ROOT) -w $(ROOT)/web $(NODE_IMAGE)
 SQLC_RUN := docker run --rm --user $(CONTAINER_USER) -v $(CURDIR):/src -w /src $(SQLC_IMAGE)
 
-.PHONY: all browser-test build check compose-smoke format generate go-check release-candidate secret-scan verify-release-candidate web-assets web-check
+.PHONY: all browser-test build check compose-smoke format generate go-check release-candidate release-failure-gate secret-scan verify-release-candidate web-assets web-check
 
 all: check
 
@@ -57,6 +57,9 @@ release-candidate:
 
 verify-release-candidate:
 	./scripts/verify-release-candidate.sh "dist/release/$(VERSION)"
+
+release-failure-gate:
+	./scripts/test-release-failures.sh
 
 secret-scan:
 	docker run --rm -v $(CURDIR):/repo $(GITLEAKS_IMAGE) dir /repo --redact --no-banner
