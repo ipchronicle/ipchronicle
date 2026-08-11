@@ -9,6 +9,17 @@ import (
 
 const testRevision = "0123456789abcdef0123456789abcdef01234567"
 
+const testReadinessReport = `# Release Readiness
+
+Status: Pre-publication validation in progress
+
+## Validation Results
+
+<!-- release-evidence:start -->
+Validation is pending.
+<!-- release-evidence:end -->
+`
+
 func TestCreateAndVerifyRelease(t *testing.T) {
 	directory := preparePayload(t)
 	summary, err := Create(CreateOptions{Directory: directory, Version: "0.1.0-rc.1", Revision: testRevision})
@@ -71,6 +82,99 @@ func TestVerifyRejectsTamperingAndUnexpectedFiles(t *testing.T) {
 			test.mutate(t, directory)
 			if _, err := Verify(VerifyOptions{Directory: directory}); err == nil {
 				t.Fatal("tampered release unexpectedly passed verification")
+			}
+		})
+	}
+}
+
+func TestFinalizeReleaseReport(t *testing.T) {
+	directory := preparePayload(t)
+	writeTestFile(t, filepath.Join(directory, releaseReadinessName), testReadinessReport, 0o644)
+	if _, err := Create(CreateOptions{
+		Directory: directory, Version: "0.1.0-rc.1", Revision: testRevision,
+	}); err != nil {
+		t.Fatal(err)
+	}
+
+	summary, err := Finalize(FinalizeOptions{
+		Directory:      directory,
+		Version:        "0.1.0-rc.1",
+		Revision:       testRevision,
+		CIRunURL:       "https://github.com/ipchronicle/ipchronicle/actions/runs/123",
+		RCRunURL:       "https://github.com/ipchronicle/ipchronicle/actions/runs/456",
+		ValidationDate: "2026-08-11",
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if summary.Version != "0.1.0-rc.1" || summary.Revision != testRevision {
+		t.Fatalf("unexpected finalized summary: %#v", summary)
+	}
+	report, err := os.ReadFile(filepath.Join(directory, releaseReadinessName))
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, expected := range []string{
+		readyReportStatus,
+		testRevision,
+		"https://github.com/ipchronicle/ipchronicle/actions/runs/123",
+		"https://github.com/ipchronicle/ipchronicle/actions/runs/456",
+		"2026-08-11",
+		"Reproducibility: **passed**",
+	} {
+		if !strings.Contains(string(report), expected) {
+			t.Fatalf("final report does not contain %q", expected)
+		}
+	}
+	if strings.Contains(string(report), pendingReportStatus) {
+		t.Fatal("final report still has its pending status")
+	}
+	if _, err := Verify(VerifyOptions{
+		Directory: directory, Version: "0.1.0-rc.1", Revision: testRevision,
+	}); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := Finalize(FinalizeOptions{
+		Directory: directory, CIRunURL: "https://github.com/ipchronicle/ipchronicle/actions/runs/123",
+		RCRunURL: "https://github.com/ipchronicle/ipchronicle/actions/runs/456", ValidationDate: "2026-08-11",
+	}); err == nil {
+		t.Fatal("already-finalized report unexpectedly accepted")
+	}
+}
+
+func TestFinalizeRejectsInvalidEvidence(t *testing.T) {
+	for _, test := range []struct {
+		name           string
+		ciRunURL       string
+		rcRunURL       string
+		validationDate string
+	}{
+		{
+			name: "foreign CI URL", ciRunURL: "https://github.com/other/project/actions/runs/123",
+			rcRunURL: "https://github.com/ipchronicle/ipchronicle/actions/runs/456", validationDate: "2026-08-11",
+		},
+		{
+			name: "same runs", ciRunURL: "https://github.com/ipchronicle/ipchronicle/actions/runs/123",
+			rcRunURL: "https://github.com/ipchronicle/ipchronicle/actions/runs/123", validationDate: "2026-08-11",
+		},
+		{
+			name: "invalid date", ciRunURL: "https://github.com/ipchronicle/ipchronicle/actions/runs/123",
+			rcRunURL: "https://github.com/ipchronicle/ipchronicle/actions/runs/456", validationDate: "08/11/2026",
+		},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			directory := preparePayload(t)
+			writeTestFile(t, filepath.Join(directory, releaseReadinessName), testReadinessReport, 0o644)
+			if _, err := Create(CreateOptions{
+				Directory: directory, Version: "0.1.0-rc.1", Revision: testRevision,
+			}); err != nil {
+				t.Fatal(err)
+			}
+			if _, err := Finalize(FinalizeOptions{
+				Directory: directory, CIRunURL: test.ciRunURL, RCRunURL: test.rcRunURL,
+				ValidationDate: test.validationDate,
+			}); err == nil {
+				t.Fatal("invalid release evidence unexpectedly accepted")
 			}
 		})
 	}

@@ -36,6 +36,8 @@ agent_name="ipchronicle-resource-agent-$suffix"
 scratch_directory=$(mktemp -d "/var/tmp/ipchronicle-resource-$suffix.XXXXXX")
 cookie_file="$scratch_directory/cookies.txt"
 response_file="$scratch_directory/response.json"
+cleanup_uid=$(id -u)
+cleanup_gid=$(id -g)
 center_started=false
 agent_started=false
 network_created=false
@@ -43,6 +45,8 @@ image_loaded=false
 
 cleanup() {
   status=$?
+  cleanup_status=0
+  trap - EXIT
   if [[ $status -ne 0 ]]; then
     if [[ $agent_started == true ]]; then
       printf '%s\n' '--- Agent logs ---' >&2
@@ -65,7 +69,21 @@ cleanup() {
   if [[ $image_loaded == true ]]; then
     docker image rm "$image_ref" >/dev/null 2>&1 || true
   fi
-  rm -rf "$scratch_directory"
+  if ! docker run --rm --user 0:0 \
+    --env "CLEANUP_UID=$cleanup_uid" --env "CLEANUP_GID=$cleanup_gid" \
+    --volume "$scratch_directory:/scratch" "$ALPINE_IMAGE" \
+    sh -ceu 'chown -R "$CLEANUP_UID:$CLEANUP_GID" /scratch' >/dev/null; then
+    echo "failed to restore resource-test scratch ownership" >&2
+    cleanup_status=1
+  fi
+  if ! rm -rf "$scratch_directory"; then
+    echo "failed to remove resource-test scratch directory $scratch_directory" >&2
+    cleanup_status=1
+  fi
+  if [[ $status -ne 0 ]]; then
+    exit "$status"
+  fi
+  exit "$cleanup_status"
 }
 trap cleanup EXIT
 trap 'exit 129' HUP

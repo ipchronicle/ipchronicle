@@ -28,6 +28,9 @@ func run(arguments []string) error {
 	architecture := flags.String("arch", "", "release artifact architecture")
 	version := flags.String("version", "", "canonical product version without the v prefix")
 	revision := flags.String("revision", "", "lowercase 40-character Git revision")
+	ciRunURL := flags.String("ci-run-url", "", "successful ordinary CI run URL")
+	rcRunURL := flags.String("rc-run-url", "", "successful release candidate run URL")
+	validationDate := flags.String("validation-date", "", "validation date in YYYY-MM-DD format")
 	if err := flags.Parse(arguments[1:]); err != nil {
 		return err
 	}
@@ -49,6 +52,14 @@ func run(arguments []string) error {
 	case "verify":
 		summary, err = releasetool.Verify(releasetool.VerifyOptions{
 			Directory: *directory, Version: *version, Revision: *revision,
+		})
+	case "finalize":
+		if *ciRunURL == "" || *rcRunURL == "" || *validationDate == "" {
+			return usageError()
+		}
+		summary, err = releasetool.Finalize(releasetool.FinalizeOptions{
+			Directory: *directory, Version: *version, Revision: *revision,
+			CIRunURL: *ciRunURL, RCRunURL: *rcRunURL, ValidationDate: *validationDate,
 		})
 	case "verify-agent":
 		info, verifyErr := releasetool.VerifyAgentBinary(*path, *architecture)
@@ -75,5 +86,5 @@ func run(arguments []string) error {
 }
 
 func usageError() error {
-	return errors.New("usage: ipchronicle-release-tool create|verify --directory PATH [--version VERSION] [--revision REVISION]; verify-agent|verify-oci --path PATH --arch ARCH")
+	return errors.New("usage: ipchronicle-release-tool create|verify|finalize --directory PATH [release evidence flags]; verify-agent|verify-oci --path PATH --arch ARCH")
 }

@@ -55,10 +55,12 @@ not a pass.
 
 ## Validation Results
 
+<!-- release-evidence:start -->
 The final candidate revision, successful ordinary CI URL, successful release
 candidate workflow URL, reproducibility comparison, and validation date will be
 recorded here after every required gate has completed. Until then, the status
 of this report remains **Pre-publication validation in progress**.
+<!-- release-evidence:end -->
 
 ## Release Artifact Contract
 
