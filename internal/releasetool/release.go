@@ -30,6 +30,9 @@ type ArtifactDefinition struct {
 var ArtifactDefinitions = []ArtifactDefinition{
 	{Name: ".env.example", Component: "environment"},
 	{Name: "LICENSE", Component: "license"},
+	{Name: "NOTIFICATIONS.md", Component: "documentation"},
+	{Name: "OPERATOR_GUIDE.md", Component: "documentation"},
+	{Name: "README.md", Component: "documentation"},
 	{Name: "THIRD_PARTY_NOTICES.md", Component: "notices"},
 	{Name: "build-metadata.json", Component: "build-metadata"},
 	{Name: "compose.yaml", Component: "compose"},

@@ -99,6 +99,9 @@ for architecture in amd64 arm64; do
 done
 
 cp "$root_dir/LICENSE" "$payload_directory/LICENSE"
+cp "$root_dir/NOTIFICATIONS.md" "$payload_directory/NOTIFICATIONS.md"
+cp "$root_dir/OPERATOR_GUIDE.md" "$payload_directory/OPERATOR_GUIDE.md"
+cp "$root_dir/README.md" "$payload_directory/README.md"
 cp "$root_dir/THIRD_PARTY_NOTICES.md" "$payload_directory/THIRD_PARTY_NOTICES.md"
 cp "$root_dir/.env.example" "$payload_directory/.env.example"
 cp "$root_dir/scripts/install-agent.sh" "$payload_directory/install-agent.sh"
