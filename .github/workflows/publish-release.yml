@@ -139,15 +139,6 @@ jobs:
           docker buildx imagetools create --tag "$image" "$image-amd64" "$image-arm64"
           echo "reference=$image" >>"$GITHUB_OUTPUT"
 
-      - name: Make the Center package public
-        env:
-          GH_TOKEN: ${{ github.token }}
-        run: |
-          set -euo pipefail
-          gh api --method PATCH \
-            "orgs/$GITHUB_REPOSITORY_OWNER/packages/container/ipchronicle-center/visibility" \
-            -f visibility=public >/dev/null
-
       - name: Verify the public multi-architecture image
         env:
           IMAGE: ${{ steps.image.outputs.reference }}
