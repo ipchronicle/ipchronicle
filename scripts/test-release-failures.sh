@@ -20,5 +20,12 @@ docker run --rm --user "$container_user" \
     ./internal/agent ./internal/agent/observation ./internal/agent/state ./internal/agent/update \
     ./internal/center/database ./internal/center/nodes ./internal/center/notifications'
 
-"$script_dir/test-install-agent.sh"
+if [ "$(id -u)" -eq 0 ]; then
+  "$script_dir/test-install-agent.sh"
+elif command -v sudo >/dev/null 2>&1 && sudo -n true; then
+  sudo -n "$script_dir/test-install-agent.sh"
+else
+  echo "root or passwordless sudo is required for the Agent installer lifecycle gate" >&2
+  exit 1
+fi
 printf '%s\n' 'Release failure gate passed.'
