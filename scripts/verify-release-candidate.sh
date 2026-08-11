@@ -79,7 +79,14 @@ for architecture in amd64 arm64; do
     echo "refusing to replace existing local image $image_ref during verification" >&2
     exit 1
   fi
-  docker load --input "$directory/ipchronicle-center-linux-$architecture.oci.tar" >/dev/null
+  docker_archive="$scratch_directory/ipchronicle-center-linux-$architecture.docker.tar"
+  docker run --rm --user "$container_user" -e HOME=/tmp \
+    -v "$directory:/release:ro" -v "$scratch_directory:/scratch" \
+    "$SKOPEO_IMAGE" copy --insecure-policy \
+    "oci-archive:/release/ipchronicle-center-linux-$architecture.oci.tar" \
+    "docker-archive:/scratch/ipchronicle-center-linux-$architecture.docker.tar:$image_ref" >/dev/null
+  docker load --input "$docker_archive" >/dev/null
+  rm -f "$docker_archive"
   loaded_image_ref=$image_ref
   center_metadata=$(docker run --rm --platform "linux/$architecture" \
     --network none --read-only --cap-drop ALL --security-opt no-new-privileges \

@@ -175,7 +175,10 @@ if [ "$skip_packages" != "1" ]; then
       ;;
     dnf)
       dnf install --assumeyes \
-        bash curl jq bc nmap-ncat bind-utils iproute ca-certificates
+        bash jq bc nmap-ncat bind-utils iproute ca-certificates
+      if ! command -v curl >/dev/null 2>&1; then
+        dnf install --assumeyes curl
+      fi
       ;;
     apk)
       apk add --no-cache \
@@ -183,7 +186,12 @@ if [ "$skip_packages" != "1" ]; then
       ;;
   esac
 fi
-command -v jq >/dev/null 2>&1 || fail "jq is required to validate Agent metadata"
+for dependency in bash curl jq bc dig ip; do
+  command -v "$dependency" >/dev/null 2>&1 || fail "$dependency is required by the IPQuality probe"
+done
+if ! command -v nc >/dev/null 2>&1 && ! command -v ncat >/dev/null 2>&1; then
+  fail "nc or ncat is required by the IPQuality probe"
+fi
 
 temporary_directory=$(mktemp -d)
 cleanup() {

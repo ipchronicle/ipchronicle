@@ -43,3 +43,49 @@ jobs:
           include-hidden-files: true
           compression-level: 0
           retention-days: 7
+
+  distribution:
+    needs: candidate
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      max-parallel: 6
+      matrix:
+        distribution:
+          - debian-12
+          - debian-13
+          - ubuntu-24.04
+          - ubuntu-26.04
+          - rhel-8
+          - rhel-9
+          - rhel-10
+          - rocky-8
+          - rocky-9
+          - rocky-10
+          - almalinux-8
+          - almalinux-9
+          - almalinux-10
+          - centos-stream-9
+          - centos-stream-10
+          - alpine-3.23
+          - alpine-3.24
+        architecture:
+          - amd64
+          - arm64
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - if: matrix.architecture == 'arm64'
+        uses: docker/setup-qemu-action@96fe6ef7f33517b61c61be40b68a1882f3264fb8 # v4.2.0
+        with:
+          platforms: arm64
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
+        with:
+          name: ipchronicle-v${{ inputs.version }}-${{ github.sha }}
+          path: dist/release/${{ inputs.version }}
+      - name: Test Agent distribution lifecycle
+        env:
+          ARCHITECTURE: ${{ matrix.architecture }}
+          DISTRIBUTION: ${{ matrix.distribution }}
+          VERSION: ${{ inputs.version }}
+        run: scripts/test-release-distribution.sh "dist/release/$VERSION" "$DISTRIBUTION" "$ARCHITECTURE"

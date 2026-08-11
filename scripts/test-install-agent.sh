@@ -75,7 +75,14 @@ case "$url" in
   *) exit 22 ;;
 esac
 EOF
-chmod 0755 "$fake_bin/systemctl" "$fake_bin/rc-service" "$fake_bin/rc-update" "$fake_bin/curl"
+for dependency in bc dig ip nc; do
+  cat > "$fake_bin/$dependency" <<'EOF'
+#!/bin/sh
+exit 0
+EOF
+done
+chmod 0755 "$fake_bin/systemctl" "$fake_bin/rc-service" "$fake_bin/rc-update" "$fake_bin/curl" \
+  "$fake_bin/bc" "$fake_bin/dig" "$fake_bin/ip" "$fake_bin/nc"
 
 run_installer() {
   local root=$1
