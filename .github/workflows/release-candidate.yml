@@ -64,7 +64,11 @@ jobs:
       - name: Restore reference executable modes after artifact transport
         env:
           VERSION: ${{ inputs.version }}
-        run: chmod +x "dist/reference/$VERSION/install-agent.sh" dist/reference/"$VERSION"/ipchronicle-agent-linux-*
+        run: |
+          chmod +x \
+            "dist/reference/$VERSION/install-agent.sh" \
+            "dist/reference/$VERSION/ipchronicle-agent-linux-amd64" \
+            "dist/reference/$VERSION/ipchronicle-agent-linux-arm64"
       - name: Verify reference candidate
         env:
           VERSION: ${{ inputs.version }}
@@ -133,8 +137,9 @@ jobs:
           path: dist/release/${{ inputs.version }}
       - name: Restore executable modes after artifact transport
         env:
+          ARCHITECTURE: ${{ matrix.architecture }}
           VERSION: ${{ inputs.version }}
-        run: chmod +x "dist/release/$VERSION/install-agent.sh" dist/release/"$VERSION"/ipchronicle-agent-linux-*
+        run: chmod +x "dist/release/$VERSION/install-agent.sh" "dist/release/$VERSION/ipchronicle-agent-linux-$ARCHITECTURE"
       - name: Test Agent distribution lifecycle
         env:
           ARCHITECTURE: ${{ matrix.architecture }}
@@ -162,8 +167,9 @@ jobs:
           path: dist/release/${{ inputs.version }}
       - name: Restore executable modes after artifact transport
         env:
+          ARCHITECTURE: ${{ matrix.architecture }}
           VERSION: ${{ inputs.version }}
-        run: chmod +x "dist/release/$VERSION/install-agent.sh" dist/release/"$VERSION"/ipchronicle-agent-linux-*
+        run: chmod +x "dist/release/$VERSION/install-agent.sh" "dist/release/$VERSION/ipchronicle-agent-linux-$ARCHITECTURE"
       - name: Test release resource limits and live IPQuality execution
         env:
           ARCHITECTURE: ${{ matrix.architecture }}
@@ -188,8 +194,14 @@ jobs:
         env:
           VERSION: ${{ inputs.version }}
         run: |
-          chmod +x "dist/final-a/$VERSION/install-agent.sh" dist/final-a/"$VERSION"/ipchronicle-agent-linux-*
-          chmod +x "dist/final-b/$VERSION/install-agent.sh" dist/final-b/"$VERSION"/ipchronicle-agent-linux-*
+          chmod +x \
+            "dist/final-a/$VERSION/install-agent.sh" \
+            "dist/final-a/$VERSION/ipchronicle-agent-linux-amd64" \
+            "dist/final-a/$VERSION/ipchronicle-agent-linux-arm64"
+          chmod +x \
+            "dist/final-b/$VERSION/install-agent.sh" \
+            "dist/final-b/$VERSION/ipchronicle-agent-linux-amd64" \
+            "dist/final-b/$VERSION/ipchronicle-agent-linux-arm64"
       - name: Resolve exact validation evidence
         id: evidence
         env:

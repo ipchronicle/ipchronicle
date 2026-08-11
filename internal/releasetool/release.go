@@ -123,7 +123,7 @@ func Create(options CreateOptions) (Summary, error) {
 	slices.Sort(checksumNames)
 	var checksums strings.Builder
 	for _, name := range checksumNames {
-		_, digest, err := inspectFile(filepath.Join(options.Directory, name), false)
+		_, digest, err := inspectFile(filepath.Join(options.Directory, name), artifactIsExecutable(name))
 		if err != nil {
 			return Summary{}, fmt.Errorf("checksum release file %q: %w", name, err)
 		}
@@ -200,7 +200,7 @@ func Verify(options VerifyOptions) (Summary, error) {
 		if checksums[index].name != name {
 			return Summary{}, fmt.Errorf("checksums.txt entry %d does not identify %q", index, name)
 		}
-		_, digest, err := inspectFile(filepath.Join(options.Directory, name), false)
+		_, digest, err := inspectFile(filepath.Join(options.Directory, name), artifactIsExecutable(name))
 		if err != nil {
 			return Summary{}, fmt.Errorf("inspect checksummed file %q: %w", name, err)
 		}
@@ -260,6 +260,15 @@ func validateDirectoryEntries(directory string, includeGenerated bool) error {
 	return nil
 }
 
+func artifactIsExecutable(name string) bool {
+	for _, definition := range ArtifactDefinitions {
+		if definition.Name == name {
+			return definition.Executable
+		}
+	}
+	return false
+}
+
 func inspectFile(path string, executable bool) (int64, string, error) {
 	info, err := os.Lstat(path)
 	if err != nil {
@@ -270,6 +279,9 @@ func inspectFile(path string, executable bool) (int64, string, error) {
 	}
 	if executable && info.Mode().Perm()&0o111 == 0 {
 		return 0, "", errors.New("file is not executable")
+	}
+	if !executable && info.Mode().Perm()&0o111 != 0 {
+		return 0, "", errors.New("file is unexpectedly executable")
 	}
 	if info.Size() < 1 || info.Size() > maximumArtifactBytes {
 		return 0, "", errors.New("file size is outside the supported range")

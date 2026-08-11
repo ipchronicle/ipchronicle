@@ -199,6 +199,15 @@ func TestCreateRejectsMissingNonExecutableAndSymlinkArtifacts(t *testing.T) {
 			t.Fatal("non-executable installer unexpectedly accepted")
 		}
 	})
+	t.Run("unexpectedly executable", func(t *testing.T) {
+		directory := preparePayload(t)
+		if err := os.Chmod(filepath.Join(directory, "ipchronicle-agent-linux-amd64.cdx.json"), 0o755); err != nil {
+			t.Fatal(err)
+		}
+		if _, err := Create(CreateOptions{Directory: directory, Version: "0.1.0", Revision: testRevision}); err == nil {
+			t.Fatal("executable SBOM unexpectedly accepted")
+		}
+	})
 	t.Run("symlink", func(t *testing.T) {
 		directory := preparePayload(t)
 		path := filepath.Join(directory, "LICENSE")
