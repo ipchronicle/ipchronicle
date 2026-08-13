@@ -21,7 +21,13 @@ case "$distribution" in
   ubuntu-26.04) image="ubuntu:26.04@sha256:678c6550cc43645e08669028bc177f50be4e7c5b8cca677067b1914d4afc7a03"; expected_id=ubuntu; version_prefix=26.04; init_system=systemd ;;
   rhel-8) image="registry.access.redhat.com/ubi8/ubi:8.10@sha256:efe7eaa64e1efb79c34d0e9ec4ac6d0a95f512dfa8673c2d0d7dfa78a6787efe"; expected_id=rhel; version_prefix=8; init_system=systemd ;;
   rhel-9) image="registry.access.redhat.com/ubi9/ubi:9.7@sha256:e9a31af6530caffa3551f266c51a0d43b602e8f76a0dc12826dbeebceb487c92"; expected_id=rhel; version_prefix=9; init_system=systemd ;;
-  rhel-10) image="registry.access.redhat.com/ubi10/ubi:10.1@sha256:15f0a6e2b448ac7aa24425c9ab541e6402dc32b782844a285ccaeffb1c938fe1"; expected_id=rhel; version_prefix=10; init_system=systemd ;;
+  rhel-10)
+    case "$architecture" in
+      amd64) image="registry.access.redhat.com/ubi10/ubi@sha256:4e0371a552f573a15dbe094b801e1f4a055aec7782fe17dd55f80f94d1db65e9" ;;
+      arm64) image="registry.access.redhat.com/ubi10/ubi@sha256:dbfb24a0facb75c7b9e942213b5ca339adfe3b2b08d129fcad96870ca8e41b87" ;;
+    esac
+    expected_id=rhel; version_prefix=10; init_system=systemd
+    ;;
   rocky-8) image="rockylinux/rockylinux:8@sha256:e8a49c5403b687db05d4d67333fa45808fbe74f36e683cec7abb1f7d0f2338c6"; expected_id=rocky; version_prefix=8; init_system=systemd ;;
   rocky-9) image="rockylinux/rockylinux:9@sha256:8101994123cf3d0a8fee517bee7f39e555c7d92bd2d9eb3303cc988a0eeed00f"; expected_id=rocky; version_prefix=9; init_system=systemd ;;
   rocky-10) image="rockylinux/rockylinux:10@sha256:827d37bc128288ccf160ee318bb3cb92d591164cb217e92f8bc61e3982ae1834"; expected_id=rocky; version_prefix=10; init_system=systemd ;;

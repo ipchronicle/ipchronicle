@@ -27,6 +27,8 @@ jobs:
         with:
           platforms: arm64
       - uses: docker/setup-buildx-action@bb05f3f5519dd87d3ba754cc423b652a5edd6d2c # v4.2.0
+        with:
+          version: v0.36.1
       - name: Build candidate
         env:
           VERSION: ${{ inputs.version }}
@@ -57,6 +59,8 @@ jobs:
         with:
           platforms: arm64
       - uses: docker/setup-buildx-action@bb05f3f5519dd87d3ba754cc423b652a5edd6d2c # v4.2.0
+        with:
+          version: v0.36.1
       - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
         with:
           name: ipchronicle-v${{ inputs.version }}-${{ github.sha }}-unvalidated-a

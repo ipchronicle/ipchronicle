@@ -174,6 +174,7 @@ agent_started=true
 
 node_ready=false
 node_id=""
+public_address_id=""
 for _ in $(seq 1 150); do
   if ! docker container inspect "$agent_name" --format '{{.State.Running}}' | grep -Fx true >/dev/null; then
     echo "Agent stopped before configuration convergence" >&2
@@ -186,17 +187,46 @@ for _ in $(seq 1 150); do
       .status == "online" and .configurationStatus == "current") | .id
     ' "$response_file" | head -n 1)
     if [[ -n $node_id ]] && curl --fail --silent --show-error --cookie "$cookie_file" \
-      "$base_url/api/v1/nodes/$node_id/network" >"$response_file" &&
-      jq -e '.egresses | any(.kind == "default" and .family == "ipv4" and .enabled == true)' \
-        "$response_file" >/dev/null; then
-      node_ready=true
-      break
+      "$base_url/api/v1/nodes/$node_id/network" >"$response_file"; then
+      public_address_id=$(jq -r '
+        .publicAddresses[] | select(.family == "ipv4" and .available == true) | .id
+      ' "$response_file" | head -n 1)
+      if [[ -n $public_address_id ]]; then
+        node_ready=true
+        break
+      fi
     fi
   fi
   sleep 2
 done
-if [[ $node_ready != true ]]; then
-  echo "Agent did not converge with an enabled default IPv4 egress" >&2
+if [[ $node_ready != true || -z $public_address_id ]]; then
+  echo "Agent did not discover an available IPv4 public address" >&2
+  exit 1
+fi
+
+curl --fail --silent --show-error --cookie "$cookie_file" \
+  --header "Origin: $base_url" --header "X-CSRF-Token: $csrf_token" \
+  --header 'Content-Type: application/json' --request PATCH \
+  --data '{"probeEnabled":true,"probeOnRediscovery":true}' \
+  "$base_url/api/v1/nodes/$node_id/public-addresses/$public_address_id" >"$response_file"
+curl --fail --silent --show-error --cookie "$cookie_file" \
+  --header "Origin: $base_url" --header "X-CSRF-Token: $csrf_token" \
+  --request POST "$base_url/api/v1/nodes/$node_id/sync-session" >/dev/null
+
+configuration_ready=false
+for _ in $(seq 1 90); do
+  if curl --fail --silent --show-error --cookie "$cookie_file" \
+    "$base_url/api/v1/nodes" >"$response_file" &&
+    jq -e --arg node "$node_id" '
+      .items | any(.id == $node and .status == "online" and .configurationStatus == "current")
+    ' "$response_file" >/dev/null; then
+    configuration_ready=true
+    break
+  fi
+  sleep 2
+done
+if [[ $configuration_ready != true ]]; then
+  echo "Agent did not apply the enabled public-address probe target" >&2
   exit 1
 fi
 
@@ -206,9 +236,6 @@ if [[ ! $agent_rss_kib =~ ^[0-9]+$ || $agent_rss_kib -gt 32768 ]]; then
   exit 1
 fi
 
-curl --fail --silent --show-error --cookie "$cookie_file" \
-  --header "Origin: $base_url" --header "X-CSRF-Token: $csrf_token" \
-  --request POST "$base_url/api/v1/nodes/$node_id/sync-session" >/dev/null
 curl --fail --silent --show-error --cookie "$cookie_file" \
   --header "Origin: $base_url" --header "X-CSRF-Token: $csrf_token" \
   --request POST "$base_url/api/v1/nodes/$node_id/probe/tasks" >"$response_file"
