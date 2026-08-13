@@ -290,9 +290,10 @@ func TestJavaScriptWorkerHTTPAndIsolation(t *testing.T) {
 
 func TestJavaScriptWorkerRedactsExceptionAndStopsRunawayWork(t *testing.T) {
 	timeout := boundaryWorkerTestTimeout()
-	runner := ProcessJavaScriptRunner{Executable: os.Args[0], Timeout: timeout}
 	secret := "secret-value-must-not-return"
-	result := runner.Run(context.Background(), JavaScriptRequest{
+	result := (ProcessJavaScriptRunner{
+		Executable: os.Args[0], Timeout: functionalWorkerTestTimeout(),
+	}).Run(context.Background(), JavaScriptRequest{
 		Script: `throw new Error("` + secret + `")`, Event: json.RawMessage(`{"id":"event-1"}`),
 		Title: "title", Body: "body",
 	})
@@ -300,7 +301,7 @@ func TestJavaScriptWorkerRedactsExceptionAndStopsRunawayWork(t *testing.T) {
 		t.Fatalf("exception result = %#v", result)
 	}
 	started := time.Now()
-	result = runner.Run(context.Background(), JavaScriptRequest{
+	result = (ProcessJavaScriptRunner{Executable: os.Args[0], Timeout: timeout}).Run(context.Background(), JavaScriptRequest{
 		Script: `for (;;) {}`, Event: json.RawMessage(`{"id":"event-1"}`), Title: "title", Body: "body",
 	})
 	if result.Code != "worker-timeout" ||
