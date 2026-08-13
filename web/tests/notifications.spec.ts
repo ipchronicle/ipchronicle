@@ -308,13 +308,15 @@ test("configures and delivers notifications through local receivers", async ({
       .getByRole("option", { name: node.publicAddress.address })
       .click();
     await page.getByRole("button", { name: "Save" }).click();
+    const ruleCard = page
+      .locator('[data-slot="card"]')
+      .filter({ has: page.getByText(ruleName, { exact: true }) });
     await expect(
-      page.getByText(node.publicAddress.address, { exact: true }),
+      ruleCard.getByText(node.publicAddress.address, { exact: true }),
     ).toBeVisible();
     await expect(
       page.getByText(node.publicAddress.id, { exact: true }),
     ).toHaveCount(0);
-    const ruleCard = page.getByText(ruleName, { exact: true }).locator("..");
     await ruleCard.getByRole("button", { name: "Edit" }).click();
     await page.getByLabel("Name", { exact: true }).fill(updatedRuleName);
     await page.getByRole("button", { name: "Save" }).click();
