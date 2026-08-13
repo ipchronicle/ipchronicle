@@ -135,7 +135,9 @@ func TestExternalOriginSystemSettingDoesNotAuthorizeBrowserRequests(t *testing.T
 	}
 
 	enrollment := performRequest(handler, http.MethodGet, "/api/v1/agent-enrollment", nil, "", cookie)
-	if enrollment.Code != http.StatusOK || !strings.Contains(enrollment.Body.String(), "https://public.example") {
+	if enrollment.Code != http.StatusOK || !strings.Contains(enrollment.Body.String(), `"registrationKey"`) ||
+		strings.Contains(enrollment.Body.String(), "https://public.example") ||
+		strings.Contains(enrollment.Body.String(), "install-agent.sh") {
 		t.Fatalf("custom enrollment response = %d, %s", enrollment.Code, enrollment.Body.String())
 	}
 
@@ -773,9 +775,9 @@ func TestAdministratorEnrollmentAndAgentCredentialBoundaries(t *testing.T) {
 		t.Fatalf("initial enrollment response = %d %s", initial.Code, initial.Body.String())
 	}
 	rotated := performRequestWithCSRF(handler, http.MethodPost, "/api/v1/agent-enrollment/key", nil, "http://example.test", cookie, session.CsrfToken)
-	if rotated.Code != http.StatusOK || !bytes.Contains(rotated.Body.Bytes(), []byte("install-agent.sh")) ||
-		!bytes.Contains(rotated.Body.Bytes(), []byte("releases/download/v0.0.0-test")) ||
-		!bytes.Contains(rotated.Body.Bytes(), []byte("--version")) {
+	if rotated.Code != http.StatusOK || !bytes.Contains(rotated.Body.Bytes(), []byte(`"registrationKey"`)) ||
+		bytes.Contains(rotated.Body.Bytes(), []byte("install-agent.sh")) ||
+		bytes.Contains(rotated.Body.Bytes(), []byte("--version")) {
 		t.Fatalf("rotated enrollment response = %d %s", rotated.Code, rotated.Body.String())
 	}
 	enrollment, err := nodeService.Enrollment(context.Background())

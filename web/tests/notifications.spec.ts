@@ -44,11 +44,9 @@ async function createNodeWithPublicAddress(
   });
   expect(keyResponse.status()).toBe(200);
   const enrollment = (await keyResponse.json()) as {
-    installationCommand: string;
+    registrationKey: string;
   };
-  const registrationKey = enrollment.installationCommand.match(
-    /--registration-key '([^']+)'/,
-  )?.[1];
+  const registrationKey = enrollment.registrationKey;
   expect(registrationKey).toBeTruthy();
 
   const metadata = {

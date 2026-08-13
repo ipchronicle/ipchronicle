@@ -1939,7 +1939,7 @@ components:
           type: boolean
         hasKey:
           type: boolean
-        installationCommand:
+        registrationKey:
           type: string
           minLength: 1
         rotatedAt:

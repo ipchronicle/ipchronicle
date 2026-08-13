@@ -62,6 +62,7 @@ while [ "$#" -gt 0 ]; do
   case "$1" in
     --output) output=$2; shift 2 ;;
     --proto) shift 2 ;;
+    --header) shift 2 ;;
     --tlsv1.2) shift ;;
     --fail|--location|--silent|--show-error) shift ;;
     *) url=$1; shift ;;
@@ -69,6 +70,7 @@ while [ "$#" -gt 0 ]; do
 done
 printf 'curl %s\n' "$url" >> "$FAKE_CURL_LOG"
 case "$url" in
+  *api.github.com/repos/ipchronicle/ipchronicle/releases*) cp "$FAKE_GITHUB_RELEASES" "$output" ;;
   */release-manifest.json) cp "$FAKE_RELEASE_MANIFEST" "$output" ;;
   */checksums.txt) cp "$FAKE_CHECKSUMS" "$output" ;;
   */ipchronicle-agent-linux-*) cp "$FAKE_RELEASE_AGENT" "$output" ;;
@@ -97,6 +99,7 @@ run_installer() {
   FAKE_RELEASE_MANIFEST="${FAKE_RELEASE_MANIFEST:-/dev/null}" \
   FAKE_CHECKSUMS="${FAKE_CHECKSUMS:-/dev/null}" \
   FAKE_RELEASE_AGENT="${FAKE_RELEASE_AGENT:-/dev/null}" \
+  FAKE_GITHUB_RELEASES="${FAKE_GITHUB_RELEASES:-/dev/null}" \
   PATH="$fake_bin:$PATH" \
     "$installer" "$@"
 }
@@ -178,6 +181,27 @@ FAKE_RELEASE_AGENT="$fake_agent" \
     --center-url https://center.example --registration-key test-key --version 0.1.0-rc.1
 assert_installed "$remote_root" systemd
 grep -F '/v0.1.0-rc.1/release-manifest.json' "$remote_root/curl.log" >/dev/null
+
+rc_root="$test_root/rc-root"
+mkdir -p "$rc_root"
+rc_releases="$test_root/releases.json"
+cat > "$rc_releases" <<'EOF'
+[
+  {"tag_name":"v0.1.0-rc.1","draft":false,"prerelease":true},
+  {"tag_name":"v0.0.9","draft":false,"prerelease":false},
+  {"tag_name":"v0.2.0-rc.1","draft":true,"prerelease":true}
+]
+EOF
+FAKE_CURL_LOG="$rc_root/curl.log" \
+FAKE_GITHUB_RELEASES="$rc_releases" \
+FAKE_RELEASE_MANIFEST="$remote_manifest" \
+FAKE_CHECKSUMS="$remote_checksums" \
+FAKE_RELEASE_AGENT="$fake_agent" \
+  run_installer "$rc_root" "$systemd_os_release" \
+    --center-url https://center.example --registration-key test-key --channel rc
+assert_installed "$rc_root" systemd
+grep -F 'api.github.com/repos/ipchronicle/ipchronicle/releases?per_page=100' "$rc_root/curl.log" >/dev/null
+grep -F '/v0.1.0-rc.1/release-manifest.json' "$rc_root/curl.log" >/dev/null
 
 unsupported_root="$test_root/unsupported-root"
 mkdir -p "$unsupported_root"

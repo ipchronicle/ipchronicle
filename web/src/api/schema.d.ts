@@ -959,7 +959,7 @@ export interface components {
         AgentEnrollmentSettings: {
             enabled: boolean;
             hasKey: boolean;
-            installationCommand?: string;
+            registrationKey?: string;
             /** Format: date-time */
             rotatedAt?: string;
         };

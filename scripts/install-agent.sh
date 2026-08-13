@@ -6,6 +6,8 @@ mode="install"
 center_url=""
 registration_key=""
 agent_version=""
+agent_channel="stable"
+agent_channel_set=0
 agent_binary=""
 state_directory="/var/lib/ipchronicle-agent"
 install_path="/usr/local/bin/ipchronicle-agent"
@@ -20,7 +22,7 @@ fail() {
 }
 
 usage() {
-  printf 'usage: %s --center-url URL --registration-key KEY [--version VERSION]\n' "$program_name" >&2
+  printf 'usage: %s --center-url URL --registration-key KEY [--channel stable|rc] [--version VERSION]\n' "$program_name" >&2
   printf '       %s --uninstall\n' "$program_name" >&2
   exit 2
 }
@@ -40,6 +42,12 @@ while [ "$#" -gt 0 ]; do
     --version)
       [ "$#" -ge 2 ] || usage
       agent_version=$2
+      shift 2
+      ;;
+    --channel)
+      [ "$#" -ge 2 ] || usage
+      agent_channel=$2
+      agent_channel_set=1
       shift 2
       ;;
     --agent-binary)
@@ -140,7 +148,7 @@ uninstall_agent() {
 }
 
 if [ "$mode" = "uninstall" ]; then
-  if [ -n "$center_url" ] || [ -n "$registration_key" ] || [ -n "$agent_version" ] || [ -n "$agent_binary" ]; then
+  if [ -n "$center_url" ] || [ -n "$registration_key" ] || [ -n "$agent_version" ] || [ -n "$agent_binary" ] || [ "$agent_channel_set" = "1" ]; then
     usage
   fi
   uninstall_agent
@@ -149,6 +157,10 @@ fi
 
 [ -n "$center_url" ] || usage
 [ -n "$registration_key" ] || usage
+case "$agent_channel" in stable|rc) ;; *) fail "--channel must be stable or rc" ;; esac
+if [ -n "$agent_version" ] && [ "$agent_channel_set" = "1" ]; then
+  fail "--channel and --version cannot be used together"
+fi
 [ "$(uname -s)" = "Linux" ] || fail "only Linux is supported"
 
 machine=$(uname -m)
@@ -209,6 +221,34 @@ else
   if [ -n "$agent_version" ]; then
     case "$agent_version" in v*|*' '*|"") fail "--version must omit the v prefix and whitespace" ;; esac
     release_base="https://github.com/ipchronicle/ipchronicle/releases/download/v$agent_version"
+  elif [ "$agent_channel" = "rc" ]; then
+    curl --proto '=https' --tlsv1.2 --fail --location --silent --show-error \
+      --header 'Accept: application/vnd.github+json' \
+      --header 'X-GitHub-Api-Version: 2022-11-28' \
+      --output "$temporary_directory/releases.json" \
+      'https://api.github.com/repos/ipchronicle/ipchronicle/releases?per_page=100'
+    release_tag=$(jq -er '
+      [
+        .[] |
+        select(.draft == false) |
+        . as $release |
+        (.tag_name | capture("^v(?<major>[0-9]+)\\.(?<minor>[0-9]+)\\.(?<patch>[0-9]+)(?:-rc\\.(?<rc>[0-9]+))?$")) as $version |
+        select(($version.rc != null) == $release.prerelease) |
+        {
+          tag: .tag_name,
+          order: [
+            ($version.major | tonumber),
+            ($version.minor | tonumber),
+            ($version.patch | tonumber),
+            (if $version.rc == null then 1 else 0 end),
+            (($version.rc // "0") | tonumber)
+          ]
+        }
+      ] |
+      sort_by(.order) |
+      last.tag
+    ' "$temporary_directory/releases.json") || fail "no official stable or RC Agent release is available"
+    release_base="https://github.com/ipchronicle/ipchronicle/releases/download/$release_tag"
   else
     release_base="https://github.com/ipchronicle/ipchronicle/releases/latest/download"
   fi
@@ -226,8 +266,10 @@ else
   manifest_revision=$(jq -er '.revision' "$temporary_directory/release-manifest.json")
   if [ -n "$agent_version" ]; then
     [ "$manifest_version" = "$agent_version" ] || fail "release manifest version does not match --version"
-  else
+  elif [ "$agent_channel" = "stable" ]; then
     [ "$(jq -er '.channel' "$temporary_directory/release-manifest.json")" = "stable" ] || fail "latest release is not on the stable channel"
+  else
+    [ "v$manifest_version" = "$release_tag" ] || fail "release manifest version does not match the discovered release"
   fi
   expected_size=$(jq -er --arg artifact "$artifact" '.artifacts[] | select(.name == $artifact) | .size' "$temporary_directory/release-manifest.json")
   expected_checksum=$(jq -er --arg artifact "$artifact" '.artifacts[] | select(.name == $artifact) | .sha256' "$temporary_directory/release-manifest.json")

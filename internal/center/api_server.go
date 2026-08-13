@@ -1119,11 +1119,7 @@ func (s apiServer) GetAgentEnrollment(ctx context.Context, _ api.GetAgentEnrollm
 	if err != nil {
 		return nil, err
 	}
-	centerURL, err := s.systemSettings.EffectiveOrigin(ctx, requestSecurityFromContext(ctx).ExpectedOrigin)
-	if err != nil {
-		return nil, err
-	}
-	return api.GetAgentEnrollment200JSONResponse(enrollmentResponse(enrollment, centerURL, s.version)), nil
+	return api.GetAgentEnrollment200JSONResponse(enrollmentResponse(enrollment)), nil
 }
 
 func (s apiServer) UpdateAgentEnrollment(ctx context.Context, request api.UpdateAgentEnrollmentRequestObject) (api.UpdateAgentEnrollmentResponseObject, error) {
@@ -1147,11 +1143,7 @@ func (s apiServer) UpdateAgentEnrollment(ctx context.Context, request api.Update
 	if err != nil {
 		return nil, err
 	}
-	centerURL, err := s.systemSettings.EffectiveOrigin(ctx, requestSecurityFromContext(ctx).ExpectedOrigin)
-	if err != nil {
-		return nil, err
-	}
-	return api.UpdateAgentEnrollment200JSONResponse(enrollmentResponse(enrollment, centerURL, s.version)), nil
+	return api.UpdateAgentEnrollment200JSONResponse(enrollmentResponse(enrollment)), nil
 }
 
 func (s apiServer) RotateAgentEnrollmentKey(ctx context.Context, request api.RotateAgentEnrollmentKeyRequestObject) (api.RotateAgentEnrollmentKeyResponseObject, error) {
@@ -1169,11 +1161,7 @@ func (s apiServer) RotateAgentEnrollmentKey(ctx context.Context, request api.Rot
 	if err != nil {
 		return nil, err
 	}
-	centerURL, err := s.systemSettings.EffectiveOrigin(ctx, requestSecurityFromContext(ctx).ExpectedOrigin)
-	if err != nil {
-		return nil, err
-	}
-	return api.RotateAgentEnrollmentKey200JSONResponse(enrollmentResponse(enrollment, centerURL, s.version)), nil
+	return api.RotateAgentEnrollmentKey200JSONResponse(enrollmentResponse(enrollment)), nil
 }
 
 func (s apiServer) RegisterAgent(ctx context.Context, request api.RegisterAgentRequestObject) (api.RegisterAgentResponseObject, error) {
@@ -1429,22 +1417,12 @@ func networkInventoryFromAPI(inventory *api.NetworkInventory) *nodes.NetworkInve
 	return result
 }
 
-func enrollmentResponse(enrollment nodes.Enrollment, centerURL, centerVersion string) api.AgentEnrollmentSettings {
+func enrollmentResponse(enrollment nodes.Enrollment) api.AgentEnrollmentSettings {
 	response := api.AgentEnrollmentSettings{Enabled: enrollment.Enabled, HasKey: enrollment.HasKey}
 	if !enrollment.HasKey {
 		return response
 	}
-	installerURL := "https://github.com/ipchronicle/ipchronicle/releases/latest/download/install-agent.sh"
-	versionArgument := ""
-	if centerVersion != "dev" {
-		version := strings.TrimPrefix(centerVersion, "v")
-		installerURL = "https://github.com/ipchronicle/ipchronicle/releases/download/v" + version + "/install-agent.sh"
-		versionArgument = " --version " + shellQuote(version)
-	}
-	command := "curl --proto '=https' --tlsv1.2 -fsSL " + shellQuote(installerURL) + " | " +
-		"sh -s -- --center-url " + shellQuote(centerURL) + " --registration-key " +
-		shellQuote(enrollment.Key) + versionArgument
-	response.InstallationCommand = &command
+	response.RegistrationKey = &enrollment.Key
 	rotatedAt := enrollment.RotatedAt
 	response.RotatedAt = &rotatedAt
 	return response
@@ -2139,10 +2117,6 @@ func bearerToken(header string) string {
 		return ""
 	}
 	return token
-}
-
-func shellQuote(value string) string {
-	return "'" + strings.ReplaceAll(value, "'", "'\"'\"'") + "'"
 }
 
 func csrfValue(value *api.CSRFToken) string {

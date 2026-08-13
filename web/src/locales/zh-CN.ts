@@ -165,9 +165,10 @@ export const zhCN = {
         allowRegistrationDetail: "停止注册不会断开已经注册的 Agent。",
         command: "安装命令",
         commandDetail:
-          "请在受支持的 Linux 节点上以 root 执行；命令中包含可重复使用的注册密钥。",
+          "请在受支持的 Linux 节点上以 root 执行；官方安装器会获取所选发行通道的最新 Agent，命令中包含可重复使用的注册密钥。",
         copy: "复制命令",
         copied: "已复制安装命令。",
+        commandUnavailable: "无法读取发行通道，请刷新后重试。",
         rotatedAt: "密钥轮换于 {{value}}",
         rotate: "轮换密钥",
         rotateTitle: "确认轮换注册密钥？",

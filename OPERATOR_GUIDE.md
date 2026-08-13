@@ -134,9 +134,12 @@ docker compose --env-file .env -f compose.yaml up -d
 
 Open **Nodes**, rotate the automatic-registration key if none exists, and run
 the displayed command as root on each supported node. The one-line command
-downloads the installer and the Agent for the exact Center release, verifies
-the official manifest and checksums, installs IPQuality dependencies, enrolls
-the node, and starts the systemd or OpenRC service.
+downloads the fixed official installer, which selects the latest Agent from
+the deployment's stable or RC release channel. It verifies the official
+manifest and checksums, installs IPQuality dependencies, enrolls the node, and
+starts the systemd or OpenRC service. The Center does not pin the Agent to its
+own version. An operator may pass `--version VERSION` directly to the installer
+only when deliberately installing a specific release.
 
 The shared registration key is used only for enrollment. Each Agent receives a
 node-specific credential and stores it encrypted in the root-only directory
@@ -306,12 +309,11 @@ the single immediate-task slot.
 
 ## Uninstall An Agent
 
-Use the installer from the same release as root:
+Use the fixed official installer as root:
 
 ```sh
-IPCHRONICLE_VERSION=0.1.0-rc.3
 curl --proto '=https' --tlsv1.2 -fsSL \
-  "https://github.com/ipchronicle/ipchronicle/releases/download/v${IPCHRONICLE_VERSION}/install-agent.sh" |
+  "https://raw.githubusercontent.com/ipchronicle/ipchronicle/main/scripts/install-agent.sh" |
   sh -s -- --uninstall
 ```
 

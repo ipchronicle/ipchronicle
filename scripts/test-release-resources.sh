@@ -152,7 +152,7 @@ csrf_token=$(jq -er '.csrfToken' "$response_file")
 curl --fail --silent --show-error --cookie "$cookie_file" \
   --header "Origin: $base_url" --header "X-CSRF-Token: $csrf_token" \
   --request POST "$base_url/api/v1/agent-enrollment/key" >"$response_file"
-registration_key=$(jq -r '.installationCommand' "$response_file" | sed -n "s/.*--registration-key '\([^']*\)'.*/\1/p")
+registration_key=$(jq -er '.registrationKey' "$response_file")
 if [[ -z $registration_key ]]; then
   echo "enrollment response did not contain a registration key" >&2
   exit 1

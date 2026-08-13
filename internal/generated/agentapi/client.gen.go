@@ -1392,10 +1392,10 @@ type AgentDiscoveryPath struct {
 
 // AgentEnrollmentSettings defines model for AgentEnrollmentSettings.
 type AgentEnrollmentSettings struct {
-	Enabled             bool       `json:"enabled"`
-	HasKey              bool       `json:"hasKey"`
-	InstallationCommand *string    `json:"installationCommand,omitempty"`
-	RotatedAt           *time.Time `json:"rotatedAt,omitempty"`
+	Enabled         bool       `json:"enabled"`
+	HasKey          bool       `json:"hasKey"`
+	RegistrationKey *string    `json:"registrationKey,omitempty"`
+	RotatedAt       *time.Time `json:"rotatedAt,omitempty"`
 }
 
 // AgentEnrollmentUpdate defines model for AgentEnrollmentUpdate.

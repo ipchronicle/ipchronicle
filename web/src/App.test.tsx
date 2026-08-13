@@ -667,8 +667,7 @@ describe("administrator application", () => {
     getEnrollmentMock.mockResolvedValue({
       enabled: true,
       hasKey: true,
-      installationCommand:
-        "curl https://example.test/install-agent.sh | sh -s -- --registration-key secret",
+      registrationKey: "secret",
       rotatedAt: "2026-08-07T12:00:00Z",
     });
     listNodesMock.mockResolvedValue([
@@ -701,8 +700,7 @@ describe("administrator application", () => {
     updateEnrollmentMock.mockResolvedValue({
       enabled: false,
       hasKey: true,
-      installationCommand:
-        "curl https://example.test/install-agent.sh | sh -s -- --registration-key secret",
+      registrationKey: "secret",
       rotatedAt: "2026-08-07T12:00:00Z",
     });
     updateNodeMock.mockResolvedValue({
@@ -789,6 +787,14 @@ describe("administrator application", () => {
     expect(
       await screen.findByRole("heading", { name: "Nodes" }),
     ).toBeInTheDocument();
+    const installationCommand = document.querySelector("pre code")?.textContent;
+    expect(installationCommand).toContain(
+      "https://raw.githubusercontent.com/ipchronicle/ipchronicle/main/scripts/install-agent.sh",
+    );
+    expect(installationCommand).toContain(
+      `--center-url '${window.location.origin}'`,
+    );
+    expect(installationCommand).not.toContain("--version");
     expect((await screen.findAllByText("edge-1")).length).toBeGreaterThan(0);
     expect(screen.getAllByText("203.0.113.10").length).toBeGreaterThan(0);
     expect(
@@ -876,7 +882,7 @@ describe("administrator application", () => {
     getEnrollmentMock.mockResolvedValue({
       enabled: true,
       hasKey: true,
-      installationCommand: "install-agent",
+      registrationKey: "secret",
       rotatedAt: "2026-08-07T12:00:00Z",
     });
     getAgentUpdateStateMock.mockResolvedValue(agentUpdateState);
@@ -913,7 +919,7 @@ describe("administrator application", () => {
     getEnrollmentMock.mockResolvedValue({
       enabled: true,
       hasKey: true,
-      installationCommand: "install-agent",
+      registrationKey: "secret",
       rotatedAt: "2026-08-10T07:00:00Z",
     });
     const firstNode = updateTestNode("edge-1", "1");
@@ -996,7 +1002,7 @@ describe("administrator application", () => {
     getEnrollmentMock.mockResolvedValue({
       enabled: true,
       hasKey: true,
-      installationCommand: "install-agent",
+      registrationKey: "secret",
       rotatedAt: "2026-08-10T07:00:00Z",
     });
     const node = updateTestNode("edge-offline", "3", "offline");

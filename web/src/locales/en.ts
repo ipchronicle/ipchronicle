@@ -175,9 +175,11 @@ export const en = {
           "Disabling enrollment does not disconnect Agents that are already registered.",
         command: "Installation command",
         commandDetail:
-          "Run as root on a supported Linux node. The command contains the reusable registration key.",
+          "Run as root on a supported Linux node. The official installer fetches the latest Agent from the selected release channel, and the command contains the reusable registration key.",
         copy: "Copy command",
         copied: "Installation command copied.",
+        commandUnavailable:
+          "The release channel could not be loaded. Refresh and try again.",
         rotatedAt: "Key rotated {{value}}",
         rotate: "Rotate key",
         rotateTitle: "Rotate the registration key?",

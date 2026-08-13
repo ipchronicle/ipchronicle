@@ -30,6 +30,7 @@ import {
   type Node,
 } from "@/api/nodes";
 import { createCompleteProbeTask } from "@/api/probes";
+import { getSystemSettings } from "@/api/system";
 import {
   createAgentUpdateTasks,
   getAgentUpdateState,
@@ -80,6 +81,7 @@ import {
   isTerminalUpdateTask,
   nodeHasAvailableUpdate,
 } from "@/lib/agent-update";
+import { agentInstallationCommand } from "@/lib/agent-installer";
 
 const nodeRefreshIntervalMilliseconds = 3_000;
 
@@ -89,6 +91,7 @@ type ViewState =
       kind: "success";
       nodes: Node[];
       enrollment: AgentEnrollmentSettings;
+      centerURL: string;
       updates?: AgentUpdateState;
       updateLoadFailed: boolean;
     }
@@ -105,9 +108,10 @@ export function NodesPage() {
     if (initial) setState({ kind: "loading" });
     else setRefreshing(true);
     try {
-      const [nodes, enrollment, updates] = await Promise.all([
+      const [nodes, enrollment, systemSettings, updates] = await Promise.all([
         listNodes(signal),
         getAgentEnrollment(signal),
+        getSystemSettings(signal),
         getAgentUpdateState(signal).catch((error: unknown) => {
           if (error instanceof DOMException && error.name === "AbortError") {
             throw error;
@@ -119,6 +123,7 @@ export function NodesPage() {
         kind: "success",
         nodes,
         enrollment,
+        centerURL: systemSettings.effectiveOrigin,
         updates,
         updateLoadFailed: updates === undefined,
       });
@@ -266,6 +271,8 @@ export function NodesPage() {
           <>
             <EnrollmentCard
               enrollment={state.enrollment}
+              centerURL={state.centerURL}
+              releaseChannel={state.updates?.channel}
               csrfToken={csrfToken}
               onChange={(enrollment) =>
                 setState((current) =>
@@ -332,10 +339,14 @@ export function NodesPage() {
 
 function EnrollmentCard({
   enrollment,
+  centerURL,
+  releaseChannel,
   csrfToken,
   onChange,
 }: {
   enrollment: AgentEnrollmentSettings;
+  centerURL: string;
+  releaseChannel?: AgentUpdateState["channel"];
   csrfToken: string;
   onChange: (value: AgentEnrollmentSettings) => void;
 }) {
@@ -344,6 +355,17 @@ function EnrollmentCard({
   const [feedback, setFeedback] = useState<
     { kind: "success" | "error"; message: string } | undefined
   >();
+  const installationCommand = useMemo(
+    () =>
+      enrollment.registrationKey === undefined || releaseChannel === undefined
+        ? undefined
+        : agentInstallationCommand(
+            centerURL,
+            enrollment.registrationKey,
+            releaseChannel,
+          ),
+    [centerURL, enrollment.registrationKey, releaseChannel],
+  );
 
   async function setEnabled(enabled: boolean) {
     setWorking(true);
@@ -376,9 +398,9 @@ function EnrollmentCard({
   }
 
   async function copyCommand() {
-    if (enrollment.installationCommand === undefined) return;
+    if (installationCommand === undefined) return;
     try {
-      await navigator.clipboard.writeText(enrollment.installationCommand);
+      await navigator.clipboard.writeText(installationCommand);
       setFeedback({
         kind: "success",
         message: t("nodes.enrollment.copied"),
@@ -450,7 +472,7 @@ function EnrollmentCard({
                 <Button
                   variant="outline"
                   size="sm"
-                  disabled={working}
+                  disabled={working || installationCommand === undefined}
                   onClick={() => void copyCommand()}
                 >
                   <Clipboard data-icon="inline-start" aria-hidden="true" />
@@ -458,7 +480,10 @@ function EnrollmentCard({
                 </Button>
               </div>
               <pre className="overflow-x-auto rounded-md bg-muted p-4 text-xs leading-5">
-                <code>{enrollment.installationCommand}</code>
+                <code>
+                  {installationCommand ??
+                    t("nodes.enrollment.commandUnavailable")}
+                </code>
               </pre>
             </div>
 
