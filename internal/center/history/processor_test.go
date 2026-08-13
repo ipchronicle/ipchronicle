@@ -187,6 +187,49 @@ func TestAdvanceRecordsTypeDriftWithoutSemanticFieldChange(t *testing.T) {
 	}
 }
 
+func TestAdvanceTreatsNullAsUnavailableWithoutFormatTransition(t *testing.T) {
+	ctx, store := openProcessorStore(t)
+	nodeID := uuid.NewString()
+	egressID := uuid.NewString()
+	first := seedSuccessfulExecution(t, store.History, nodeID, egressID, 1, 100,
+		`{"Info":{"ASN":"64500"}}`)
+	second := seedSuccessfulExecution(t, store.History, nodeID, egressID, 2, 200,
+		`{"Info":{"ASN":null}}`)
+	if err := Advance(ctx, store.HistoryQueries, nodeID, egressID, store.HistoryGeneration, 300); err != nil {
+		t.Fatal(err)
+	}
+	changeSet, err := store.HistoryQueries.GetProbeChangeSetBySnapshot(ctx, second)
+	if err != nil || changeSet.ChangeCount != 0 {
+		t.Fatalf("null availability change set = %#v, %v", changeSet, err)
+	}
+	firstFormat, err := store.HistoryQueries.GetProbeSnapshotFormat(ctx, first)
+	if err != nil {
+		t.Fatal(err)
+	}
+	secondFormat, err := store.HistoryQueries.GetProbeSnapshotFormat(ctx, second)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if firstFormat.Signature != secondFormat.Signature || firstFormat.IssueCount != secondFormat.IssueCount {
+		t.Fatalf("null changed format state: first=%#v second=%#v", firstFormat, secondFormat)
+	}
+	var issues []FormatIssue
+	if err := json.Unmarshal(secondFormat.IssuesJson, &issues); err != nil {
+		t.Fatal(err)
+	}
+	for _, issue := range issues {
+		if issue.Path == "Info.ASN" {
+			t.Fatalf("null produced a format issue: %#v", issue)
+		}
+	}
+	events, err := store.HistoryQueries.ListGlobalFormatEvents(ctx, historydb.ListGlobalFormatEventsParams{
+		NodeID: nodeID, EgressID: egressID, PageSize: 10, PageOffset: 0,
+	})
+	if err != nil || len(events) != 1 || events[0].SnapshotID != first {
+		t.Fatalf("null produced a format transition: %#v, %v", events, err)
+	}
+}
+
 func openProcessorStore(t *testing.T) (context.Context, *database.Store) {
 	t.Helper()
 	ctx := context.Background()

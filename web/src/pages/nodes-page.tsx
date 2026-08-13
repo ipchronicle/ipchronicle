@@ -1,11 +1,11 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   Check,
   CircleArrowUp,
   Clipboard,
+  Globe2,
   KeyRound,
   LoaderCircle,
-  Network as NetworkIcon,
   Pause,
   Play,
   RadioTower,
@@ -14,32 +14,22 @@ import {
   ScanSearch,
   Server,
   Search,
-  ShieldX,
   Terminal,
-  Trash2,
   TriangleAlert,
-  Unplug,
-  Wifi,
-  WifiOff,
 } from "lucide-react";
 import { useTranslation } from "react-i18next";
-import { Link } from "react-router";
-import { gt, major, valid } from "semver";
+import { Link, useNavigate } from "react-router";
 
 import {
-  deleteNode,
   getAgentEnrollment,
   listNodes,
-  revokeNode,
   rotateAgentEnrollmentKey,
-  startNodeSyncSession,
-  stopNodeSyncSession,
   updateNode,
   updateAgentEnrollment,
   type AgentEnrollmentSettings,
   type Node,
-  type NodeDeletion,
 } from "@/api/nodes";
+import { createCompleteProbeTask } from "@/api/probes";
 import {
   createAgentUpdateTasks,
   getAgentUpdateState,
@@ -48,6 +38,7 @@ import {
   type AgentUpdateTask,
 } from "@/api/updates";
 import { useAuth } from "@/auth-context";
+import { NodeStatusBadge } from "@/components/node-status-badge";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -83,12 +74,14 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import {
-  Tooltip,
-  TooltipContent,
-  TooltipTrigger,
-} from "@/components/ui/tooltip";
 import { formatAPIError } from "@/lib/api-error";
+import {
+  canRequestAgentUpdate,
+  isTerminalUpdateTask,
+  nodeHasAvailableUpdate,
+} from "@/lib/agent-update";
+
+const nodeRefreshIntervalMilliseconds = 3_000;
 
 type ViewState =
   | { kind: "loading" }
@@ -106,6 +99,7 @@ export function NodesPage() {
   const { state: authState } = useAuth();
   const [state, setState] = useState<ViewState>({ kind: "loading" });
   const [refreshing, setRefreshing] = useState(false);
+  const nodeMutationRevisionRef = useRef(0);
 
   const load = useCallback(async (signal?: AbortSignal, initial = false) => {
     if (initial) setState({ kind: "loading" });
@@ -142,27 +136,87 @@ export function NodesPage() {
     return () => controller.abort();
   }, [load]);
 
-  const hasActiveSync =
-    state.kind === "success" &&
-    state.nodes.some((node) => node.syncStatus !== undefined);
   const hasActiveUpdate =
     state.kind === "success" &&
     state.updates?.tasks.some((task) => !isTerminalUpdateTask(task.status));
 
   useEffect(() => {
     if (state.kind !== "success") return;
+
+    let disposed = false;
+    let inFlight = false;
+    let controller: AbortController | undefined;
+    const refresh = async () => {
+      if (disposed || inFlight || document.visibilityState !== "visible") {
+        return;
+      }
+      inFlight = true;
+      const nodeMutationRevision = nodeMutationRevisionRef.current;
+      controller = new AbortController();
+      try {
+        const [nodes, updates] = await Promise.all([
+          listNodes(controller.signal),
+          hasActiveUpdate
+            ? getAgentUpdateState(controller.signal).catch((error: unknown) => {
+                if (
+                  error instanceof DOMException &&
+                  error.name === "AbortError"
+                ) {
+                  throw error;
+                }
+                return undefined;
+              })
+            : Promise.resolve(undefined),
+        ]);
+        if (disposed) return;
+        setState((current) =>
+          current.kind === "success"
+            ? {
+                ...current,
+                nodes:
+                  nodeMutationRevision === nodeMutationRevisionRef.current
+                    ? nodes
+                    : current.nodes,
+                updates: updates ?? current.updates,
+                updateLoadFailed:
+                  hasActiveUpdate && updates === undefined
+                    ? true
+                    : current.updateLoadFailed,
+              }
+            : current,
+        );
+      } catch (error) {
+        if (!(error instanceof DOMException && error.name === "AbortError")) {
+          return;
+        }
+      } finally {
+        inFlight = false;
+        controller = undefined;
+      }
+    };
+    const wake = () => {
+      if (document.visibilityState === "visible") void refresh();
+    };
     const interval = window.setInterval(
-      () => void load(),
-      hasActiveSync || hasActiveUpdate ? 3_000 : 30_000,
+      () => void refresh(),
+      nodeRefreshIntervalMilliseconds,
     );
-    return () => window.clearInterval(interval);
-  }, [hasActiveSync, hasActiveUpdate, load, state.kind]);
+    document.addEventListener("visibilitychange", wake);
+    window.addEventListener("focus", wake);
+    return () => {
+      disposed = true;
+      controller?.abort();
+      window.clearInterval(interval);
+      document.removeEventListener("visibilitychange", wake);
+      window.removeEventListener("focus", wake);
+    };
+  }, [hasActiveUpdate, state.kind]);
 
   const csrfToken =
     authState.status === "authenticated" ? authState.session.csrfToken : "";
 
   return (
-    <div className="mx-auto w-full max-w-6xl px-4 py-10 sm:px-6 sm:py-14">
+    <div className="w-full min-w-0 px-4 py-10 sm:px-6 sm:py-14">
       <div className="flex flex-wrap items-end justify-between gap-4">
         <div className="max-w-2xl">
           <p className="text-xs font-medium text-muted-foreground uppercase">
@@ -226,7 +280,8 @@ export function NodesPage() {
               updates={state.updates}
               updateLoadFailed={state.updateLoadFailed}
               csrfToken={csrfToken}
-              onNodeChange={(node) =>
+              onNodeChange={(node) => {
+                nodeMutationRevisionRef.current += 1;
                 setState((current) =>
                   current.kind === "success"
                     ? {
@@ -236,28 +291,8 @@ export function NodesPage() {
                         ),
                       }
                     : current,
-                )
-              }
-              onDeletionQueued={(deletion) =>
-                setState((current) =>
-                  current.kind === "success"
-                    ? {
-                        ...current,
-                        nodes: current.nodes.map((item) =>
-                          item.id === deletion.nodeId
-                            ? {
-                                ...item,
-                                status: "revoked",
-                                enabled: false,
-                                deletionStatus: deletion.status,
-                                deletionError: deletion.error,
-                              }
-                            : item,
-                        ),
-                      }
-                    : current,
-                )
-              }
+                );
+              }}
               onUpdateTasksCreated={(result) =>
                 setState((current) => {
                   if (
@@ -506,7 +541,6 @@ function NodeListCard({
   updateLoadFailed,
   csrfToken,
   onNodeChange,
-  onDeletionQueued,
   onUpdateTasksCreated,
 }: {
   nodes: Node[];
@@ -514,10 +548,10 @@ function NodeListCard({
   updateLoadFailed: boolean;
   csrfToken: string;
   onNodeChange: (node: Node) => void;
-  onDeletionQueued: (deletion: NodeDeletion) => void;
   onUpdateTasksCreated: (result: AgentUpdateBatchResult) => void;
 }) {
   const { t } = useTranslation();
+  const navigate = useNavigate();
   const [query, setQuery] = useState("");
   const [updatesOnly, setUpdatesOnly] = useState(false);
   const [selectedNodeIds, setSelectedNodeIds] = useState<Set<string>>(
@@ -539,6 +573,7 @@ function NodeListCard({
         node.hostname,
         node.agentVersion,
         node.sourceRevision ?? "",
+        ...node.publicAddresses.map((address) => address.address),
       ].some((value) => value.toLocaleLowerCase().includes(normalizedQuery));
     return (
       matchesQuery && (!updatesOnly || nodeHasAvailableUpdate(node, updates))
@@ -553,6 +588,7 @@ function NodeListCard({
   const someVisibleSelected = selectableVisibleNodes.some((node) =>
     selectedNodeIds.has(node.id),
   );
+  const showUpdateControls = updates?.availableRelease !== undefined;
 
   useEffect(() => {
     setSelectedNodeIds((current) => {
@@ -650,7 +686,7 @@ function NodeListCard({
         </CardContent>
       ) : (
         <>
-          <CardContent className="space-y-4 border-b">
+          <CardContent className="space-y-4">
             {updateLoadFailed ? (
               <Alert>
                 <TriangleAlert aria-hidden="true" />
@@ -677,37 +713,39 @@ function NodeListCard({
                   aria-label={t("nodes.inventory.search")}
                 />
               </div>
-              <label className="flex min-h-8 items-center gap-2 text-sm">
-                <Switch
-                  size="sm"
-                  checked={updatesOnly}
-                  disabled={updates === undefined}
-                  onCheckedChange={setUpdatesOnly}
-                  aria-label={t("nodes.updates.filter")}
-                />
-                {t("nodes.updates.filter")}
-              </label>
-              <Button
-                onClick={() => void requestUpdates([...selectedNodeIds])}
-                disabled={
-                  updating ||
-                  selectedNodeIds.size === 0 ||
-                  updates?.availableRelease === undefined
-                }
-              >
-                {updating ? (
-                  <LoaderCircle
-                    className="animate-spin"
-                    data-icon="inline-start"
-                    aria-hidden="true"
-                  />
-                ) : (
-                  <CircleArrowUp data-icon="inline-start" aria-hidden="true" />
-                )}
-                {t("nodes.updates.updateSelected", {
-                  count: selectedNodeIds.size,
-                })}
-              </Button>
+              {showUpdateControls ? (
+                <>
+                  <label className="flex min-h-8 items-center gap-2 text-sm">
+                    <Switch
+                      size="sm"
+                      checked={updatesOnly}
+                      onCheckedChange={setUpdatesOnly}
+                      aria-label={t("nodes.updates.filter")}
+                    />
+                    {t("nodes.updates.filter")}
+                  </label>
+                  <Button
+                    onClick={() => void requestUpdates([...selectedNodeIds])}
+                    disabled={updating || selectedNodeIds.size === 0}
+                  >
+                    {updating ? (
+                      <LoaderCircle
+                        className="animate-spin"
+                        data-icon="inline-start"
+                        aria-hidden="true"
+                      />
+                    ) : (
+                      <CircleArrowUp
+                        data-icon="inline-start"
+                        aria-hidden="true"
+                      />
+                    )}
+                    {t("nodes.updates.updateSelected", {
+                      count: selectedNodeIds.size,
+                    })}
+                  </Button>
+                </>
+              ) : null}
             </div>
           </CardContent>
 
@@ -737,34 +775,41 @@ function NodeListCard({
           ) : null}
 
           {visibleNodes.length > 0 ? (
-            <div className="hidden lg:block">
+            <div className="mx-6 mb-6 hidden overflow-hidden rounded-lg border xl:block">
               <Table>
-                <TableHeader>
+                <TableHeader className="bg-muted/50">
                   <TableRow>
-                    <TableHead className="w-10">
-                      <Checkbox
-                        checked={
-                          allVisibleSelected
-                            ? true
-                            : someVisibleSelected
-                              ? "indeterminate"
-                              : false
-                        }
-                        disabled={selectableVisibleNodes.length === 0}
-                        onCheckedChange={(checked) =>
-                          toggleVisibleSelection(checked === true)
-                        }
-                        aria-label={t("nodes.updates.selectAvailable")}
-                      />
+                    {showUpdateControls ? (
+                      <TableHead className="w-10">
+                        <Checkbox
+                          checked={
+                            allVisibleSelected
+                              ? true
+                              : someVisibleSelected
+                                ? "indeterminate"
+                                : false
+                          }
+                          disabled={selectableVisibleNodes.length === 0}
+                          onCheckedChange={(checked) =>
+                            toggleVisibleSelection(checked === true)
+                          }
+                          aria-label={t("nodes.updates.selectAvailable")}
+                        />
+                      </TableHead>
+                    ) : null}
+                    <TableHead className="w-[26%]">
+                      {t("nodes.inventory.node")}
                     </TableHead>
-                    <TableHead>{t("nodes.inventory.node")}</TableHead>
                     <TableHead>{t("nodes.inventory.status")}</TableHead>
+                    <TableHead>
+                      {t("nodes.inventory.publicAddresses")}
+                    </TableHead>
                     <TableHead>{t("nodes.inventory.agent")}</TableHead>
                     <TableHead>{t("nodes.inventory.configuration")}</TableHead>
                     <TableHead className="text-right">
                       {t("nodes.inventory.lastSeen")}
                     </TableHead>
-                    <TableHead className="w-36 text-right">
+                    <TableHead className="w-[22rem] text-right">
                       <span className="sr-only">
                         {t("nodes.actions.title")}
                       </span>
@@ -784,32 +829,54 @@ function NodeListCard({
                       updates,
                     );
                     return (
-                      <TableRow key={node.id}>
+                      <TableRow
+                        key={node.id}
+                        className="cursor-pointer"
+                        data-state={
+                          selectedNodeIds.has(node.id) ? "selected" : undefined
+                        }
+                        onClick={(event) => {
+                          if (!isNodeRowNavigationTarget(event.target)) return;
+                          void navigate(`/nodes/${node.id}`);
+                        }}
+                      >
+                        {showUpdateControls ? (
+                          <TableCell>
+                            <Checkbox
+                              checked={selectedNodeIds.has(node.id)}
+                              disabled={!canUpdate}
+                              onCheckedChange={(checked) =>
+                                setSelectedNodeIds((current) => {
+                                  const next = new Set(current);
+                                  if (checked === true) next.add(node.id);
+                                  else next.delete(node.id);
+                                  return next;
+                                })
+                              }
+                              aria-label={t("nodes.updates.selectNode", {
+                                name: node.name,
+                              })}
+                            />
+                          </TableCell>
+                        ) : null}
                         <TableCell>
-                          <Checkbox
-                            checked={selectedNodeIds.has(node.id)}
-                            disabled={!canUpdate}
-                            onCheckedChange={(checked) =>
-                              setSelectedNodeIds((current) => {
-                                const next = new Set(current);
-                                if (checked === true) next.add(node.id);
-                                else next.delete(node.id);
-                                return next;
-                              })
-                            }
-                            aria-label={t("nodes.updates.selectNode", {
-                              name: node.name,
-                            })}
-                          />
-                        </TableCell>
-                        <TableCell>
-                          <p className="font-medium">{node.name}</p>
-                          <p className="mt-1 text-xs text-muted-foreground">
+                          <Link
+                            to={`/nodes/${node.id}`}
+                            className="inline-block max-w-72 truncate font-medium underline-offset-4 hover:underline"
+                          >
+                            {node.name}
+                          </Link>
+                          <p className="mt-1 max-w-72 truncate text-xs text-muted-foreground">
                             {node.hostname}
                           </p>
                         </TableCell>
                         <TableCell>
                           <NodeStatusBadge node={node} />
+                        </TableCell>
+                        <TableCell>
+                          <NodePublicAddresses
+                            addresses={node.publicAddresses}
+                          />
                         </TableCell>
                         <TableCell>
                           <p>{node.agentVersion}</p>
@@ -830,11 +897,10 @@ function NodeListCard({
                           <NodeTime value={node.lastSeenAt} />
                         </TableCell>
                         <TableCell>
-                          <NodeActions
+                          <NodeQuickActions
                             node={node}
                             csrfToken={csrfToken}
                             onNodeChange={onNodeChange}
-                            onDeletionQueued={onDeletionQueued}
                             updateAvailable={updateAvailable}
                             updateTask={task}
                             updating={updating}
@@ -849,33 +915,47 @@ function NodeListCard({
             </div>
           ) : null}
           {visibleNodes.length > 0 ? (
-            <CardContent className="divide-y p-0 lg:hidden">
+            <CardContent className="mx-4 mb-4 divide-y overflow-hidden rounded-lg border p-0 sm:mx-6 sm:mb-6 xl:hidden">
               {visibleNodes.map((node) => {
                 const task = tasksByNode.get(node.id);
                 const updateAvailable = nodeHasAvailableUpdate(node, updates);
                 const canUpdate = canRequestAgentUpdate(node, task, updates);
                 return (
-                  <div className="space-y-4 p-4" key={node.id}>
+                  <div
+                    className="cursor-pointer space-y-4 p-4 transition-colors hover:bg-muted/50"
+                    key={node.id}
+                    onClick={(event) => {
+                      if (!isNodeRowNavigationTarget(event.target)) return;
+                      void navigate(`/nodes/${node.id}`);
+                    }}
+                  >
                     <div className="flex items-start justify-between gap-3">
                       <div className="flex min-w-0 items-start gap-3">
-                        <Checkbox
-                          className="mt-1"
-                          checked={selectedNodeIds.has(node.id)}
-                          disabled={!canUpdate}
-                          onCheckedChange={(checked) =>
-                            setSelectedNodeIds((current) => {
-                              const next = new Set(current);
-                              if (checked === true) next.add(node.id);
-                              else next.delete(node.id);
-                              return next;
-                            })
-                          }
-                          aria-label={t("nodes.updates.selectNode", {
-                            name: node.name,
-                          })}
-                        />
+                        {showUpdateControls ? (
+                          <Checkbox
+                            className="mt-1"
+                            checked={selectedNodeIds.has(node.id)}
+                            disabled={!canUpdate}
+                            onCheckedChange={(checked) =>
+                              setSelectedNodeIds((current) => {
+                                const next = new Set(current);
+                                if (checked === true) next.add(node.id);
+                                else next.delete(node.id);
+                                return next;
+                              })
+                            }
+                            aria-label={t("nodes.updates.selectNode", {
+                              name: node.name,
+                            })}
+                          />
+                        ) : null}
                         <div className="min-w-0">
-                          <p className="truncate font-medium">{node.name}</p>
+                          <Link
+                            to={`/nodes/${node.id}`}
+                            className="block truncate font-medium underline-offset-4 hover:underline"
+                          >
+                            {node.name}
+                          </Link>
                           <p className="mt-1 truncate text-xs text-muted-foreground">
                             {node.hostname}
                           </p>
@@ -884,6 +964,16 @@ function NodeListCard({
                       <NodeStatusBadge node={node} />
                     </div>
                     <dl className="grid grid-cols-2 gap-3 text-xs">
+                      <div className="col-span-2">
+                        <dt className="text-muted-foreground">
+                          {t("nodes.inventory.publicAddresses")}
+                        </dt>
+                        <dd className="mt-2">
+                          <NodePublicAddresses
+                            addresses={node.publicAddresses}
+                          />
+                        </dd>
+                      </div>
                       <div>
                         <dt className="text-muted-foreground">
                           {t("nodes.inventory.agent")}
@@ -915,15 +1005,15 @@ function NodeListCard({
                         </dd>
                       </div>
                     </dl>
-                    <NodeActions
+                    <NodeQuickActions
                       node={node}
                       csrfToken={csrfToken}
                       onNodeChange={onNodeChange}
-                      onDeletionQueued={onDeletionQueued}
                       updateAvailable={updateAvailable}
                       updateTask={task}
                       updating={updating}
                       onUpdate={() => void requestUpdates([node.id])}
+                      stacked
                     />
                   </div>
                 );
@@ -933,6 +1023,59 @@ function NodeListCard({
         </>
       )}
     </Card>
+  );
+}
+
+function NodePublicAddresses({
+  addresses,
+}: {
+  addresses: Node["publicAddresses"];
+}) {
+  const { t } = useTranslation();
+  if (addresses.length === 0) {
+    return (
+      <span className="text-xs text-muted-foreground">
+        {t("nodes.inventory.noPublicAddresses")}
+      </span>
+    );
+  }
+  return (
+    <div className="space-y-2">
+      {addresses.map((address) => (
+        <div key={address.id} className="flex flex-wrap items-center gap-1.5">
+          <Globe2
+            aria-hidden="true"
+            className="size-3.5 text-muted-foreground"
+          />
+          <span className="break-all font-mono text-xs">{address.address}</span>
+          <Badge variant="secondary">{address.family.toUpperCase()}</Badge>
+          <Badge
+            variant={address.probeEnabled ? "outline" : "secondary"}
+            className={
+              address.probeEnabled
+                ? "border-emerald-600/40 text-emerald-700 dark:text-emerald-400"
+                : undefined
+            }
+          >
+            {address.probeEnabled
+              ? t("nodes.inventory.probeEnabled")
+              : t("nodes.inventory.probeDisabled")}
+          </Badge>
+          {!address.available ? (
+            <Badge variant="outline">
+              {t("nodes.inventory.addressUnavailable")}
+            </Badge>
+          ) : null}
+        </div>
+      ))}
+    </div>
+  );
+}
+
+function isNodeRowNavigationTarget(target: EventTarget | null) {
+  return !(
+    target instanceof Element &&
+    target.closest("a, button, input, [role='checkbox'], [role='group']")
   );
 }
 
@@ -1062,102 +1205,30 @@ function AgentUpdateStatus({
   );
 }
 
-function nodeHasAvailableUpdate(node: Node, updates?: AgentUpdateState) {
-  const targetVersion = valid(updates?.availableRelease?.version ?? "");
-  const currentVersion = valid(node.agentVersion);
-  return (
-    node.capabilities.includes("agent-update-v1") &&
-    targetVersion !== null &&
-    currentVersion !== null &&
-    major(targetVersion) === major(currentVersion) &&
-    gt(targetVersion, currentVersion)
-  );
-}
-
-function canRequestAgentUpdate(
-  node: Node,
-  task: AgentUpdateTask | undefined,
-  updates?: AgentUpdateState,
-) {
-  return (
-    nodeHasAvailableUpdate(node, updates) &&
-    node.enabled &&
-    node.status === "online" &&
-    node.deletionStatus === undefined &&
-    (task === undefined || isTerminalUpdateTask(task.status))
-  );
-}
-
-function isTerminalUpdateTask(status: AgentUpdateTask["status"]) {
-  return ["succeeded", "failed", "rolled-back", "rejected", "expired"].includes(
-    status,
-  );
-}
-
-function NodeStatusBadge({ node }: { node: Node }) {
-  const { t } = useTranslation();
-  const labels = {
-    online: t("nodes.status.online"),
-    offline: t("nodes.status.offline"),
-    disabled: t("nodes.status.disabled"),
-    revoked: t("nodes.status.revoked"),
-  };
-  if (node.deletionStatus !== undefined) {
-    return (
-      <Badge variant="destructive">
-        <Trash2 aria-hidden="true" />
-        {node.deletionStatus === "failed"
-          ? t("nodes.deletion.failed")
-          : t("nodes.deletion.pending")}
-      </Badge>
-    );
-  }
-  return (
-    <Badge
-      variant={
-        node.status === "online"
-          ? "outline"
-          : node.status === "offline"
-            ? "secondary"
-            : "destructive"
-      }
-    >
-      {node.status === "online" ? (
-        <Wifi aria-hidden="true" />
-      ) : (
-        <WifiOff aria-hidden="true" />
-      )}
-      {labels[node.status]}
-    </Badge>
-  );
-}
-
-function NodeActions({
+function NodeQuickActions({
   node,
   csrfToken,
   onNodeChange,
-  onDeletionQueued,
   updateAvailable,
   updateTask,
   updating,
   onUpdate,
+  stacked = false,
 }: {
   node: Node;
   csrfToken: string;
   onNodeChange: (node: Node) => void;
-  onDeletionQueued: (deletion: NodeDeletion) => void;
   updateAvailable: boolean;
   updateTask?: AgentUpdateTask;
   updating: boolean;
   onUpdate: () => void;
+  stacked?: boolean;
 }) {
   const { t } = useTranslation();
-  const [working, setWorking] = useState<
-    "toggle" | "sync" | "revoke" | "delete"
+  const [working, setWorking] = useState<"toggle" | "probe">();
+  const [feedback, setFeedback] = useState<
+    { kind: "success" | "error"; message: string } | undefined
   >();
-  const [error, setError] = useState<string>();
-  const deletionPending = node.deletionStatus === "pending";
-  const supportsSync = node.capabilities.includes("sync-wakeup-v1");
   const activeUpdate =
     updateTask !== undefined && !isTerminalUpdateTask(updateTask.status);
   const updateDisabledReason = !node.enabled
@@ -1165,286 +1236,114 @@ function NodeActions({
     : node.status !== "online"
       ? t("nodes.updates.offlineReason")
       : undefined;
+  const buttonClassName = stacked
+    ? "h-auto min-h-8 w-full min-w-0 justify-start whitespace-normal py-1.5 text-left"
+    : undefined;
+  const probeUnavailable =
+    !node.enabled ||
+    node.status !== "online" ||
+    node.deletionStatus !== undefined ||
+    !node.capabilities.includes("complete-probe-v1");
 
   async function toggleEnabled() {
     setWorking("toggle");
-    setError(undefined);
+    setFeedback(undefined);
     try {
       onNodeChange(await updateNode(node.id, !node.enabled, csrfToken));
     } catch (cause) {
-      setError(formatAPIError(cause, t));
+      setFeedback({ kind: "error", message: formatAPIError(cause, t) });
     } finally {
       setWorking(undefined);
     }
   }
 
-  async function toggleSync() {
-    setWorking("sync");
-    setError(undefined);
+  async function runProbe() {
+    setWorking("probe");
+    setFeedback(undefined);
     try {
-      onNodeChange(
-        await (node.syncStatus === undefined
-          ? startNodeSyncSession(node.id, csrfToken)
-          : stopNodeSyncSession(node.id, csrfToken)),
-      );
+      await createCompleteProbeTask(node.id, csrfToken);
+      setFeedback({ kind: "success", message: t("probe.task.created") });
     } catch (cause) {
-      setError(formatAPIError(cause, t));
-    } finally {
-      setWorking(undefined);
-    }
-  }
-
-  async function revoke() {
-    setWorking("revoke");
-    setError(undefined);
-    try {
-      onNodeChange(await revokeNode(node.id, csrfToken));
-    } catch (cause) {
-      setError(formatAPIError(cause, t));
-    } finally {
-      setWorking(undefined);
-    }
-  }
-
-  async function remove() {
-    setWorking("delete");
-    setError(undefined);
-    try {
-      onDeletionQueued(await deleteNode(node.id, csrfToken));
-    } catch (cause) {
-      setError(formatAPIError(cause, t));
+      setFeedback({ kind: "error", message: formatAPIError(cause, t) });
     } finally {
       setWorking(undefined);
     }
   }
 
   return (
-    <div className="flex flex-wrap items-center justify-end gap-1">
-      <Tooltip>
-        <TooltipTrigger asChild>
-          <Button variant="ghost" size="icon-sm" asChild>
-            <Link
-              to={`/nodes/${node.id}/network`}
-              aria-label={t("nodes.actions.network")}
-            >
-              <NetworkIcon aria-hidden="true" />
-            </Link>
-          </Button>
-        </TooltipTrigger>
-        <TooltipContent>{t("nodes.actions.network")}</TooltipContent>
-      </Tooltip>
-
-      <Tooltip>
-        <TooltipTrigger asChild>
-          <Button variant="ghost" size="icon-sm" asChild>
-            <Link
-              to={`/nodes/${node.id}/probe`}
-              aria-label={t("nodes.actions.probe")}
-            >
-              <ScanSearch aria-hidden="true" />
-            </Link>
-          </Button>
-        </TooltipTrigger>
-        <TooltipContent>{t("nodes.actions.probe")}</TooltipContent>
-      </Tooltip>
+    <div
+      className={
+        stacked
+          ? "grid grid-cols-1 gap-2 border-t pt-4 sm:grid-cols-2"
+          : "flex flex-wrap items-center justify-end gap-1.5"
+      }
+      role="group"
+      aria-label={t("nodes.actions.group", { name: node.name })}
+    >
+      <Button
+        variant="outline"
+        size="sm"
+        className={buttonClassName}
+        disabled={working !== undefined || probeUnavailable}
+        onClick={() => void runProbe()}
+      >
+        {working === "probe" ? (
+          <LoaderCircle className="animate-spin" aria-hidden="true" />
+        ) : (
+          <ScanSearch aria-hidden="true" />
+        )}
+        {t("nodes.quickActions.runProbe")}
+      </Button>
 
       {updateAvailable && !activeUpdate ? (
-        <Tooltip>
-          <TooltipTrigger asChild>
-            <span className="inline-flex">
-              <Button
-                variant="ghost"
-                size="icon-sm"
-                disabled={updating || updateDisabledReason !== undefined}
-                aria-label={t("nodes.updates.updateNode", {
-                  name: node.name,
-                })}
-                onClick={onUpdate}
-              >
-                {updating ? (
-                  <LoaderCircle className="animate-spin" aria-hidden="true" />
-                ) : (
-                  <CircleArrowUp aria-hidden="true" />
-                )}
-              </Button>
-            </span>
-          </TooltipTrigger>
-          <TooltipContent>
-            {updateDisabledReason ??
-              t("nodes.updates.updateNode", { name: node.name })}
-          </TooltipContent>
-        </Tooltip>
+        <Button
+          variant="outline"
+          size="sm"
+          className={buttonClassName}
+          disabled={updating || updateDisabledReason !== undefined}
+          title={updateDisabledReason}
+          onClick={onUpdate}
+        >
+          {updating ? (
+            <LoaderCircle className="animate-spin" aria-hidden="true" />
+          ) : (
+            <CircleArrowUp aria-hidden="true" />
+          )}
+          {t("nodes.updates.updateAction")}
+        </Button>
       ) : null}
 
       {node.status !== "revoked" && node.deletionStatus === undefined ? (
-        <Tooltip>
-          <TooltipTrigger asChild>
-            <Button
-              variant="ghost"
-              size="icon-sm"
-              disabled={working !== undefined}
-              aria-label={
-                node.enabled
-                  ? t("nodes.actions.disable")
-                  : t("nodes.actions.enable")
-              }
-              onClick={() => void toggleEnabled()}
-            >
-              {working === "toggle" ? (
-                <LoaderCircle className="animate-spin" aria-hidden="true" />
-              ) : node.enabled ? (
-                <Pause aria-hidden="true" />
-              ) : (
-                <Play aria-hidden="true" />
-              )}
-            </Button>
-          </TooltipTrigger>
-          <TooltipContent>
-            {node.enabled
-              ? t("nodes.actions.disable")
-              : t("nodes.actions.enable")}
-          </TooltipContent>
-        </Tooltip>
+        <Button
+          variant="outline"
+          size="sm"
+          className={buttonClassName}
+          disabled={working !== undefined}
+          onClick={() => void toggleEnabled()}
+        >
+          {working === "toggle" ? (
+            <LoaderCircle className="animate-spin" aria-hidden="true" />
+          ) : node.enabled ? (
+            <Pause aria-hidden="true" />
+          ) : (
+            <Play aria-hidden="true" />
+          )}
+          {node.enabled
+            ? t("nodes.actions.disable")
+            : t("nodes.actions.enable")}
+        </Button>
       ) : null}
 
-      {node.status !== "revoked" && node.deletionStatus === undefined ? (
-        <Tooltip>
-          <TooltipTrigger asChild>
-            <span className="inline-flex">
-              <Button
-                variant="ghost"
-                size="icon-sm"
-                disabled={
-                  working !== undefined ||
-                  (node.syncStatus === undefined && !supportsSync)
-                }
-                aria-label={
-                  node.syncStatus === undefined
-                    ? t("nodes.sync.start")
-                    : t("nodes.sync.stop")
-                }
-                onClick={() => void toggleSync()}
-              >
-                {working === "sync" ? (
-                  <LoaderCircle className="animate-spin" aria-hidden="true" />
-                ) : node.syncStatus === undefined ? (
-                  <RadioTower aria-hidden="true" />
-                ) : (
-                  <Unplug aria-hidden="true" />
-                )}
-              </Button>
-            </span>
-          </TooltipTrigger>
-          <TooltipContent>
-            {node.syncStatus === undefined && !supportsSync
-              ? t("nodes.sync.unsupported")
-              : node.syncStatus === undefined
-                ? t("nodes.sync.start")
-                : t("nodes.sync.stop")}
-          </TooltipContent>
-        </Tooltip>
-      ) : null}
-
-      {node.status !== "revoked" && node.deletionStatus === undefined ? (
-        <AlertDialog>
-          <Tooltip>
-            <TooltipTrigger asChild>
-              <AlertDialogTrigger asChild>
-                <Button
-                  variant="ghost"
-                  size="icon-sm"
-                  disabled={working !== undefined}
-                  aria-label={t("nodes.actions.revoke")}
-                >
-                  <ShieldX aria-hidden="true" />
-                </Button>
-              </AlertDialogTrigger>
-            </TooltipTrigger>
-            <TooltipContent>{t("nodes.actions.revoke")}</TooltipContent>
-          </Tooltip>
-          <AlertDialogContent>
-            <AlertDialogHeader>
-              <AlertDialogMedia>
-                <ShieldX aria-hidden="true" />
-              </AlertDialogMedia>
-              <AlertDialogTitle>
-                {t("nodes.revoke.title", { name: node.name })}
-              </AlertDialogTitle>
-              <AlertDialogDescription>
-                {t("nodes.revoke.detail")}
-              </AlertDialogDescription>
-            </AlertDialogHeader>
-            <AlertDialogFooter>
-              <AlertDialogCancel>{t("common.cancel")}</AlertDialogCancel>
-              <AlertDialogAction
-                variant="destructive"
-                onClick={() => void revoke()}
-              >
-                {t("nodes.revoke.confirm")}
-              </AlertDialogAction>
-            </AlertDialogFooter>
-          </AlertDialogContent>
-        </AlertDialog>
-      ) : null}
-
-      <AlertDialog>
-        <Tooltip>
-          <TooltipTrigger asChild>
-            <AlertDialogTrigger asChild>
-              <Button
-                variant="ghost"
-                size="icon-sm"
-                disabled={working !== undefined || deletionPending}
-                aria-label={
-                  node.deletionStatus === "failed"
-                    ? t("nodes.actions.retryDeletion")
-                    : t("nodes.actions.delete")
-                }
-              >
-                <Trash2 aria-hidden="true" />
-              </Button>
-            </AlertDialogTrigger>
-          </TooltipTrigger>
-          <TooltipContent>
-            {node.deletionStatus === "failed"
-              ? t("nodes.actions.retryDeletion")
-              : t("nodes.actions.delete")}
-          </TooltipContent>
-        </Tooltip>
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogMedia>
-              <Trash2 aria-hidden="true" />
-            </AlertDialogMedia>
-            <AlertDialogTitle>
-              {t("nodes.deletion.title", { name: node.name })}
-            </AlertDialogTitle>
-            <AlertDialogDescription>
-              {t("nodes.deletion.detail")}
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel>{t("common.cancel")}</AlertDialogCancel>
-            <AlertDialogAction
-              variant="destructive"
-              onClick={() => void remove()}
-            >
-              {node.deletionStatus === "failed"
-                ? t("nodes.actions.retryDeletion")
-                : t("nodes.deletion.confirm")}
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
-
-      {error !== undefined ? (
-        <p className="w-full text-right text-xs text-destructive" role="alert">
-          {error}
-        </p>
-      ) : null}
-      {node.deletionError !== undefined ? (
-        <p className="w-full text-right text-xs text-destructive" role="alert">
-          {node.deletionError}
+      {feedback ? (
+        <p
+          className={`text-xs ${stacked ? "sm:col-span-2" : "w-full text-right"} ${
+            feedback.kind === "error"
+              ? "text-destructive"
+              : "text-muted-foreground"
+          }`}
+          role={feedback.kind === "error" ? "alert" : "status"}
+        >
+          {feedback.message}
         </p>
       ) : null}
     </div>

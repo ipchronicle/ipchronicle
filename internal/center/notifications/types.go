@@ -101,16 +101,17 @@ type SenderUpdate struct {
 }
 
 type Rule struct {
-	ID        uuid.UUID
-	Name      string
-	Enabled   bool
-	SenderID  uuid.UUID
-	EventType string
-	FieldID   *string
-	NodeID    *uuid.UUID
-	EgressID  *uuid.UUID
-	CreatedAt time.Time
-	UpdatedAt time.Time
+	ID            uuid.UUID
+	Name          string
+	Enabled       bool
+	SenderID      uuid.UUID
+	EventType     string
+	FieldID       *string
+	NodeID        *uuid.UUID
+	EgressID      *uuid.UUID
+	PublicAddress *string
+	CreatedAt     time.Time
+	UpdatedAt     time.Time
 }
 
 type RuleCreate struct {

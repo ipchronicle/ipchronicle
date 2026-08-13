@@ -2,7 +2,6 @@ import { useCallback, useEffect, useState } from "react";
 import type { FormEvent } from "react";
 import {
   Activity,
-  ArrowLeft,
   Check,
   Clock3,
   LoaderCircle,
@@ -15,7 +14,7 @@ import {
 import { useTranslation } from "react-i18next";
 import { Link, useParams } from "react-router";
 
-import { listNodes, type Node } from "@/api/nodes";
+import type { Node } from "@/api/nodes";
 import {
   createCompleteProbeTask,
   getNodeProbe,
@@ -26,6 +25,7 @@ import {
   type ProbeTask,
 } from "@/api/probes";
 import { useAuth } from "@/auth-context";
+import { useNodeDetail } from "@/components/node-detail-layout";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -45,14 +45,14 @@ import { formatAPIError } from "@/lib/api-error";
 
 type ViewState =
   | { kind: "loading" }
-  | { kind: "success"; node: Node; probe: NodeProbeState }
-  | { kind: "not-found" }
+  | { kind: "success"; probe: NodeProbeState }
   | { kind: "error" };
 
 const activeTaskStatuses = new Set(["pending", "acknowledged", "running"]);
 
 export function NodeProbePage() {
   const { nodeId = "" } = useParams();
+  const { node } = useNodeDetail();
   const { t } = useTranslation();
   const { state: authState } = useAuth();
   const [state, setState] = useState<ViewState>({ kind: "loading" });
@@ -67,14 +67,10 @@ export function NodeProbePage() {
       if (initial) setState({ kind: "loading" });
       else if (!quiet) setRefreshing(true);
       try {
-        const [nodes, probe] = await Promise.all([
-          listNodes(signal),
-          getNodeProbe(nodeId, signal),
-        ]);
-        const node = nodes.find((item) => item.id === nodeId);
-        setState(
-          node ? { kind: "success", node, probe } : { kind: "not-found" },
-        );
+        setState({
+          kind: "success",
+          probe: await getNodeProbe(nodeId, signal),
+        });
       } catch (error) {
         if (error instanceof DOMException && error.name === "AbortError")
           return;
@@ -134,68 +130,41 @@ export function NodeProbePage() {
   }
 
   return (
-    <main className="mx-auto w-full max-w-6xl px-4 py-10 sm:px-6 sm:py-14">
-      <div className="flex flex-wrap items-end justify-between gap-4">
-        <div className="min-w-0 max-w-2xl">
-          <Button variant="ghost" size="sm" asChild className="mb-3 -ml-3">
-            <Link to="/nodes">
-              <ArrowLeft data-icon="inline-start" aria-hidden="true" />
-              {t("probe.back")}
-            </Link>
-          </Button>
-          <p className="text-xs font-medium text-muted-foreground uppercase">
-            {t("probe.section")}
-          </p>
-          <h1 className="mt-2 truncate text-2xl font-semibold sm:text-3xl">
-            {state.kind === "success" ? state.node.name : t("probe.title")}
-          </h1>
-          <p className="mt-2 text-sm text-muted-foreground">
-            {t("probe.detail")}
-          </p>
-        </div>
-        <div className="flex flex-wrap gap-2">
+    <div className="space-y-4" aria-live="polite">
+      <div className="flex flex-wrap justify-end gap-2">
+        <Button
+          variant="outline"
+          disabled={refreshing || state.kind === "loading"}
+          onClick={() => void load()}
+        >
+          <RefreshCw
+            data-icon="inline-start"
+            aria-hidden="true"
+            className={refreshing ? "animate-spin" : undefined}
+          />
+          {t("probe.refresh")}
+        </Button>
+        {state.kind === "success" ? (
           <Button
-            variant="outline"
-            disabled={refreshing || state.kind === "loading"}
-            onClick={() => void load()}
+            disabled={starting || immediateProbeUnavailable(node, state.probe)}
+            onClick={() => void startProbe()}
           >
-            <RefreshCw
-              data-icon="inline-start"
-              aria-hidden="true"
-              className={refreshing ? "animate-spin" : undefined}
-            />
-            {t("probe.refresh")}
+            {starting ? (
+              <LoaderCircle
+                data-icon="inline-start"
+                aria-hidden="true"
+                className="animate-spin"
+              />
+            ) : (
+              <Play data-icon="inline-start" aria-hidden="true" />
+            )}
+            {t("probe.runNow")}
           </Button>
-          {state.kind === "success" ? (
-            <Button
-              disabled={
-                starting || immediateProbeUnavailable(state.node, state.probe)
-              }
-              onClick={() => void startProbe()}
-            >
-              {starting ? (
-                <LoaderCircle
-                  data-icon="inline-start"
-                  aria-hidden="true"
-                  className="animate-spin"
-                />
-              ) : (
-                <Play data-icon="inline-start" aria-hidden="true" />
-              )}
-              {t("probe.runNow")}
-            </Button>
-          ) : null}
-        </div>
+        ) : null}
       </div>
 
-      <div className="mt-8 space-y-4" aria-live="polite">
+      <div className="space-y-4">
         {state.kind === "loading" ? <ProbeSkeleton /> : null}
-        {state.kind === "not-found" ? (
-          <Alert variant="destructive">
-            <TriangleAlert aria-hidden="true" />
-            <AlertTitle>{t("probe.nodeNotFound")}</AlertTitle>
-          </Alert>
-        ) : null}
         {state.kind === "error" ? (
           <Alert variant="destructive">
             <TriangleAlert aria-hidden="true" />
@@ -236,12 +205,12 @@ export function NodeProbePage() {
                 </AlertDescription>
               </Alert>
             ) : null}
-            {immediateProbeReason(state.node, state.probe) ? (
+            {immediateProbeReason(node, state.probe) ? (
               <Alert>
                 <Clock3 aria-hidden="true" />
                 <AlertDescription>
                   {t(
-                    `probe.unavailable.${immediateProbeReason(state.node, state.probe)}`,
+                    `probe.unavailable.${immediateProbeReason(node, state.probe)}`,
                   )}
                 </AlertDescription>
               </Alert>
@@ -259,7 +228,7 @@ export function NodeProbePage() {
           </>
         ) : null}
       </div>
-    </main>
+    </div>
   );
 }
 

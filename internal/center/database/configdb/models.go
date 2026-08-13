@@ -183,24 +183,66 @@ type NotificationSender struct {
 	UpdatedAt              int64
 }
 
+type PendingPublicAddressProbe struct {
+	NodeID                        string
+	PublicAddressID               string
+	RequiredConfigurationRevision int64
+	CreatedAt                     int64
+}
+
 type ProbeTask struct {
-	ID                  string
-	NodeID              string
-	Kind                string
-	Status              string
-	CreatedAt           int64
-	ExpiresAt           int64
-	AcknowledgedAt      *int64
-	StartedAt           *int64
-	CompletedAt         *int64
-	RunID               *string
-	RejectionReason     *string
-	TargetVersion       *string
-	PreviousVersion     *string
-	ResultVersion       *string
-	FailureCode         *string
-	Diagnostic          *string
-	TerminalConfirmedAt *int64
+	ID                        string
+	NodeID                    string
+	Kind                      string
+	Status                    string
+	CreatedAt                 int64
+	ExpiresAt                 int64
+	AcknowledgedAt            *int64
+	StartedAt                 *int64
+	CompletedAt               *int64
+	RunID                     *string
+	RejectionReason           *string
+	TargetVersion             *string
+	PreviousVersion           *string
+	ResultVersion             *string
+	FailureCode               *string
+	Diagnostic                *string
+	TerminalConfirmedAt       *int64
+	Trigger                   string
+	TriggeringPublicAddressID *string
+}
+
+type PublicAddress struct {
+	ID                 string
+	Address            string
+	Family             string
+	ProbeEnabled       int64
+	ProbeOnRediscovery int64
+	SelectedPathID     *string
+	FirstSeenAt        int64
+	LastSeenAt         int64
+	UpdatedAt          int64
+}
+
+type PublicAddressNode struct {
+	PublicAddressID string
+	NodeID          string
+	FirstSeenAt     int64
+	LastSeenAt      int64
+}
+
+type PublicAddressPath struct {
+	PublicAddressID string
+	PathID          string
+	NodeID          string
+	LocalInterface  *string
+	LocalAddress    *string
+	ProxyPath       int64
+	LikelyNat       int64
+	Temporary       int64
+	Available       int64
+	LastCheckedAt   int64
+	LastSucceededAt *int64
 }
 
 type RevokedAgentCredential struct {
@@ -215,4 +257,5 @@ type SystemState struct {
 	PendingHistoryGeneration *string
 	HistoryResetAt           *int64
 	ReleaseChannel           string
+	ExternalOrigin           string
 }

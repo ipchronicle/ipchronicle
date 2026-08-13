@@ -27,7 +27,8 @@ CREATE INDEX address_states_node_id_idx
 
 CREATE TABLE address_events (
     id TEXT PRIMARY KEY,
-    egress_id TEXT NOT NULL,
+    public_address_id TEXT NOT NULL,
+    source_path_id TEXT NOT NULL,
     node_id TEXT NOT NULL,
     history_generation TEXT NOT NULL CHECK (length(history_generation) = 64),
     sequence INTEGER NOT NULL CHECK (sequence >= 1),
@@ -48,11 +49,14 @@ CREATE TABLE address_events (
     )),
     observed_at INTEGER NOT NULL,
     received_at INTEGER NOT NULL,
-    UNIQUE (egress_id, history_generation, sequence)
+    UNIQUE (source_path_id, history_generation, sequence)
 );
 
 CREATE INDEX address_events_node_time_idx
     ON address_events (node_id, observed_at DESC, sequence DESC);
+
+CREATE INDEX address_events_public_address_time_idx
+    ON address_events (public_address_id, observed_at DESC, sequence DESC);
 
 CREATE TABLE history_gaps (
     id TEXT PRIMARY KEY,

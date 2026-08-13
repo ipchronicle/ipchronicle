@@ -27,7 +27,8 @@ The Center needs outbound HTTPS access to GitHub for release discovery. Each
 Agent needs outbound HTTP or HTTPS access to its Center, configured public-IP
 discovery services, official GitHub release assets for installation and
 updates, the official IPQuality download, and services contacted by that
-script. A configured network proxy applies to the egress that references it;
+script. A configured network proxy applies only to the explicit discovery path
+that references it;
 it is not a global Center or Agent proxy.
 
 ## Install The Center
@@ -36,7 +37,7 @@ Choose the release version, create an empty installation directory, and
 download the deployment assets. The version must omit the leading `v`.
 
 ```sh
-IPCHRONICLE_VERSION=0.1.0-rc.2
+IPCHRONICLE_VERSION=0.1.0-rc.3
 mkdir ipchronicle
 cd ipchronicle
 curl --proto '=https' --tlsv1.2 -fLO \
@@ -89,7 +90,6 @@ The release `default.env.example` exposes these operator settings:
 | `IPCHRONICLE_HTTP_PORT` | `8080` | Host port published by Compose. |
 | `IPCHRONICLE_ADMIN_USERNAME` | `admin` | First-start administrator username. |
 | `IPCHRONICLE_ADMIN_PASSWORD` | `admin` | First-start administrator password. |
-| `IPCHRONICLE_EXTERNAL_URL` | empty | Exact browser-facing HTTP or HTTPS origin, without a path. |
 | `IPCHRONICLE_TRUSTED_PROXIES` | empty | Comma-separated proxy source CIDRs allowed to supply forwarded headers. |
 
 The fixed database paths and listen address in `compose.yaml` match the two
@@ -99,10 +99,11 @@ deployment.
 ## Reverse Proxy And TLS
 
 HTTPS at an operator-managed reverse proxy is recommended but not enforced.
-Set `IPCHRONICLE_EXTERNAL_URL` to the exact origin used by browsers and Agents,
-for example `https://ip.example.com`. Set `IPCHRONICLE_TRUSTED_PROXIES` only to
-the source CIDRs from which the Center actually receives proxy connections.
-This may be a Docker bridge CIDR rather than `127.0.0.1`.
+Set `IPCHRONICLE_TRUSTED_PROXIES` only to the source CIDRs from which the Center
+actually receives proxy connections. This may be a Docker bridge CIDR rather
+than `127.0.0.1`. The external address is managed on the system settings page;
+automatic mode follows the current browser request, while a custom value is
+used in Agent installation commands and notification links.
 
 Forward the original host, client address, and scheme. WebSocket Upgrade must
 work under `/api/v1/agent/sync/`; ordinary 30-second Agent HTTP polling remains
@@ -166,10 +167,12 @@ it does not replace polling or create an inbound Agent port.
 
 Disabling a node stops its polling work and local schedules after the Agent
 receives the change. Revoking credentials permanently disconnects that Agent.
-Deleting a node removes its Center-owned configuration and history but does not
-uninstall software from the host.
+Deleting a node removes its Center-owned configuration, hidden discovery paths,
+and node-level state but does not uninstall software from the host. Public-IP
+reports and address events already assigned to a global public-IP identity are
+retained.
 
-## Network Egresses And Address Observation
+## Public-IP Discovery And Address Observation
 
 Open **Settings > Network probes** to configure two to eight distinct public-IP
 discovery service hosts for each address family. HTTP and HTTPS URLs are
@@ -179,29 +182,33 @@ presented as an address change.
 
 Reusable HTTP, HTTPS, and SOCKS5 proxies are configured on the same page. Proxy
 passwords are encrypted in `config.db`, sent only to Agents with a referencing
-egress, and are never displayed again. Leaving a password blank during an edit
+proxy discovery path, and are never displayed again. Leaving a password blank during an edit
 preserves it unless **Clear password** is selected.
 
-Open a node's **Network** page to inspect reported interfaces, addresses, and
-routes and to manage durable egresses:
+Open a node's **Public IPs** page to manage the canonical public addresses that
+the node can reach:
 
-- usable default routes create automatic IPv4 or IPv6 egresses;
-- discovered interfaces or stable source addresses can be enabled explicitly;
-- proxy egresses bind an address family to a reusable proxy; and
-- a missing local selector remains configured but unavailable until it returns.
+- usable default routes and stable routable sources are discovered
+  automatically as hidden paths;
+- one public IP found through several interfaces, sources, NAT mappings,
+  proxies, or nodes appears once across the Center;
+- a newly discovered public IP is visible but complete probing is disabled
+  until the administrator enables it; and
+- explicit proxy discovery paths bind one reusable proxy and address family to
+  one node because they cannot be inferred from network inventory.
 
-Temporary IPv6 addresses are displayed but cannot become independent durable
-egresses. If the selected local address differs from the confirmed public
-address, the Center marks the path as likely NAT and shows the local-to-public
-mapping. IPQuality still runs through the selected egress; some upstream DNS
-or raw-mail checks may use the default route or fail to bind.
+Interfaces, routes, local source addresses, selectors, and automatic path IDs
+are internal execution details and are not displayed as user objects. Temporary
+IPv6 privacy sources do not create their own durable path. When discovery
+indicates NAT, the Center marks the public IP accordingly. Some upstream DNS or
+raw-mail checks may still use the default route or fail to bind.
 
-Each egress has its own address-check interval, enabled state, and
-**probe after a confirmed address change** switch. The default interval is ten
-minutes and the address-change probe switch is on. The first confirmed address
-does not trigger a complete probe. Address transitions, failure boundaries,
-recoveries, and queue gaps are retained; unchanged checks are not historical
-records.
+Each public IP has a complete-probe switch and a **probe after rediscovery**
+switch. The latter defaults on but only applies after complete probing has been
+enabled for that IP. The default discovery interval is ten minutes. First
+observation does not trigger a complete probe. Address transitions, failure
+boundaries, recoveries, and node-level queue gaps are retained; unchanged checks
+are not historical records.
 
 ## Complete Probes
 
@@ -215,9 +222,9 @@ limit.
 An immediate task exists only for an online node, expires after two minutes,
 and occupies the node's single task slot. There is no task backlog. The page
 shows whether the Agent received the task and the progress or terminal state of
-each egress execution.
+each public-IP execution.
 
-For every attempted egress the Agent downloads a fresh official IPQuality
+For every attempted public IP the Agent downloads a fresh official IPQuality
 script, supervises its process tree as root, and validates bounded JSON output.
 IPChronicle does not pin or cache the upstream script. A missing known field is
 shown as missing; if a known field changes to an incompatible data type, that
@@ -225,16 +232,17 @@ field is shown as unavailable while the raw report and format status remain
 inspectable.
 
 An Agent retains at most 30 pending address events and 30 pending complete
-results per egress while the Center is unavailable. Oldest-item eviction is
+results per public IP while the Center is unavailable. Address events are
+bounded independently per hidden discovery path. Oldest-item eviction is
 reported as an explicit history gap. Upload retry retransmits stored data and
 never reruns the probe.
 
 ## History, Comparison, And Retention
 
 The **History** page filters complete reports and address transitions by node,
-egress, time, status, trigger, format state, and change state. A report can be
+public IP, time, status, trigger, format state, and change state. A report can be
 compared with its chronological baseline or with another snapshot from the
-same egress. Starred snapshots are protected from retention cleanup.
+same public IP. Starred snapshots are protected from retention cleanup.
 
 Open **Settings > History and storage** to choose one policy:
 
@@ -249,7 +257,8 @@ above a configured logical-size budget; the page reports logical, protected,
 database, WAL, and shared-memory usage separately.
 
 **Clear observed history** removes address events, probe runs, executions,
-snapshots, and gaps while preserving the administrator, nodes, egresses,
+snapshots, and gaps while preserving the administrator, nodes, public-IP
+settings and hidden paths,
 proxies, schedules, notification configuration, and pending task state. It also
 advances the history generation so Agents discard queued data from the old
 generation. No complete probe starts automatically after a reset.
@@ -300,7 +309,7 @@ the single immediate-task slot.
 Use the installer from the same release as root:
 
 ```sh
-IPCHRONICLE_VERSION=0.1.0-rc.2
+IPCHRONICLE_VERSION=0.1.0-rc.3
 curl --proto '=https' --tlsv1.2 -fsSL \
   "https://github.com/ipchronicle/ipchronicle/releases/download/v${IPCHRONICLE_VERSION}/install-agent.sh" |
   sh -s -- --uninstall

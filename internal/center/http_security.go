@@ -25,12 +25,11 @@ type requestSecurity struct {
 type requestSecurityKey struct{}
 
 type proxyPolicy struct {
-	externalOrigin *url.URL
 	trustedProxies []netip.Prefix
 }
 
-func newProxyPolicy(externalOrigin *url.URL, trustedProxies []netip.Prefix) proxyPolicy {
-	return proxyPolicy{externalOrigin: externalOrigin, trustedProxies: trustedProxies}
+func newProxyPolicy(trustedProxies []netip.Prefix) proxyPolicy {
+	return proxyPolicy{trustedProxies: trustedProxies}
 }
 
 func (p proxyPolicy) middleware(next http.Handler) http.Handler {
@@ -52,10 +51,6 @@ func (p proxyPolicy) middleware(next http.Handler) http.Handler {
 
 		expectedOrigin := scheme + "://" + r.Host
 		cookieSecure := scheme == "https"
-		if p.externalOrigin != nil {
-			expectedOrigin = originString(p.externalOrigin)
-			cookieSecure = p.externalOrigin.Scheme == "https"
-		}
 		sessionToken := ""
 		if cookie, err := r.Cookie(administratorSessionCookie); err == nil {
 			sessionToken = cookie.Value

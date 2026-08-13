@@ -34,7 +34,7 @@ async function signIn(page: Page) {
   return session.csrfToken;
 }
 
-async function createNodeWithEgress(
+async function createNodeWithPublicAddress(
   page: Page,
   csrfToken: string,
   nodeName: string,
@@ -59,7 +59,7 @@ async function createNodeWithEgress(
     physicalMemoryBytes: 536870912,
     capabilities: [
       "control-v1",
-      "configuration-v5",
+      "configuration-v6",
       "network-inventory-v1",
       "complete-probe-v1",
     ],
@@ -107,15 +107,77 @@ async function createNodeWithEgress(
     },
   });
   expect(control.status()).toBe(200);
+  const configurationResponse = await page.request.get(
+    "/api/v1/agent/configuration",
+    { headers: { Authorization: `Bearer ${registered.credential}` } },
+  );
+  expect(configurationResponse.status()).toBe(200);
+  const configuration = (await configurationResponse.json()) as {
+    revision: number;
+    historyGeneration: string;
+    discoveryPaths: Array<{ id: string; family: "ipv4" | "ipv6" }>;
+  };
+  const path = configuration.discoveryPaths.find(
+    (item) => item.family === "ipv4",
+  );
+  expect(path).toBeTruthy();
+  const observedAt = "2026-08-09T12:01:00Z";
+  const addressControl = await page.request.post("/api/v1/agent/control", {
+    headers: { Authorization: `Bearer ${registered.credential}` },
+    data: {
+      appliedConfigurationRevision: configuration.revision,
+      metadata,
+      addressStates: [
+        {
+          egressId: path?.id,
+          historyGeneration: configuration.historyGeneration,
+          family: "ipv4",
+          status: "confirmed",
+          sequence: 1,
+          publicAddress: "203.0.113.10",
+          localInterface: "eth0",
+          localAddress: "10.20.30.40",
+          proxyPath: false,
+          likelyNat: true,
+          temporary: false,
+          lastCheckedAt: observedAt,
+          lastSucceededAt: observedAt,
+          lastChangedAt: observedAt,
+        },
+      ],
+      addressEvents: [
+        {
+          id: crypto.randomUUID(),
+          egressId: path?.id,
+          historyGeneration: configuration.historyGeneration,
+          sequence: 1,
+          kind: "first-observation",
+          family: "ipv4",
+          publicAddress: "203.0.113.10",
+          localInterface: "eth0",
+          localAddress: "10.20.30.40",
+          proxyPath: false,
+          likelyNat: true,
+          temporary: false,
+          observedAt,
+        },
+      ],
+      addressGaps: [],
+    },
+  });
+  expect(addressControl.status()).toBe(200);
   const networkResponse = await page.request.get(
     `/api/v1/nodes/${registered.nodeId}/network`,
   );
   expect(networkResponse.status()).toBe(200);
   const network = (await networkResponse.json()) as {
-    egresses: Array<{ id: string; name: string }>;
+    publicAddresses: Array<{ id: string; address: string }>;
   };
-  expect(network.egresses).toHaveLength(1);
-  return { nodeId: registered.nodeId, egress: network.egresses[0] };
+  expect(network.publicAddresses).toHaveLength(1);
+  return {
+    nodeId: registered.nodeId,
+    publicAddress: network.publicAddresses[0],
+  };
 }
 
 async function expectDeliverySucceeded(page: Page, senderName: string) {
@@ -162,7 +224,7 @@ test("configures and delivers notifications through local receivers", async ({
   const javascriptName = `Local JavaScript ${suffix}`;
   const ruleName = `Address changes ${suffix}`;
   const updatedRuleName = `${ruleName} updated`;
-  const node = await createNodeWithEgress(page, csrfToken, nodeName);
+  const node = await createNodeWithPublicAddress(page, csrfToken, nodeName);
 
   try {
     await page.reload();
@@ -240,10 +302,18 @@ test("configures and delivers notifications through local receivers", async ({
     await page.getByLabel("Name", { exact: true }).fill(ruleName);
     await page.getByLabel("Node").click();
     await page.getByRole("option", { name: nodeName }).click();
-    await expect(page.getByLabel("Network egress")).toBeEnabled();
-    await page.getByLabel("Network egress").click();
-    await page.getByRole("option", { name: node.egress.name }).click();
+    await expect(page.getByLabel("Public IP")).toBeEnabled();
+    await page.getByLabel("Public IP").click();
+    await page
+      .getByRole("option", { name: node.publicAddress.address })
+      .click();
     await page.getByRole("button", { name: "Save" }).click();
+    await expect(
+      page.getByText(node.publicAddress.address, { exact: true }),
+    ).toBeVisible();
+    await expect(
+      page.getByText(node.publicAddress.id, { exact: true }),
+    ).toHaveCount(0);
     const ruleCard = page.getByText(ruleName, { exact: true }).locator("..");
     await ruleCard.getByRole("button", { name: "Edit" }).click();
     await page.getByLabel("Name", { exact: true }).fill(updatedRuleName);

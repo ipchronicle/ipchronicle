@@ -19,6 +19,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/ipchronicle/ipchronicle/internal/center/database/configdb"
 	"github.com/ipchronicle/ipchronicle/internal/center/database/historydb"
+	"github.com/ipchronicle/ipchronicle/internal/center/systemsettings"
 )
 
 const (
@@ -37,7 +38,7 @@ type ServiceOptions struct {
 	ConfigQueries   *configdb.Queries
 	HistoryQueries  *historydb.Queries
 	MasterKey       [32]byte
-	ExternalOrigin  *url.URL
+	SystemSettings  *systemsettings.Service
 	Executable      string
 	HTTPClient      *http.Client
 }
@@ -48,7 +49,7 @@ type Service struct {
 	configQueries   *configdb.Queries
 	historyQueries  *historydb.Queries
 	masterKey       [32]byte
-	externalOrigin  *url.URL
+	systemSettings  *systemsettings.Service
 	httpClient      *http.Client
 	javascript      JavaScriptRunner
 	now             func() time.Time
@@ -57,7 +58,7 @@ type Service struct {
 }
 
 func NewService(options ServiceOptions) *Service {
-	if options.ConfigDatabase == nil || options.HistoryDatabase == nil || options.ConfigQueries == nil || options.HistoryQueries == nil {
+	if options.ConfigDatabase == nil || options.HistoryDatabase == nil || options.ConfigQueries == nil || options.HistoryQueries == nil || options.SystemSettings == nil {
 		panic("notification service database dependencies must not be nil")
 	}
 	executable := options.Executable
@@ -80,13 +81,9 @@ func NewService(options ServiceOptions) *Service {
 	service := &Service{
 		configDatabase: options.ConfigDatabase, historyDatabase: options.HistoryDatabase,
 		configQueries: options.ConfigQueries, historyQueries: options.HistoryQueries,
-		masterKey: options.MasterKey, httpClient: client,
+		masterKey: options.MasterKey, systemSettings: options.SystemSettings, httpClient: client,
 		javascript: ProcessJavaScriptRunner{Executable: executable}, now: time.Now,
 		wake: make(chan struct{}, 1),
-	}
-	if options.ExternalOrigin != nil {
-		copy := *options.ExternalOrigin
-		service.externalOrigin = &copy
 	}
 	return service
 }
@@ -340,16 +337,20 @@ func (s *Service) buildDeliveryContent(ctx context.Context, event historydb.Noti
 		}
 	}
 	if event.EgressID != nil {
-		egress, err := s.configQueries.GetNetworkEgressByID(ctx, *event.EgressID)
+		egress, err := s.configQueries.GetPublicAddressByID(ctx, *event.EgressID)
 		if err == nil {
-			envelope.Egress = &egressRef{ID: *event.EgressID, Name: egress.Name, Family: egress.Family}
+			envelope.Egress = &egressRef{ID: *event.EgressID, Name: egress.Address, Family: egress.Family}
 		} else if !errors.Is(err, sql.ErrNoRows) {
 			return nil, "", "", err
 		} else {
 			envelope.Egress = &egressRef{ID: *event.EgressID, Name: *event.EgressID}
 		}
 	}
-	envelope.Link = s.eventLink(event)
+	link, err := s.eventLink(ctx, event)
+	if err != nil {
+		return nil, "", "", err
+	}
+	envelope.Link = link
 	encoded, err := json.Marshal(envelope)
 	if err != nil {
 		return nil, "", "", err
@@ -361,9 +362,17 @@ func (s *Service) buildDeliveryContent(ctx context.Context, event historydb.Noti
 	return encoded, title, body, nil
 }
 
-func (s *Service) eventLink(event historydb.NotificationEvent) *string {
-	if s.externalOrigin == nil {
-		return nil
+func (s *Service) eventLink(ctx context.Context, event historydb.NotificationEvent) (*string, error) {
+	settings, err := s.systemSettings.Get(ctx)
+	if err != nil {
+		return nil, err
+	}
+	if settings.ExternalOrigin == "" {
+		return nil, nil
+	}
+	externalOrigin, err := url.Parse(settings.ExternalOrigin)
+	if err != nil {
+		return nil, err
 	}
 	path := "/history"
 	if event.EventType == EventProbeFieldChange || strings.HasPrefix(event.EventType, "format-") {
@@ -374,8 +383,8 @@ func (s *Service) eventLink(event historydb.NotificationEvent) *string {
 			path = "/probe-snapshots/" + url.PathEscape(payload.SnapshotID)
 		}
 	}
-	result := s.externalOrigin.ResolveReference(&url.URL{Path: path}).String()
-	return &result
+	result := externalOrigin.ResolveReference(&url.URL{Path: path}).String()
+	return &result, nil
 }
 
 func renderEvent(locale string, event eventEnvelope) (string, string) {

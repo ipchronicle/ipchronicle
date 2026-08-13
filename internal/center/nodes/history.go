@@ -284,7 +284,7 @@ func (s *Service) ListHistoryAddressEvents(ctx context.Context, filter HistoryFi
 		if err != nil {
 			return AddressHistoryPage{}, err
 		}
-		owner, err := s.historyOwner(ctx, record.NodeID, record.EgressID)
+		owner, err := s.historyOwner(ctx, record.NodeID, record.PublicAddressID)
 		if err != nil {
 			return AddressHistoryPage{}, err
 		}
@@ -758,9 +758,9 @@ func (s *Service) historyOwner(ctx context.Context, nodeID, egressID string) (Hi
 	} else if !errors.Is(err, sql.ErrNoRows) {
 		return HistoryOwner{}, err
 	}
-	egress, err := s.queries.GetNodeEgress(ctx, configdb.GetNodeEgressParams{NodeID: nodeID, ID: egressID})
+	egress, err := s.queries.GetPublicAddressByID(ctx, egressID)
 	if err == nil {
-		owner.EgressName = &egress.Name
+		owner.EgressName = &egress.Address
 	} else if !errors.Is(err, sql.ErrNoRows) {
 		return HistoryOwner{}, err
 	}

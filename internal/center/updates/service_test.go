@@ -165,7 +165,7 @@ func TestCreateTasksEnforcesNodeAndSharedSlotBoundaries(t *testing.T) {
 
 func registerTestNode(t *testing.T, service *nodes.Service, key, hostname, version string, updateCapable, online bool) uuid.UUID {
 	t.Helper()
-	capabilities := []string{"control-v1", "configuration-v5"}
+	capabilities := []string{"control-v1", "configuration-v6"}
 	if updateCapable {
 		capabilities = append(capabilities, AgentUpdateCapability)
 	}

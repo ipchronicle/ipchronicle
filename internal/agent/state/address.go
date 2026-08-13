@@ -403,8 +403,9 @@ func reconcileAddressBuckets(transaction *bolt.Tx, configuration Configuration, 
 		}
 		return discarded, nil
 	}
-	retained := make(map[string]struct{}, len(configuration.Egresses))
-	for _, egress := range configuration.Egresses {
+	paths := configuration.discoveryPaths()
+	retained := make(map[string]struct{}, len(paths))
+	for _, egress := range paths {
 		retained[egress.ID] = struct{}{}
 	}
 	for _, name := range [][]byte{addressCurrentBucket, addressEventsBucket, addressGapsBucket} {
@@ -462,7 +463,7 @@ func configurationFromTransaction(masterKey [masterKeySize]byte, transaction *bo
 }
 
 func configurationContainsEgress(configuration Configuration, egressID, family string) bool {
-	for _, egress := range configuration.Egresses {
+	for _, egress := range configuration.discoveryPaths() {
 		if egress.ID == egressID && egress.Family == family && egress.Enabled && configuration.Enabled {
 			return true
 		}

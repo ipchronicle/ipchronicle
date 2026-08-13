@@ -101,7 +101,7 @@ func (q *Queries) CountActiveNotificationDeliveriesForSender(ctx context.Context
 const countGlobalAddressEvents = `-- name: CountGlobalAddressEvents :one
 SELECT COUNT(*) FROM address_events
 WHERE (?1 = '' OR node_id = ?1)
-  AND (?2 = '' OR egress_id = ?2)
+  AND (?2 = '' OR public_address_id = ?2)
   AND (?3 IS NULL OR observed_at >= ?3)
   AND (?4 IS NULL OR observed_at <= ?4)
   AND (?5 = '' OR kind = ?5)
@@ -286,16 +286,17 @@ func (q *Queries) CountProbeSnapshots(ctx context.Context, arg CountProbeSnapsho
 
 const createAddressEvent = `-- name: CreateAddressEvent :execrows
 INSERT INTO address_events (
-    id, egress_id, node_id, history_generation, sequence, kind, family,
+    id, public_address_id, source_path_id, node_id, history_generation, sequence, kind, family,
     previous_address, public_address, local_interface, local_address,
     proxy_path, likely_nat, temporary, failure_reason, observed_at, received_at
-) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
 ON CONFLICT (id) DO NOTHING
 `
 
 type CreateAddressEventParams struct {
 	ID                string
-	EgressID          string
+	PublicAddressID   string
+	SourcePathID      string
 	NodeID            string
 	HistoryGeneration string
 	Sequence          int64
@@ -316,7 +317,8 @@ type CreateAddressEventParams struct {
 func (q *Queries) CreateAddressEvent(ctx context.Context, arg CreateAddressEventParams) (int64, error) {
 	result, err := q.db.ExecContext(ctx, createAddressEvent,
 		arg.ID,
-		arg.EgressID,
+		arg.PublicAddressID,
+		arg.SourcePathID,
 		arg.NodeID,
 		arg.HistoryGeneration,
 		arg.Sequence,
@@ -729,15 +731,6 @@ func (q *Queries) CreateProbeSnapshotFormat(ctx context.Context, arg CreateProbe
 	return result.RowsAffected()
 }
 
-const deleteEgressAddressEvents = `-- name: DeleteEgressAddressEvents :exec
-DELETE FROM address_events WHERE egress_id = ?
-`
-
-func (q *Queries) DeleteEgressAddressEvents(ctx context.Context, egressID string) error {
-	_, err := q.db.ExecContext(ctx, deleteEgressAddressEvents, egressID)
-	return err
-}
-
 const deleteEgressAddressGaps = `-- name: DeleteEgressAddressGaps :exec
 DELETE FROM history_gaps WHERE egress_id = ?
 `
@@ -828,6 +821,16 @@ DELETE FROM history_gaps WHERE node_id = ?
 
 func (q *Queries) DeleteNodeAddressGaps(ctx context.Context, nodeID string) error {
 	_, err := q.db.ExecContext(ctx, deleteNodeAddressGaps, nodeID)
+	return err
+}
+
+const deleteNodeAddressNotificationHistory = `-- name: DeleteNodeAddressNotificationHistory :exec
+DELETE FROM notification_events
+WHERE node_id = ? AND egress_id IS NULL
+`
+
+func (q *Queries) DeleteNodeAddressNotificationHistory(ctx context.Context, nodeID *string) error {
+	_, err := q.db.ExecContext(ctx, deleteNodeAddressNotificationHistory, nodeID)
 	return err
 }
 
@@ -1017,7 +1020,7 @@ func (q *Queries) FailNotificationDelivery(ctx context.Context, arg FailNotifica
 }
 
 const getAddressEvent = `-- name: GetAddressEvent :one
-SELECT id, egress_id, node_id, history_generation, sequence, kind, family,
+SELECT id, public_address_id, source_path_id, node_id, history_generation, sequence, kind, family,
        previous_address, public_address, local_interface, local_address,
        proxy_path, likely_nat, temporary, failure_reason, observed_at,
        received_at
@@ -1030,7 +1033,8 @@ func (q *Queries) GetAddressEvent(ctx context.Context, id string) (AddressEvent,
 	var i AddressEvent
 	err := row.Scan(
 		&i.ID,
-		&i.EgressID,
+		&i.PublicAddressID,
+		&i.SourcePathID,
 		&i.NodeID,
 		&i.HistoryGeneration,
 		&i.Sequence,
@@ -1051,26 +1055,27 @@ func (q *Queries) GetAddressEvent(ctx context.Context, id string) (AddressEvent,
 }
 
 const getAddressEventBySequence = `-- name: GetAddressEventBySequence :one
-SELECT id, egress_id, node_id, history_generation, sequence, kind, family,
+SELECT id, public_address_id, source_path_id, node_id, history_generation, sequence, kind, family,
        previous_address, public_address, local_interface, local_address,
        proxy_path, likely_nat, temporary, failure_reason, observed_at,
        received_at
 FROM address_events
-WHERE egress_id = ? AND history_generation = ? AND sequence = ?
+WHERE source_path_id = ? AND history_generation = ? AND sequence = ?
 `
 
 type GetAddressEventBySequenceParams struct {
-	EgressID          string
+	SourcePathID      string
 	HistoryGeneration string
 	Sequence          int64
 }
 
 func (q *Queries) GetAddressEventBySequence(ctx context.Context, arg GetAddressEventBySequenceParams) (AddressEvent, error) {
-	row := q.db.QueryRowContext(ctx, getAddressEventBySequence, arg.EgressID, arg.HistoryGeneration, arg.Sequence)
+	row := q.db.QueryRowContext(ctx, getAddressEventBySequence, arg.SourcePathID, arg.HistoryGeneration, arg.Sequence)
 	var i AddressEvent
 	err := row.Scan(
 		&i.ID,
-		&i.EgressID,
+		&i.PublicAddressID,
+		&i.SourcePathID,
 		&i.NodeID,
 		&i.HistoryGeneration,
 		&i.Sequence,
@@ -1106,7 +1111,7 @@ FROM (
         COALESCE(length(triggering_egress_id), 0)
     ), COUNT(*) FROM probe_runs
     UNION ALL SELECT SUM(
-        256 + length(id) + length(egress_id) + length(node_id) +
+        256 + length(id) + length(public_address_id) + length(source_path_id) + length(node_id) +
         COALESCE(length(previous_address), 0) + COALESCE(length(public_address), 0) +
         COALESCE(length(local_interface), 0) + COALESCE(length(local_address), 0) +
         COALESCE(length(proxy_path), 0) + COALESCE(length(failure_reason), 0)
@@ -1662,13 +1667,13 @@ func (q *Queries) IsProbeSnapshotStarred(ctx context.Context, snapshotID string)
 }
 
 const listGlobalAddressEvents = `-- name: ListGlobalAddressEvents :many
-SELECT id, egress_id, node_id, history_generation, sequence, kind, family,
+SELECT id, public_address_id, source_path_id, node_id, history_generation, sequence, kind, family,
        previous_address, public_address, local_interface, local_address,
        proxy_path, likely_nat, temporary, failure_reason, observed_at,
        received_at
 FROM address_events
 WHERE (?1 = '' OR node_id = ?1)
-  AND (?2 = '' OR egress_id = ?2)
+  AND (?2 = '' OR public_address_id = ?2)
   AND (?3 IS NULL OR observed_at >= ?3)
   AND (?4 IS NULL OR observed_at <= ?4)
   AND (?5 = '' OR kind = ?5)
@@ -1708,7 +1713,8 @@ func (q *Queries) ListGlobalAddressEvents(ctx context.Context, arg ListGlobalAdd
 		var i AddressEvent
 		if err := rows.Scan(
 			&i.ID,
-			&i.EgressID,
+			&i.PublicAddressID,
+			&i.SourcePathID,
 			&i.NodeID,
 			&i.HistoryGeneration,
 			&i.Sequence,
@@ -1950,7 +1956,7 @@ func (q *Queries) ListGlobalProbeGaps(ctx context.Context, arg ListGlobalProbeGa
 }
 
 const listNodeAddressEvents = `-- name: ListNodeAddressEvents :many
-SELECT id, egress_id, node_id, history_generation, sequence, kind, family,
+SELECT id, public_address_id, source_path_id, node_id, history_generation, sequence, kind, family,
        previous_address, public_address, local_interface, local_address,
        proxy_path, likely_nat, temporary, failure_reason, observed_at,
        received_at
@@ -1976,7 +1982,8 @@ func (q *Queries) ListNodeAddressEvents(ctx context.Context, arg ListNodeAddress
 		var i AddressEvent
 		if err := rows.Scan(
 			&i.ID,
-			&i.EgressID,
+			&i.PublicAddressID,
+			&i.SourcePathID,
 			&i.NodeID,
 			&i.HistoryGeneration,
 			&i.Sequence,
@@ -2630,7 +2637,7 @@ FROM (
       )
     UNION ALL
     SELECT 'address-event', id, observed_at,
-           256 + length(id) + length(egress_id) + length(node_id) +
+           256 + length(id) + length(public_address_id) + length(source_path_id) + length(node_id) +
            COALESCE(length(previous_address), 0) + COALESCE(length(public_address), 0) +
            COALESCE(length(local_interface), 0) + COALESCE(length(local_address), 0) +
            COALESCE(length(proxy_path), 0) + COALESCE(length(failure_reason), 0)

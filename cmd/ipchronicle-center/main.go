@@ -21,6 +21,7 @@ import (
 	"github.com/ipchronicle/ipchronicle/internal/center/nodes"
 	"github.com/ipchronicle/ipchronicle/internal/center/notifications"
 	"github.com/ipchronicle/ipchronicle/internal/center/syncws"
+	"github.com/ipchronicle/ipchronicle/internal/center/systemsettings"
 	centerupdates "github.com/ipchronicle/ipchronicle/internal/center/updates"
 	"github.com/ipchronicle/ipchronicle/internal/releaseinfo"
 	"github.com/ipchronicle/ipchronicle/internal/version"
@@ -77,10 +78,11 @@ func serve() error {
 	}
 	syncHub := syncws.NewHub()
 	nodeService := nodes.NewService(store.Config, store.History, store.ConfigQueries, store.MasterKey, syncHub)
+	systemSettingsService := systemsettings.NewService(store.ConfigQueries)
 	notificationService := notifications.NewService(notifications.ServiceOptions{
 		ConfigDatabase: store.Config, HistoryDatabase: store.History,
 		ConfigQueries: store.ConfigQueries, HistoryQueries: store.HistoryQueries,
-		MasterKey: store.MasterKey, ExternalOrigin: configuration.ExternalOrigin,
+		MasterKey: store.MasterKey, SystemSettings: systemSettingsService,
 	})
 	updateService := centerupdates.NewService(centerupdates.ServiceOptions{
 		Queries: store.ConfigQueries, Waker: syncHub,
@@ -98,8 +100,8 @@ func serve() error {
 			Notifications:  notificationService,
 			Updates:        updateService,
 			SyncHub:        syncHub,
+			SystemSettings: systemSettingsService,
 			Store:          store,
-			ExternalOrigin: configuration.ExternalOrigin,
 			TrustedProxies: configuration.TrustedProxies,
 		}),
 		ReadHeaderTimeout: 5 * time.Second,

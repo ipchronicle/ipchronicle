@@ -45,7 +45,7 @@ export function LoginPage() {
   }
 
   return (
-    <main className="mx-auto flex min-h-[calc(100svh-3.5rem)] w-full max-w-6xl items-center px-4 py-10 sm:px-6">
+    <main className="flex min-h-[calc(100svh-3.5rem)] w-full items-center px-4 py-10 sm:px-6">
       <Card className="mx-auto w-full max-w-sm">
         <CardHeader>
           <p className="text-xs font-medium text-muted-foreground uppercase">

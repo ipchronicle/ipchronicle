@@ -50,6 +50,23 @@ func NewChecker() *Checker {
 	return &Checker{discover: agentnetwork.Discover}
 }
 
+func (c *Checker) VerifyTarget(ctx context.Context, configuration state.Configuration, target state.Egress, checkedAt time.Time) error {
+	if target.PublicAddress == nil {
+		return errors.New("complete-probe target has no public address")
+	}
+	observation := c.Check(ctx, configuration, target, nil, checkedAt)
+	if !observation.Confirmed {
+		if observation.FailureReason == "" {
+			return errors.New("public address could not be confirmed")
+		}
+		return fmt.Errorf("public address could not be confirmed: %s", observation.FailureReason)
+	}
+	if observation.PublicAddress != *target.PublicAddress {
+		return fmt.Errorf("execution path now resolves to %s instead of %s", observation.PublicAddress, *target.PublicAddress)
+	}
+	return nil
+}
+
 func (c *Checker) Check(ctx context.Context, configuration state.Configuration, egress state.Egress, previous *state.AddressState, checkedAt time.Time) state.AddressObservation {
 	observation := state.AddressObservation{
 		EgressID: egress.ID, ConfigurationRevision: configuration.Revision,
@@ -192,7 +209,11 @@ func queryService(ctx context.Context, path selectedPath, service string) (echoR
 	}
 	value := strings.TrimSpace(string(body))
 	address, err := netip.ParseAddr(value)
-	if err != nil || value != address.String() || !publicAddressAllowed(address, path.egress.Family) {
+	if err != nil || value != address.String() {
+		return echoResult{}, errors.New("address service response is not one public address of the expected family")
+	}
+	address = address.Unmap()
+	if !publicAddressAllowed(address, path.egress.Family) {
 		return echoResult{}, errors.New("address service response is not one public address of the expected family")
 	}
 	return echoResult{address: address, localAddress: localAddress}, nil

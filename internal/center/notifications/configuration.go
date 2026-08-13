@@ -158,7 +158,7 @@ func (s *Service) Rule(ctx context.Context, id uuid.UUID) (Rule, error) {
 	if err != nil {
 		return Rule{}, err
 	}
-	return ruleFromRecord(record)
+	return s.ruleFromRecord(ctx, record)
 }
 
 func (s *Service) Rules(ctx context.Context) ([]Rule, error) {
@@ -168,7 +168,7 @@ func (s *Service) Rules(ctx context.Context) ([]Rule, error) {
 	}
 	result := make([]Rule, 0, len(records))
 	for _, record := range records {
-		rule, err := ruleFromRecord(record)
+		rule, err := s.ruleFromRecord(ctx, record)
 		if err != nil {
 			return nil, err
 		}
@@ -237,24 +237,23 @@ func (s *Service) validateRule(ctx context.Context, input RuleCreate) error {
 		}
 	}
 	if input.EgressID != nil {
-		egress, err := s.configQueries.GetNodeEgress(ctx, configdb.GetNodeEgressParams{
-			NodeID: ownerNodeID(input.NodeID), ID: input.EgressID.String(),
-		})
-		if input.NodeID == nil {
-			egress, err = s.getEgressByID(ctx, input.EgressID.String())
-		}
-		if errors.Is(err, sql.ErrNoRows) || err == nil && input.NodeID != nil && egress.NodeID != input.NodeID.String() {
+		_, err := s.configQueries.GetPublicAddressByID(ctx, input.EgressID.String())
+		if errors.Is(err, sql.ErrNoRows) {
 			return ErrInvalidRule
 		}
 		if err != nil {
 			return err
 		}
+		if input.NodeID != nil {
+			count, err := s.configQueries.PublicAddressBelongsToNode(ctx, configdb.PublicAddressBelongsToNodeParams{
+				PublicAddressID: input.EgressID.String(), NodeID: input.NodeID.String(),
+			})
+			if err != nil || count == 0 {
+				return ErrInvalidRule
+			}
+		}
 	}
 	return nil
-}
-
-func (s *Service) getEgressByID(ctx context.Context, egressID string) (configdb.NetworkEgress, error) {
-	return s.configQueries.GetNetworkEgressByID(ctx, egressID)
 }
 
 func (s *Service) encryptConfiguration(id string, configuration SenderConfiguration) ([]byte, error) {
@@ -287,7 +286,7 @@ func (s *Service) senderFromRecord(record configdb.NotificationSender) (Sender, 
 	}, nil
 }
 
-func ruleFromRecord(record configdb.NotificationRule) (Rule, error) {
+func (s *Service) ruleFromRecord(ctx context.Context, record configdb.NotificationRule) (Rule, error) {
 	id, err := uuid.Parse(record.ID)
 	if err != nil {
 		return Rule{}, err
@@ -304,10 +303,19 @@ func ruleFromRecord(record configdb.NotificationRule) (Rule, error) {
 	if err != nil {
 		return Rule{}, err
 	}
+	var publicAddress *string
+	if egressID != nil {
+		address, err := s.configQueries.GetPublicAddressByID(ctx, egressID.String())
+		if err != nil {
+			return Rule{}, err
+		}
+		publicAddress = &address.Address
+	}
 	return Rule{
 		ID: id, Name: record.Name, Enabled: record.Enabled == 1, SenderID: senderID,
 		EventType: record.EventType, FieldID: record.FieldID, NodeID: nodeID, EgressID: egressID,
-		CreatedAt: unixTime(record.CreatedAt), UpdatedAt: unixTime(record.UpdatedAt),
+		PublicAddress: publicAddress,
+		CreatedAt:     unixTime(record.CreatedAt), UpdatedAt: unixTime(record.UpdatedAt),
 	}, nil
 }
 

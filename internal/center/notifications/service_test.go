@@ -15,6 +15,8 @@ import (
 	"github.com/google/uuid"
 	"github.com/ipchronicle/ipchronicle/internal/center/admin"
 	"github.com/ipchronicle/ipchronicle/internal/center/database"
+	"github.com/ipchronicle/ipchronicle/internal/center/database/historydb"
+	"github.com/ipchronicle/ipchronicle/internal/center/systemsettings"
 )
 
 func TestMain(m *testing.M) {
@@ -28,7 +30,7 @@ func TestMain(m *testing.M) {
 }
 
 func TestSenderRulesAggregateOneDeliveryAndEncryptConfiguration(t *testing.T) {
-	service, store, nodeID, egressID := newNotificationTestService(t)
+	service, store, nodeID, publicAddressID := newNotificationTestService(t)
 	secret := "telegram-secret-that-must-not-appear"
 	sender, err := service.CreateSender(context.Background(), SenderCreate{
 		Name: "owner", Kind: SenderTelegram, Enabled: true,
@@ -47,15 +49,27 @@ func TestSenderRulesAggregateOneDeliveryAndEncryptConfiguration(t *testing.T) {
 	fieldOne := "ipquality.ipinfo.CountryCode"
 	fieldTwo := "ipquality.ipinfo.Organization"
 	for index, field := range []string{fieldOne, fieldTwo} {
-		if _, err := service.CreateRule(context.Background(), RuleCreate{
+		rule, err := service.CreateRule(context.Background(), RuleCreate{
 			Name: "rule-" + string(rune('a'+index)), Enabled: true, SenderID: sender.ID,
-			EventType: EventProbeFieldChange, FieldID: &field,
-		}); err != nil {
+			EventType: EventProbeFieldChange, FieldID: &field, NodeID: &nodeID,
+			EgressID: &publicAddressID,
+		})
+		if err != nil {
 			t.Fatal(err)
 		}
+		if rule.PublicAddress == nil || *rule.PublicAddress != "203.0.113.10" {
+			t.Fatalf("created rule public address = %v", rule.PublicAddress)
+		}
+	}
+	rules, err := service.Rules(context.Background())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(rules) != 2 || rules[0].PublicAddress == nil || *rules[0].PublicAddress != "203.0.113.10" {
+		t.Fatalf("listed rules = %#v", rules)
 	}
 	node := nodeID.String()
-	egress := egressID.String()
+	egress := publicAddressID.String()
 	err = CreateEvent(context.Background(), store.HistoryQueries, EventInput{
 		Type: EventProbeFieldChange, SourceKind: "probe-change-set", SourceID: uuid.NewString(),
 		NodeID: &node, EgressID: &egress, ObservedAt: 100, RecordedAt: 101,
@@ -90,6 +104,30 @@ func TestSenderRulesAggregateOneDeliveryAndEncryptConfiguration(t *testing.T) {
 	page, err = service.Deliveries(context.Background(), DeliveryFilter{Page: 1, PageSize: 50})
 	if err != nil || len(page.Items) != 1 {
 		t.Fatalf("idempotent event processing = %#v, %v", page, err)
+	}
+}
+
+func TestNotificationLinksReadCurrentExternalOriginSetting(t *testing.T) {
+	service, _, _, _ := newNotificationTestService(t)
+	event := historydb.NotificationEvent{EventType: EventAddressChange}
+
+	link, err := service.eventLink(context.Background(), event)
+	if err != nil || link != nil {
+		t.Fatalf("automatic notification link = %v, %v", link, err)
+	}
+	if _, err := service.systemSettings.Update(context.Background(), "https://first.example"); err != nil {
+		t.Fatal(err)
+	}
+	link, err = service.eventLink(context.Background(), event)
+	if err != nil || link == nil || *link != "https://first.example/history" {
+		t.Fatalf("first notification link = %v, %v", link, err)
+	}
+	if _, err := service.systemSettings.Update(context.Background(), "https://second.example"); err != nil {
+		t.Fatal(err)
+	}
+	link, err = service.eventLink(context.Background(), event)
+	if err != nil || link == nil || *link != "https://second.example/history" {
+		t.Fatalf("updated notification link = %v, %v", link, err)
 	}
 }
 
@@ -327,7 +365,8 @@ func newNotificationTestService(t *testing.T) (*Service, *database.Store, uuid.U
 		t.Fatal(err)
 	}
 	nodeID := uuid.New()
-	egressID := uuid.New()
+	pathID := uuid.New()
+	publicAddressID := uuid.New()
 	if _, err := store.Config.ExecContext(ctx, `
 		INSERT INTO nodes (
 			id, name, hostname, credential_digest, agent_version,
@@ -341,15 +380,39 @@ func newNotificationTestService(t *testing.T) (*Service, *database.Store, uuid.U
 			id, node_id, name, kind, family, enabled, available, automatic,
 			lightweight_interval_seconds, probe_on_address_change, created_at, updated_at
 		) VALUES (?, ?, 'default IPv4', 'default', 'ipv4', 1, 1, 1, 600, 1, 1, 1)
-	`, egressID.String(), nodeID.String()); err != nil {
+	`, pathID.String(), nodeID.String()); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := store.Config.ExecContext(ctx, `
+		INSERT INTO public_addresses (
+			id, address, family, probe_enabled, probe_on_rediscovery,
+			selected_path_id, first_seen_at, last_seen_at, updated_at
+		) VALUES (?, '203.0.113.10', 'ipv4', 1, 1, ?, 1, 1, 1)
+	`, publicAddressID.String(), pathID.String()); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := store.Config.ExecContext(ctx, `
+		INSERT INTO public_address_nodes (
+			public_address_id, node_id, first_seen_at, last_seen_at
+		) VALUES (?, ?, 1, 1)
+	`, publicAddressID.String(), nodeID.String()); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := store.Config.ExecContext(ctx, `
+		INSERT INTO public_address_paths (
+			public_address_id, path_id, node_id, local_interface, local_address,
+			proxy_path, likely_nat, temporary, available, last_checked_at,
+			last_succeeded_at
+		) VALUES (?, ?, ?, 'eth0', '10.0.0.2', 0, 1, 0, 1, 1, 1)
+	`, publicAddressID.String(), pathID.String(), nodeID.String()); err != nil {
 		t.Fatal(err)
 	}
 	service := NewService(ServiceOptions{
 		ConfigDatabase: store.Config, HistoryDatabase: store.History,
 		ConfigQueries: store.ConfigQueries, HistoryQueries: store.HistoryQueries,
-		MasterKey: store.MasterKey, Executable: os.Args[0],
+		MasterKey: store.MasterKey, SystemSettings: systemsettings.NewService(store.ConfigQueries), Executable: os.Args[0],
 	})
-	return service, store, nodeID, egressID
+	return service, store, nodeID, publicAddressID
 }
 
 func quoteJavaScript(value string) string {

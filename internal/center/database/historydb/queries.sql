@@ -40,14 +40,14 @@ WHERE excluded.history_generation != address_states.history_generation
 
 -- name: CreateAddressEvent :execrows
 INSERT INTO address_events (
-    id, egress_id, node_id, history_generation, sequence, kind, family,
+    id, public_address_id, source_path_id, node_id, history_generation, sequence, kind, family,
     previous_address, public_address, local_interface, local_address,
     proxy_path, likely_nat, temporary, failure_reason, observed_at, received_at
-) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
 ON CONFLICT (id) DO NOTHING;
 
 -- name: GetAddressEvent :one
-SELECT id, egress_id, node_id, history_generation, sequence, kind, family,
+SELECT id, public_address_id, source_path_id, node_id, history_generation, sequence, kind, family,
        previous_address, public_address, local_interface, local_address,
        proxy_path, likely_nat, temporary, failure_reason, observed_at,
        received_at
@@ -55,12 +55,12 @@ FROM address_events
 WHERE id = ?;
 
 -- name: GetAddressEventBySequence :one
-SELECT id, egress_id, node_id, history_generation, sequence, kind, family,
+SELECT id, public_address_id, source_path_id, node_id, history_generation, sequence, kind, family,
        previous_address, public_address, local_interface, local_address,
        proxy_path, likely_nat, temporary, failure_reason, observed_at,
        received_at
 FROM address_events
-WHERE egress_id = ? AND history_generation = ? AND sequence = ?;
+WHERE source_path_id = ? AND history_generation = ? AND sequence = ?;
 
 -- name: UpsertAddressGap :execrows
 INSERT INTO history_gaps (
@@ -89,7 +89,7 @@ WHERE node_id = ?
 ORDER BY egress_id;
 
 -- name: ListNodeAddressEvents :many
-SELECT id, egress_id, node_id, history_generation, sequence, kind, family,
+SELECT id, public_address_id, source_path_id, node_id, history_generation, sequence, kind, family,
        previous_address, public_address, local_interface, local_address,
        proxy_path, likely_nat, temporary, failure_reason, observed_at,
        received_at
@@ -118,9 +118,6 @@ DELETE FROM history_gaps WHERE node_id = ?;
 
 -- name: DeleteEgressAddressStates :exec
 DELETE FROM address_states WHERE egress_id = ?;
-
--- name: DeleteEgressAddressEvents :exec
-DELETE FROM address_events WHERE egress_id = ?;
 
 -- name: DeleteEgressAddressGaps :exec
 DELETE FROM history_gaps WHERE egress_id = ?;
@@ -388,13 +385,13 @@ WHERE (sqlc.arg(node_id) = '' OR r.node_id = sqlc.arg(node_id))
   );
 
 -- name: ListGlobalAddressEvents :many
-SELECT id, egress_id, node_id, history_generation, sequence, kind, family,
+SELECT id, public_address_id, source_path_id, node_id, history_generation, sequence, kind, family,
        previous_address, public_address, local_interface, local_address,
        proxy_path, likely_nat, temporary, failure_reason, observed_at,
        received_at
 FROM address_events
 WHERE (sqlc.arg(node_id) = '' OR node_id = sqlc.arg(node_id))
-  AND (sqlc.arg(egress_id) = '' OR egress_id = sqlc.arg(egress_id))
+  AND (sqlc.arg(egress_id) = '' OR public_address_id = sqlc.arg(egress_id))
   AND (sqlc.narg(from_observed_at) IS NULL OR observed_at >= sqlc.narg(from_observed_at))
   AND (sqlc.narg(to_observed_at) IS NULL OR observed_at <= sqlc.narg(to_observed_at))
   AND (sqlc.arg(event_kind) = '' OR kind = sqlc.arg(event_kind))
@@ -405,7 +402,7 @@ LIMIT sqlc.arg(page_size) OFFSET sqlc.arg(page_offset);
 -- name: CountGlobalAddressEvents :one
 SELECT COUNT(*) FROM address_events
 WHERE (sqlc.arg(node_id) = '' OR node_id = sqlc.arg(node_id))
-  AND (sqlc.arg(egress_id) = '' OR egress_id = sqlc.arg(egress_id))
+  AND (sqlc.arg(egress_id) = '' OR public_address_id = sqlc.arg(egress_id))
   AND (sqlc.narg(from_observed_at) IS NULL OR observed_at >= sqlc.narg(from_observed_at))
   AND (sqlc.narg(to_observed_at) IS NULL OR observed_at <= sqlc.narg(to_observed_at))
   AND (sqlc.arg(event_kind) = '' OR kind = sqlc.arg(event_kind))
@@ -489,7 +486,7 @@ FROM (
         COALESCE(length(triggering_egress_id), 0)
     ), COUNT(*) FROM probe_runs
     UNION ALL SELECT SUM(
-        256 + length(id) + length(egress_id) + length(node_id) +
+        256 + length(id) + length(public_address_id) + length(source_path_id) + length(node_id) +
         COALESCE(length(previous_address), 0) + COALESCE(length(public_address), 0) +
         COALESCE(length(local_interface), 0) + COALESCE(length(local_address), 0) +
         COALESCE(length(proxy_path), 0) + COALESCE(length(failure_reason), 0)
@@ -653,7 +650,7 @@ FROM (
       )
     UNION ALL
     SELECT 'address-event', id, observed_at,
-           256 + length(id) + length(egress_id) + length(node_id) +
+           256 + length(id) + length(public_address_id) + length(source_path_id) + length(node_id) +
            COALESCE(length(previous_address), 0) + COALESCE(length(public_address), 0) +
            COALESCE(length(local_interface), 0) + COALESCE(length(local_address), 0) +
            COALESCE(length(proxy_path), 0) + COALESCE(length(failure_reason), 0)
@@ -968,6 +965,10 @@ WHERE (sqlc.arg(sender_id) = '' OR sender_id = sqlc.arg(sender_id))
 
 -- name: DeleteNodeNotificationHistory :exec
 DELETE FROM notification_events WHERE node_id = ?;
+
+-- name: DeleteNodeAddressNotificationHistory :exec
+DELETE FROM notification_events
+WHERE node_id = ? AND egress_id IS NULL;
 
 -- name: DeleteEgressNotificationHistory :exec
 DELETE FROM notification_events WHERE egress_id = ?;

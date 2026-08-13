@@ -44,13 +44,18 @@ func TestInventoryCreatesDefaultsAndControlsDiscoveredEgresses(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if state.Inventory == nil || state.InventoryError != nil || len(state.Egresses) != 2 {
+	if state.Inventory == nil || state.InventoryError != nil || len(state.Egresses) != 4 {
 		t.Fatalf("network state after inventory = %#v", state)
 	}
+	stablePathFound := false
 	for _, egress := range state.Egresses {
-		if egress.Kind != "default" || !egress.Automatic || !egress.Enabled || !egress.Available {
+		if !egress.Automatic || !egress.Enabled || !egress.Available {
 			t.Fatalf("unexpected automatic egress: %#v", egress)
 		}
+		stablePathFound = stablePathFound || egress.Kind == "source" && egress.SourceAddress != nil && *egress.SourceAddress == "10.0.0.5"
+	}
+	if !stablePathFound {
+		t.Fatalf("stable source path was not configured: %#v", state.Egresses)
 	}
 	var stable, temporary *NetworkEgressCandidate
 	for index := range state.Candidates {
@@ -70,12 +75,6 @@ func TestInventoryCreatesDefaultsAndControlsDiscoveredEgresses(t *testing.T) {
 	}
 
 	address := "10.0.0.5"
-	created, err := service.CreateEgress(ctx, registration.NodeID, NetworkEgressSelector{
-		Kind: "source", Family: "ipv4", InterfaceName: "eth0", SourceAddress: &address,
-	})
-	if err != nil || !created.Enabled || !created.Available || created.Automatic {
-		t.Fatalf("created source egress = %#v, %v", created, err)
-	}
 	if _, err := service.CreateEgress(ctx, registration.NodeID, NetworkEgressSelector{
 		Kind: "source", Family: "ipv4", InterfaceName: "eth0", SourceAddress: &address,
 	}); !errors.Is(err, ErrEgressAlreadyExists) {
@@ -87,10 +86,10 @@ func TestInventoryCreatesDefaultsAndControlsDiscoveredEgresses(t *testing.T) {
 		t.Fatalf("temporary source creation error = %v", err)
 	}
 	configuration, err := service.Configuration(ctx, registration.Credential)
-	if err != nil || configuration.Revision != 3 || len(configuration.Egresses) != 3 {
-		t.Fatalf("configuration after source creation = %#v, %v", configuration, err)
+	if err != nil || configuration.Revision != 2 || len(configuration.DiscoveryPaths) != 4 || len(configuration.ProbeTargets) != 0 {
+		t.Fatalf("configuration after automatic discovery paths = %#v, %v", configuration, err)
 	}
-	for index := 0; index < maxNodeEgresses-len(configuration.Egresses); index++ {
+	for index := 0; index < maxNodeEgresses-len(configuration.DiscoveryPaths); index++ {
 		interfaceName := fmt.Sprintf("test%d", index)
 		if err := service.queries.CreateNodeEgress(ctx, configdb.CreateNodeEgressParams{
 			ID: uuid.NewString(), NodeID: registration.NodeID.String(), Name: "test-" + interfaceName,
@@ -107,23 +106,16 @@ func TestInventoryCreatesDefaultsAndControlsDiscoveredEgresses(t *testing.T) {
 		t.Fatalf("egress limit error = %v", err)
 	}
 
-	disabled, err := service.SetEgressEnabled(ctx, registration.NodeID, created.ID, false)
-	if err != nil || disabled.Enabled {
-		t.Fatalf("disabled egress = %#v, %v", disabled, err)
-	}
 	firstDeletion, err := service.DeleteEgress(ctx, registration.NodeID, state.Egresses[0].ID)
 	if err != nil || firstDeletion.Status != "pending" {
 		t.Fatalf("delete automatic egress: %v", err)
-	}
-	if _, err := service.DeleteEgress(ctx, registration.NodeID, created.ID); err != nil {
-		t.Fatal(err)
 	}
 	pending, err := service.Network(ctx, registration.NodeID)
 	if err != nil {
 		t.Fatal(err)
 	}
 	for _, egress := range pending.Egresses {
-		if (egress.ID == state.Egresses[0].ID || egress.ID == created.ID) &&
+		if egress.ID == state.Egresses[0].ID &&
 			(egress.DeletionStatus == nil || *egress.DeletionStatus != "pending") {
 			t.Fatalf("queued egress deletion is not visible: %#v", egress)
 		}
@@ -133,7 +125,7 @@ func TestInventoryCreatesDefaultsAndControlsDiscoveredEgresses(t *testing.T) {
 		t.Fatal(err)
 	}
 	for _, egress := range configuration.Egresses {
-		if egress.ID == state.Egresses[0].ID || egress.ID == created.ID {
+		if egress.ID == state.Egresses[0].ID {
 			t.Fatalf("deleting egress remained in Agent configuration: %#v", egress)
 		}
 	}
@@ -145,12 +137,12 @@ func TestInventoryCreatesDefaultsAndControlsDiscoveredEgresses(t *testing.T) {
 		t.Fatal(err)
 	}
 	for _, egress := range completed.Egresses {
-		if egress.ID == state.Egresses[0].ID || egress.ID == created.ID {
+		if egress.ID == state.Egresses[0].ID {
 			t.Fatalf("completed egress deletion retained configuration: %#v", egress)
 		}
 	}
-	if len(connections.wakes) != 4 {
-		t.Fatalf("configuration wake count = %d, want 4", len(connections.wakes))
+	if len(connections.wakes) != 1 {
+		t.Fatalf("configuration wake count = %d, want 1", len(connections.wakes))
 	}
 }
 
@@ -173,12 +165,19 @@ func TestInventoryFailurePreservesLastValidSnapshotAndMissingSelector(t *testing
 	if _, err := service.Poll(ctx, registration.Credential, testMetadata(), 0, nil, nil, &inventory, nil); err != nil {
 		t.Fatal(err)
 	}
-	address := "10.0.0.5"
-	created, err := service.CreateEgress(ctx, registration.NodeID, NetworkEgressSelector{
-		Kind: "source", Family: "ipv4", InterfaceName: "eth0", SourceAddress: &address,
-	})
+	network, err := service.Network(ctx, registration.NodeID)
 	if err != nil {
 		t.Fatal(err)
+	}
+	var created NetworkEgress
+	for _, path := range network.Egresses {
+		if path.Kind == "source" && path.SourceAddress != nil && *path.SourceAddress == "10.0.0.5" {
+			created = path
+			break
+		}
+	}
+	if created.ID == uuid.Nil {
+		t.Fatalf("automatic source path not found: %#v", network.Egresses)
 	}
 	message := "read /proc/net/route: input/output error"
 	now = now.Add(time.Minute)

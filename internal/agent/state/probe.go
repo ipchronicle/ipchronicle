@@ -115,9 +115,11 @@ type ProbeArtifactReceipt struct {
 }
 
 type ProbeTaskDelivery struct {
-	ID        string    `json:"id"`
-	CreatedAt time.Time `json:"createdAt"`
-	ExpiresAt time.Time `json:"expiresAt"`
+	ID                        string    `json:"id"`
+	Trigger                   string    `json:"trigger"`
+	TriggeringPublicAddressID *string   `json:"triggeringPublicAddressId,omitempty"`
+	CreatedAt                 time.Time `json:"createdAt"`
+	ExpiresAt                 time.Time `json:"expiresAt"`
 }
 
 type ProbeTaskReport struct {
@@ -177,7 +179,8 @@ func (s *Store) StartProbeRunAtRevision(
 	s.probeMu.Lock()
 	defer s.probeMu.Unlock()
 	if !validProbeTrigger(trigger) || startedAt.IsZero() ||
-		(trigger == "manual") != (task != nil) || (trigger == "address-change") != (triggeringEgressID != nil) {
+		(trigger == "manual" || trigger == "address-change") != (task != nil) ||
+		(trigger == "address-change") != (triggeringEgressID != nil) {
 		return ProbeRun{}, ErrInvalidProbeState
 	}
 	startedAt = startedAt.UTC().Truncate(time.Second)
@@ -210,7 +213,7 @@ func (s *Store) StartProbeRunAtRevision(
 			return ErrProbeConfigurationChanged
 		}
 		var enabled []Egress
-		for _, egress := range configuration.Egresses {
+		for _, egress := range configuration.probeTargets() {
 			if egress.Enabled {
 				enabled = append(enabled, egress)
 			}
@@ -1498,8 +1501,15 @@ func readBoundedProbeResult(path string) ([]byte, error) {
 }
 
 func validateProbeTaskDelivery(task ProbeTaskDelivery) error {
-	if _, err := uuid.Parse(task.ID); err != nil || task.CreatedAt.IsZero() || !task.ExpiresAt.After(task.CreatedAt) {
+	if _, err := uuid.Parse(task.ID); err != nil || task.CreatedAt.IsZero() || !task.ExpiresAt.After(task.CreatedAt) ||
+		(task.Trigger != "" && task.Trigger != "manual" && task.Trigger != "address-change") ||
+		(task.Trigger == "address-change") != (task.TriggeringPublicAddressID != nil) {
 		return ErrInvalidProbeState
+	}
+	if task.TriggeringPublicAddressID != nil {
+		if _, err := uuid.Parse(*task.TriggeringPublicAddressID); err != nil {
+			return ErrInvalidProbeState
+		}
 	}
 	return nil
 }

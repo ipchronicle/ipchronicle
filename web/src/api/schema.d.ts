@@ -159,6 +159,24 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/system/settings": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Read administrator-managed system settings */
+        get: operations["getSystemSettings"];
+        /** Replace administrator-managed system settings */
+        put: operations["updateSystemSettings"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/nodes": {
         parameters: {
             query?: never;
@@ -188,7 +206,7 @@ export interface paths {
         get?: never;
         put?: never;
         post?: never;
-        /** Permanently delete a node and all owned data */
+        /** Permanently delete a node and its execution metadata */
         delete: operations["deleteNode"];
         options?: never;
         head?: never;
@@ -460,7 +478,7 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** Compare two retained snapshots from the same network egress */
+        /** Compare two retained snapshots for the same public IP */
         get: operations["compareProbeSnapshots"];
         put?: never;
         post?: never;
@@ -625,7 +643,7 @@ export interface paths {
             };
             cookie?: never;
         };
-        /** Read the latest network inventory, candidates, and configured egresses */
+        /** Read discovered public addresses and explicit proxy discovery paths */
         get: operations["getNodeNetwork"];
         put?: never;
         post?: never;
@@ -635,44 +653,63 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/api/v1/nodes/{nodeId}/egresses": {
+    "/api/v1/nodes/{nodeId}/public-addresses/{publicAddressId}": {
         parameters: {
             query?: never;
             header?: never;
             path: {
                 nodeId: components["parameters"]["NodeId"];
-            };
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        /** Enable a discovered interface or source-address egress */
-        post: operations["createNodeEgress"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/v1/nodes/{nodeId}/egresses/{egressId}": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                nodeId: components["parameters"]["NodeId"];
-                egressId: components["parameters"]["EgressId"];
+                publicAddressId: string;
             };
             cookie?: never;
         };
         get?: never;
         put?: never;
         post?: never;
-        /** Permanently delete a durable network egress */
-        delete: operations["deleteNodeEgress"];
+        delete?: never;
         options?: never;
         head?: never;
-        /** Update a durable network egress */
-        patch: operations["updateNodeEgress"];
+        /** Update complete-probe settings for a discovered public address */
+        patch: operations["updatePublicAddress"];
+        trace?: never;
+    };
+    "/api/v1/nodes/{nodeId}/proxy-discovery-paths": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                nodeId: components["parameters"]["NodeId"];
+            };
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Add an explicit proxy path for public-address discovery */
+        post: operations["createNodeProxyDiscoveryPath"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/nodes/{nodeId}/proxy-discovery-paths/{pathId}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                nodeId: components["parameters"]["NodeId"];
+                pathId: string;
+            };
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /** Remove an explicit proxy discovery path */
+        delete: operations["deleteNodeProxyDiscoveryPath"];
+        options?: never;
+        head?: never;
+        patch?: never;
         trace?: never;
     };
     "/api/v1/network-observation-settings": {
@@ -885,7 +922,7 @@ export interface components {
             provisioningUri: string;
         };
         /** @enum {string} */
-        ErrorCode: "invalid_request" | "invalid_credentials" | "totp_required" | "rate_limited" | "unauthenticated" | "csrf_failed" | "origin_not_allowed" | "current_password_invalid" | "invalid_totp" | "totp_already_enabled" | "totp_not_enabled" | "totp_enrollment_not_started" | "no_account_change" | "registration_key_not_initialized" | "registration_key_invalid" | "registration_disabled" | "agent_unauthenticated" | "agent_revoked" | "node_not_found" | "node_revoked" | "node_disabled" | "node_deletion_pending" | "node_sync_unsupported" | "sync_session_unavailable" | "network_inventory_unavailable" | "invalid_egress_candidate" | "egress_already_exists" | "egress_limit_reached" | "egress_not_found" | "egress_deletion_pending" | "invalid_network_proxy" | "network_proxy_not_found" | "network_proxy_already_exists" | "network_proxy_limit_reached" | "network_proxy_in_use" | "invalid_observation_settings" | "invalid_probe_settings" | "node_offline" | "probe_task_slot_occupied" | "probe_already_running" | "probe_paused_low_memory" | "no_enabled_egress" | "probe_run_not_found" | "probe_snapshot_not_found" | "snapshot_egress_mismatch" | "invalid_notification_sender" | "notification_sender_not_found" | "notification_sender_name_in_use" | "notification_sender_in_use" | "notification_sender_active" | "invalid_notification_rule" | "notification_rule_not_found" | "notification_rule_name_in_use" | "invalid_notification_delivery_query" | "internal_error";
+        ErrorCode: "invalid_request" | "invalid_credentials" | "totp_required" | "rate_limited" | "unauthenticated" | "csrf_failed" | "origin_not_allowed" | "current_password_invalid" | "invalid_totp" | "totp_already_enabled" | "totp_not_enabled" | "totp_enrollment_not_started" | "no_account_change" | "registration_key_not_initialized" | "registration_key_invalid" | "registration_disabled" | "agent_unauthenticated" | "agent_revoked" | "node_not_found" | "node_revoked" | "node_disabled" | "node_deletion_pending" | "node_sync_unsupported" | "sync_session_unavailable" | "network_inventory_unavailable" | "invalid_egress_candidate" | "egress_already_exists" | "egress_limit_reached" | "egress_not_found" | "egress_deletion_pending" | "invalid_network_proxy" | "network_proxy_not_found" | "network_proxy_already_exists" | "network_proxy_limit_reached" | "network_proxy_in_use" | "invalid_observation_settings" | "invalid_probe_settings" | "node_offline" | "probe_task_slot_occupied" | "probe_already_running" | "probe_paused_low_memory" | "no_enabled_egress" | "probe_run_not_found" | "probe_snapshot_not_found" | "snapshot_egress_mismatch" | "invalid_notification_sender" | "notification_sender_not_found" | "notification_sender_name_in_use" | "notification_sender_in_use" | "notification_sender_active" | "invalid_notification_rule" | "notification_rule_not_found" | "notification_rule_name_in_use" | "invalid_notification_delivery_query" | "invalid_system_settings" | "internal_error";
         ErrorResponse: {
             code: components["schemas"]["ErrorCode"];
             parameters?: {
@@ -906,8 +943,18 @@ export interface components {
             /** @enum {string} */
             transportSecurity: "http" | "https";
             transportWarning: boolean;
-            externalOriginConfigured: boolean;
+            /** @enum {string} */
+            externalOriginMode: "automatic" | "custom";
             trustedProxyConfigured: boolean;
+        };
+        SystemSettings: {
+            automatic: boolean;
+            externalOrigin: string;
+            /** Format: uri */
+            effectiveOrigin: string;
+        };
+        SystemSettingsUpdate: {
+            externalOrigin: string;
         };
         AgentEnrollmentSettings: {
             enabled: boolean;
@@ -979,7 +1026,7 @@ export interface components {
         };
         AgentConfigurationSnapshot: {
             /** @enum {integer} */
-            schemaVersion: 5;
+            schemaVersion: 6;
             /** Format: int64 */
             revision: number;
             enabled: boolean;
@@ -987,7 +1034,8 @@ export interface components {
             discoveryServices: components["schemas"]["NetworkObservationSettingsUpdate"];
             probeSchedule: components["schemas"]["ProbeSchedule"];
             probeLowMemoryOverride: boolean;
-            egresses: components["schemas"]["AgentEgressConfiguration"][];
+            discoveryPaths: components["schemas"]["AgentDiscoveryPath"][];
+            probeTargets: components["schemas"]["AgentProbeTarget"][];
             proxies: components["schemas"]["AgentProxyConfiguration"][];
         };
         /** @enum {string} */
@@ -1029,80 +1077,97 @@ export interface components {
         };
         /** @enum {string} */
         NetworkEgressKind: "default" | "interface" | "source" | "proxy";
-        NetworkEgress: {
+        ProxyDiscoveryPath: {
             /** Format: uuid */
             id: string;
             /** Format: uuid */
             nodeId: string;
             name: string;
-            kind: components["schemas"]["NetworkEgressKind"];
             family: components["schemas"]["AddressFamily"];
-            interfaceName?: string;
-            sourceAddress?: string;
             /** Format: uuid */
-            proxyId?: string;
-            enabled: boolean;
+            proxyId: string;
             available: boolean;
-            automatic: boolean;
-            /** Format: int64 */
-            lightweightIntervalSeconds: number;
-            probeOnAddressChange: boolean;
-            deletionStatus?: components["schemas"]["EgressDeletionStatus"];
+            deletionStatus?: components["schemas"]["ProxyDiscoveryPathDeletionStatus"];
             deletionError?: string;
         };
         /** @enum {string} */
-        EgressDeletionStatus: "pending" | "failed";
-        EgressDeletion: {
+        ProxyDiscoveryPathDeletionStatus: "pending" | "failed";
+        ProxyDiscoveryPathDeletion: {
             /** Format: uuid */
-            egressId: string;
+            pathId: string;
             /** Format: uuid */
             nodeId: string;
-            status: components["schemas"]["EgressDeletionStatus"];
+            status: components["schemas"]["ProxyDiscoveryPathDeletionStatus"];
             /** Format: date-time */
             requestedAt: string;
             error?: string;
         };
-        NetworkEgressCandidate: {
-            /** @enum {string} */
-            kind: "interface" | "source";
-            family: components["schemas"]["AddressFamily"];
-            interfaceName: string;
-            sourceAddress?: string;
-            scope?: components["schemas"]["NetworkAddressScope"];
-            temporary: boolean;
-            eligible: boolean;
-            /** @enum {string} */
-            unavailableReason?: "interface-down" | "no-usable-route" | "temporary-address" | "unusable-address";
-            /** Format: uuid */
-            configuredEgressId?: string;
-        };
         NodeNetworkState: {
-            inventory?: components["schemas"]["NetworkInventory"];
-            inventoryError?: string;
-            /** Format: date-time */
-            inventoryReceivedAt?: string;
-            egresses: components["schemas"]["NetworkEgress"][];
-            candidates: components["schemas"]["NetworkEgressCandidate"][];
-            addressStates: components["schemas"]["AgentAddressState"][];
-            addressEvents: components["schemas"]["AgentAddressEvent"][];
-            addressGaps: components["schemas"]["AgentAddressGap"][];
+            publicAddresses: components["schemas"]["PublicAddress"][];
+            proxyDiscoveryPaths: components["schemas"]["ProxyDiscoveryPath"][];
+            addressEvents: components["schemas"]["PublicAddressEvent"][];
+            addressGaps: components["schemas"]["PublicAddressGap"][];
         };
-        NetworkEgressCreate: {
-            /** @enum {string} */
-            kind: "interface" | "source" | "proxy";
-            family: components["schemas"]["AddressFamily"];
-            interfaceName?: string;
-            sourceAddress?: string;
+        PublicAddress: {
             /** Format: uuid */
-            proxyId?: string;
+            id: string;
+            address: string;
+            family: components["schemas"]["AddressFamily"];
+            probeEnabled: boolean;
+            probeOnRediscovery: boolean;
+            available: boolean;
+            /** Format: uuid */
+            selectedNodeId?: string;
+            selectedNodeName?: string;
+            pathCount: number;
+            likelyNat: boolean;
+            proxyPath: boolean;
+            /** Format: date-time */
+            firstSeenAt: string;
+            /** Format: date-time */
+            lastSeenAt: string;
+            /** Format: date-time */
+            lastCheckedAt?: string;
+            /** Format: date-time */
+            lastSucceededAt?: string;
         };
-        NetworkEgressUpdate: {
-            enabled: boolean;
+        PublicAddressUpdate: {
+            probeEnabled: boolean;
+            probeOnRediscovery: boolean;
+        };
+        ProxyDiscoveryPathCreate: {
+            family: components["schemas"]["AddressFamily"];
+            /** Format: uuid */
+            proxyId: string;
+        };
+        PublicAddressEvent: {
+            /** Format: uuid */
+            id: string;
             /** Format: int64 */
-            lightweightIntervalSeconds: number;
-            probeOnAddressChange: boolean;
+            sequence: number;
+            kind: components["schemas"]["AddressEventKind"];
+            family: components["schemas"]["AddressFamily"];
+            previousAddress?: string;
+            publicAddress?: string;
+            failureReason?: components["schemas"]["AddressFailureReason"];
+            /** Format: date-time */
+            observedAt: string;
         };
-        AgentEgressConfiguration: {
+        PublicAddressGap: {
+            /** Format: uuid */
+            id: string;
+            /** Format: int64 */
+            droppedCount: number;
+            /** Format: int64 */
+            firstSequence: number;
+            /** Format: int64 */
+            lastSequence: number;
+            /** Format: date-time */
+            firstObservedAt: string;
+            /** Format: date-time */
+            lastObservedAt: string;
+        };
+        AgentDiscoveryPath: {
             /** Format: uuid */
             id: string;
             kind: components["schemas"]["NetworkEgressKind"];
@@ -1111,10 +1176,22 @@ export interface components {
             sourceAddress?: string;
             /** Format: uuid */
             proxyId?: string;
-            enabled: boolean;
             /** Format: int64 */
             lightweightIntervalSeconds: number;
-            probeOnAddressChange: boolean;
+        };
+        AgentProbeTarget: {
+            /** Format: uuid */
+            id: string;
+            /** Format: uuid */
+            pathId: string;
+            publicAddress: string;
+            kind: components["schemas"]["NetworkEgressKind"];
+            family: components["schemas"]["AddressFamily"];
+            interfaceName?: string;
+            sourceAddress?: string;
+            /** Format: uuid */
+            proxyId?: string;
+            probeOnRediscovery: boolean;
         };
         /** @enum {string} */
         NetworkProxyScheme: "http" | "https" | "socks5";
@@ -1303,6 +1380,10 @@ export interface components {
             id: string;
             /** @enum {string} */
             kind: "complete-probe" | "agent-update";
+            /** @enum {string} */
+            trigger: "manual" | "address-change" | "agent-update";
+            /** Format: uuid */
+            triggeringPublicAddressId?: string;
             /** Format: date-time */
             createdAt: string;
             /** Format: date-time */
@@ -1587,8 +1668,11 @@ export interface components {
         };
         /** @enum {string} */
         ProbeJSONType: "string" | "number" | "boolean" | "null" | "object" | "array";
-        /** @enum {string} */
-        KnownProbeFieldStatus: "available" | "missing" | "incompatible";
+        /**
+         * @description available contains a compatible value; unavailable is an explicit JSON null with no upstream result; missing and incompatible are format issues.
+         * @enum {string}
+         */
+        KnownProbeFieldStatus: "available" | "unavailable" | "missing" | "incompatible";
         KnownProbeField: {
             id: string;
             group: string;
@@ -1663,13 +1747,13 @@ export interface components {
             /** Format: uuid */
             nodeId: string;
             owner: components["schemas"]["HistoryOwner"];
-            event: components["schemas"]["AgentAddressEvent"];
+            event: components["schemas"]["PublicAddressEvent"];
         };
         HistoryAddressGap: {
             /** Format: uuid */
             nodeId: string;
             owner: components["schemas"]["HistoryOwner"];
-            gap: components["schemas"]["AgentAddressGap"];
+            gap: components["schemas"]["PublicAddressGap"];
         };
         AddressHistoryPage: {
             events: components["schemas"]["HistoryAddressEvent"][];
@@ -1888,6 +1972,7 @@ export interface components {
         NotificationRule: components["schemas"]["NotificationRuleWrite"] & {
             /** Format: uuid */
             id: string;
+            publicAddress?: string;
             /** Format: date-time */
             createdAt: string;
             /** Format: date-time */
@@ -1991,6 +2076,15 @@ export interface components {
             registeredAt: string;
             /** Format: date-time */
             lastSeenAt?: string;
+            publicAddresses: components["schemas"]["NodePublicAddressSummary"][];
+        };
+        NodePublicAddressSummary: {
+            /** Format: uuid */
+            id: string;
+            address: string;
+            family: components["schemas"]["AddressFamily"];
+            available: boolean;
+            probeEnabled: boolean;
         };
         NodeList: {
             items: components["schemas"]["Node"][];
@@ -2064,7 +2158,6 @@ export interface components {
     parameters: {
         CSRFToken: string;
         NodeId: string;
-        EgressId: string;
         ProxyId: string;
         RunId: string;
         SnapshotId: string;
@@ -2384,6 +2477,56 @@ export interface operations {
                 };
             };
             401: components["responses"]["Unauthorized"];
+        };
+    };
+    getSystemSettings: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Current system settings and their request-scoped effective values. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SystemSettings"];
+                };
+            };
+            401: components["responses"]["Unauthorized"];
+        };
+    };
+    updateSystemSettings: {
+        parameters: {
+            query?: never;
+            header?: {
+                "X-CSRF-Token"?: components["parameters"]["CSRFToken"];
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["SystemSettingsUpdate"];
+            };
+        };
+        responses: {
+            /** @description System settings were updated. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SystemSettings"];
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
         };
     };
     listNodes: {
@@ -3357,7 +3500,7 @@ export interface operations {
             404: components["responses"]["NotFound"];
         };
     };
-    createNodeEgress: {
+    updatePublicAddress: {
         parameters: {
             query?: never;
             header?: {
@@ -3365,88 +3508,87 @@ export interface operations {
             };
             path: {
                 nodeId: components["parameters"]["NodeId"];
+                publicAddressId: string;
             };
             cookie?: never;
         };
         requestBody: {
             content: {
-                "application/json": components["schemas"]["NetworkEgressCreate"];
+                "application/json": components["schemas"]["PublicAddressUpdate"];
             };
         };
         responses: {
-            /** @description The durable egress was created. */
-            201: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["NetworkEgress"];
-                };
-            };
-            400: components["responses"]["BadRequest"];
-            401: components["responses"]["Unauthorized"];
-            403: components["responses"]["Forbidden"];
-            404: components["responses"]["NotFound"];
-            409: components["responses"]["Conflict"];
-        };
-    };
-    deleteNodeEgress: {
-        parameters: {
-            query?: never;
-            header?: {
-                "X-CSRF-Token"?: components["parameters"]["CSRFToken"];
-            };
-            path: {
-                nodeId: components["parameters"]["NodeId"];
-                egressId: components["parameters"]["EgressId"];
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Durable egress deletion has been queued. */
-            202: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["EgressDeletion"];
-                };
-            };
-            401: components["responses"]["Unauthorized"];
-            403: components["responses"]["Forbidden"];
-            404: components["responses"]["NotFound"];
-            409: components["responses"]["Conflict"];
-        };
-    };
-    updateNodeEgress: {
-        parameters: {
-            query?: never;
-            header?: {
-                "X-CSRF-Token"?: components["parameters"]["CSRFToken"];
-            };
-            path: {
-                nodeId: components["parameters"]["NodeId"];
-                egressId: components["parameters"]["EgressId"];
-            };
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["NetworkEgressUpdate"];
-            };
-        };
-        responses: {
-            /** @description The egress was updated. */
+            /** @description Updated public-address settings. */
             200: {
                 headers: {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["NetworkEgress"];
+                    "application/json": components["schemas"]["PublicAddress"];
                 };
             };
             400: components["responses"]["BadRequest"];
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+        };
+    };
+    createNodeProxyDiscoveryPath: {
+        parameters: {
+            query?: never;
+            header?: {
+                "X-CSRF-Token"?: components["parameters"]["CSRFToken"];
+            };
+            path: {
+                nodeId: components["parameters"]["NodeId"];
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ProxyDiscoveryPathCreate"];
+            };
+        };
+        responses: {
+            /** @description The proxy discovery path was created. */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProxyDiscoveryPath"];
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+            409: components["responses"]["Conflict"];
+        };
+    };
+    deleteNodeProxyDiscoveryPath: {
+        parameters: {
+            query?: never;
+            header?: {
+                "X-CSRF-Token"?: components["parameters"]["CSRFToken"];
+            };
+            path: {
+                nodeId: components["parameters"]["NodeId"];
+                pathId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Proxy discovery path deletion has been queued. */
+            202: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProxyDiscoveryPathDeletion"];
+                };
+            };
             401: components["responses"]["Unauthorized"];
             403: components["responses"]["Forbidden"];
             404: components["responses"]["NotFound"];

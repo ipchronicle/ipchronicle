@@ -150,7 +150,7 @@ export function HistorySettingsPage() {
   }
 
   return (
-    <main className="mx-auto w-full max-w-6xl px-4 py-10 sm:px-6 sm:py-14">
+    <main className="w-full min-w-0 px-4 py-10 sm:px-6 sm:py-14">
       <div className="max-w-2xl">
         <p className="text-xs font-medium text-muted-foreground uppercase">
           {t("settings.section")}

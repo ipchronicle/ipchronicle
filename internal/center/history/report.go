@@ -98,6 +98,11 @@ func Interpret(raw []byte) (Report, error) {
 		}
 		actualType := jsonType(value)
 		field.ActualType = &actualType
+		if actualType == JSONTypeNull {
+			field.Status = "unavailable"
+			report.Fields = append(report.Fields, field)
+			continue
+		}
 		if !containsType(definition.ExpectedTypes, actualType) {
 			field.Status = "incompatible"
 			report.Issues = append(report.Issues, FormatIssue{
@@ -172,6 +177,9 @@ func decodeObject(raw []byte) (map[string]any, error) {
 func valueAt(root map[string]any, path []string) (any, bool) {
 	var current any = root
 	for _, segment := range path {
+		if current == nil {
+			return nil, true
+		}
 		object, ok := current.(map[string]any)
 		if !ok {
 			return nil, false
@@ -271,6 +279,9 @@ func unknownIssues(root map[string]any) []FormatIssue {
 		}
 		if node == nil {
 			actual := jsonType(value)
+			if actual == JSONTypeNull {
+				return
+			}
 			issues = append(issues, FormatIssue{
 				Path: strings.Join(path, "."), Kind: "unknown", ActualType: &actual,
 			})
@@ -309,7 +320,7 @@ func buildCatalog() []FieldDefinition {
 	for _, provider := range providers {
 		add("Factor.CountryCode."+provider, true, JSONTypeString)
 		for _, factor := range []string{"Proxy", "Tor", "VPN", "Server", "Abuser", "Robot"} {
-			add("Factor."+factor+"."+provider, true, JSONTypeBoolean, JSONTypeNull)
+			add("Factor."+factor+"."+provider, true, JSONTypeBoolean)
 		}
 	}
 	for _, service := range []string{"TikTok", "DisneyPlus", "Netflix", "Youtube", "AmazonPrimeVideo", "Reddit", "ChatGPT"} {
@@ -318,7 +329,7 @@ func buildCatalog() []FieldDefinition {
 		}
 	}
 	for _, service := range []string{"Port25", "Gmail", "Outlook", "Yahoo", "Apple", "QQ", "MailRU", "AOL", "GMX", "MailCOM", "163", "Sohu", "Sina"} {
-		add("Mail."+service, true, JSONTypeBoolean, JSONTypeNull)
+		add("Mail."+service, true, JSONTypeBoolean)
 	}
 	for _, field := range []string{"Total", "Clean", "Marked", "Blacklisted"} {
 		add("Mail.DNSBlacklist."+field, true, JSONTypeNumber)

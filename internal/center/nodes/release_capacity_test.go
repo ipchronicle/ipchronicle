@@ -47,7 +47,7 @@ func TestReleaseCapacity70Nodes420Egresses(t *testing.T) {
 		metadata := Metadata{
 			Hostname: fmt.Sprintf("capacity-node-%02d", index+1), AgentVersion: "0.1.0-rc.1",
 			OperatingSystem: "linux", Architecture: "amd64", PhysicalMemoryBytes: 256 * 1024 * 1024,
-			Capabilities: []string{"control-v1", "configuration-v5", "complete-probe-v1", "agent-update-v1"},
+			Capabilities: []string{"control-v1", "configuration-v6", "complete-probe-v1", "agent-update-v1"},
 		}
 		registration, err := service.Register(ctx, enrollment.Key, metadata)
 		if err != nil {

@@ -16,6 +16,7 @@ import (
 	"github.com/ipchronicle/ipchronicle/internal/center/nodes"
 	"github.com/ipchronicle/ipchronicle/internal/center/notifications"
 	"github.com/ipchronicle/ipchronicle/internal/center/syncws"
+	"github.com/ipchronicle/ipchronicle/internal/center/systemsettings"
 	centerupdates "github.com/ipchronicle/ipchronicle/internal/center/updates"
 	"github.com/ipchronicle/ipchronicle/internal/generated/api"
 	"github.com/ipchronicle/ipchronicle/internal/releaseinfo"
@@ -175,10 +176,11 @@ func newUpdateHTTPFixture(t *testing.T) updateHTTPFixture {
 	}
 	syncHub := syncws.NewHub()
 	nodeService := nodes.NewService(store.Config, store.History, store.ConfigQueries, store.MasterKey, syncHub)
+	systemSettingsService := systemsettings.NewService(store.ConfigQueries)
 	notificationService := notifications.NewService(notifications.ServiceOptions{
 		ConfigDatabase: store.Config, HistoryDatabase: store.History,
 		ConfigQueries: store.ConfigQueries, HistoryQueries: store.HistoryQueries,
-		MasterKey: store.MasterKey, Executable: "/proc/self/exe",
+		MasterKey: store.MasterKey, SystemSettings: systemSettingsService, Executable: "/proc/self/exe",
 	})
 	centerRevision := strings.Repeat("b", 40)
 	updateService := centerupdates.NewService(centerupdates.ServiceOptions{
@@ -189,7 +191,7 @@ func newUpdateHTTPFixture(t *testing.T) updateHTTPFixture {
 	handler := NewHTTPHandler(HTTPOptions{
 		Version: "0.1.0", Revision: centerRevision, Web: http.NotFoundHandler(),
 		Administrator: administrator, Nodes: nodeService, Notifications: notificationService,
-		Updates: updateService, SyncHub: syncHub, Store: store,
+		Updates: updateService, SyncHub: syncHub, SystemSettings: systemSettingsService, Store: store,
 	})
 
 	agentRevision := strings.Repeat("a", 40)
@@ -198,7 +200,7 @@ func newUpdateHTTPFixture(t *testing.T) updateHTTPFixture {
 		OperatingSystem: "linux", Architecture: "amd64",
 		Capabilities: []string{
 			"address-observation-v1", centerupdates.AgentUpdateCapability, "complete-probe-v1",
-			"configuration-v5", "control-v1", "network-inventory-v1", "sync-wakeup-v1",
+			"configuration-v6", "control-v1", "network-inventory-v1", "sync-wakeup-v1",
 		},
 		PhysicalMemoryBytes: 512 * 1024 * 1024,
 	}

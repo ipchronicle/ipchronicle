@@ -115,9 +115,10 @@ func (o *Observer) Run(ctx context.Context) error {
 }
 
 func reconcileSchedule(schedule map[string]scheduleEntry, configuration state.Configuration, now time.Time) {
-	retained := make(map[string]struct{}, len(configuration.Egresses))
+	paths := configuration.DiscoveryPathList()
+	retained := make(map[string]struct{}, len(paths))
 	if configuration.Enabled {
-		for _, egress := range configuration.Egresses {
+		for _, egress := range paths {
 			if !egress.Enabled {
 				continue
 			}
@@ -140,7 +141,7 @@ func nextDueEgress(configuration state.Configuration, schedule map[string]schedu
 	var selected state.Egress
 	var selectedAt time.Time
 	found := false
-	for _, egress := range configuration.Egresses {
+	for _, egress := range configuration.DiscoveryPathList() {
 		entry, exists := schedule[egress.ID]
 		if !exists || entry.next.After(now) {
 			continue

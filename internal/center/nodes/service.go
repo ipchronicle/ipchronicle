@@ -107,10 +107,13 @@ type SyncAuthorization struct {
 }
 
 type Configuration struct {
-	SchemaVersion          int
-	Revision               int64
-	Enabled                bool
-	HistoryGeneration      string
+	SchemaVersion     int
+	Revision          int64
+	Enabled           bool
+	HistoryGeneration string
+	DiscoveryPaths    []NetworkEgress
+	ProbeTargets      []NetworkEgress
+	// Egresses is an internal compatibility view for pre-v6 callers.
 	Egresses               []NetworkEgress
 	Proxies                []AgentProxyConfiguration
 	DiscoveryServices      DiscoveryServices
@@ -161,6 +164,15 @@ type Node struct {
 	SyncExpiresAt                *time.Time
 	RegisteredAt                 time.Time
 	LastSeenAt                   *time.Time
+	PublicAddresses              []NodePublicAddressSummary
+}
+
+type NodePublicAddressSummary struct {
+	ID           uuid.UUID
+	Address      string
+	Family       string
+	Available    bool
+	ProbeEnabled bool
 }
 
 func NewService(database, history *sql.DB, queries *configdb.Queries, masterKey [32]byte, syncConnections SyncConnections) *Service {
@@ -391,6 +403,9 @@ func (s *Service) Poll(
 	if err != nil {
 		return Poll{}, err
 	}
+	if err := s.createReadyRediscoveryTask(ctx, node.ID, current.AppliedConfigurationRevision, now); err != nil {
+		return Poll{}, err
+	}
 	task, err := s.deliverAgentTask(ctx, node.ID, now)
 	if err != nil {
 		return Poll{}, err
@@ -438,13 +453,46 @@ func (s *Service) Configuration(ctx context.Context, credential string) (Configu
 	if err != nil {
 		return Configuration{}, err
 	}
-	egresses := make([]NetworkEgress, 0, len(egressRecords))
+	discoveryPaths := make([]NetworkEgress, 0, len(egressRecords))
 	for _, record := range egressRecords {
 		egress, err := egressFromRecord(record)
 		if err != nil {
 			return Configuration{}, err
 		}
-		egresses = append(egresses, egress)
+		egress.Enabled = true
+		egress.ProbeOnAddressChange = false
+		discoveryPaths = append(discoveryPaths, egress)
+	}
+	targetRecords, err := s.queries.ListNodeSelectedPublicAddresses(ctx, node.ID)
+	if err != nil {
+		return Configuration{}, err
+	}
+	probeTargets := make([]NetworkEgress, 0, len(targetRecords))
+	for _, record := range targetRecords {
+		id, parseErr := uuid.Parse(record.ID)
+		if parseErr != nil || record.SelectedPathID == nil {
+			return Configuration{}, fmt.Errorf("read selected public-address target %q", record.ID)
+		}
+		pathID, parseErr := uuid.Parse(*record.SelectedPathID)
+		if parseErr != nil {
+			return Configuration{}, fmt.Errorf("parse selected public-address path %q: %w", *record.SelectedPathID, parseErr)
+		}
+		var proxyID *uuid.UUID
+		if record.ProxyID != nil {
+			value, parseErr := uuid.Parse(*record.ProxyID)
+			if parseErr != nil {
+				return Configuration{}, fmt.Errorf("parse selected proxy ID %q: %w", *record.ProxyID, parseErr)
+			}
+			proxyID = &value
+		}
+		probeTargets = append(probeTargets, NetworkEgress{
+			ID: id, PathID: &pathID, PublicAddress: &record.Address,
+			NodeID: uuid.MustParse(record.NodeID), Name: record.Address,
+			Kind: record.Kind, Family: record.Family, InterfaceName: record.InterfaceName,
+			SourceAddress: record.SourceAddress, ProxyID: proxyID, Enabled: true, Available: true,
+			LightweightIntervalSeconds: record.LightweightIntervalSeconds,
+			ProbeOnAddressChange:       record.ProbeOnRediscovery == 1,
+		})
 	}
 	proxyRecords, err := s.queries.ListNodeNetworkProxies(ctx, node.ID)
 	if err != nil {
@@ -474,9 +522,11 @@ func (s *Service) Configuration(ctx context.Context, credential string) (Configu
 		return Configuration{}, fmt.Errorf("read stored probe schedule: %w", err)
 	}
 	return Configuration{
-		SchemaVersion: 5, Revision: node.DesiredConfigurationRevision,
+		SchemaVersion: 6, Revision: node.DesiredConfigurationRevision,
 		Enabled: node.Enabled == 1, HistoryGeneration: state.HistoryGeneration,
-		Egresses: egresses, Proxies: proxies, DiscoveryServices: discoveryServices,
+		DiscoveryPaths: discoveryPaths, ProbeTargets: probeTargets,
+		Egresses: discoveryPaths,
+		Proxies:  proxies, DiscoveryServices: discoveryServices,
 		ProbeSchedule: probeSchedule, ProbeLowMemoryOverride: settings.ProbeLowMemoryOverride == 1,
 	}, nil
 }
@@ -485,6 +535,21 @@ func (s *Service) List(ctx context.Context) ([]Node, error) {
 	records, err := s.queries.ListNodes(ctx)
 	if err != nil {
 		return nil, err
+	}
+	publicAddressRecords, err := s.queries.ListNodePublicAddressSummaries(ctx)
+	if err != nil {
+		return nil, err
+	}
+	publicAddresses := make(map[string][]NodePublicAddressSummary, len(records))
+	for _, record := range publicAddressRecords {
+		id, err := uuid.Parse(record.ID)
+		if err != nil {
+			return nil, fmt.Errorf("parse stored public address ID %q: %w", record.ID, err)
+		}
+		publicAddresses[record.NodeID] = append(publicAddresses[record.NodeID], NodePublicAddressSummary{
+			ID: id, Address: record.Address, Family: record.Family,
+			Available: record.Available, ProbeEnabled: record.ProbeEnabled == 1,
+		})
 	}
 	capabilityRecords, err := s.queries.ListNodeCapabilities(ctx)
 	if err != nil {
@@ -547,6 +612,7 @@ func (s *Service) List(ctx context.Context) ([]Node, error) {
 			ConfigurationStatus:          configurationStatus, ConfigurationError: record.ConfigurationError,
 			ConfigurationErrorRevision: record.ConfigurationErrorRevision,
 			RegisteredAt:               time.Unix(record.RegisteredAt, 0).UTC(), LastSeenAt: lastSeenAt,
+			PublicAddresses: append([]NodePublicAddressSummary{}, publicAddresses[record.ID]...),
 		}
 		if deletion, found := deletions[record.ID]; found {
 			status := deletion.Status
@@ -931,22 +997,10 @@ func (s *Service) deleteNodeHistory(ctx context.Context, nodeID string) error {
 	}
 	defer transaction.Rollback()
 	queries := s.historyQueries.WithTx(transaction)
-	if err := queries.DeleteNodeNotificationHistory(ctx, &nodeID); err != nil {
-		return err
-	}
-	if err := queries.DeleteNodeProbeHistory(ctx, nodeID); err != nil {
-		return err
-	}
-	if err := queries.DeleteNodeProbeGaps(ctx, nodeID); err != nil {
-		return err
-	}
-	if err := queries.DeleteNodeProbeComparisonProgress(ctx, nodeID); err != nil {
+	if err := queries.DeleteNodeAddressNotificationHistory(ctx, &nodeID); err != nil {
 		return err
 	}
 	if err := queries.DeleteNodeAddressStates(ctx, nodeID); err != nil {
-		return err
-	}
-	if err := queries.DeleteNodeAddressEvents(ctx, nodeID); err != nil {
 		return err
 	}
 	if err := queries.DeleteNodeAddressGaps(ctx, nodeID); err != nil {
@@ -983,9 +1037,6 @@ func (s *Service) deleteNetworkEgressHistory(ctx context.Context, egressID strin
 		return err
 	}
 	if err := queries.DeleteEgressAddressStates(ctx, egressID); err != nil {
-		return err
-	}
-	if err := queries.DeleteEgressAddressEvents(ctx, egressID); err != nil {
 		return err
 	}
 	if err := queries.DeleteEgressAddressGaps(ctx, egressID); err != nil {

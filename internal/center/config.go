@@ -1,10 +1,8 @@
 package center
 
 import (
-	"errors"
 	"fmt"
 	"net/netip"
-	"net/url"
 	"os"
 	"path/filepath"
 	"strings"
@@ -22,7 +20,6 @@ type RuntimeConfig struct {
 	DatabasePaths  database.Paths
 	AdminUsername  string
 	AdminPassword  string
-	ExternalOrigin *url.URL
 	TrustedProxies []netip.Prefix
 }
 
@@ -32,10 +29,6 @@ func LoadRuntimeConfig() (RuntimeConfig, error) {
 		return RuntimeConfig{}, err
 	}
 
-	externalOrigin, err := parseExternalOrigin(os.Getenv("IPCHRONICLE_EXTERNAL_URL"))
-	if err != nil {
-		return RuntimeConfig{}, err
-	}
 	trustedProxies, err := parseTrustedProxies(os.Getenv("IPCHRONICLE_TRUSTED_PROXIES"))
 	if err != nil {
 		return RuntimeConfig{}, err
@@ -45,7 +38,6 @@ func LoadRuntimeConfig() (RuntimeConfig, error) {
 		DatabasePaths:  paths,
 		AdminUsername:  environmentOrDefault("IPCHRONICLE_ADMIN_USERNAME", "admin"),
 		AdminPassword:  environmentOrDefault("IPCHRONICLE_ADMIN_PASSWORD", "admin"),
-		ExternalOrigin: externalOrigin,
 		TrustedProxies: trustedProxies,
 	}, nil
 }
@@ -62,24 +54,6 @@ func LoadDatabasePaths() (database.Paths, error) {
 		}
 	}
 	return paths, nil
-}
-
-func parseExternalOrigin(value string) (*url.URL, error) {
-	if value == "" {
-		return nil, nil
-	}
-	parsed, err := url.Parse(value)
-	if err != nil {
-		return nil, fmt.Errorf("parse IPCHRONICLE_EXTERNAL_URL: %w", err)
-	}
-	if (parsed.Scheme != "http" && parsed.Scheme != "https") || parsed.Host == "" || parsed.User != nil ||
-		(parsed.Path != "" && parsed.Path != "/") || parsed.RawQuery != "" || parsed.Fragment != "" {
-		return nil, errors.New("IPCHRONICLE_EXTERNAL_URL must be an HTTP or HTTPS origin without credentials, path, query, or fragment")
-	}
-	parsed.Scheme = strings.ToLower(parsed.Scheme)
-	parsed.Host = strings.ToLower(parsed.Host)
-	parsed.Path = ""
-	return parsed, nil
 }
 
 func parseTrustedProxies(value string) ([]netip.Prefix, error) {

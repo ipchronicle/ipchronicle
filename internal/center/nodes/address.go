@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/ipchronicle/ipchronicle/internal/center/database/configdb"
 	"github.com/ipchronicle/ipchronicle/internal/center/database/historydb"
 	"github.com/ipchronicle/ipchronicle/internal/center/notifications"
 )
@@ -108,8 +109,17 @@ func (s *Service) ingestAddressUpload(ctx context.Context, nodeID string, upload
 		}
 		egresses[egress.ID] = egress
 	}
+	upload, err = normalizeAddressUpload(upload)
+	if err != nil {
+		return receipt, ErrInvalidMetadata
+	}
 	if err := validateAddressUpload(upload, egresses); err != nil {
 		return receipt, ErrInvalidMetadata
+	}
+	if upload.States != nil {
+		if err := s.reconcilePublicAddresses(ctx, nodeID, upload.States, systemState.HistoryGeneration, receivedAt); err != nil {
+			return receipt, err
+		}
 	}
 	transaction, err := s.history.BeginTx(ctx, nil)
 	if err != nil {
@@ -137,14 +147,22 @@ func (s *Service) ingestAddressUpload(ctx context.Context, nodeID string, upload
 			receipt.DiscardedEventIDs = append(receipt.DiscardedEventIDs, item.ID)
 			continue
 		}
-		accepted, err := ingestAddressEvent(ctx, queries, nodeID, item, receivedAt)
+		publicAddressID, err := s.publicAddressIDForEvent(ctx, item)
+		if err != nil {
+			return receipt, err
+		}
+		if publicAddressID == "" {
+			receipt.AcceptedEventIDs = append(receipt.AcceptedEventIDs, item.ID)
+			continue
+		}
+		accepted, err := ingestAddressEvent(ctx, queries, nodeID, publicAddressID, item, receivedAt)
 		if err != nil {
 			return receipt, err
 		}
 		if !accepted {
 			return receipt, ErrInvalidMetadata
 		}
-		if err := createAddressNotificationEvent(ctx, queries, nodeID, item, receivedAt); err != nil {
+		if err := s.createAddressNotificationEvent(ctx, queries, nodeID, publicAddressID, item, receivedAt); err != nil {
 			return receipt, err
 		}
 		receipt.AcceptedEventIDs = append(receipt.AcceptedEventIDs, item.ID)
@@ -172,10 +190,9 @@ func (s *Service) ingestAddressUpload(ctx context.Context, nodeID string, upload
 		if rows != 1 {
 			return receipt, ErrInvalidMetadata
 		}
-		egressID := item.EgressID.String()
 		if err := notifications.CreateEvent(ctx, queries, notifications.EventInput{
 			Type: notifications.EventAddressGap, SourceKind: "address-gap", SourceID: item.ID.String(),
-			NodeID: &nodeID, EgressID: &egressID,
+			NodeID: &nodeID,
 			Payload: notifications.GapData{
 				Kind: "address", DroppedCount: item.DroppedCount,
 				FirstSequence: item.FirstSequence, LastSequence: item.LastSequence,
@@ -193,10 +210,238 @@ func (s *Service) ingestAddressUpload(ctx context.Context, nodeID string, upload
 	return receipt, nil
 }
 
-func createAddressNotificationEvent(
+func (s *Service) reconcilePublicAddresses(
+	ctx context.Context,
+	nodeID string,
+	states []AddressState,
+	historyGeneration string,
+	receivedAt int64,
+) error {
+	transaction, err := s.database.BeginTx(ctx, nil)
+	if err != nil {
+		return err
+	}
+	defer transaction.Rollback()
+	queries := s.queries.WithTx(transaction)
+	selectedBefore, err := selectedPublicAddressPaths(ctx, queries)
+	if err != nil {
+		return err
+	}
+	type priorAddressState struct {
+		record    configdb.PublicAddress
+		available bool
+	}
+	prior := make(map[string]priorAddressState)
+	for _, state := range states {
+		if state.HistoryGeneration != historyGeneration || state.Status != "confirmed" || state.PublicAddress == nil {
+			continue
+		}
+		parsed, err := netip.ParseAddr(*state.PublicAddress)
+		if err != nil {
+			return ErrInvalidMetadata
+		}
+		address := parsed.Unmap().String()
+		if _, exists := prior[address]; exists {
+			continue
+		}
+		record, err := queries.GetPublicAddressByAddress(ctx, address)
+		if errors.Is(err, sql.ErrNoRows) {
+			continue
+		}
+		if err != nil {
+			return err
+		}
+		paths, err := queries.ListPublicAddressPaths(ctx, record.ID)
+		if err != nil {
+			return err
+		}
+		available := false
+		for _, path := range paths {
+			available = available || path.Available == 1
+		}
+		prior[address] = priorAddressState{record: record, available: available}
+	}
+	if err := queries.MarkNodePublicAddressPathsUnavailable(ctx, nodeID); err != nil {
+		return err
+	}
+	for _, state := range states {
+		if state.HistoryGeneration != historyGeneration || state.Status != "confirmed" || state.PublicAddress == nil {
+			continue
+		}
+		parsed, err := netip.ParseAddr(*state.PublicAddress)
+		if err != nil {
+			return ErrInvalidMetadata
+		}
+		address := parsed.Unmap().String()
+		observedAt := state.LastCheckedAt.UTC().Unix()
+		updatedAt := max(receivedAt, observedAt)
+		addressID := uuid.NewString()
+		if err := queries.UpsertPublicAddress(ctx, configdb.UpsertPublicAddressParams{
+			ID: addressID, Address: address, Family: state.Family,
+			FirstSeenAt: observedAt, LastSeenAt: observedAt, UpdatedAt: updatedAt,
+		}); err != nil {
+			return err
+		}
+		publicAddress, err := queries.GetPublicAddressByAddress(ctx, address)
+		if err != nil {
+			return err
+		}
+		if err := queries.UpsertPublicAddressNode(ctx, configdb.UpsertPublicAddressNodeParams{
+			PublicAddressID: publicAddress.ID, NodeID: nodeID,
+			FirstSeenAt: state.LastCheckedAt.UTC().Unix(), LastSeenAt: state.LastCheckedAt.UTC().Unix(),
+		}); err != nil {
+			return err
+		}
+		var lastSucceededAt *int64
+		if state.LastSucceededAt != nil {
+			value := state.LastSucceededAt.UTC().Unix()
+			lastSucceededAt = &value
+		}
+		if err := queries.UpsertPublicAddressPath(ctx, configdb.UpsertPublicAddressPathParams{
+			PublicAddressID: publicAddress.ID, PathID: state.EgressID.String(), NodeID: nodeID,
+			LocalInterface: state.LocalInterface, LocalAddress: state.LocalAddress,
+			ProxyPath: boolInteger(state.ProxyPath), LikelyNat: boolInteger(state.LikelyNAT),
+			Temporary: boolInteger(state.Temporary), Available: 1,
+			LastCheckedAt: state.LastCheckedAt.UTC().Unix(), LastSucceededAt: lastSucceededAt,
+		}); err != nil {
+			return err
+		}
+	}
+	cleared, err := queries.ClearUnavailablePublicAddressSelections(ctx)
+	if err != nil {
+		return err
+	}
+	_ = cleared
+	addresses, err := queries.ListPublicAddressesWithoutSelectedPath(ctx)
+	if err != nil {
+		return err
+	}
+	for _, address := range addresses {
+		path, err := queries.GetPreferredPublicAddressPath(ctx, address.ID)
+		if err != nil {
+			return err
+		}
+		pathID := path.PathID
+		changed, err := queries.SelectPublicAddressPath(ctx, configdb.SelectPublicAddressPathParams{
+			SelectedPathID: &pathID, ID: address.ID, SelectedPathID_2: &pathID,
+		})
+		if err != nil {
+			return err
+		}
+		_ = changed
+	}
+	selectedAfter, err := selectedPublicAddressPaths(ctx, queries)
+	if err != nil {
+		return err
+	}
+	affectedNodes := changedSelectionNodes(selectedBefore, selectedAfter)
+	for affectedNodeID := range affectedNodes {
+		if err := incrementNodeConfiguration(ctx, queries, affectedNodeID); err != nil {
+			return err
+		}
+	}
+	for address, previous := range prior {
+		if previous.available || previous.record.ProbeEnabled != 1 || previous.record.ProbeOnRediscovery != 1 {
+			continue
+		}
+		current, err := queries.GetPublicAddressByAddress(ctx, address)
+		if errors.Is(err, sql.ErrNoRows) {
+			continue
+		}
+		if err != nil {
+			return err
+		}
+		if current.SelectedPathID == nil {
+			continue
+		}
+		path, err := queries.GetPublicAddressPathByPathID(ctx, *current.SelectedPathID)
+		if err != nil {
+			return err
+		}
+		if path.Available != 1 || path.PublicAddressID != current.ID {
+			continue
+		}
+		selectedNode, err := queries.GetNodeByID(ctx, path.NodeID)
+		if err != nil {
+			return err
+		}
+		if err := queries.DeletePendingPublicAddressProbeByAddress(ctx, current.ID); err != nil {
+			return err
+		}
+		if err := queries.UpsertPendingPublicAddressProbe(ctx, configdb.UpsertPendingPublicAddressProbeParams{
+			PublicAddressID: current.ID, NodeID: path.NodeID,
+			RequiredConfigurationRevision: selectedNode.DesiredConfigurationRevision,
+			CreatedAt:                     receivedAt,
+		}); err != nil {
+			return err
+		}
+	}
+	if err := transaction.Commit(); err != nil {
+		return err
+	}
+	for affectedNodeID := range affectedNodes {
+		s.sync.Wake(affectedNodeID)
+	}
+	return nil
+}
+
+type selectedPublicAddressPath struct {
+	pathID string
+	nodeID string
+}
+
+func selectedPublicAddressPaths(ctx context.Context, queries *configdb.Queries) (map[string]selectedPublicAddressPath, error) {
+	addresses, err := queries.ListPublicAddresses(ctx)
+	if err != nil {
+		return nil, err
+	}
+	selected := make(map[string]selectedPublicAddressPath, len(addresses))
+	for _, address := range addresses {
+		if address.SelectedPathID == nil {
+			continue
+		}
+		path, err := queries.GetPublicAddressPathByPathID(ctx, *address.SelectedPathID)
+		if errors.Is(err, sql.ErrNoRows) {
+			continue
+		}
+		if err != nil {
+			return nil, err
+		}
+		selected[address.ID] = selectedPublicAddressPath{pathID: path.PathID, nodeID: path.NodeID}
+	}
+	return selected, nil
+}
+
+func changedSelectionNodes(before, after map[string]selectedPublicAddressPath) map[string]struct{} {
+	affected := make(map[string]struct{})
+	addressIDs := make(map[string]struct{}, len(before)+len(after))
+	for addressID := range before {
+		addressIDs[addressID] = struct{}{}
+	}
+	for addressID := range after {
+		addressIDs[addressID] = struct{}{}
+	}
+	for addressID := range addressIDs {
+		oldPath, hadOldPath := before[addressID]
+		newPath, hasNewPath := after[addressID]
+		if hadOldPath == hasNewPath && oldPath.pathID == newPath.pathID {
+			continue
+		}
+		if hadOldPath {
+			affected[oldPath.nodeID] = struct{}{}
+		}
+		if hasNewPath {
+			affected[newPath.nodeID] = struct{}{}
+		}
+	}
+	return affected
+}
+
+func (s *Service) createAddressNotificationEvent(
 	ctx context.Context,
 	queries *historydb.Queries,
 	nodeID string,
+	publicAddressID string,
 	item AddressEvent,
 	recordedAt int64,
 ) error {
@@ -211,10 +456,9 @@ func createAddressNotificationEvent(
 	default:
 		return nil
 	}
-	egressID := item.EgressID.String()
 	return notifications.CreateEvent(ctx, queries, notifications.EventInput{
 		Type: eventType, SourceKind: "address-event", SourceID: item.ID.String(),
-		NodeID: &nodeID, EgressID: &egressID,
+		NodeID: &nodeID, EgressID: &publicAddressID,
 		Payload: notifications.AddressData{
 			Sequence: item.Sequence, Kind: item.Kind, Family: item.Family,
 			PreviousAddress: item.PreviousAddress, PublicAddress: item.PublicAddress,
@@ -224,6 +468,76 @@ func createAddressNotificationEvent(
 		},
 		ObservedAt: item.ObservedAt.UTC().Unix(), RecordedAt: recordedAt,
 	})
+}
+
+func (s *Service) publicAddressIDForEvent(ctx context.Context, item AddressEvent) (string, error) {
+	if item.PublicAddress != nil {
+		address, err := s.queries.GetPublicAddressByAddress(ctx, *item.PublicAddress)
+		if errors.Is(err, sql.ErrNoRows) {
+			return "", nil
+		}
+		if err != nil {
+			return "", err
+		}
+		return address.ID, nil
+	}
+	path, err := s.queries.GetPublicAddressPathByPathID(ctx, item.EgressID.String())
+	if errors.Is(err, sql.ErrNoRows) {
+		return "", nil
+	}
+	if err != nil {
+		return "", err
+	}
+	return path.PublicAddressID, nil
+}
+
+func normalizeAddressUpload(upload AddressUpload) (AddressUpload, error) {
+	if upload.States != nil {
+		states := make([]AddressState, len(upload.States))
+		copy(states, upload.States)
+		upload.States = states
+	}
+	if upload.Events != nil {
+		events := make([]AddressEvent, len(upload.Events))
+		copy(events, upload.Events)
+		upload.Events = events
+	}
+	for index := range upload.States {
+		value, err := canonicalPublicAddress(upload.States[index].PublicAddress, upload.States[index].Family)
+		if err != nil {
+			return AddressUpload{}, err
+		}
+		upload.States[index].PublicAddress = value
+	}
+	for index := range upload.Events {
+		value, err := canonicalPublicAddress(upload.Events[index].PublicAddress, upload.Events[index].Family)
+		if err != nil {
+			return AddressUpload{}, err
+		}
+		upload.Events[index].PublicAddress = value
+		previous, err := canonicalPublicAddress(upload.Events[index].PreviousAddress, upload.Events[index].Family)
+		if err != nil {
+			return AddressUpload{}, err
+		}
+		upload.Events[index].PreviousAddress = previous
+	}
+	return upload, nil
+}
+
+func canonicalPublicAddress(value *string, family string) (*string, error) {
+	if value == nil {
+		return nil, nil
+	}
+	parsed, err := netip.ParseAddr(*value)
+	if err != nil {
+		return nil, err
+	}
+	parsed = parsed.Unmap()
+	if familyOf(parsed) != family {
+		return nil, ErrInvalidMetadata
+	}
+	canonical := parsed.String()
+	return &canonical, nil
 }
 
 func validateAddressUpload(upload AddressUpload, egresses map[uuid.UUID]NetworkEgress) error {
@@ -391,10 +705,10 @@ func addressStateParams(nodeID string, item AddressState, receivedAt int64) hist
 	}
 }
 
-func ingestAddressEvent(ctx context.Context, queries *historydb.Queries, nodeID string, item AddressEvent, receivedAt int64) (bool, error) {
-	parameters := addressEventParams(nodeID, item, receivedAt)
+func ingestAddressEvent(ctx context.Context, queries *historydb.Queries, nodeID, publicAddressID string, item AddressEvent, receivedAt int64) (bool, error) {
+	parameters := addressEventParams(nodeID, publicAddressID, item, receivedAt)
 	existing, err := queries.GetAddressEventBySequence(ctx, historydb.GetAddressEventBySequenceParams{
-		EgressID: item.EgressID.String(), HistoryGeneration: item.HistoryGeneration, Sequence: item.Sequence,
+		SourcePathID: item.EgressID.String(), HistoryGeneration: item.HistoryGeneration, Sequence: item.Sequence,
 	})
 	if err == nil {
 		return addressEventMatches(existing, parameters), nil
@@ -416,9 +730,9 @@ func ingestAddressEvent(ctx context.Context, queries *historydb.Queries, nodeID 
 	return addressEventMatches(existing, parameters), nil
 }
 
-func addressEventParams(nodeID string, item AddressEvent, receivedAt int64) historydb.CreateAddressEventParams {
+func addressEventParams(nodeID, publicAddressID string, item AddressEvent, receivedAt int64) historydb.CreateAddressEventParams {
 	return historydb.CreateAddressEventParams{
-		ID: item.ID.String(), EgressID: item.EgressID.String(), NodeID: nodeID,
+		ID: item.ID.String(), PublicAddressID: publicAddressID, SourcePathID: item.EgressID.String(), NodeID: nodeID,
 		HistoryGeneration: item.HistoryGeneration, Sequence: item.Sequence, Kind: item.Kind, Family: item.Family,
 		PreviousAddress: item.PreviousAddress, PublicAddress: item.PublicAddress,
 		LocalInterface: item.LocalInterface, LocalAddress: item.LocalAddress,
@@ -428,7 +742,8 @@ func addressEventParams(nodeID string, item AddressEvent, receivedAt int64) hist
 }
 
 func addressEventMatches(existing historydb.AddressEvent, expected historydb.CreateAddressEventParams) bool {
-	return existing.ID == expected.ID && existing.EgressID == expected.EgressID && existing.NodeID == expected.NodeID &&
+	return existing.ID == expected.ID && existing.PublicAddressID == expected.PublicAddressID &&
+		existing.SourcePathID == expected.SourcePathID && existing.NodeID == expected.NodeID &&
 		existing.HistoryGeneration == expected.HistoryGeneration && existing.Sequence == expected.Sequence &&
 		existing.Kind == expected.Kind && existing.Family == expected.Family &&
 		reflect.DeepEqual(existing.PreviousAddress, expected.PreviousAddress) && reflect.DeepEqual(existing.PublicAddress, expected.PublicAddress) &&
@@ -465,7 +780,7 @@ func addressEventFromRecord(record historydb.AddressEvent) (AddressEvent, error)
 	if err != nil {
 		return AddressEvent{}, err
 	}
-	egressID, err := uuid.Parse(record.EgressID)
+	egressID, err := uuid.Parse(record.PublicAddressID)
 	if err != nil {
 		return AddressEvent{}, err
 	}

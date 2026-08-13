@@ -19,6 +19,7 @@ import (
 	"github.com/ipchronicle/ipchronicle/internal/center/nodes"
 	"github.com/ipchronicle/ipchronicle/internal/center/notifications"
 	"github.com/ipchronicle/ipchronicle/internal/center/syncws"
+	"github.com/ipchronicle/ipchronicle/internal/center/systemsettings"
 	centerupdates "github.com/ipchronicle/ipchronicle/internal/center/updates"
 )
 
@@ -35,10 +36,11 @@ func TestAgentEnrollsOnceAndBecomesOnline(t *testing.T) {
 	}
 	syncHub := syncws.NewHub()
 	nodeService := nodes.NewService(centerStore.Config, centerStore.History, centerStore.ConfigQueries, centerStore.MasterKey, syncHub)
+	systemSettingsService := systemsettings.NewService(centerStore.ConfigQueries)
 	notificationService := notifications.NewService(notifications.ServiceOptions{
 		ConfigDatabase: centerStore.Config, HistoryDatabase: centerStore.History,
 		ConfigQueries: centerStore.ConfigQueries, HistoryQueries: centerStore.HistoryQueries,
-		MasterKey: centerStore.MasterKey, Executable: "/proc/self/exe",
+		MasterKey: centerStore.MasterKey, SystemSettings: systemSettingsService, Executable: "/proc/self/exe",
 	})
 	updateService := centerupdates.NewService(centerupdates.ServiceOptions{
 		Queries: centerStore.ConfigQueries, Waker: syncHub,
@@ -50,7 +52,8 @@ func TestAgentEnrollsOnceAndBecomesOnline(t *testing.T) {
 	}
 	handler := center.NewHTTPHandler(center.HTTPOptions{
 		Version: "0.1.0-test", Revision: "test-revision", Web: http.NotFoundHandler(), Administrator: administrator,
-		Nodes: nodeService, Notifications: notificationService, Updates: updateService, SyncHub: syncHub, Store: centerStore,
+		Nodes: nodeService, Notifications: notificationService, Updates: updateService, SyncHub: syncHub,
+		SystemSettings: systemSettingsService, Store: centerStore,
 	})
 	server := httptest.NewServer(handler)
 	t.Cleanup(server.Close)

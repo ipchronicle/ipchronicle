@@ -38,7 +38,8 @@ func TestPollCarriesProbeStatusAndTaskReportAndAcceptsTask(t *testing.T) {
 			},
 			AcceptedTerminalTaskId: &oldTaskID,
 			Task: &agentapi.AgentTask{
-				Id: newTaskID, Kind: agentapi.CompleteProbe, CreatedAt: now, ExpiresAt: now.Add(2 * time.Minute),
+				Id: newTaskID, Kind: agentapi.AgentTaskKindCompleteProbe,
+				Trigger: agentapi.AgentTaskTriggerManual, CreatedAt: now, ExpiresAt: now.Add(2 * time.Minute),
 			},
 		})
 	}))

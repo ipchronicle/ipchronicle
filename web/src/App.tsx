@@ -3,6 +3,7 @@ import { Navigate, Route, Routes } from "react-router";
 import { useAuth } from "@/auth-context";
 import { AppHeader } from "@/components/app-header";
 import { AppSidebar } from "@/components/app-sidebar";
+import { NodeDetailLayout } from "@/components/node-detail-layout";
 import { Card, CardContent } from "@/components/ui/card";
 import { SidebarInset, SidebarProvider } from "@/components/ui/sidebar";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -13,11 +14,14 @@ import { LoginPage } from "@/pages/login-page";
 import { NodeNetworkPage } from "@/pages/node-network-page";
 import { NodeProbePage } from "@/pages/node-probe-page";
 import { NetworkSettingsPage } from "@/pages/network-settings-page";
+import { NodeChangesPage } from "@/pages/node-changes-page";
 import { NodesPage } from "@/pages/nodes-page";
 import { NotificationsPage } from "@/pages/notifications-page";
+import { NodeOverviewPage } from "@/pages/node-overview-page";
 import { ProbeRunPage } from "@/pages/probe-run-page";
 import { ProbeComparisonPage } from "@/pages/probe-comparison-page";
 import { ProbeSnapshotPage } from "@/pages/probe-snapshot-page";
+import { NodeSettingsPage } from "@/pages/node-settings-page";
 import { SystemStatusPage } from "@/pages/system-status-page";
 import { SystemSettingsPage } from "@/pages/system-settings-page";
 
@@ -53,8 +57,13 @@ function App() {
           <Route path="/" element={<SystemStatusPage />} />
           <Route path="/system/status" element={<SystemStatusPage />} />
           <Route path="/nodes" element={<NodesPage />} />
-          <Route path="/nodes/:nodeId/network" element={<NodeNetworkPage />} />
-          <Route path="/nodes/:nodeId/probe" element={<NodeProbePage />} />
+          <Route path="/nodes/:nodeId" element={<NodeDetailLayout />}>
+            <Route index element={<NodeOverviewPage />} />
+            <Route path="network" element={<NodeNetworkPage />} />
+            <Route path="probe" element={<NodeProbePage />} />
+            <Route path="changes" element={<NodeChangesPage />} />
+            <Route path="settings" element={<NodeSettingsPage />} />
+          </Route>
           <Route path="/probe-runs/:runId" element={<ProbeRunPage />} />
           <Route path="/history" element={<HistoryPage />} />
           <Route path="/notifications" element={<NotificationsPage />} />
@@ -77,7 +86,7 @@ function App() {
 
 function LoadingPage() {
   return (
-    <main className="mx-auto w-full max-w-6xl px-4 py-10 sm:px-6 sm:py-16">
+    <main className="w-full min-w-0 px-4 py-10 sm:px-6 sm:py-16">
       <div className="space-y-3" aria-busy="true">
         <Skeleton className="h-4 w-24" />
         <Skeleton className="h-8 w-52" />

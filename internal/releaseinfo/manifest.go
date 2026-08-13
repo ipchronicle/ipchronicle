@@ -25,7 +25,7 @@ var RequiredAgentCapabilities = []string{
 	"address-observation-v1",
 	"agent-update-v1",
 	"complete-probe-v1",
-	"configuration-v5",
+	"configuration-v6",
 	"control-v1",
 	"network-inventory-v1",
 	"sync-wakeup-v1",

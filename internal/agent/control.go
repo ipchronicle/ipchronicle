@@ -239,9 +239,7 @@ func RunWithOptions(ctx context.Context, store *state.Store, version string, log
 	workers.Add(1)
 	go func() {
 		defer workers.Done()
-		observer := observation.NewObserverWithChangeHandler(store, logger, func(ctx context.Context, egressID string, at time.Time) error {
-			return probeManager.TriggerAddressChange(ctx, egressID, at)
-		})
+		observer := observation.NewObserver(store, logger)
 		observerDone <- observer.Run(workerContext)
 	}()
 	uploaderDone := make(chan error, 1)
@@ -524,15 +522,20 @@ func (c *ControlClient) poll(
 	}
 	if response.JSON200.Task != nil {
 		switch response.JSON200.Task.Kind {
-		case agentapi.CompleteProbe:
+		case agentapi.AgentTaskKindCompleteProbe:
 			if response.JSON200.Task.TargetVersion != nil {
 				return pollOutcome{}, errors.New("complete-probe task contains an update target")
 			}
 			outcome.probeTask = &state.ProbeTaskDelivery{
-				ID: response.JSON200.Task.Id.String(), CreatedAt: response.JSON200.Task.CreatedAt,
+				ID: response.JSON200.Task.Id.String(), Trigger: string(response.JSON200.Task.Trigger),
+				CreatedAt: response.JSON200.Task.CreatedAt,
 				ExpiresAt: response.JSON200.Task.ExpiresAt,
 			}
-		case agentapi.AgentUpdate:
+			if response.JSON200.Task.TriggeringPublicAddressId != nil {
+				value := response.JSON200.Task.TriggeringPublicAddressId.String()
+				outcome.probeTask.TriggeringPublicAddressID = &value
+			}
+		case agentapi.AgentTaskKindAgentUpdate:
 			if response.JSON200.Task.TargetVersion == nil {
 				return pollOutcome{}, errors.New("Agent update task omits its target version")
 			}
@@ -582,19 +585,73 @@ func (c *ControlClient) configuration(ctx context.Context, credential string, de
 	if len(response.Body) > maxAgentAPIResponseSize {
 		return state.Configuration{}, errors.New("Agent configuration snapshot exceeds 512 KiB")
 	}
-	var configuration state.Configuration
+	var snapshot agentapi.AgentConfigurationSnapshot
 	decoder := json.NewDecoder(bytes.NewReader(response.Body))
 	decoder.DisallowUnknownFields()
-	if err := decoder.Decode(&configuration); err != nil {
+	if err := decoder.Decode(&snapshot); err != nil {
 		return state.Configuration{}, fmt.Errorf("decode Agent configuration snapshot: %w", err)
 	}
 	if err := ensureJSONEnd(decoder); err != nil {
 		return state.Configuration{}, err
 	}
+	configuration := configurationFromAPI(snapshot)
 	if configuration.Revision != desiredRevision {
 		return state.Configuration{}, fmt.Errorf("configuration revision is %d, expected %d", configuration.Revision, desiredRevision)
 	}
 	return configuration, nil
+}
+
+func configurationFromAPI(snapshot agentapi.AgentConfigurationSnapshot) state.Configuration {
+	configuration := state.Configuration{
+		SchemaVersion: int(snapshot.SchemaVersion), Revision: snapshot.Revision,
+		Enabled: snapshot.Enabled, HistoryGeneration: snapshot.HistoryGeneration,
+		DiscoveryPaths: make([]state.Egress, 0, len(snapshot.DiscoveryPaths)),
+		ProbeTargets:   make([]state.Egress, 0, len(snapshot.ProbeTargets)),
+		Proxies:        make([]state.Proxy, 0, len(snapshot.Proxies)),
+		DiscoveryServices: state.DiscoveryServices{
+			IPv4: slices.Clone(snapshot.DiscoveryServices.Ipv4Services),
+			IPv6: slices.Clone(snapshot.DiscoveryServices.Ipv6Services),
+		},
+		ProbeSchedule: state.ProbeSchedule{
+			Enabled: snapshot.ProbeSchedule.Enabled,
+			Cron:    snapshot.ProbeSchedule.Cron, Timezone: snapshot.ProbeSchedule.Timezone,
+		},
+		ProbeLowMemoryOverride: snapshot.ProbeLowMemoryOverride,
+	}
+	for _, path := range snapshot.DiscoveryPaths {
+		configuration.DiscoveryPaths = append(configuration.DiscoveryPaths, state.Egress{
+			ID: path.Id.String(), Kind: string(path.Kind), Family: string(path.Family),
+			InterfaceName: path.InterfaceName, SourceAddress: path.SourceAddress,
+			ProxyID: uuidString(path.ProxyId), Enabled: true,
+			LightweightIntervalSeconds: path.LightweightIntervalSeconds,
+		})
+	}
+	for _, target := range snapshot.ProbeTargets {
+		pathID := target.PathId.String()
+		publicAddress := target.PublicAddress
+		configuration.ProbeTargets = append(configuration.ProbeTargets, state.Egress{
+			ID: target.Id.String(), PathID: &pathID, PublicAddress: &publicAddress,
+			Kind: string(target.Kind), Family: string(target.Family),
+			InterfaceName: target.InterfaceName, SourceAddress: target.SourceAddress,
+			ProxyID: uuidString(target.ProxyId), Enabled: true,
+			ProbeOnAddressChange: target.ProbeOnRediscovery,
+		})
+	}
+	for _, proxy := range snapshot.Proxies {
+		configuration.Proxies = append(configuration.Proxies, state.Proxy{
+			ID: proxy.Id.String(), Scheme: string(proxy.Scheme), Host: proxy.Host, Port: proxy.Port,
+			Username: proxy.Username, Password: proxy.Password,
+		})
+	}
+	return configuration
+}
+
+func uuidString(value *uuid.UUID) *string {
+	if value == nil {
+		return nil
+	}
+	result := value.String()
+	return &result
 }
 
 type boundedResponseTransport struct {
@@ -642,7 +699,7 @@ func currentMetadata(version string, updateCapable bool) (agentapi.AgentMetadata
 	if err != nil {
 		return agentapi.AgentMetadata{}, fmt.Errorf("read physical memory: %w", err)
 	}
-	capabilities := []string{controlCapability, "configuration-v5", "network-inventory-v1", "address-observation-v1", "complete-probe-v1", syncWakeCapability}
+	capabilities := []string{controlCapability, "configuration-v6", "network-inventory-v1", "address-observation-v1", "complete-probe-v1", syncWakeCapability}
 	if updateCapable {
 		capabilities = append(capabilities, "agent-update-v1")
 	}

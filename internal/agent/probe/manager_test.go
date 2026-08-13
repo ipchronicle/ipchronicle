@@ -21,10 +21,10 @@ func TestManagerRunsFrozenEgressesSequentiallyAndRejectsOverlaps(t *testing.T) {
 	now := time.Date(2026, 8, 9, 12, 0, 0, 0, time.UTC)
 	manager.now = func() time.Time { return now }
 
-	if err := manager.TriggerAddressChange(context.Background(), configuration.Egresses[0].ID, now); err != nil {
+	if err := manager.tryStart(context.Background(), "schedule", nil, nil, now); err != nil {
 		t.Fatal(err)
 	}
-	if actual := receiveWithin(t, runner.started); actual != configuration.Egresses[0].ID {
+	if actual := receiveWithin(t, runner.started); actual != configuration.ProbeTargets[0].ID {
 		t.Fatalf("first execution egress = %s", actual)
 	}
 	status, _, err := store.ProbeControlReport()
@@ -32,10 +32,7 @@ func TestManagerRunsFrozenEgressesSequentiallyAndRejectsOverlaps(t *testing.T) {
 		t.Fatalf("active status = %#v, %v", status, err)
 	}
 	runID := *status.ActiveRunID
-	if err := manager.TriggerAddressChange(context.Background(), configuration.Egresses[0].ID, now.Add(time.Second)); err != nil {
-		t.Fatal(err)
-	}
-	task := state.ProbeTaskDelivery{ID: uuid.NewString(), CreatedAt: now, ExpiresAt: now.Add(2 * time.Minute)}
+	task := state.ProbeTaskDelivery{ID: uuid.NewString(), Trigger: "manual", CreatedAt: now, ExpiresAt: now.Add(2 * time.Minute)}
 	if err := manager.AcceptTask(context.Background(), task); err != nil {
 		t.Fatal(err)
 	}
@@ -45,7 +42,7 @@ func TestManagerRunsFrozenEgressesSequentiallyAndRejectsOverlaps(t *testing.T) {
 	}
 
 	runner.release <- struct{}{}
-	if actual := receiveWithin(t, runner.started); actual != configuration.Egresses[1].ID {
+	if actual := receiveWithin(t, runner.started); actual != configuration.ProbeTargets[1].ID {
 		t.Fatalf("second execution egress = %s", actual)
 	}
 	runner.release <- struct{}{}
@@ -57,11 +54,6 @@ func TestManagerRunsFrozenEgressesSequentiallyAndRejectsOverlaps(t *testing.T) {
 	if run.Status != "succeeded" || len(executions) != 2 || executions[0].Status != "succeeded" || executions[1].Status != "succeeded" {
 		t.Fatalf("completed run = %#v, executions = %#v", run, executions)
 	}
-	status, _, err = store.ProbeControlReport()
-	if err != nil || status.LastOccurrenceStatus == nil || *status.LastOccurrenceStatus != "skipped" ||
-		status.LastSkipReason == nil || *status.LastSkipReason != "busy" {
-		t.Fatalf("overlap status = %#v, %v", status, err)
-	}
 }
 
 func TestManagerPausesLowMemoryUntilOverride(t *testing.T) {
@@ -72,7 +64,7 @@ func TestManagerPausesLowMemoryUntilOverride(t *testing.T) {
 	manager.runner = runner
 	now := time.Date(2026, 8, 9, 12, 0, 0, 0, time.UTC)
 	manager.now = func() time.Time { return now }
-	task := state.ProbeTaskDelivery{ID: uuid.NewString(), CreatedAt: now, ExpiresAt: now.Add(2 * time.Minute)}
+	task := state.ProbeTaskDelivery{ID: uuid.NewString(), Trigger: "manual", CreatedAt: now, ExpiresAt: now.Add(2 * time.Minute)}
 	if err := manager.AcceptTask(context.Background(), task); err != nil {
 		t.Fatal(err)
 	}
@@ -89,11 +81,11 @@ func TestManagerPausesLowMemoryUntilOverride(t *testing.T) {
 	if err := store.ApplyConfiguration(configuration); err != nil {
 		t.Fatal(err)
 	}
-	second := state.ProbeTaskDelivery{ID: uuid.NewString(), CreatedAt: now, ExpiresAt: now.Add(2 * time.Minute)}
+	second := state.ProbeTaskDelivery{ID: uuid.NewString(), Trigger: "manual", CreatedAt: now, ExpiresAt: now.Add(2 * time.Minute)}
 	if err := manager.AcceptTask(context.Background(), second); err != nil {
 		t.Fatal(err)
 	}
-	if actual := receiveWithin(t, runner.started); actual != configuration.Egresses[0].ID {
+	if actual := receiveWithin(t, runner.started); actual != configuration.ProbeTargets[0].ID {
 		t.Fatalf("override execution egress = %s", actual)
 	}
 	runner.release <- struct{}{}
@@ -164,7 +156,7 @@ func openManagerTestStore(t *testing.T, egressCount int) (*state.Store, state.Co
 		t.Fatal(err)
 	}
 	configuration := state.Configuration{
-		SchemaVersion: 5, Revision: 1, Enabled: true,
+		SchemaVersion: 6, Revision: 1, Enabled: true,
 		HistoryGeneration: "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef",
 		ProbeSchedule:     state.ProbeSchedule{Enabled: true, Cron: "0 0 0 * * *", Timezone: "agent-local"},
 		DiscoveryServices: state.DiscoveryServices{
@@ -174,12 +166,15 @@ func openManagerTestStore(t *testing.T, egressCount int) (*state.Store, state.Co
 	}
 	for index := 0; index < egressCount; index++ {
 		family := "ipv4"
+		publicAddress := "8.8.8.8"
 		if index%2 == 1 {
 			family = "ipv6"
+			publicAddress = "2606:4700:4700::1111"
 		}
-		configuration.Egresses = append(configuration.Egresses, state.Egress{
-			ID: uuid.NewString(), Kind: "default", Family: family, Enabled: true,
-			LightweightIntervalSeconds: 600, ProbeOnAddressChange: true,
+		pathID := uuid.NewString()
+		configuration.ProbeTargets = append(configuration.ProbeTargets, state.Egress{
+			ID: uuid.NewString(), PathID: &pathID, PublicAddress: &publicAddress,
+			Kind: "default", Family: family, Enabled: true, ProbeOnAddressChange: true,
 		})
 	}
 	if err := store.ApplyConfiguration(configuration); err != nil {

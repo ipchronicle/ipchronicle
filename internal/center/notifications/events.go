@@ -12,7 +12,8 @@ import (
 
 func CreateEvent(ctx context.Context, queries *historydb.Queries, input EventInput) error {
 	if queries == nil || !validEventType(input.Type, false) || !validSourceKind(input.SourceKind) ||
-		input.SourceID == "" || len(input.SourceID) > 64 || input.NodeID == nil || input.EgressID == nil ||
+		input.SourceID == "" || len(input.SourceID) > 64 || input.NodeID == nil ||
+		(input.EgressID == nil && input.Type != EventAddressGap) ||
 		input.ObservedAt <= 0 || input.RecordedAt <= 0 {
 		return errors.New("invalid durable notification event")
 	}

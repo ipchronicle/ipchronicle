@@ -30,7 +30,7 @@ func newProbeServiceFixture(t *testing.T, physicalMemoryBytes int64) *probeServi
 		now: time.Date(2026, 8, 9, 12, 0, 0, 0, time.UTC),
 		metadata: Metadata{
 			Hostname: "probe.example", AgentVersion: "0.1.0", OperatingSystem: "linux", Architecture: "amd64",
-			Capabilities:        []string{"control-v1", "configuration-v5", "complete-probe-v1"},
+			Capabilities:        []string{"control-v1", "configuration-v6", "complete-probe-v1"},
 			PhysicalMemoryBytes: physicalMemoryBytes,
 		},
 	}
@@ -56,19 +56,77 @@ func newProbeServiceFixture(t *testing.T, physicalMemoryBytes int64) *probeServi
 	); err != nil {
 		t.Fatal(err)
 	}
-	fixture.configuration, err = fixture.service.Configuration(fixture.ctx, fixture.registration.Credential)
-	if err != nil {
-		t.Fatal(err)
-	}
 	network, err := fixture.service.Network(fixture.ctx, fixture.registration.NodeID)
 	if err != nil {
 		t.Fatal(err)
 	}
-	fixture.egresses = network.Egresses
+	var ipv4Path, ipv6Path *NetworkEgress
+	for index := range network.Egresses {
+		path := &network.Egresses[index]
+		if path.Kind != "default" {
+			continue
+		}
+		if path.Family == "ipv4" {
+			ipv4Path = path
+		} else if path.Family == "ipv6" {
+			ipv6Path = path
+		}
+	}
+	if ipv4Path == nil || ipv6Path == nil {
+		t.Fatalf("probe fixture default paths = %#v", network.Egresses)
+	}
+	localInterface := "eth0"
+	localIPv4 := "10.0.0.5"
+	localIPv6 := "fd00::5"
+	publicIPv4 := "8.8.8.8"
+	publicIPv6 := "2001:4860:4860::8888"
+	systemState, err := fixture.store.ConfigQueries.GetSystemState(fixture.ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := fixture.service.Poll(
+		fixture.ctx, fixture.registration.Credential, fixture.metadata, 0, nil, nil, nil, nil,
+		AddressUpload{States: []AddressState{
+			confirmedAddressState(ipv4Path.ID, systemState.HistoryGeneration, "ipv4", publicIPv4, localInterface, localIPv4, fixture.now),
+			confirmedAddressState(ipv6Path.ID, systemState.HistoryGeneration, "ipv6", publicIPv6, localInterface, localIPv6, fixture.now),
+		}},
+	); err != nil {
+		t.Fatal(err)
+	}
+	network, err = fixture.service.Network(fixture.ctx, fixture.registration.NodeID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, address := range network.PublicAddresses {
+		if _, err := fixture.service.UpdatePublicAddress(fixture.ctx, fixture.registration.NodeID, address.ID, PublicAddressUpdate{
+			ProbeEnabled: true, ProbeOnRediscovery: true,
+		}); err != nil {
+			t.Fatal(err)
+		}
+	}
+	fixture.configuration, err = fixture.service.Configuration(fixture.ctx, fixture.registration.Credential)
+	if err != nil {
+		t.Fatal(err)
+	}
+	fixture.egresses = fixture.configuration.ProbeTargets
 	if len(fixture.egresses) < 2 {
-		t.Fatalf("probe fixture has %d egresses, want at least 2", len(fixture.egresses))
+		t.Fatalf("probe fixture has %d public-address targets, want at least 2", len(fixture.egresses))
 	}
 	return fixture
+}
+
+func confirmedAddressState(
+	pathID uuid.UUID,
+	historyGeneration, family, publicAddress, localInterface, localAddress string,
+	checkedAt time.Time,
+) AddressState {
+	return AddressState{
+		EgressID: pathID, HistoryGeneration: historyGeneration, Family: family,
+		Status: "confirmed", PublicAddress: &publicAddress,
+		LocalInterface: &localInterface, LocalAddress: &localAddress,
+		LikelyNAT: localAddress != publicAddress, LastCheckedAt: checkedAt,
+		LastSucceededAt: &checkedAt, LastChangedAt: &checkedAt,
+	}
 }
 
 func TestCreateCompleteProbeTaskEligibilityAndSingleSlot(t *testing.T) {
@@ -105,9 +163,8 @@ func TestCreateCompleteProbeTaskEligibilityAndSingleSlot(t *testing.T) {
 	t.Run("no enabled egress", func(t *testing.T) {
 		fixture := newProbeServiceFixture(t, 512*1024*1024)
 		for _, egress := range fixture.egresses {
-			if _, err := fixture.service.UpdateEgress(fixture.ctx, fixture.registration.NodeID, egress.ID, NetworkEgressUpdate{
-				Enabled: false, LightweightIntervalSeconds: egress.LightweightIntervalSeconds,
-				ProbeOnAddressChange: egress.ProbeOnAddressChange,
+			if _, err := fixture.service.UpdatePublicAddress(fixture.ctx, fixture.registration.NodeID, egress.ID, PublicAddressUpdate{
+				ProbeEnabled: false, ProbeOnRediscovery: true,
 			}); err != nil {
 				t.Fatal(err)
 			}
@@ -432,21 +489,24 @@ func TestProbeUploadWaitsForPendingHistoryReset(t *testing.T) {
 	}
 }
 
-func TestDeletedEgressProbeArtifactsAreDiscarded(t *testing.T) {
+func TestDeletingDiscoveryPathDoesNotDiscardPublicAddressArtifacts(t *testing.T) {
 	fixture := newProbeServiceFixture(t, 512*1024*1024)
 	egress := fixture.egresses[0]
-	if _, err := fixture.service.DeleteEgress(fixture.ctx, fixture.registration.NodeID, egress.ID); err != nil {
+	if egress.PathID == nil {
+		t.Fatalf("public address target has no selected path: %#v", egress)
+	}
+	if _, err := fixture.service.DeleteEgress(fixture.ctx, fixture.registration.NodeID, *egress.PathID); err != nil {
 		t.Fatal(err)
 	}
 	running, _, _ := probeArtifacts(fixture, []string{"succeeded"})
 	receipt, err := fixture.service.UploadProbeArtifact(fixture.ctx, fixture.registration.Credential, ProbeArtifact{
 		ID: running.ID, Revision: 1, Run: &running,
 	})
-	if err != nil || receipt.Disposition != "egress-deleted" {
-		t.Fatalf("deleted-egress run receipt = %#v, %v", receipt, err)
+	if err != nil || receipt.Disposition != "accepted" {
+		t.Fatalf("run after path deletion = %#v, %v", receipt, err)
 	}
-	if _, err := fixture.service.ProbeRun(fixture.ctx, running.ID); !errors.Is(err, ErrProbeRunNotFound) {
-		t.Fatalf("deleted-egress run error = %v", err)
+	if _, err := fixture.service.ProbeRun(fixture.ctx, running.ID); err != nil {
+		t.Fatalf("public-address run after path deletion: %v", err)
 	}
 	gap := ProbeGapArtifact{
 		ID: uuid.New(), EgressID: egress.ID, HistoryGeneration: fixture.configuration.HistoryGeneration,
@@ -456,12 +516,12 @@ func TestDeletedEgressProbeArtifactsAreDiscarded(t *testing.T) {
 	receipt, err = fixture.service.UploadProbeArtifact(fixture.ctx, fixture.registration.Credential, ProbeArtifact{
 		ID: gap.ID, Revision: 1, Gap: &gap,
 	})
-	if err != nil || receipt.Disposition != "egress-deleted" {
-		t.Fatalf("deleted-egress receipt = %#v, %v", receipt, err)
+	if err != nil || receipt.Disposition != "accepted" {
+		t.Fatalf("gap after path deletion = %#v, %v", receipt, err)
 	}
 }
 
-func TestProbeHistoryCleanupFollowsEgressAndNodeDeletion(t *testing.T) {
+func TestProbeHistorySurvivesPathAndNodeDeletion(t *testing.T) {
 	fixture := newProbeServiceFixture(t, 512*1024*1024)
 	running, terminal, executions := probeArtifacts(fixture, []string{"succeeded", "succeeded"})
 	uploadProbeRun(t, fixture, running)
@@ -469,15 +529,18 @@ func TestProbeHistoryCleanupFollowsEgressAndNodeDeletion(t *testing.T) {
 		uploadProbeExecution(t, fixture, running, executions[index])
 	}
 	uploadProbeRun(t, fixture, terminal)
-	if _, err := fixture.service.DeleteEgress(fixture.ctx, fixture.registration.NodeID, fixture.egresses[0].ID); err != nil {
+	if fixture.egresses[0].PathID == nil {
+		t.Fatalf("public address target has no selected path: %#v", fixture.egresses[0])
+	}
+	if _, err := fixture.service.DeleteEgress(fixture.ctx, fixture.registration.NodeID, *fixture.egresses[0].PathID); err != nil {
 		t.Fatal(err)
 	}
 	if err := fixture.service.processDeletions(fixture.ctx, 16); err != nil {
 		t.Fatal(err)
 	}
 	remaining, err := fixture.service.ProbeRun(fixture.ctx, running.ID)
-	if err != nil || len(remaining.Executions) != 1 || remaining.Executions[0].EgressID != fixture.egresses[1].ID {
-		t.Fatalf("run after egress deletion = %#v, %v", remaining, err)
+	if err != nil || len(remaining.Executions) != 2 {
+		t.Fatalf("run after path deletion = %#v, %v", remaining, err)
 	}
 	if _, err := fixture.service.Delete(fixture.ctx, fixture.registration.NodeID); err != nil {
 		t.Fatal(err)
@@ -485,8 +548,9 @@ func TestProbeHistoryCleanupFollowsEgressAndNodeDeletion(t *testing.T) {
 	if err := fixture.service.processDeletions(fixture.ctx, 16); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := fixture.service.ProbeRun(fixture.ctx, running.ID); !errors.Is(err, ErrProbeRunNotFound) {
-		t.Fatalf("run after node deletion error = %v", err)
+	remaining, err = fixture.service.ProbeRun(fixture.ctx, running.ID)
+	if err != nil || len(remaining.Executions) != 2 {
+		t.Fatalf("run after node deletion = %#v, %v", remaining, err)
 	}
 }
 

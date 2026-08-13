@@ -15,7 +15,7 @@ import {
 } from "lucide-react";
 import { useTranslation } from "react-i18next";
 
-import { getNodeNetwork, type NetworkEgress } from "@/api/network";
+import { getNodeNetwork, type PublicAddress } from "@/api/network";
 import { listNodes, type Node } from "@/api/nodes";
 import {
   createNotificationRule,
@@ -294,7 +294,7 @@ export function NotificationsPage() {
   }
 
   return (
-    <main className="mx-auto w-full max-w-6xl px-4 py-10 sm:px-6 sm:py-14">
+    <main className="w-full min-w-0 px-4 py-10 sm:px-6 sm:py-14">
       <div className="flex flex-wrap items-end justify-between gap-4">
         <div className="max-w-2xl">
           <p className="text-xs font-medium text-muted-foreground uppercase">
@@ -836,7 +836,9 @@ function RuleCard({
           {node?.name ?? t("notifications.rules.allNodes")}
         </Badge>
         {rule.egressId ? (
-          <Badge variant="outline">{rule.egressId}</Badge>
+          <Badge variant="outline">
+            {rule.publicAddress ?? t("notifications.rules.addressUnavailable")}
+          </Badge>
         ) : null}
       </CardContent>
     </Card>
@@ -870,23 +872,23 @@ function RuleForm({
   const [fieldId, setFieldId] = useState(rule?.fieldId ?? "");
   const [nodeId, setNodeId] = useState(rule?.nodeId ?? allValue);
   const [egressId, setEgressId] = useState(rule?.egressId ?? allValue);
-  const [egresses, setEgresses] = useState<NetworkEgress[]>([]);
+  const [publicAddresses, setPublicAddresses] = useState<PublicAddress[]>([]);
   const [loadingEgresses, setLoadingEgresses] = useState(false);
   const [working, setWorking] = useState(false);
 
   useEffect(() => {
     if (nodeId === allValue) {
-      setEgresses([]);
+      setPublicAddresses([]);
       setEgressId(allValue);
       return;
     }
     const controller = new AbortController();
     setLoadingEgresses(true);
     void getNodeNetwork(nodeId, controller.signal)
-      .then((network) => setEgresses(network.egresses))
+      .then((network) => setPublicAddresses(network.publicAddresses))
       .catch((error) => {
         if (!(error instanceof DOMException && error.name === "AbortError"))
-          setEgresses([]);
+          setPublicAddresses([]);
       })
       .finally(() => setLoadingEgresses(false));
     return () => controller.abort();
@@ -1021,9 +1023,9 @@ function RuleForm({
                   <SelectItem value={allValue}>
                     {t("notifications.rules.allEgresses")}
                   </SelectItem>
-                  {egresses.map((egress) => (
-                    <SelectItem key={egress.id} value={egress.id}>
-                      {egress.name}
+                  {publicAddresses.map((address) => (
+                    <SelectItem key={address.id} value={address.id}>
+                      {address.address}
                     </SelectItem>
                   ))}
                 </SelectContent>

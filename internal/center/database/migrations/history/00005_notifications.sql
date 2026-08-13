@@ -34,7 +34,10 @@ CREATE TABLE notification_events (
     observed_at INTEGER NOT NULL,
     recorded_at INTEGER NOT NULL,
     processed_at INTEGER,
-    CHECK (event_type = 'test' OR (node_id IS NOT NULL AND egress_id IS NOT NULL)),
+    CHECK (
+        event_type = 'test' OR
+        (node_id IS NOT NULL AND (egress_id IS NOT NULL OR event_type = 'address-gap'))
+    ),
     UNIQUE (source_kind, source_id, event_type)
 );
 

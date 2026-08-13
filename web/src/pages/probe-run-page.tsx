@@ -11,7 +11,7 @@ import {
 import { useTranslation } from "react-i18next";
 import { Link, useParams } from "react-router";
 
-import { getNodeNetwork, type NetworkEgress } from "@/api/network";
+import { getNodeNetwork, type PublicAddress } from "@/api/network";
 import { listNodes, type Node } from "@/api/nodes";
 import { getProbeRun, type ProbeExecution, type ProbeRun } from "@/api/probes";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
@@ -30,7 +30,12 @@ import { formatTime, ProbeStatusBadge } from "@/pages/node-probe-page";
 
 type ViewState =
   | { kind: "loading" }
-  | { kind: "success"; run: ProbeRun; node?: Node; egresses: NetworkEgress[] }
+  | {
+      kind: "success";
+      run: ProbeRun;
+      node?: Node;
+      publicAddresses: PublicAddress[];
+    }
   | { kind: "not-found" }
   | { kind: "error" };
 
@@ -54,7 +59,7 @@ export function ProbeRunPage() {
           kind: "success",
           run,
           node: nodes.find((node) => node.id === run.nodeId),
-          egresses: network.egresses,
+          publicAddresses: network.publicAddresses,
         });
       } catch (error) {
         if (error instanceof DOMException && error.name === "AbortError")
@@ -89,20 +94,20 @@ export function ProbeRunPage() {
 
   const backTarget =
     state.kind === "success" ? `/nodes/${state.run.nodeId}/probe` : "/nodes";
-  const egressNames = useMemo(
+  const addressNames = useMemo(
     () =>
       new Map(
         state.kind === "success"
-          ? state.egresses.map(
-              (egress) => [egress.id, egressName(egress, t)] as const,
+          ? state.publicAddresses.map(
+              (address) => [address.id, address.address] as const,
             )
           : [],
       ),
-    [state, t],
+    [state],
   );
 
   return (
-    <main className="mx-auto w-full max-w-6xl px-4 py-10 sm:px-6 sm:py-14">
+    <main className="w-full min-w-0 px-4 py-10 sm:px-6 sm:py-14">
       <div className="flex flex-wrap items-end justify-between gap-4">
         <div className="min-w-0 max-w-2xl">
           <Button variant="ghost" size="sm" asChild className="mb-3 -ml-3">
@@ -242,7 +247,8 @@ export function ProbeRunPage() {
                     run={state.run}
                     execution={execution}
                     name={
-                      egressNames.get(execution.egressId) ?? execution.egressId
+                      addressNames.get(execution.egressId) ??
+                      t("probeRun.executions.addressUnavailable")
                     }
                   />
                 ))}
@@ -331,27 +337,6 @@ function SummaryValue({ label, value }: { label: string; value: string }) {
       <dd className="mt-1 break-words font-medium">{value}</dd>
     </div>
   );
-}
-
-function egressName(
-  egress: NetworkEgress,
-  t: ReturnType<typeof useTranslation>["t"],
-) {
-  switch (egress.kind) {
-    case "default":
-      return t(`network.egresses.default.${egress.family}`);
-    case "interface":
-      return t("network.egresses.interface", { name: egress.interfaceName });
-    case "source":
-      return t("network.egresses.source", {
-        name: egress.interfaceName,
-        address: egress.sourceAddress,
-      });
-    case "proxy":
-      return t("network.egresses.proxy", {
-        name: egress.name,
-      });
-  }
 }
 
 function RunSkeleton() {

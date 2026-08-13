@@ -48,7 +48,7 @@ export function AccountPage() {
   const account = state.session.account;
 
   return (
-    <div className="mx-auto w-full max-w-4xl px-4 py-10 sm:px-6 sm:py-14">
+    <div className="w-full min-w-0 px-4 py-10 sm:px-6 sm:py-14">
       <div className="max-w-2xl">
         <p className="text-xs font-medium text-muted-foreground uppercase">
           {t("settings.section")}

@@ -6,7 +6,8 @@ package historydb
 
 type AddressEvent struct {
 	ID                string
-	EgressID          string
+	PublicAddressID   string
+	SourcePathID      string
 	NodeID            string
 	HistoryGeneration string
 	Sequence          int64

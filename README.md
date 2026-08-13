@@ -2,7 +2,8 @@
 
 IPChronicle is a self-hosted IP address and IP quality history product for one
 administrator managing Linux nodes under their control. It discovers durable
-network egresses, records confirmed public-address changes, runs the official
+public IPv4 and IPv6 addresses through managed nodes, records confirmed address
+changes, runs the official
 IPQuality probe on demand or on a local schedule, compares retained reports,
 and delivers change notifications.
 
@@ -22,7 +23,7 @@ decisions are maintained in the
 - [Release readiness](RELEASE_READINESS.md)
 
 The operator guide is the starting point for installation, reverse proxying,
-Agent enrollment, network egresses, probes, history, updates, recovery, and
+Agent enrollment, public-IP discovery, probes, history, updates, recovery, and
 uninstallation. Every published release contains these documents together
 with its versioned Compose file, Agent installer, checksums, manifest, SBOMs,
 build metadata, and release-readiness report.

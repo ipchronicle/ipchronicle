@@ -9,6 +9,25 @@ import (
 	"context"
 )
 
+const clearUnavailablePublicAddressSelections = `-- name: ClearUnavailablePublicAddressSelections :execrows
+UPDATE public_addresses
+SET selected_path_id = NULL, updated_at = MAX(updated_at, last_seen_at)
+WHERE selected_path_id IS NOT NULL
+  AND NOT EXISTS (
+      SELECT 1 FROM public_address_paths p
+      WHERE p.path_id = public_addresses.selected_path_id
+        AND p.public_address_id = public_addresses.id AND p.available = 1
+  )
+`
+
+func (q *Queries) ClearUnavailablePublicAddressSelections(ctx context.Context) (int64, error) {
+	result, err := q.db.ExecContext(ctx, clearUnavailablePublicAddressSelections)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected()
+}
+
 const completeEgressDeletion = `-- name: CompleteEgressDeletion :exec
 UPDATE egress_deletion_operations
 SET status = 'completed', updated_at = ?, last_error = NULL
@@ -119,8 +138,8 @@ func (q *Queries) CreateAdministratorSession(ctx context.Context, arg CreateAdmi
 
 const createAgentUpdateTask = `-- name: CreateAgentUpdateTask :exec
 INSERT INTO probe_tasks (
-    id, node_id, kind, status, target_version, created_at, expires_at
-) VALUES (?, ?, 'agent-update', 'pending', ?, ?, ?)
+    id, node_id, kind, status, trigger, target_version, created_at, expires_at
+) VALUES (?, ?, 'agent-update', 'pending', 'agent-update', ?, ?, ?)
 `
 
 type CreateAgentUpdateTaskParams struct {
@@ -398,8 +417,8 @@ func (q *Queries) CreateNotificationSender(ctx context.Context, arg CreateNotifi
 
 const createProbeTask = `-- name: CreateProbeTask :exec
 INSERT INTO probe_tasks (
-    id, node_id, kind, status, created_at, expires_at
-) VALUES (?, ?, 'complete-probe', 'pending', ?, ?)
+    id, node_id, kind, status, trigger, created_at, expires_at
+) VALUES (?, ?, 'complete-probe', 'pending', 'manual', ?, ?)
 `
 
 type CreateProbeTaskParams struct {
@@ -413,6 +432,32 @@ func (q *Queries) CreateProbeTask(ctx context.Context, arg CreateProbeTaskParams
 	_, err := q.db.ExecContext(ctx, createProbeTask,
 		arg.ID,
 		arg.NodeID,
+		arg.CreatedAt,
+		arg.ExpiresAt,
+	)
+	return err
+}
+
+const createRediscoveryProbeTask = `-- name: CreateRediscoveryProbeTask :exec
+INSERT INTO probe_tasks (
+    id, node_id, kind, status, trigger, triggering_public_address_id,
+    created_at, expires_at
+) VALUES (?, ?, 'complete-probe', 'pending', 'address-change', ?, ?, ?)
+`
+
+type CreateRediscoveryProbeTaskParams struct {
+	ID                        string
+	NodeID                    string
+	TriggeringPublicAddressID *string
+	CreatedAt                 int64
+	ExpiresAt                 int64
+}
+
+func (q *Queries) CreateRediscoveryProbeTask(ctx context.Context, arg CreateRediscoveryProbeTaskParams) error {
+	_, err := q.db.ExecContext(ctx, createRediscoveryProbeTask,
+		arg.ID,
+		arg.NodeID,
+		arg.TriggeringPublicAddressID,
 		arg.CreatedAt,
 		arg.ExpiresAt,
 	)
@@ -554,6 +599,26 @@ func (q *Queries) DeleteNotificationSender(ctx context.Context, id string) (int6
 		return 0, err
 	}
 	return result.RowsAffected()
+}
+
+const deletePendingPublicAddressProbe = `-- name: DeletePendingPublicAddressProbe :exec
+DELETE FROM pending_public_address_probes
+WHERE node_id = ?
+`
+
+func (q *Queries) DeletePendingPublicAddressProbe(ctx context.Context, nodeID string) error {
+	_, err := q.db.ExecContext(ctx, deletePendingPublicAddressProbe, nodeID)
+	return err
+}
+
+const deletePendingPublicAddressProbeByAddress = `-- name: DeletePendingPublicAddressProbeByAddress :exec
+DELETE FROM pending_public_address_probes
+WHERE public_address_id = ?
+`
+
+func (q *Queries) DeletePendingPublicAddressProbeByAddress(ctx context.Context, publicAddressID string) error {
+	_, err := q.db.ExecContext(ctx, deletePendingPublicAddressProbeByAddress, publicAddressID)
+	return err
 }
 
 const deleteTerminalProbeTasksBefore = `-- name: DeleteTerminalProbeTasksBefore :exec
@@ -706,10 +771,7 @@ func (q *Queries) GetActiveNodeSyncSessionByID(ctx context.Context, arg GetActiv
 }
 
 const getActiveNodeTask = `-- name: GetActiveNodeTask :one
-SELECT id, node_id, kind, status, created_at, expires_at, acknowledged_at,
-       started_at, completed_at, run_id, rejection_reason,
-       target_version, previous_version, result_version, failure_code, diagnostic,
-       terminal_confirmed_at
+SELECT id, node_id, kind, status, created_at, expires_at, acknowledged_at, started_at, completed_at, run_id, rejection_reason, target_version, previous_version, result_version, failure_code, diagnostic, terminal_confirmed_at, "trigger", triggering_public_address_id
 FROM probe_tasks
 WHERE node_id = ? AND status IN (
     'pending', 'acknowledged', 'running', 'verifying', 'installing', 'restarting'
@@ -739,6 +801,8 @@ func (q *Queries) GetActiveNodeTask(ctx context.Context, nodeID string) (ProbeTa
 		&i.FailureCode,
 		&i.Diagnostic,
 		&i.TerminalConfirmedAt,
+		&i.Trigger,
+		&i.TriggeringPublicAddressID,
 	)
 	return i, err
 }
@@ -900,6 +964,19 @@ func (q *Queries) GetEgressDeletion(ctx context.Context, arg GetEgressDeletionPa
 	return i, err
 }
 
+const getExternalOrigin = `-- name: GetExternalOrigin :one
+SELECT external_origin
+FROM system_state
+WHERE id = 1
+`
+
+func (q *Queries) GetExternalOrigin(ctx context.Context) (string, error) {
+	row := q.db.QueryRowContext(ctx, getExternalOrigin)
+	var external_origin string
+	err := row.Scan(&external_origin)
+	return external_origin, err
+}
+
 const getHistoryRetentionSettings = `-- name: GetHistoryRetentionSettings :one
 SELECT id, mode, max_age_days, max_logical_bytes, updated_at
        , last_cleanup_at, last_cleanup_deleted_items, last_cleanup_error
@@ -924,10 +1001,7 @@ func (q *Queries) GetHistoryRetentionSettings(ctx context.Context) (HistoryReten
 }
 
 const getLatestAgentUpdateTask = `-- name: GetLatestAgentUpdateTask :one
-SELECT id, node_id, kind, status, created_at, expires_at, acknowledged_at,
-       started_at, completed_at, run_id, rejection_reason,
-       target_version, previous_version, result_version, failure_code, diagnostic,
-       terminal_confirmed_at
+SELECT id, node_id, kind, status, created_at, expires_at, acknowledged_at, started_at, completed_at, run_id, rejection_reason, target_version, previous_version, result_version, failure_code, diagnostic, terminal_confirmed_at, "trigger", triggering_public_address_id
 FROM probe_tasks
 WHERE node_id = ? AND kind = 'agent-update'
 ORDER BY created_at DESC, id DESC
@@ -955,15 +1029,14 @@ func (q *Queries) GetLatestAgentUpdateTask(ctx context.Context, nodeID string) (
 		&i.FailureCode,
 		&i.Diagnostic,
 		&i.TerminalConfirmedAt,
+		&i.Trigger,
+		&i.TriggeringPublicAddressID,
 	)
 	return i, err
 }
 
 const getLatestProbeTask = `-- name: GetLatestProbeTask :one
-SELECT id, node_id, kind, status, created_at, expires_at, acknowledged_at,
-       started_at, completed_at, run_id, rejection_reason,
-       target_version, previous_version, result_version, failure_code, diagnostic,
-       terminal_confirmed_at
+SELECT id, node_id, kind, status, created_at, expires_at, acknowledged_at, started_at, completed_at, run_id, rejection_reason, target_version, previous_version, result_version, failure_code, diagnostic, terminal_confirmed_at, "trigger", triggering_public_address_id
 FROM probe_tasks
 WHERE node_id = ? AND kind = 'complete-probe'
 ORDER BY created_at DESC, id DESC
@@ -991,6 +1064,8 @@ func (q *Queries) GetLatestProbeTask(ctx context.Context, nodeID string) (ProbeT
 		&i.FailureCode,
 		&i.Diagnostic,
 		&i.TerminalConfirmedAt,
+		&i.Trigger,
+		&i.TriggeringPublicAddressID,
 	)
 	return i, err
 }
@@ -1514,11 +1589,37 @@ func (q *Queries) GetNotificationSender(ctx context.Context, id string) (Notific
 	return i, err
 }
 
+const getPreferredPublicAddressPath = `-- name: GetPreferredPublicAddressPath :one
+SELECT public_address_id, path_id, node_id, local_interface, local_address,
+       proxy_path, likely_nat, temporary, available, last_checked_at,
+       last_succeeded_at
+FROM public_address_paths
+WHERE public_address_id = ? AND available = 1
+ORDER BY last_succeeded_at DESC, last_checked_at DESC, path_id
+LIMIT 1
+`
+
+func (q *Queries) GetPreferredPublicAddressPath(ctx context.Context, publicAddressID string) (PublicAddressPath, error) {
+	row := q.db.QueryRowContext(ctx, getPreferredPublicAddressPath, publicAddressID)
+	var i PublicAddressPath
+	err := row.Scan(
+		&i.PublicAddressID,
+		&i.PathID,
+		&i.NodeID,
+		&i.LocalInterface,
+		&i.LocalAddress,
+		&i.ProxyPath,
+		&i.LikelyNat,
+		&i.Temporary,
+		&i.Available,
+		&i.LastCheckedAt,
+		&i.LastSucceededAt,
+	)
+	return i, err
+}
+
 const getProbeTask = `-- name: GetProbeTask :one
-SELECT id, node_id, kind, status, created_at, expires_at, acknowledged_at,
-       started_at, completed_at, run_id, rejection_reason,
-       target_version, previous_version, result_version, failure_code, diagnostic,
-       terminal_confirmed_at
+SELECT id, node_id, kind, status, created_at, expires_at, acknowledged_at, started_at, completed_at, run_id, rejection_reason, target_version, previous_version, result_version, failure_code, diagnostic, terminal_confirmed_at, "trigger", triggering_public_address_id
 FROM probe_tasks
 WHERE id = ? AND node_id = ?
 `
@@ -1549,6 +1650,157 @@ func (q *Queries) GetProbeTask(ctx context.Context, arg GetProbeTaskParams) (Pro
 		&i.FailureCode,
 		&i.Diagnostic,
 		&i.TerminalConfirmedAt,
+		&i.Trigger,
+		&i.TriggeringPublicAddressID,
+	)
+	return i, err
+}
+
+const getPublicAddressByAddress = `-- name: GetPublicAddressByAddress :one
+SELECT id, address, family, probe_enabled, probe_on_rediscovery,
+       selected_path_id, first_seen_at, last_seen_at, updated_at
+FROM public_addresses
+WHERE address = ?
+`
+
+func (q *Queries) GetPublicAddressByAddress(ctx context.Context, address string) (PublicAddress, error) {
+	row := q.db.QueryRowContext(ctx, getPublicAddressByAddress, address)
+	var i PublicAddress
+	err := row.Scan(
+		&i.ID,
+		&i.Address,
+		&i.Family,
+		&i.ProbeEnabled,
+		&i.ProbeOnRediscovery,
+		&i.SelectedPathID,
+		&i.FirstSeenAt,
+		&i.LastSeenAt,
+		&i.UpdatedAt,
+	)
+	return i, err
+}
+
+const getPublicAddressByID = `-- name: GetPublicAddressByID :one
+SELECT id, address, family, probe_enabled, probe_on_rediscovery,
+       selected_path_id, first_seen_at, last_seen_at, updated_at
+FROM public_addresses
+WHERE id = ?
+`
+
+func (q *Queries) GetPublicAddressByID(ctx context.Context, id string) (PublicAddress, error) {
+	row := q.db.QueryRowContext(ctx, getPublicAddressByID, id)
+	var i PublicAddress
+	err := row.Scan(
+		&i.ID,
+		&i.Address,
+		&i.Family,
+		&i.ProbeEnabled,
+		&i.ProbeOnRediscovery,
+		&i.SelectedPathID,
+		&i.FirstSeenAt,
+		&i.LastSeenAt,
+		&i.UpdatedAt,
+	)
+	return i, err
+}
+
+const getPublicAddressPathByPathID = `-- name: GetPublicAddressPathByPathID :one
+SELECT public_address_id, path_id, node_id, local_interface, local_address,
+       proxy_path, likely_nat, temporary, available, last_checked_at,
+       last_succeeded_at
+FROM public_address_paths
+WHERE path_id = ?
+`
+
+func (q *Queries) GetPublicAddressPathByPathID(ctx context.Context, pathID string) (PublicAddressPath, error) {
+	row := q.db.QueryRowContext(ctx, getPublicAddressPathByPathID, pathID)
+	var i PublicAddressPath
+	err := row.Scan(
+		&i.PublicAddressID,
+		&i.PathID,
+		&i.NodeID,
+		&i.LocalInterface,
+		&i.LocalAddress,
+		&i.ProxyPath,
+		&i.LikelyNat,
+		&i.Temporary,
+		&i.Available,
+		&i.LastCheckedAt,
+		&i.LastSucceededAt,
+	)
+	return i, err
+}
+
+const getPublicAddressPathForNode = `-- name: GetPublicAddressPathForNode :one
+SELECT p.public_address_id, p.path_id, p.node_id, p.local_interface,
+       p.local_address, p.proxy_path, p.likely_nat, p.temporary,
+       p.available, p.last_checked_at, p.last_succeeded_at
+FROM public_address_paths p
+WHERE p.public_address_id = ? AND p.node_id = ?
+ORDER BY p.available DESC, p.last_succeeded_at DESC, p.path_id
+LIMIT 1
+`
+
+type GetPublicAddressPathForNodeParams struct {
+	PublicAddressID string
+	NodeID          string
+}
+
+func (q *Queries) GetPublicAddressPathForNode(ctx context.Context, arg GetPublicAddressPathForNodeParams) (PublicAddressPath, error) {
+	row := q.db.QueryRowContext(ctx, getPublicAddressPathForNode, arg.PublicAddressID, arg.NodeID)
+	var i PublicAddressPath
+	err := row.Scan(
+		&i.PublicAddressID,
+		&i.PathID,
+		&i.NodeID,
+		&i.LocalInterface,
+		&i.LocalAddress,
+		&i.ProxyPath,
+		&i.LikelyNat,
+		&i.Temporary,
+		&i.Available,
+		&i.LastCheckedAt,
+		&i.LastSucceededAt,
+	)
+	return i, err
+}
+
+const getReadyPublicAddressProbe = `-- name: GetReadyPublicAddressProbe :one
+SELECT pending.public_address_id, pending.node_id,
+       pending.required_configuration_revision, pending.created_at
+FROM pending_public_address_probes AS pending
+JOIN public_addresses AS address ON address.id = pending.public_address_id
+JOIN public_address_paths AS path ON path.path_id = address.selected_path_id
+WHERE pending.node_id = ?
+  AND pending.required_configuration_revision <= ?
+  AND address.probe_enabled = 1
+  AND address.probe_on_rediscovery = 1
+  AND path.node_id = pending.node_id
+  AND path.public_address_id = address.id
+  AND path.available = 1
+LIMIT 1
+`
+
+type GetReadyPublicAddressProbeParams struct {
+	NodeID                        string
+	RequiredConfigurationRevision int64
+}
+
+type GetReadyPublicAddressProbeRow struct {
+	PublicAddressID               string
+	NodeID                        string
+	RequiredConfigurationRevision int64
+	CreatedAt                     int64
+}
+
+func (q *Queries) GetReadyPublicAddressProbe(ctx context.Context, arg GetReadyPublicAddressProbeParams) (GetReadyPublicAddressProbeRow, error) {
+	row := q.db.QueryRowContext(ctx, getReadyPublicAddressProbe, arg.NodeID, arg.RequiredConfigurationRevision)
+	var i GetReadyPublicAddressProbeRow
+	err := row.Scan(
+		&i.PublicAddressID,
+		&i.NodeID,
+		&i.RequiredConfigurationRevision,
+		&i.CreatedAt,
 	)
 	return i, err
 }
@@ -1568,7 +1820,7 @@ func (q *Queries) GetRevokedAgentCredential(ctx context.Context, credentialDiges
 
 const getSystemState = `-- name: GetSystemState :one
 SELECT id, history_generation, pending_history_generation, history_reset_at,
-       release_channel
+       release_channel, external_origin
 FROM system_state
 WHERE id = 1
 `
@@ -1582,6 +1834,7 @@ func (q *Queries) GetSystemState(ctx context.Context) (SystemState, error) {
 		&i.PendingHistoryGeneration,
 		&i.HistoryResetAt,
 		&i.ReleaseChannel,
+		&i.ExternalOrigin,
 	)
 	return i, err
 }
@@ -1837,11 +2090,7 @@ func (q *Queries) ListEnabledNotificationRules(ctx context.Context) ([]ListEnabl
 }
 
 const listLatestAgentUpdateTasks = `-- name: ListLatestAgentUpdateTasks :many
-SELECT task.id, task.node_id, task.kind, task.status, task.created_at,
-       task.expires_at, task.acknowledged_at, task.started_at,
-       task.completed_at, task.run_id, task.rejection_reason,
-       task.target_version, task.previous_version, task.result_version,
-       task.failure_code, task.diagnostic, task.terminal_confirmed_at
+SELECT task.id, task.node_id, task.kind, task.status, task.created_at, task.expires_at, task.acknowledged_at, task.started_at, task.completed_at, task.run_id, task.rejection_reason, task.target_version, task.previous_version, task.result_version, task.failure_code, task.diagnostic, task.terminal_confirmed_at, task."trigger", task.triggering_public_address_id
 FROM probe_tasks AS task
 WHERE task.kind = 'agent-update'
   AND task.id = (
@@ -1882,6 +2131,8 @@ func (q *Queries) ListLatestAgentUpdateTasks(ctx context.Context) ([]ProbeTask, 
 			&i.FailureCode,
 			&i.Diagnostic,
 			&i.TerminalConfirmedAt,
+			&i.Trigger,
+			&i.TriggeringPublicAddressID,
 		); err != nil {
 			return nil, err
 		}
@@ -2075,6 +2326,173 @@ func (q *Queries) ListNodeNetworkProxies(ctx context.Context, nodeID string) ([]
 			&i.PasswordEncrypted,
 			&i.CreatedAt,
 			&i.UpdatedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listNodePublicAddressSummaries = `-- name: ListNodePublicAddressSummaries :many
+SELECT n.node_id, a.id, a.address, a.family, a.probe_enabled,
+       EXISTS (
+           SELECT 1
+           FROM public_address_paths p
+           WHERE p.public_address_id = a.id
+             AND p.node_id = n.node_id
+             AND p.available = 1
+       ) AS available
+FROM public_address_nodes n
+JOIN public_addresses a ON a.id = n.public_address_id
+ORDER BY n.node_id, a.family, a.address
+`
+
+type ListNodePublicAddressSummariesRow struct {
+	NodeID       string
+	ID           string
+	Address      string
+	Family       string
+	ProbeEnabled int64
+	Available    bool
+}
+
+func (q *Queries) ListNodePublicAddressSummaries(ctx context.Context) ([]ListNodePublicAddressSummariesRow, error) {
+	rows, err := q.db.QueryContext(ctx, listNodePublicAddressSummaries)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []ListNodePublicAddressSummariesRow{}
+	for rows.Next() {
+		var i ListNodePublicAddressSummariesRow
+		if err := rows.Scan(
+			&i.NodeID,
+			&i.ID,
+			&i.Address,
+			&i.Family,
+			&i.ProbeEnabled,
+			&i.Available,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listNodePublicAddresses = `-- name: ListNodePublicAddresses :many
+SELECT DISTINCT a.id, a.address, a.family, a.probe_enabled,
+       a.probe_on_rediscovery, a.selected_path_id,
+       a.first_seen_at, a.last_seen_at, a.updated_at
+FROM public_addresses a
+JOIN public_address_nodes n ON n.public_address_id = a.id
+WHERE n.node_id = ?
+ORDER BY a.family, a.address
+`
+
+func (q *Queries) ListNodePublicAddresses(ctx context.Context, nodeID string) ([]PublicAddress, error) {
+	rows, err := q.db.QueryContext(ctx, listNodePublicAddresses, nodeID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []PublicAddress{}
+	for rows.Next() {
+		var i PublicAddress
+		if err := rows.Scan(
+			&i.ID,
+			&i.Address,
+			&i.Family,
+			&i.ProbeEnabled,
+			&i.ProbeOnRediscovery,
+			&i.SelectedPathID,
+			&i.FirstSeenAt,
+			&i.LastSeenAt,
+			&i.UpdatedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listNodeSelectedPublicAddresses = `-- name: ListNodeSelectedPublicAddresses :many
+SELECT a.id, a.address, a.family, a.probe_enabled, a.probe_on_rediscovery,
+       a.selected_path_id, a.first_seen_at, a.last_seen_at, a.updated_at,
+       e.node_id, e.name, e.kind, e.interface_name, e.source_address,
+       e.proxy_id, e.lightweight_interval_seconds
+FROM public_addresses a
+JOIN network_egresses e ON e.id = a.selected_path_id
+JOIN public_address_paths p ON p.path_id = e.id AND p.public_address_id = a.id
+WHERE e.node_id = ? AND a.probe_enabled = 1 AND p.available = 1
+ORDER BY a.family, a.address
+`
+
+type ListNodeSelectedPublicAddressesRow struct {
+	ID                         string
+	Address                    string
+	Family                     string
+	ProbeEnabled               int64
+	ProbeOnRediscovery         int64
+	SelectedPathID             *string
+	FirstSeenAt                int64
+	LastSeenAt                 int64
+	UpdatedAt                  int64
+	NodeID                     string
+	Name                       string
+	Kind                       string
+	InterfaceName              *string
+	SourceAddress              *string
+	ProxyID                    *string
+	LightweightIntervalSeconds int64
+}
+
+func (q *Queries) ListNodeSelectedPublicAddresses(ctx context.Context, nodeID string) ([]ListNodeSelectedPublicAddressesRow, error) {
+	rows, err := q.db.QueryContext(ctx, listNodeSelectedPublicAddresses, nodeID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []ListNodeSelectedPublicAddressesRow{}
+	for rows.Next() {
+		var i ListNodeSelectedPublicAddressesRow
+		if err := rows.Scan(
+			&i.ID,
+			&i.Address,
+			&i.Family,
+			&i.ProbeEnabled,
+			&i.ProbeOnRediscovery,
+			&i.SelectedPathID,
+			&i.FirstSeenAt,
+			&i.LastSeenAt,
+			&i.UpdatedAt,
+			&i.NodeID,
+			&i.Name,
+			&i.Kind,
+			&i.InterfaceName,
+			&i.SourceAddress,
+			&i.ProxyID,
+			&i.LightweightIntervalSeconds,
 		); err != nil {
 			return nil, err
 		}
@@ -2284,6 +2702,146 @@ func (q *Queries) ListNotificationSenders(ctx context.Context) ([]NotificationSe
 	return items, nil
 }
 
+const listPublicAddressPaths = `-- name: ListPublicAddressPaths :many
+SELECT public_address_id, path_id, node_id, local_interface, local_address,
+       proxy_path, likely_nat, temporary, available, last_checked_at,
+       last_succeeded_at
+FROM public_address_paths
+WHERE public_address_id = ?
+ORDER BY available DESC, last_succeeded_at DESC, path_id
+`
+
+func (q *Queries) ListPublicAddressPaths(ctx context.Context, publicAddressID string) ([]PublicAddressPath, error) {
+	rows, err := q.db.QueryContext(ctx, listPublicAddressPaths, publicAddressID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []PublicAddressPath{}
+	for rows.Next() {
+		var i PublicAddressPath
+		if err := rows.Scan(
+			&i.PublicAddressID,
+			&i.PathID,
+			&i.NodeID,
+			&i.LocalInterface,
+			&i.LocalAddress,
+			&i.ProxyPath,
+			&i.LikelyNat,
+			&i.Temporary,
+			&i.Available,
+			&i.LastCheckedAt,
+			&i.LastSucceededAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listPublicAddresses = `-- name: ListPublicAddresses :many
+SELECT id, address, family, probe_enabled, probe_on_rediscovery,
+       selected_path_id, first_seen_at, last_seen_at, updated_at
+FROM public_addresses
+ORDER BY family, address
+`
+
+func (q *Queries) ListPublicAddresses(ctx context.Context) ([]PublicAddress, error) {
+	rows, err := q.db.QueryContext(ctx, listPublicAddresses)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []PublicAddress{}
+	for rows.Next() {
+		var i PublicAddress
+		if err := rows.Scan(
+			&i.ID,
+			&i.Address,
+			&i.Family,
+			&i.ProbeEnabled,
+			&i.ProbeOnRediscovery,
+			&i.SelectedPathID,
+			&i.FirstSeenAt,
+			&i.LastSeenAt,
+			&i.UpdatedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listPublicAddressesWithoutSelectedPath = `-- name: ListPublicAddressesWithoutSelectedPath :many
+SELECT id, address, family, probe_enabled, probe_on_rediscovery,
+       selected_path_id, first_seen_at, last_seen_at, updated_at
+FROM public_addresses
+WHERE selected_path_id IS NULL
+  AND EXISTS (
+      SELECT 1 FROM public_address_paths p
+      WHERE p.public_address_id = public_addresses.id AND p.available = 1
+  )
+ORDER BY family, address
+`
+
+func (q *Queries) ListPublicAddressesWithoutSelectedPath(ctx context.Context) ([]PublicAddress, error) {
+	rows, err := q.db.QueryContext(ctx, listPublicAddressesWithoutSelectedPath)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []PublicAddress{}
+	for rows.Next() {
+		var i PublicAddress
+		if err := rows.Scan(
+			&i.ID,
+			&i.Address,
+			&i.Family,
+			&i.ProbeEnabled,
+			&i.ProbeOnRediscovery,
+			&i.SelectedPathID,
+			&i.FirstSeenAt,
+			&i.LastSeenAt,
+			&i.UpdatedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const markNodePublicAddressPathsUnavailable = `-- name: MarkNodePublicAddressPathsUnavailable :exec
+UPDATE public_address_paths
+SET available = 0
+WHERE node_id = ?
+`
+
+func (q *Queries) MarkNodePublicAddressPathsUnavailable(ctx context.Context, nodeID string) error {
+	_, err := q.db.ExecContext(ctx, markNodePublicAddressPathsUnavailable, nodeID)
+	return err
+}
+
 const markNodeSyncSessionDelivered = `-- name: MarkNodeSyncSessionDelivered :execrows
 UPDATE node_sync_sessions
 SET delivered_at = COALESCE(delivered_at, ?)
@@ -2329,6 +2887,24 @@ func (q *Queries) PromotePendingHistoryGeneration(ctx context.Context, arg Promo
 		return 0, err
 	}
 	return result.RowsAffected()
+}
+
+const publicAddressBelongsToNode = `-- name: PublicAddressBelongsToNode :one
+SELECT count(*)
+FROM public_address_nodes
+WHERE public_address_id = ? AND node_id = ?
+`
+
+type PublicAddressBelongsToNodeParams struct {
+	PublicAddressID string
+	NodeID          string
+}
+
+func (q *Queries) PublicAddressBelongsToNode(ctx context.Context, arg PublicAddressBelongsToNodeParams) (int64, error) {
+	row := q.db.QueryRowContext(ctx, publicAddressBelongsToNode, arg.PublicAddressID, arg.NodeID)
+	var count int64
+	err := row.Scan(&count)
+	return count, err
 }
 
 const recordHistoryRetentionCleanup = `-- name: RecordHistoryRetentionCleanup :exec
@@ -2432,6 +3008,26 @@ func (q *Queries) RevokeNode(ctx context.Context, arg RevokeNodeParams) (int64, 
 	return result.RowsAffected()
 }
 
+const selectPublicAddressPath = `-- name: SelectPublicAddressPath :execrows
+UPDATE public_addresses
+SET selected_path_id = ?, updated_at = MAX(updated_at, last_seen_at)
+WHERE id = ? AND COALESCE(selected_path_id, '') != COALESCE(?, '')
+`
+
+type SelectPublicAddressPathParams struct {
+	SelectedPathID   *string
+	ID               string
+	SelectedPathID_2 *string
+}
+
+func (q *Queries) SelectPublicAddressPath(ctx context.Context, arg SelectPublicAddressPathParams) (int64, error) {
+	result, err := q.db.ExecContext(ctx, selectPublicAddressPath, arg.SelectedPathID, arg.ID, arg.SelectedPathID_2)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected()
+}
+
 const setAgentEnrollmentEnabled = `-- name: SetAgentEnrollmentEnabled :execrows
 UPDATE agent_enrollment
 SET enabled = ?
@@ -2440,6 +3036,25 @@ WHERE id = 1
 
 func (q *Queries) SetAgentEnrollmentEnabled(ctx context.Context, enabled int64) (int64, error) {
 	result, err := q.db.ExecContext(ctx, setAgentEnrollmentEnabled, enabled)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected()
+}
+
+const setExternalOrigin = `-- name: SetExternalOrigin :execrows
+UPDATE system_state
+SET external_origin = ?
+WHERE id = 1 AND external_origin != ?
+`
+
+type SetExternalOriginParams struct {
+	ExternalOrigin   string
+	ExternalOrigin_2 string
+}
+
+func (q *Queries) SetExternalOrigin(ctx context.Context, arg SetExternalOriginParams) (int64, error) {
+	result, err := q.db.ExecContext(ctx, setExternalOrigin, arg.ExternalOrigin, arg.ExternalOrigin_2)
 	if err != nil {
 		return 0, err
 	}
@@ -2538,6 +3153,38 @@ WHERE id = 1 AND pending_history_generation IS NULL
 func (q *Queries) SetPendingHistoryGeneration(ctx context.Context, pendingHistoryGeneration *string) error {
 	_, err := q.db.ExecContext(ctx, setPendingHistoryGeneration, pendingHistoryGeneration)
 	return err
+}
+
+const setPublicAddressProbeSettings = `-- name: SetPublicAddressProbeSettings :execrows
+UPDATE public_addresses
+SET probe_enabled = ?, probe_on_rediscovery = ?, updated_at = ?
+WHERE id = ? AND (
+    probe_enabled != ? OR probe_on_rediscovery != ?
+)
+`
+
+type SetPublicAddressProbeSettingsParams struct {
+	ProbeEnabled         int64
+	ProbeOnRediscovery   int64
+	UpdatedAt            int64
+	ID                   string
+	ProbeEnabled_2       int64
+	ProbeOnRediscovery_2 int64
+}
+
+func (q *Queries) SetPublicAddressProbeSettings(ctx context.Context, arg SetPublicAddressProbeSettingsParams) (int64, error) {
+	result, err := q.db.ExecContext(ctx, setPublicAddressProbeSettings,
+		arg.ProbeEnabled,
+		arg.ProbeOnRediscovery,
+		arg.UpdatedAt,
+		arg.ID,
+		arg.ProbeEnabled_2,
+		arg.ProbeOnRediscovery_2,
+	)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected()
 }
 
 const setReleaseChannel = `-- name: SetReleaseChannel :execrows
@@ -3082,6 +3729,140 @@ func (q *Queries) UpsertNodeSyncSession(ctx context.Context, arg UpsertNodeSyncS
 		arg.SessionID,
 		arg.RequestedAt,
 		arg.ExpiresAt,
+	)
+	return err
+}
+
+const upsertPendingPublicAddressProbe = `-- name: UpsertPendingPublicAddressProbe :exec
+INSERT INTO pending_public_address_probes (
+    public_address_id, node_id, required_configuration_revision, created_at
+) VALUES (?, ?, ?, ?)
+ON CONFLICT (node_id) DO UPDATE SET
+    public_address_id = excluded.public_address_id,
+    required_configuration_revision = excluded.required_configuration_revision,
+    created_at = excluded.created_at
+`
+
+type UpsertPendingPublicAddressProbeParams struct {
+	PublicAddressID               string
+	NodeID                        string
+	RequiredConfigurationRevision int64
+	CreatedAt                     int64
+}
+
+func (q *Queries) UpsertPendingPublicAddressProbe(ctx context.Context, arg UpsertPendingPublicAddressProbeParams) error {
+	_, err := q.db.ExecContext(ctx, upsertPendingPublicAddressProbe,
+		arg.PublicAddressID,
+		arg.NodeID,
+		arg.RequiredConfigurationRevision,
+		arg.CreatedAt,
+	)
+	return err
+}
+
+const upsertPublicAddress = `-- name: UpsertPublicAddress :exec
+INSERT INTO public_addresses (
+    id, address, family, probe_enabled, probe_on_rediscovery,
+    first_seen_at, last_seen_at, updated_at
+) VALUES (?, ?, ?, 0, 1, ?, ?, ?)
+ON CONFLICT (address) DO UPDATE SET
+    family = excluded.family,
+    last_seen_at = MAX(public_addresses.last_seen_at, excluded.last_seen_at),
+    updated_at = MAX(public_addresses.updated_at, excluded.updated_at)
+`
+
+type UpsertPublicAddressParams struct {
+	ID          string
+	Address     string
+	Family      string
+	FirstSeenAt int64
+	LastSeenAt  int64
+	UpdatedAt   int64
+}
+
+func (q *Queries) UpsertPublicAddress(ctx context.Context, arg UpsertPublicAddressParams) error {
+	_, err := q.db.ExecContext(ctx, upsertPublicAddress,
+		arg.ID,
+		arg.Address,
+		arg.Family,
+		arg.FirstSeenAt,
+		arg.LastSeenAt,
+		arg.UpdatedAt,
+	)
+	return err
+}
+
+const upsertPublicAddressNode = `-- name: UpsertPublicAddressNode :exec
+INSERT INTO public_address_nodes (
+    public_address_id, node_id, first_seen_at, last_seen_at
+) VALUES (?, ?, ?, ?)
+ON CONFLICT (public_address_id, node_id) DO UPDATE SET
+    last_seen_at = MAX(public_address_nodes.last_seen_at, excluded.last_seen_at)
+`
+
+type UpsertPublicAddressNodeParams struct {
+	PublicAddressID string
+	NodeID          string
+	FirstSeenAt     int64
+	LastSeenAt      int64
+}
+
+func (q *Queries) UpsertPublicAddressNode(ctx context.Context, arg UpsertPublicAddressNodeParams) error {
+	_, err := q.db.ExecContext(ctx, upsertPublicAddressNode,
+		arg.PublicAddressID,
+		arg.NodeID,
+		arg.FirstSeenAt,
+		arg.LastSeenAt,
+	)
+	return err
+}
+
+const upsertPublicAddressPath = `-- name: UpsertPublicAddressPath :exec
+INSERT INTO public_address_paths (
+    public_address_id, path_id, node_id, local_interface, local_address,
+    proxy_path, likely_nat, temporary, available, last_checked_at,
+    last_succeeded_at
+) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+ON CONFLICT (path_id) DO UPDATE SET
+    public_address_id = excluded.public_address_id,
+    node_id = excluded.node_id,
+    local_interface = excluded.local_interface,
+    local_address = excluded.local_address,
+    proxy_path = excluded.proxy_path,
+    likely_nat = excluded.likely_nat,
+    temporary = excluded.temporary,
+    available = excluded.available,
+    last_checked_at = excluded.last_checked_at,
+    last_succeeded_at = excluded.last_succeeded_at
+`
+
+type UpsertPublicAddressPathParams struct {
+	PublicAddressID string
+	PathID          string
+	NodeID          string
+	LocalInterface  *string
+	LocalAddress    *string
+	ProxyPath       int64
+	LikelyNat       int64
+	Temporary       int64
+	Available       int64
+	LastCheckedAt   int64
+	LastSucceededAt *int64
+}
+
+func (q *Queries) UpsertPublicAddressPath(ctx context.Context, arg UpsertPublicAddressPathParams) error {
+	_, err := q.db.ExecContext(ctx, upsertPublicAddressPath,
+		arg.PublicAddressID,
+		arg.PathID,
+		arg.NodeID,
+		arg.LocalInterface,
+		arg.LocalAddress,
+		arg.ProxyPath,
+		arg.LikelyNat,
+		arg.Temporary,
+		arg.Available,
+		arg.LastCheckedAt,
+		arg.LastSucceededAt,
 	)
 	return err
 }

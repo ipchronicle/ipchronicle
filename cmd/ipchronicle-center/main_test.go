@@ -37,7 +37,6 @@ func TestAdministratorResetPasswordCommand(t *testing.T) {
 	if err := os.WriteFile(paths.HistoryDatabase, historyContents, 0o600); err != nil {
 		t.Fatal(err)
 	}
-	t.Setenv("IPCHRONICLE_EXTERNAL_URL", "not an origin")
 	t.Setenv("IPCHRONICLE_TRUSTED_PROXIES", "not a CIDR")
 	withStandardInput(t, "recovered-password\n", func() {
 		if err := run([]string{"admin", "reset-password", "--password-stdin"}); err != nil {

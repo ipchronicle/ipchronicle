@@ -1,4 +1,4 @@
-# IPChronicle v0.1.0-rc.2 Release Readiness
+# IPChronicle v0.1.0-rc.3 Release Readiness
 
 Status: Pre-publication validation in progress
 
@@ -11,8 +11,8 @@ for the manifest revision, and the final run links must be recorded here.
 
 ## Candidate Identity
 
-- Version: `0.1.0-rc.2`
-- Proposed tag: `v0.1.0-rc.2`
+- Version: `0.1.0-rc.3`
+- Proposed tag: `v0.1.0-rc.3`
 - Channel: `rc`
 - License: `AGPL-3.0-only`
 - Source: <https://github.com/ipchronicle/ipchronicle>
@@ -45,7 +45,7 @@ not a pass.
 | Production Center image and Compose boundary | `make compose-smoke`; GitHub Actions `CI / compose` | Pass |
 | Simplified Chinese and English desktop/mobile workflows | `make browser-test`; GitHub Actions `CI / browser` | Pass |
 | AMD64 and ARM64 Center image metadata | GitHub Actions `CI / image (linux/amd64)` and `CI / image (linux/arm64)` | Pass |
-| Candidate creation, manifest, checksums, SBOMs, and artifact contract | `make release-candidate VERSION=0.1.0-rc.2`; `make verify-release-candidate VERSION=0.1.0-rc.2`; `Release candidate artifact / candidate` | Pass |
+| Candidate creation, manifest, checksums, SBOMs, and artifact contract | `make release-candidate VERSION=0.1.0-rc.3`; `make verify-release-candidate VERSION=0.1.0-rc.3`; `Release candidate artifact / candidate` | Pass |
 | Install, reinstall, uninstall, migration, history reset, outage, restart, unavailable selector, update rollback, and queue overflow | `make release-failure-gate`; `Release candidate artifact / candidate` | Pass |
 | Supported distribution and init lifecycle | 17 distributions x AMD64/ARM64 in `Release candidate artifact / distribution` | All 34 pass |
 | Native resource limits and live official IPQuality execution | AMD64 and ARM64 `Release candidate artifact / resources` | Both pass at 256 MiB Agent and 512 MiB Center limits |

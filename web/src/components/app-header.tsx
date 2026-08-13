@@ -49,7 +49,7 @@ export function AppHeader({ withSidebar = false }: { withSidebar?: boolean }) {
         className={
           withSidebar
             ? "flex h-14 items-center justify-between gap-2 px-3 sm:px-4"
-            : "mx-auto flex h-14 max-w-6xl items-center justify-between gap-2 px-3 sm:px-6"
+            : "flex h-14 w-full items-center justify-between gap-2 px-3 sm:px-6"
         }
       >
         {withSidebar ? (

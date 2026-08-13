@@ -40,6 +40,81 @@ func TestConfigurationRejectsUnknownFields(t *testing.T) {
 	}
 }
 
+func TestConfigurationMapsV6TransportSemantics(t *testing.T) {
+	discoveryID := uuid.New()
+	targetID := uuid.New()
+	pathID := uuid.New()
+	proxyID := uuid.New()
+	generation := strings.Repeat("a", 64)
+	server := httptest.NewServer(http.HandlerFunc(func(response http.ResponseWriter, request *http.Request) {
+		if request.URL.Path != "/api/v1/agent/configuration" {
+			http.NotFound(response, request)
+			return
+		}
+		response.Header().Set("Content-Type", "application/json")
+		_ = json.NewEncoder(response).Encode(agentapi.AgentConfigurationSnapshot{
+			SchemaVersion: 6, Revision: 7, Enabled: true, HistoryGeneration: generation,
+			DiscoveryPaths: []agentapi.AgentDiscoveryPath{{
+				Id: discoveryID, Kind: agentapi.Source, Family: agentapi.Ipv4,
+				InterfaceName: pointer("eth0"), SourceAddress: pointer("10.0.0.2"),
+				LightweightIntervalSeconds: 600,
+			}},
+			ProbeTargets: []agentapi.AgentProbeTarget{{
+				Id: targetID, PathId: pathID, PublicAddress: "203.0.113.10",
+				Kind: agentapi.Proxy, Family: agentapi.Ipv4,
+				ProxyId: &proxyID, ProbeOnRediscovery: true,
+			}},
+			Proxies: []agentapi.AgentProxyConfiguration{{
+				Id: proxyID, Scheme: agentapi.NetworkProxySchemeSocks5, Host: "proxy.example", Port: 1080,
+			}},
+			DiscoveryServices: agentapi.NetworkObservationSettingsUpdate{
+				Ipv4Services: []string{"https://v4-one.example", "https://v4-two.example"},
+				Ipv6Services: []string{"https://v6-one.example", "https://v6-two.example"},
+			},
+			ProbeSchedule: agentapi.ProbeSchedule{Enabled: true, Cron: "0 0 0 * * *", Timezone: "agent-local"},
+		})
+	}))
+	defer server.Close()
+
+	client, err := NewControlClient(server.URL)
+	if err != nil {
+		t.Fatal(err)
+	}
+	configuration, err := client.configuration(context.Background(), "credential", 7)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(configuration.DiscoveryPaths) != 1 || !configuration.DiscoveryPaths[0].Enabled ||
+		configuration.DiscoveryPaths[0].ID != discoveryID.String() || configuration.DiscoveryPaths[0].LightweightIntervalSeconds != 600 {
+		t.Fatalf("discovery paths = %#v", configuration.DiscoveryPaths)
+	}
+	if len(configuration.ProbeTargets) != 1 || !configuration.ProbeTargets[0].Enabled ||
+		configuration.ProbeTargets[0].ID != targetID.String() || configuration.ProbeTargets[0].PathID == nil ||
+		*configuration.ProbeTargets[0].PathID != pathID.String() || !configuration.ProbeTargets[0].ProbeOnAddressChange {
+		t.Fatalf("probe targets = %#v", configuration.ProbeTargets)
+	}
+	if len(configuration.Proxies) != 1 || configuration.Proxies[0].ID != proxyID.String() {
+		t.Fatalf("proxies = %#v", configuration.Proxies)
+	}
+	store, err := state.Open(filepath.Join(t.TempDir(), "state"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer store.Close()
+	if err := store.SaveIdentity(state.Identity{
+		CenterURL: server.URL, NodeID: uuid.NewString(), Credential: "ipc_agent_configuration-test",
+	}); err != nil {
+		t.Fatal(err)
+	}
+	if err := store.ApplyConfiguration(configuration); err != nil {
+		t.Fatalf("apply mapped v6 configuration: %v", err)
+	}
+}
+
+func pointer(value string) *string {
+	return &value
+}
+
 func TestAgentAPIResponseBodyIsBounded(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(response http.ResponseWriter, _ *http.Request) {
 		_, _ = io.WriteString(response, strings.Repeat("x", maxAgentAPIResponseSize*2))

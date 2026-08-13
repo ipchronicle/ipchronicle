@@ -62,7 +62,7 @@ export function SystemStatusPage() {
     authState.status === "authenticated" ? authState.session.account : null;
 
   return (
-    <div className="mx-auto w-full max-w-6xl px-4 py-10 sm:px-6 sm:py-14">
+    <div className="w-full min-w-0 px-4 py-10 sm:px-6 sm:py-14">
       <div className="max-w-2xl">
         <p className="text-xs font-medium text-muted-foreground uppercase">
           {t("status.section")}
@@ -162,9 +162,7 @@ export function SystemStatusPage() {
               value={
                 state.kind === "success"
                   ? t(
-                      state.status.externalOriginConfigured
-                        ? "status.configured"
-                        : "status.notConfigured",
+                      `status.externalOriginMode.${state.status.externalOriginMode}`,
                     )
                   : undefined
               }

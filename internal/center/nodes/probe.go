@@ -71,19 +71,21 @@ type TaskReport struct {
 }
 
 type Task struct {
-	ID              uuid.UUID
-	NodeID          uuid.UUID
-	Kind            string
-	Status          string
-	CreatedAt       time.Time
-	ExpiresAt       time.Time
-	AcknowledgedAt  *time.Time
-	StartedAt       *time.Time
-	CompletedAt     *time.Time
-	RunID           *uuid.UUID
-	RejectionReason *string
-	TargetVersion   *string
-	Offline         bool
+	ID                        uuid.UUID
+	NodeID                    uuid.UUID
+	Kind                      string
+	Trigger                   string
+	TriggeringPublicAddressID *uuid.UUID
+	Status                    string
+	CreatedAt                 time.Time
+	ExpiresAt                 time.Time
+	AcknowledgedAt            *time.Time
+	StartedAt                 *time.Time
+	CompletedAt               *time.Time
+	RunID                     *uuid.UUID
+	RejectionReason           *string
+	TargetVersion             *string
+	Offline                   bool
 }
 
 type ProbeSettingsUpdate struct {
@@ -350,6 +352,31 @@ func (s *Service) deliverAgentTask(ctx context.Context, nodeID string, now int64
 	return &task, err
 }
 
+func (s *Service) createReadyRediscoveryTask(ctx context.Context, nodeID string, appliedRevision, now int64) error {
+	if _, err := s.queries.GetActiveNodeTask(ctx, nodeID); err == nil {
+		return nil
+	} else if !errors.Is(err, sql.ErrNoRows) {
+		return err
+	}
+	pending, err := s.queries.GetReadyPublicAddressProbe(ctx, configdb.GetReadyPublicAddressProbeParams{
+		NodeID: nodeID, RequiredConfigurationRevision: appliedRevision,
+	})
+	if errors.Is(err, sql.ErrNoRows) {
+		return nil
+	}
+	if err != nil {
+		return err
+	}
+	id := uuid.NewString()
+	if err := s.queries.CreateRediscoveryProbeTask(ctx, configdb.CreateRediscoveryProbeTaskParams{
+		ID: id, NodeID: nodeID, TriggeringPublicAddressID: &pending.PublicAddressID,
+		CreatedAt: now, ExpiresAt: now + int64(probeTaskDeliveryWindow/time.Second),
+	}); err != nil {
+		return err
+	}
+	return s.queries.DeletePendingPublicAddressProbe(ctx, nodeID)
+}
+
 func (s *Service) CreateCompleteProbeTask(ctx context.Context, nodeID uuid.UUID) (Task, error) {
 	node, err := s.queries.GetNodeProbeSettings(ctx, nodeID.String())
 	if errors.Is(err, sql.ErrNoRows) {
@@ -381,11 +408,11 @@ func (s *Service) CreateCompleteProbeTask(ctx context.Context, nodeID uuid.UUID)
 	} else if !errors.Is(err, sql.ErrNoRows) {
 		return Task{}, err
 	}
-	egresses, err := s.queries.ListActiveNodeEgresses(ctx, nodeID.String())
+	targets, err := s.queries.ListNodeSelectedPublicAddresses(ctx, nodeID.String())
 	if err != nil {
 		return Task{}, err
 	}
-	if !slices.ContainsFunc(egresses, func(egress configdb.NetworkEgress) bool { return egress.Enabled == 1 }) {
+	if len(targets) == 0 {
 		return Task{}, ErrNoEnabledEgress
 	}
 	id := uuid.New()
@@ -399,7 +426,7 @@ func (s *Service) CreateCompleteProbeTask(ctx context.Context, nodeID uuid.UUID)
 		return Task{}, err
 	}
 	s.sync.Wake(nodeID.String())
-	return Task{ID: id, NodeID: nodeID, Kind: "complete-probe", Status: "pending", CreatedAt: now, ExpiresAt: expiresAt}, nil
+	return Task{ID: id, NodeID: nodeID, Kind: "complete-probe", Trigger: "manual", Status: "pending", CreatedAt: now, ExpiresAt: expiresAt}, nil
 }
 
 func (s *Service) Probe(ctx context.Context, nodeID uuid.UUID) (ProbeState, error) {
@@ -1222,28 +1249,13 @@ func validProbeJSONObject(raw []byte) bool {
 }
 
 func (s *Service) egressOwnership(ctx context.Context, nodeID string, egressID uuid.UUID) (bool, bool, error) {
-	_, err := s.queries.GetNodeEgress(ctx, configdb.GetNodeEgressParams{NodeID: nodeID, ID: egressID.String()})
-	if err == nil {
-		if deletion, deletionErr := s.queries.GetEgressDeletion(ctx, configdb.GetEgressDeletionParams{
-			EgressID: egressID.String(), NodeID: nodeID,
-		}); deletionErr == nil && deletion.Status != "completed" {
-			return true, true, nil
-		} else if deletionErr != nil && !errors.Is(deletionErr, sql.ErrNoRows) {
-			return false, false, deletionErr
-		}
-		return true, false, nil
-	}
-	if !errors.Is(err, sql.ErrNoRows) {
+	count, err := s.queries.PublicAddressBelongsToNode(ctx, configdb.PublicAddressBelongsToNodeParams{
+		PublicAddressID: egressID.String(), NodeID: nodeID,
+	})
+	if err != nil {
 		return false, false, err
 	}
-	_, err = s.queries.GetEgressDeletion(ctx, configdb.GetEgressDeletionParams{EgressID: egressID.String(), NodeID: nodeID})
-	if err == nil {
-		return true, true, nil
-	}
-	if errors.Is(err, sql.ErrNoRows) {
-		return false, false, nil
-	}
-	return false, false, err
+	return count > 0, false, nil
 }
 
 func artifactGeneration(artifact ProbeArtifact) string {
@@ -1270,8 +1282,17 @@ func taskFromRecord(record configdb.ProbeTask, offline bool) (Task, error) {
 		}
 		runID = &value
 	}
+	var triggeringPublicAddressID *uuid.UUID
+	if record.TriggeringPublicAddressID != nil {
+		value, err := uuid.Parse(*record.TriggeringPublicAddressID)
+		if err != nil {
+			return Task{}, err
+		}
+		triggeringPublicAddressID = &value
+	}
 	return Task{
-		ID: id, NodeID: nodeID, Kind: record.Kind, Status: record.Status,
+		ID: id, NodeID: nodeID, Kind: record.Kind, Trigger: record.Trigger,
+		TriggeringPublicAddressID: triggeringPublicAddressID, Status: record.Status,
 		CreatedAt: time.Unix(record.CreatedAt, 0).UTC(), ExpiresAt: time.Unix(record.ExpiresAt, 0).UTC(),
 		AcknowledgedAt: timePointer(record.AcknowledgedAt), StartedAt: timePointer(record.StartedAt),
 		CompletedAt: timePointer(record.CompletedAt), RunID: runID, RejectionReason: record.RejectionReason,

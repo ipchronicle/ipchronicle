@@ -24,7 +24,7 @@ import {
   type ProbeHistoryGapPage,
   type ProbeSnapshotHistoryPage,
 } from "@/api/history";
-import { getNodeNetwork, type NetworkEgress } from "@/api/network";
+import { getNodeNetwork, type PublicAddress } from "@/api/network";
 import { listNodes, type Node } from "@/api/nodes";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
@@ -73,7 +73,7 @@ type ViewState =
   | {
       kind: "success";
       nodes: Node[];
-      egresses: NetworkEgress[];
+      publicAddresses: PublicAddress[];
       reports?: ProbeSnapshotHistoryPage;
       probeGaps?: ProbeHistoryGapPage;
       formatEvents?: ProbeFormatEventPage;
@@ -104,15 +104,17 @@ export function HistoryPage() {
           pageSize,
         };
         const nodesPromise = listNodes(signal);
-        const egressesPromise = nodeId
-          ? getNodeNetwork(nodeId, signal).then((network) => network.egresses)
-          : Promise.resolve([] as NetworkEgress[]);
+        const publicAddressesPromise = nodeId
+          ? getNodeNetwork(nodeId, signal).then(
+              (network) => network.publicAddresses,
+            )
+          : Promise.resolve([] as PublicAddress[]);
         if (tab === "reports") {
           const changed = value(params, "changed");
-          const [nodes, egresses, reports, probeGaps, formatEvents] =
+          const [nodes, publicAddresses, reports, probeGaps, formatEvents] =
             await Promise.all([
               nodesPromise,
-              egressesPromise,
+              publicAddressesPromise,
               listHistoryProbeSnapshots(
                 {
                   ...common,
@@ -149,16 +151,16 @@ export function HistoryPage() {
           setState({
             kind: "success",
             nodes,
-            egresses,
+            publicAddresses,
             reports,
             probeGaps,
             formatEvents,
           });
           return;
         }
-        const [nodes, egresses, addresses] = await Promise.all([
+        const [nodes, publicAddresses, addresses] = await Promise.all([
           nodesPromise,
-          egressesPromise,
+          publicAddressesPromise,
           listHistoryAddressEvents(
             {
               ...common,
@@ -174,7 +176,7 @@ export function HistoryPage() {
             signal,
           ),
         ]);
-        setState({ kind: "success", nodes, egresses, addresses });
+        setState({ kind: "success", nodes, publicAddresses, addresses });
       } catch (error) {
         if (error instanceof DOMException && error.name === "AbortError")
           return;
@@ -229,7 +231,7 @@ export function HistoryPage() {
   );
 
   return (
-    <main className="mx-auto w-full max-w-6xl px-4 py-10 sm:px-6 sm:py-14">
+    <main className="w-full min-w-0 px-4 py-10 sm:px-6 sm:py-14">
       <div className="max-w-2xl">
         <p className="text-xs font-medium text-muted-foreground uppercase">
           {t("history.section")}
@@ -276,7 +278,9 @@ export function HistoryPage() {
               tab={tab}
               search={search}
               nodes={state.kind === "success" ? state.nodes : []}
-              egresses={state.kind === "success" ? state.egresses : []}
+              publicAddresses={
+                state.kind === "success" ? state.publicAddresses : []
+              }
               update={update}
             />
           </CardContent>
@@ -309,8 +313,6 @@ export function HistoryPage() {
               currentGapPage={positiveInteger(search.get("gapPage"), 1)}
               currentFormatPage={positiveInteger(search.get("formatPage"), 1)}
               hasFilters={hasFilters}
-              search={search}
-              commitSearch={setSearch}
               update={update}
               clearFilters={clearFilters}
               language={i18n.resolvedLanguage}
@@ -339,13 +341,13 @@ function FilterGrid({
   tab,
   search,
   nodes,
-  egresses,
+  publicAddresses,
   update,
 }: {
   tab: HistoryTab;
   search: URLSearchParams;
   nodes: Node[];
-  egresses: NetworkEgress[];
+  publicAddresses: PublicAddress[];
   update: (name: string, value?: string) => void;
 }) {
   const { t } = useTranslation();
@@ -368,12 +370,8 @@ function FilterGrid({
         disabled={!nodeId}
         options={[
           [all, t("history.filters.allEgresses")],
-          ...egresses.map(
-            (egress) =>
-              [
-                egress.id,
-                historyEgressName(egress.name, egress.id, t),
-              ] as const,
+          ...publicAddresses.map(
+            (address) => [address.id, address.address] as const,
           ),
         ]}
       />
@@ -518,8 +516,6 @@ function ReportHistory({
   currentGapPage,
   currentFormatPage,
   hasFilters,
-  search,
-  commitSearch,
   update,
   clearFilters,
   language,
@@ -531,55 +527,13 @@ function ReportHistory({
   currentGapPage: number;
   currentFormatPage: number;
   hasFilters: boolean;
-  search: URLSearchParams;
-  commitSearch: (params: URLSearchParams) => void;
   update: (name: string, value?: string) => void;
   clearFilters: () => void;
   language?: string;
 }) {
   const { t } = useTranslation();
-  const compareBase = value(search, "compareBase");
-  const compareEgress = value(search, "compareEgress");
-  const compareObserved = value(search, "compareObserved");
-
-  function selectForComparison(snapshot: Snapshot) {
-    const params = new URLSearchParams(search);
-    params.set("compareBase", snapshot.id);
-    params.set("compareEgress", snapshot.egressId);
-    params.set("compareObserved", snapshot.observedAt);
-    params.set("nodeId", snapshot.nodeId);
-    params.set("egressId", snapshot.egressId);
-    params.delete("page");
-    commitSearch(params);
-  }
-
-  function clearComparison() {
-    const params = new URLSearchParams(search);
-    params.delete("compareBase");
-    params.delete("compareEgress");
-    params.delete("compareObserved");
-    commitSearch(params);
-  }
-
   return (
     <div className="space-y-4">
-      {compareBase ? (
-        <Alert>
-          <GitCompareArrows aria-hidden="true" />
-          <AlertTitle>{t("history.compareSelection.title")}</AlertTitle>
-          <AlertDescription>
-            {t("history.compareSelection.detail")}
-            <Button
-              variant="link"
-              size="sm"
-              className="ml-1 h-auto px-1"
-              onClick={clearComparison}
-            >
-              {t("history.compareSelection.clear")}
-            </Button>
-          </AlertDescription>
-        </Alert>
-      ) : null}
       <Card>
         <CardHeader>
           <CardTitle>{t("history.reports.title")}</CardTitle>
@@ -613,11 +567,6 @@ function ReportHistory({
                         key={snapshot.id}
                         snapshot={snapshot}
                         language={language}
-                        compareBase={compareBase}
-                        compareEgress={compareEgress}
-                        compareObserved={compareObserved}
-                        selectForComparison={selectForComparison}
-                        clearComparison={clearComparison}
                       />
                     ))}
                   </TableBody>
@@ -629,11 +578,6 @@ function ReportHistory({
                     key={snapshot.id}
                     snapshot={snapshot}
                     language={language}
-                    compareBase={compareBase}
-                    compareEgress={compareEgress}
-                    compareObserved={compareObserved}
-                    selectForComparison={selectForComparison}
-                    clearComparison={clearComparison}
                   />
                 ))}
               </div>
@@ -731,41 +675,14 @@ function ReportMobileCard(props: ReportItemProps) {
 type ReportItemProps = {
   snapshot: Snapshot;
   language?: string;
-  compareBase?: string;
-  compareEgress?: string;
-  compareObserved?: string;
-  selectForComparison: (snapshot: Snapshot) => void;
-  clearComparison: () => void;
 };
 
 function ReportActions({
   snapshot,
-  compareBase,
-  compareEgress,
-  compareObserved,
-  selectForComparison,
-  clearComparison,
   mobile,
 }: ReportItemProps & { mobile?: boolean }) {
   const { t } = useTranslation();
   const className = mobile ? "flex flex-wrap gap-2" : "flex justify-end gap-1";
-  let compareHref: string | undefined;
-  if (
-    compareBase &&
-    compareEgress === snapshot.egressId &&
-    compareBase !== snapshot.id
-  ) {
-    const baseFirst =
-      Date.parse(compareObserved ?? "") <= Date.parse(snapshot.observedAt);
-    const params = new URLSearchParams({
-      before: baseFirst ? compareBase : snapshot.id,
-      after: baseFirst ? snapshot.id : compareBase,
-    });
-    compareHref = `/history/compare?${params.toString()}`;
-  }
-  const previousHref = snapshot.previousSnapshotId
-    ? `/history/compare?before=${snapshot.previousSnapshotId}&after=${snapshot.id}`
-    : undefined;
   return (
     <div className={className}>
       <Button variant="outline" size="sm" asChild>
@@ -773,35 +690,12 @@ function ReportActions({
           {t("history.reports.open")}
         </Link>
       </Button>
-      {compareBase === snapshot.id ? (
-        <Button variant="secondary" size="sm" onClick={clearComparison}>
-          {t("history.compareSelection.selected")}
-        </Button>
-      ) : compareHref ? (
-        <Button variant="outline" size="sm" asChild>
-          <Link to={compareHref}>
-            <GitCompareArrows data-icon="inline-start" aria-hidden="true" />
-            {t("history.compareSelection.compare")}
-          </Link>
-        </Button>
-      ) : compareBase ? (
-        <Button variant="outline" size="sm" disabled>
-          {t("history.compareSelection.differentEgress")}
-        </Button>
-      ) : (
-        <Button
-          variant="ghost"
-          size="sm"
-          onClick={() => selectForComparison(snapshot)}
-        >
-          {t("history.compareSelection.select")}
-        </Button>
-      )}
-      {!compareBase && previousHref ? (
-        <Button variant="ghost" size="sm" asChild>
-          <Link to={previousHref}>{t("history.reports.comparePrevious")}</Link>
-        </Button>
-      ) : null}
+      <Button variant="ghost" size="sm" asChild>
+        <Link to={`/history/compare?egress=${snapshot.egressId}`}>
+          <GitCompareArrows data-icon="inline-start" aria-hidden="true" />
+          {t("history.reports.compare")}
+        </Link>
+      </Button>
     </div>
   );
 }
@@ -822,8 +716,7 @@ function Owner({ snapshot }: { snapshot: Snapshot }) {
         </span>
       </div>
       <div className="truncate text-xs text-muted-foreground">
-        {historyEgressName(snapshot.owner.egressName, snapshot.egressId, t)} · #
-        {snapshot.sequence}
+        {historyEgressName(snapshot.owner.egressName, t)} · #{snapshot.sequence}
       </div>
     </div>
   );
@@ -894,7 +787,7 @@ function AddressHistory({
                     <TableRow>
                       <TableHead>{t("history.columns.owner")}</TableHead>
                       <TableHead>{t("history.columns.event")}</TableHead>
-                      <TableHead>{t("history.columns.path")}</TableHead>
+                      <TableHead>{t("history.columns.address")}</TableHead>
                       <TableHead>{t("history.columns.time")}</TableHead>
                     </TableRow>
                   </TableHeader>
@@ -951,14 +844,14 @@ function AddressRow({
           {item.owner.nodeName ?? shortID(item.nodeId)}
         </div>
         <div className="text-xs text-muted-foreground">
-          {historyEgressName(item.owner.egressName, item.event.egressId, t)}
+          {addressEventOwner(item, t)}
         </div>
       </TableCell>
       <TableCell>
         <AddressEventBadges item={item} />
       </TableCell>
       <TableCell>
-        <AddressPath item={item} />
+        <AddressMapping item={item} />
       </TableCell>
       <TableCell>
         {formatTime(item.event.observedAt, language, t("probe.notAvailable"))}
@@ -980,13 +873,13 @@ function AddressMobileCard({
       <CardHeader>
         <CardTitle>{item.owner.nodeName ?? shortID(item.nodeId)}</CardTitle>
         <CardDescription>
-          {historyEgressName(item.owner.egressName, item.event.egressId, t)} ·{" "}
+          {addressEventOwner(item, t)} ·{" "}
           {formatTime(item.event.observedAt, language, t("probe.notAvailable"))}
         </CardDescription>
       </CardHeader>
       <CardContent className="space-y-3">
         <AddressEventBadges item={item} />
-        <AddressPath item={item} />
+        <AddressMapping item={item} />
       </CardContent>
     </Card>
   );
@@ -1004,20 +897,11 @@ function AddressEventBadges({ item }: { item: AddressEvent }) {
         {t(`network.addressHistory.kind.${item.event.kind}`)}
       </Badge>
       <Badge variant="secondary">{item.event.family.toUpperCase()}</Badge>
-      {item.event.likelyNat ? (
-        <Badge variant="destructive">{t("network.observation.nat")}</Badge>
-      ) : null}
-      {item.event.proxyPath ? (
-        <Badge variant="outline">{t("network.observation.proxy")}</Badge>
-      ) : null}
-      {item.event.temporary ? (
-        <Badge variant="outline">{t("network.observation.temporary")}</Badge>
-      ) : null}
     </div>
   );
 }
 
-function AddressPath({ item }: { item: AddressEvent }) {
+function AddressMapping({ item }: { item: AddressEvent }) {
   const { t } = useTranslation();
   if (item.event.kind === "check-failure") {
     return (
@@ -1028,22 +912,12 @@ function AddressPath({ item }: { item: AddressEvent }) {
       </span>
     );
   }
+  const current = item.event.publicAddress ?? t("probe.notAvailable");
   return (
-    <div className="min-w-0 font-mono text-xs">
-      <div className="break-all">
-        {[item.event.localInterface, item.event.localAddress]
-          .filter(Boolean)
-          .join(" · ") || t("probe.notAvailable")}
-        {" -> "}
-        {item.event.publicAddress ?? t("probe.notAvailable")}
-      </div>
-      {item.event.previousAddress ? (
-        <div className="mt-1 break-all text-muted-foreground">
-          {t("history.addresses.previous", {
-            value: item.event.previousAddress,
-          })}
-        </div>
-      ) : null}
+    <div className="min-w-0 break-all font-mono text-xs">
+      {item.event.previousAddress
+        ? `${item.event.previousAddress} -> ${current}`
+        : current}
     </div>
   );
 }
@@ -1070,7 +944,7 @@ function ProbeGapCard({
           <div key={gap.id} className="rounded-md border p-3">
             <div className="font-medium">
               {gap.owner.nodeName ?? shortID(gap.nodeId)} ·{" "}
-              {historyEgressName(gap.owner.egressName, gap.egressId, t)}
+              {historyEgressName(gap.owner.egressName, t)}
             </div>
             <div className="mt-1 text-xs text-muted-foreground">
               {t("history.gaps.probeItem", {
@@ -1118,7 +992,7 @@ function FormatEventCard({
             <div>
               <div className="font-medium">
                 {event.owner.nodeName ?? shortID(event.nodeId)} ·{" "}
-                {historyEgressName(event.owner.egressName, event.egressId, t)}
+                {historyEgressName(event.owner.egressName, t)}
               </div>
               <div className="mt-1 text-xs text-muted-foreground">
                 {t(`history.formatEvents.kind.${event.kind}`)} ·{" "}
@@ -1166,8 +1040,10 @@ function AddressGapCard({
         {gaps.map((item) => (
           <div key={item.gap.id} className="rounded-md border p-3">
             <div className="font-medium">
-              {item.owner.nodeName ?? shortID(item.nodeId)} ·{" "}
-              {historyEgressName(item.owner.egressName, item.gap.egressId, t)}
+              {item.owner.nodeName ?? shortID(item.nodeId)}
+              <Badge variant="secondary" className="ml-2">
+                {t("history.gaps.nodeLevel")}
+              </Badge>
             </div>
             <div className="mt-1 text-xs text-muted-foreground">
               {t("history.gaps.addressItem", {
@@ -1186,6 +1062,18 @@ function AddressGapCard({
         ))}
       </CardContent>
     </Card>
+  );
+}
+
+function addressEventOwner(
+  item: AddressEvent,
+  t: ReturnType<typeof useTranslation>["t"],
+) {
+  return (
+    item.owner.egressName ??
+    item.event.publicAddress ??
+    item.event.previousAddress ??
+    t("probe.notAvailable")
   );
 }
 
@@ -1293,10 +1181,7 @@ function shortID(id: string) {
 
 function historyEgressName(
   name: string | undefined,
-  id: string,
   t: ReturnType<typeof useTranslation>["t"],
 ) {
-  if (name === "default-ipv4") return t("network.egresses.default.ipv4");
-  if (name === "default-ipv6") return t("network.egresses.default.ipv6");
-  return name ?? shortID(id);
+  return name ?? t("history.addressUnavailable");
 }

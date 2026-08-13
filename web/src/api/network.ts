@@ -3,12 +3,13 @@ import { throwAPIError } from "@/api/errors";
 import type { components } from "@/api/schema";
 
 export type NodeNetworkState = components["schemas"]["NodeNetworkState"];
-export type NetworkEgress = components["schemas"]["NetworkEgress"];
-export type NetworkEgressCandidate =
-  components["schemas"]["NetworkEgressCandidate"];
-export type NetworkEgressCreate = components["schemas"]["NetworkEgressCreate"];
-export type NetworkEgressUpdate = components["schemas"]["NetworkEgressUpdate"];
-export type EgressDeletion = components["schemas"]["EgressDeletion"];
+export type PublicAddress = components["schemas"]["PublicAddress"];
+export type PublicAddressUpdate = components["schemas"]["PublicAddressUpdate"];
+export type ProxyDiscoveryPath = components["schemas"]["ProxyDiscoveryPath"];
+export type ProxyDiscoveryPathCreate =
+  components["schemas"]["ProxyDiscoveryPathCreate"];
+export type ProxyDiscoveryPathDeletion =
+  components["schemas"]["ProxyDiscoveryPathDeletion"];
 export type NetworkObservationSettings =
   components["schemas"]["NetworkObservationSettings"];
 export type NetworkObservationSettingsUpdate =
@@ -25,33 +26,36 @@ export async function getNodeNetwork(nodeId: string, signal?: AbortSignal) {
   return result.data;
 }
 
-export async function createNodeEgress(
+export async function updatePublicAddress(
   nodeId: string,
-  selector: NetworkEgressCreate,
+  publicAddressId: string,
+  update: PublicAddressUpdate,
   csrfToken: string,
 ) {
-  const result = await apiClient.POST("/api/v1/nodes/{nodeId}/egresses", {
-    params: { path: { nodeId } },
-    body: selector,
-    headers: { "X-CSRF-Token": csrfToken },
-  });
+  const result = await apiClient.PATCH(
+    "/api/v1/nodes/{nodeId}/public-addresses/{publicAddressId}",
+    {
+      params: { path: { nodeId, publicAddressId } },
+      body: update,
+      headers: { "X-CSRF-Token": csrfToken },
+    },
+  );
   if (!result.response.ok || result.data === undefined) {
     throwAPIError(result.response, result.error);
   }
   return result.data;
 }
 
-export async function updateNodeEgress(
+export async function createNodeProxyDiscoveryPath(
   nodeId: string,
-  egressId: string,
-  update: NetworkEgressUpdate,
+  input: ProxyDiscoveryPathCreate,
   csrfToken: string,
 ) {
-  const result = await apiClient.PATCH(
-    "/api/v1/nodes/{nodeId}/egresses/{egressId}",
+  const result = await apiClient.POST(
+    "/api/v1/nodes/{nodeId}/proxy-discovery-paths",
     {
-      params: { path: { nodeId, egressId } },
-      body: update,
+      params: { path: { nodeId } },
+      body: input,
       headers: { "X-CSRF-Token": csrfToken },
     },
   );
@@ -85,15 +89,15 @@ export async function updateNetworkObservationSettings(
   return result.data;
 }
 
-export async function deleteNodeEgress(
+export async function deleteNodeProxyDiscoveryPath(
   nodeId: string,
-  egressId: string,
+  pathId: string,
   csrfToken: string,
 ) {
   const result = await apiClient.DELETE(
-    "/api/v1/nodes/{nodeId}/egresses/{egressId}",
+    "/api/v1/nodes/{nodeId}/proxy-discovery-paths/{pathId}",
     {
-      params: { path: { nodeId, egressId } },
+      params: { path: { nodeId, pathId } },
       headers: { "X-CSRF-Token": csrfToken },
     },
   );

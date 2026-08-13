@@ -327,7 +327,8 @@ func notificationRuleResponse(rule notifications.Rule) api.NotificationRule {
 	return api.NotificationRule{
 		Id: rule.ID, Name: rule.Name, Enabled: rule.Enabled, SenderId: rule.SenderID,
 		EventType: api.NotificationEventType(rule.EventType), FieldId: rule.FieldID,
-		NodeId: rule.NodeID, EgressId: rule.EgressID, CreatedAt: rule.CreatedAt, UpdatedAt: rule.UpdatedAt,
+		NodeId: rule.NodeID, EgressId: rule.EgressID, PublicAddress: rule.PublicAddress,
+		CreatedAt: rule.CreatedAt, UpdatedAt: rule.UpdatedAt,
 	}
 }
 

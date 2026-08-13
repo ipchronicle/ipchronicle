@@ -260,6 +260,45 @@ paths:
                 $ref: "#/components/schemas/SystemStatus"
         "401":
           $ref: "#/components/responses/Unauthorized"
+  /api/v1/system/settings:
+    get:
+      operationId: getSystemSettings
+      summary: Read administrator-managed system settings
+      tags: [system]
+      responses:
+        "200":
+          description: Current system settings and their request-scoped effective values.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SystemSettings"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+    put:
+      operationId: updateSystemSettings
+      summary: Replace administrator-managed system settings
+      tags: [system]
+      parameters:
+        - $ref: "#/components/parameters/CSRFToken"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/SystemSettingsUpdate"
+      responses:
+        "200":
+          description: System settings were updated.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SystemSettings"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
   /api/v1/nodes:
     get:
       operationId: listNodes
@@ -308,7 +347,7 @@ paths:
           $ref: "#/components/responses/Conflict"
     delete:
       operationId: deleteNode
-      summary: Permanently delete a node and all owned data
+      summary: Permanently delete a node and its execution metadata
       tags: [nodes]
       parameters:
         - $ref: "#/components/parameters/CSRFToken"
@@ -732,7 +771,7 @@ paths:
   /api/v1/history/comparison:
     get:
       operationId: compareProbeSnapshots
-      summary: Compare two retained snapshots from the same network egress
+      summary: Compare two retained snapshots for the same public IP
       tags: [history]
       parameters:
         - name: beforeSnapshotId
@@ -1030,7 +1069,7 @@ paths:
       - $ref: "#/components/parameters/NodeId"
     get:
       operationId: getNodeNetwork
-      summary: Read the latest network inventory, candidates, and configured egresses
+      summary: Read discovered public addresses and explicit proxy discovery paths
       tags: [network]
       responses:
         "200":
@@ -1043,12 +1082,48 @@ paths:
           $ref: "#/components/responses/Unauthorized"
         "404":
           $ref: "#/components/responses/NotFound"
-  /api/v1/nodes/{nodeId}/egresses:
+  /api/v1/nodes/{nodeId}/public-addresses/{publicAddressId}:
+    parameters:
+      - $ref: "#/components/parameters/NodeId"
+      - name: publicAddressId
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+    patch:
+      operationId: updatePublicAddress
+      summary: Update complete-probe settings for a discovered public address
+      tags: [network]
+      parameters:
+        - $ref: "#/components/parameters/CSRFToken"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/PublicAddressUpdate"
+      responses:
+        "200":
+          description: Updated public-address settings.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PublicAddress"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+  /api/v1/nodes/{nodeId}/proxy-discovery-paths:
     parameters:
       - $ref: "#/components/parameters/NodeId"
     post:
-      operationId: createNodeEgress
-      summary: Enable a discovered interface or source-address egress
+      operationId: createNodeProxyDiscoveryPath
+      summary: Add an explicit proxy path for public-address discovery
       tags: [network]
       parameters:
         - $ref: "#/components/parameters/CSRFToken"
@@ -1057,14 +1132,14 @@ paths:
         content:
           application/json:
             schema:
-              $ref: "#/components/schemas/NetworkEgressCreate"
+              $ref: "#/components/schemas/ProxyDiscoveryPathCreate"
       responses:
         "201":
-          description: The durable egress was created.
+          description: The proxy discovery path was created.
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/NetworkEgress"
+                $ref: "#/components/schemas/ProxyDiscoveryPath"
         "400":
           $ref: "#/components/responses/BadRequest"
         "401":
@@ -1075,52 +1150,28 @@ paths:
           $ref: "#/components/responses/NotFound"
         "409":
           $ref: "#/components/responses/Conflict"
-  /api/v1/nodes/{nodeId}/egresses/{egressId}:
+  /api/v1/nodes/{nodeId}/proxy-discovery-paths/{pathId}:
     parameters:
       - $ref: "#/components/parameters/NodeId"
-      - $ref: "#/components/parameters/EgressId"
-    patch:
-      operationId: updateNodeEgress
-      summary: Update a durable network egress
-      tags: [network]
-      parameters:
-        - $ref: "#/components/parameters/CSRFToken"
-      requestBody:
+      - name: pathId
+        in: path
         required: true
-        content:
-          application/json:
-            schema:
-              $ref: "#/components/schemas/NetworkEgressUpdate"
-      responses:
-        "200":
-          description: The egress was updated.
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/NetworkEgress"
-        "400":
-          $ref: "#/components/responses/BadRequest"
-        "401":
-          $ref: "#/components/responses/Unauthorized"
-        "403":
-          $ref: "#/components/responses/Forbidden"
-        "404":
-          $ref: "#/components/responses/NotFound"
-        "409":
-          $ref: "#/components/responses/Conflict"
+        schema:
+          type: string
+          format: uuid
     delete:
-      operationId: deleteNodeEgress
-      summary: Permanently delete a durable network egress
+      operationId: deleteNodeProxyDiscoveryPath
+      summary: Remove an explicit proxy discovery path
       tags: [network]
       parameters:
         - $ref: "#/components/parameters/CSRFToken"
       responses:
         "202":
-          description: Durable egress deletion has been queued.
+          description: Proxy discovery path deletion has been queued.
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/EgressDeletion"
+                $ref: "#/components/schemas/ProxyDiscoveryPathDeletion"
         "401":
           $ref: "#/components/responses/Unauthorized"
         "403":
@@ -1437,13 +1488,6 @@ components:
       schema:
         type: string
         format: uuid
-    EgressId:
-      name: egressId
-      in: path
-      required: true
-      schema:
-        type: string
-        format: uuid
     ProxyId:
       name: proxyId
       in: path
@@ -1607,8 +1651,8 @@ components:
       description: The requested state transition conflicts with current state.
       content:
         application/json:
-              schema:
-                $ref: "#/components/schemas/ErrorResponse"
+          schema:
+            $ref: "#/components/schemas/ErrorResponse"
     AgentUnauthorized:
       description: The Agent credential or registration key is invalid.
       content:
@@ -1805,6 +1849,7 @@ components:
         - notification_rule_not_found
         - notification_rule_name_in_use
         - invalid_notification_delivery_query
+        - invalid_system_settings
         - internal_error
     ErrorResponse:
       type: object
@@ -1829,7 +1874,7 @@ components:
         - historySchemaVersion
         - transportSecurity
         - transportWarning
-        - externalOriginConfigured
+        - externalOriginMode
         - trustedProxyConfigured
       properties:
         service:
@@ -1857,10 +1902,34 @@ components:
           enum: [http, https]
         transportWarning:
           type: boolean
-        externalOriginConfigured:
-          type: boolean
+        externalOriginMode:
+          type: string
+          enum: [automatic, custom]
         trustedProxyConfigured:
           type: boolean
+    SystemSettings:
+      type: object
+      additionalProperties: false
+      required: [automatic, externalOrigin, effectiveOrigin]
+      properties:
+        automatic:
+          type: boolean
+        externalOrigin:
+          type: string
+          maxLength: 2048
+        effectiveOrigin:
+          type: string
+          format: uri
+          minLength: 1
+          maxLength: 2048
+    SystemSettingsUpdate:
+      type: object
+      additionalProperties: false
+      required: [externalOrigin]
+      properties:
+        externalOrigin:
+          type: string
+          maxLength: 2048
     AgentEnrollmentSettings:
       type: object
       additionalProperties: false
@@ -1892,7 +1961,15 @@ components:
     AgentMetadata:
       type: object
       additionalProperties: false
-      required: [hostname, agentVersion, operatingSystem, architecture, capabilities, physicalMemoryBytes]
+      required:
+        [
+          hostname,
+          agentVersion,
+          operatingSystem,
+          architecture,
+          capabilities,
+          physicalMemoryBytes,
+        ]
       properties:
         hostname:
           type: string
@@ -2042,11 +2119,23 @@ components:
     AgentConfigurationSnapshot:
       type: object
       additionalProperties: false
-      required: [schemaVersion, revision, enabled, historyGeneration, discoveryServices, probeSchedule, probeLowMemoryOverride, egresses, proxies]
+      required:
+        [
+          schemaVersion,
+          revision,
+          enabled,
+          historyGeneration,
+          discoveryServices,
+          probeSchedule,
+          probeLowMemoryOverride,
+          discoveryPaths,
+          probeTargets,
+          proxies,
+        ]
       properties:
         schemaVersion:
           type: integer
-          enum: [5]
+          enum: [6]
         revision:
           type: integer
           format: int64
@@ -2062,11 +2151,16 @@ components:
           $ref: "#/components/schemas/ProbeSchedule"
         probeLowMemoryOverride:
           type: boolean
-        egresses:
+        discoveryPaths:
           type: array
           maxItems: 64
           items:
-            $ref: "#/components/schemas/AgentEgressConfiguration"
+            $ref: "#/components/schemas/AgentDiscoveryPath"
+        probeTargets:
+          type: array
+          maxItems: 64
+          items:
+            $ref: "#/components/schemas/AgentProbeTarget"
         proxies:
           type: array
           maxItems: 64
@@ -2093,11 +2187,33 @@ components:
           type: boolean
     NetworkAddressScope:
       type: string
-      enum: [global, private, shared, unique-local, link-local, loopback, multicast, unspecified, other]
+      enum:
+        [
+          global,
+          private,
+          shared,
+          unique-local,
+          link-local,
+          loopback,
+          multicast,
+          unspecified,
+          other,
+        ]
     NetworkAddress:
       type: object
       additionalProperties: false
-      required: [interfaceName, address, prefixLength, family, scope, temporary, tentative, deprecated, duplicate]
+      required:
+        [
+          interfaceName,
+          address,
+          prefixLength,
+          family,
+          scope,
+          temporary,
+          tentative,
+          deprecated,
+          duplicate,
+        ]
       properties:
         interfaceName:
           type: string
@@ -2174,10 +2290,18 @@ components:
     NetworkEgressKind:
       type: string
       enum: [default, interface, source, proxy]
-    NetworkEgress:
+    ProxyDiscoveryPath:
       type: object
       additionalProperties: false
-      required: [id, nodeId, name, kind, family, enabled, available, automatic, lightweightIntervalSeconds, probeOnAddressChange]
+      required:
+        [
+          id,
+          nodeId,
+          name,
+          family,
+          proxyId,
+          available,
+        ]
       properties:
         id:
           type: string
@@ -2189,56 +2313,35 @@ components:
           type: string
           minLength: 1
           maxLength: 128
-        kind:
-          $ref: "#/components/schemas/NetworkEgressKind"
         family:
           $ref: "#/components/schemas/AddressFamily"
-        interfaceName:
-          type: string
-          minLength: 1
-          maxLength: 64
-        sourceAddress:
-          type: string
-          minLength: 2
-          maxLength: 45
         proxyId:
           type: string
           format: uuid
-        enabled:
-          type: boolean
         available:
           type: boolean
-        automatic:
-          type: boolean
-        lightweightIntervalSeconds:
-          type: integer
-          format: int64
-          minimum: 1
-          maximum: 9223372036
-        probeOnAddressChange:
-          type: boolean
         deletionStatus:
-          $ref: "#/components/schemas/EgressDeletionStatus"
+          $ref: "#/components/schemas/ProxyDiscoveryPathDeletionStatus"
         deletionError:
           type: string
           minLength: 1
           maxLength: 1024
-    EgressDeletionStatus:
+    ProxyDiscoveryPathDeletionStatus:
       type: string
       enum: [pending, failed]
-    EgressDeletion:
+    ProxyDiscoveryPathDeletion:
       type: object
       additionalProperties: false
-      required: [egressId, nodeId, status, requestedAt]
+      required: [pathId, nodeId, status, requestedAt]
       properties:
-        egressId:
+        pathId:
           type: string
           format: uuid
         nodeId:
           type: string
           format: uuid
         status:
-          $ref: "#/components/schemas/EgressDeletionStatus"
+          $ref: "#/components/schemas/ProxyDiscoveryPathDeletionStatus"
         requestedAt:
           type: string
           format: date-time
@@ -2246,112 +2349,163 @@ components:
           type: string
           minLength: 1
           maxLength: 1024
-    NetworkEgressCandidate:
-      type: object
-      additionalProperties: false
-      required: [kind, family, interfaceName, temporary, eligible]
-      properties:
-        kind:
-          type: string
-          enum: [interface, source]
-        family:
-          $ref: "#/components/schemas/AddressFamily"
-        interfaceName:
-          type: string
-          minLength: 1
-          maxLength: 64
-        sourceAddress:
-          type: string
-          minLength: 2
-          maxLength: 45
-        scope:
-          $ref: "#/components/schemas/NetworkAddressScope"
-        temporary:
-          type: boolean
-        eligible:
-          type: boolean
-        unavailableReason:
-          type: string
-          enum: [interface-down, no-usable-route, temporary-address, unusable-address]
-        configuredEgressId:
-          type: string
-          format: uuid
     NodeNetworkState:
       type: object
       additionalProperties: false
-      required: [egresses, candidates, addressStates, addressEvents, addressGaps]
+      required:
+        [publicAddresses, proxyDiscoveryPaths, addressEvents, addressGaps]
       properties:
-        inventory:
-          $ref: "#/components/schemas/NetworkInventory"
-        inventoryError:
-          type: string
-          minLength: 1
-          maxLength: 1024
-        inventoryReceivedAt:
-          type: string
-          format: date-time
-        egresses:
+        publicAddresses:
           type: array
+          maxItems: 128
           items:
-            $ref: "#/components/schemas/NetworkEgress"
-        candidates:
-          type: array
-          items:
-            $ref: "#/components/schemas/NetworkEgressCandidate"
-        addressStates:
+            $ref: "#/components/schemas/PublicAddress"
+        proxyDiscoveryPaths:
           type: array
           maxItems: 64
           items:
-            $ref: "#/components/schemas/AgentAddressState"
+            $ref: "#/components/schemas/ProxyDiscoveryPath"
         addressEvents:
           type: array
           maxItems: 100
           items:
-            $ref: "#/components/schemas/AgentAddressEvent"
+            $ref: "#/components/schemas/PublicAddressEvent"
         addressGaps:
           type: array
           maxItems: 100
           items:
-            $ref: "#/components/schemas/AgentAddressGap"
-    NetworkEgressCreate:
+            $ref: "#/components/schemas/PublicAddressGap"
+    PublicAddress:
       type: object
       additionalProperties: false
-      required: [kind, family]
+      required:
+        [id, address, family, probeEnabled, probeOnRediscovery, available, pathCount, likelyNat, proxyPath, firstSeenAt, lastSeenAt]
       properties:
-        kind:
+        id:
           type: string
-          enum: [interface, source, proxy]
-        family:
-          $ref: "#/components/schemas/AddressFamily"
-        interfaceName:
-          type: string
-          minLength: 1
-          maxLength: 64
-        sourceAddress:
+          format: uuid
+        address:
           type: string
           minLength: 2
           maxLength: 45
+        family:
+          $ref: "#/components/schemas/AddressFamily"
+        probeEnabled:
+          type: boolean
+        probeOnRediscovery:
+          type: boolean
+        available:
+          type: boolean
+        selectedNodeId:
+          type: string
+          format: uuid
+        selectedNodeName:
+          type: string
+          minLength: 1
+          maxLength: 128
+        pathCount:
+          type: integer
+          minimum: 0
+        likelyNat:
+          type: boolean
+        proxyPath:
+          type: boolean
+        firstSeenAt:
+          type: string
+          format: date-time
+        lastSeenAt:
+          type: string
+          format: date-time
+        lastCheckedAt:
+          type: string
+          format: date-time
+        lastSucceededAt:
+          type: string
+          format: date-time
+    PublicAddressUpdate:
+      type: object
+      additionalProperties: false
+      required: [probeEnabled, probeOnRediscovery]
+      properties:
+        probeEnabled:
+          type: boolean
+        probeOnRediscovery:
+          type: boolean
+    ProxyDiscoveryPathCreate:
+      type: object
+      additionalProperties: false
+      required: [proxyId, family]
+      properties:
+        family:
+          $ref: "#/components/schemas/AddressFamily"
         proxyId:
           type: string
           format: uuid
-    NetworkEgressUpdate:
+    PublicAddressEvent:
       type: object
       additionalProperties: false
-      required: [enabled, lightweightIntervalSeconds, probeOnAddressChange]
+      required: [id, sequence, kind, family, observedAt]
       properties:
-        enabled:
-          type: boolean
-        lightweightIntervalSeconds:
+        id:
+          type: string
+          format: uuid
+        sequence:
           type: integer
           format: int64
           minimum: 1
-          maximum: 9223372036
-        probeOnAddressChange:
-          type: boolean
-    AgentEgressConfiguration:
+        kind:
+          $ref: "#/components/schemas/AddressEventKind"
+        family:
+          $ref: "#/components/schemas/AddressFamily"
+        previousAddress:
+          type: string
+          minLength: 2
+          maxLength: 45
+        publicAddress:
+          type: string
+          minLength: 2
+          maxLength: 45
+        failureReason:
+          $ref: "#/components/schemas/AddressFailureReason"
+        observedAt:
+          type: string
+          format: date-time
+    PublicAddressGap:
       type: object
       additionalProperties: false
-      required: [id, kind, family, enabled, lightweightIntervalSeconds, probeOnAddressChange]
+      required: [id, droppedCount, firstSequence, lastSequence, firstObservedAt, lastObservedAt]
+      properties:
+        id:
+          type: string
+          format: uuid
+        droppedCount:
+          type: integer
+          format: int64
+          minimum: 1
+        firstSequence:
+          type: integer
+          format: int64
+          minimum: 1
+        lastSequence:
+          type: integer
+          format: int64
+          minimum: 1
+        firstObservedAt:
+          type: string
+          format: date-time
+        lastObservedAt:
+          type: string
+          format: date-time
+    AgentDiscoveryPath:
+      type: object
+      additionalProperties: false
+      required:
+        [
+          id,
+          kind,
+          family,
+          lightweightIntervalSeconds,
+        ]
       properties:
         id:
           type: string
@@ -2371,13 +2525,41 @@ components:
         proxyId:
           type: string
           format: uuid
-        enabled:
-          type: boolean
         lightweightIntervalSeconds:
           type: integer
           format: int64
           minimum: 1
-        probeOnAddressChange:
+    AgentProbeTarget:
+      type: object
+      additionalProperties: false
+      required: [id, pathId, publicAddress, kind, family, probeOnRediscovery]
+      properties:
+        id:
+          type: string
+          format: uuid
+        pathId:
+          type: string
+          format: uuid
+        publicAddress:
+          type: string
+          minLength: 2
+          maxLength: 45
+        kind:
+          $ref: "#/components/schemas/NetworkEgressKind"
+        family:
+          $ref: "#/components/schemas/AddressFamily"
+        interfaceName:
+          type: string
+          minLength: 1
+          maxLength: 64
+        sourceAddress:
+          type: string
+          minLength: 2
+          maxLength: 45
+        proxyId:
+          type: string
+          format: uuid
+        probeOnRediscovery:
           type: boolean
     NetworkProxyScheme:
       type: string
@@ -2385,7 +2567,8 @@ components:
     NetworkProxy:
       type: object
       additionalProperties: false
-      required: [id, name, scheme, host, port, passwordConfigured, createdAt, updatedAt]
+      required:
+        [id, name, scheme, host, port, passwordConfigured, createdAt, updatedAt]
       properties:
         id:
           type: string
@@ -2552,14 +2735,31 @@ components:
       enum: [confirmed, failed]
     AddressFailureReason:
       type: string
-      enum: [selector-unavailable, no-valid-response, confirmation-unavailable, conflicting-responses]
+      enum:
+        [
+          selector-unavailable,
+          no-valid-response,
+          confirmation-unavailable,
+          conflicting-responses,
+        ]
     AddressEventKind:
       type: string
       enum: [first-observation, address-change, check-failure, recovery]
     AgentAddressState:
       type: object
       additionalProperties: false
-      required: [egressId, historyGeneration, family, status, sequence, proxyPath, likelyNat, temporary, lastCheckedAt]
+      required:
+        [
+          egressId,
+          historyGeneration,
+          family,
+          status,
+          sequence,
+          proxyPath,
+          likelyNat,
+          temporary,
+          lastCheckedAt,
+        ]
       properties:
         egressId:
           type: string
@@ -2607,7 +2807,19 @@ components:
     AgentAddressEvent:
       type: object
       additionalProperties: false
-      required: [id, egressId, historyGeneration, sequence, kind, family, proxyPath, likelyNat, temporary, observedAt]
+      required:
+        [
+          id,
+          egressId,
+          historyGeneration,
+          sequence,
+          kind,
+          family,
+          proxyPath,
+          likelyNat,
+          temporary,
+          observedAt,
+        ]
       properties:
         id:
           type: string
@@ -2656,7 +2868,17 @@ components:
     AgentAddressGap:
       type: object
       additionalProperties: false
-      required: [id, egressId, historyGeneration, droppedCount, firstSequence, lastSequence, firstObservedAt, lastObservedAt]
+      required:
+        [
+          id,
+          egressId,
+          historyGeneration,
+          droppedCount,
+          firstSequence,
+          lastSequence,
+          firstObservedAt,
+          lastObservedAt,
+        ]
       properties:
         id:
           type: string
@@ -2700,7 +2922,8 @@ components:
     AgentAddressUploadReceipt:
       type: object
       additionalProperties: false
-      required: [acceptedEventIds, discardedEventIds, acceptedGaps, discardedGaps]
+      required:
+        [acceptedEventIds, discardedEventIds, acceptedGaps, discardedGaps]
       properties:
         acceptedEventIds:
           type: array
@@ -2738,7 +2961,17 @@ components:
       enum: [download, selector, adapter, process, timeout, output, restart]
     ProbeTaskStatus:
       type: string
-      enum: [pending, acknowledged, running, succeeded, partial, failed, rejected, expired]
+      enum:
+        [
+          pending,
+          acknowledged,
+          running,
+          succeeded,
+          partial,
+          failed,
+          rejected,
+          expired,
+        ]
     ProbeSchedule:
       type: object
       additionalProperties: false
@@ -2806,7 +3039,7 @@ components:
     AgentTask:
       type: object
       additionalProperties: false
-      required: [id, kind, createdAt, expiresAt]
+      required: [id, kind, trigger, createdAt, expiresAt]
       properties:
         id:
           type: string
@@ -2814,6 +3047,12 @@ components:
         kind:
           type: string
           enum: [complete-probe, agent-update]
+        trigger:
+          type: string
+          enum: [manual, address-change, agent-update]
+        triggeringPublicAddressId:
+          type: string
+          format: uuid
         createdAt:
           type: string
           format: date-time
@@ -2834,7 +3073,19 @@ components:
           format: uuid
         status:
           type: string
-          enum: [acknowledged, running, verifying, installing, restarting, succeeded, partial, failed, rolled-back, rejected]
+          enum:
+            [
+              acknowledged,
+              running,
+              verifying,
+              installing,
+              restarting,
+              succeeded,
+              partial,
+              failed,
+              rolled-back,
+              rejected,
+            ]
         acknowledgedAt:
           type: string
           format: date-time
@@ -2878,7 +3129,8 @@ components:
     AgentUpdateRelease:
       type: object
       additionalProperties: false
-      required: [version, tag, channel, revision, publishedAt, agentCapabilities]
+      required:
+        [version, tag, channel, revision, publishedAt, agentCapabilities]
       properties:
         version:
           type: string
@@ -2906,11 +3158,24 @@ components:
             maxLength: 64
     AgentUpdateTaskStatus:
       type: string
-      enum: [pending, acknowledged, verifying, installing, restarting, succeeded, failed, rolled-back, rejected, expired]
+      enum:
+        [
+          pending,
+          acknowledged,
+          verifying,
+          installing,
+          restarting,
+          succeeded,
+          failed,
+          rolled-back,
+          rejected,
+          expired,
+        ]
     AgentUpdateTask:
       type: object
       additionalProperties: false
-      required: [id, nodeId, targetVersion, status, createdAt, expiresAt, offline]
+      required:
+        [id, nodeId, targetVersion, status, createdAt, expiresAt, offline]
       properties:
         id:
           type: string
@@ -3064,7 +3329,16 @@ components:
     AgentProbeRunArtifact:
       type: object
       additionalProperties: false
-      required: [id, nodeConfigurationRevision, historyGeneration, trigger, startedAt, status, executions]
+      required:
+        [
+          id,
+          nodeConfigurationRevision,
+          historyGeneration,
+          trigger,
+          startedAt,
+          status,
+          executions,
+        ]
       properties:
         id:
           type: string
@@ -3137,7 +3411,17 @@ components:
     AgentProbeGapArtifact:
       type: object
       additionalProperties: false
-      required: [id, egressId, historyGeneration, droppedCount, firstSequence, lastSequence, firstObservedAt, lastObservedAt]
+      required:
+        [
+          id,
+          egressId,
+          historyGeneration,
+          droppedCount,
+          firstSequence,
+          lastSequence,
+          firstObservedAt,
+          lastObservedAt,
+        ]
       properties:
         id:
           type: string
@@ -3275,7 +3559,18 @@ components:
     ProbeRun:
       type: object
       additionalProperties: false
-      required: [id, nodeId, configurationRevision, historyGeneration, trigger, startedAt, status, expectedExecutions, executions]
+      required:
+        [
+          id,
+          nodeId,
+          configurationRevision,
+          historyGeneration,
+          trigger,
+          startedAt,
+          status,
+          expectedExecutions,
+          executions,
+        ]
       properties:
         id:
           type: string
@@ -3315,7 +3610,16 @@ components:
     ProbeRunSummary:
       type: object
       additionalProperties: false
-      required: [id, nodeId, trigger, startedAt, status, expectedExecutions, completedExecutions]
+      required:
+        [
+          id,
+          nodeId,
+          trigger,
+          startedAt,
+          status,
+          expectedExecutions,
+          completedExecutions,
+        ]
       properties:
         id:
           type: string
@@ -3342,7 +3646,8 @@ components:
     NodeProbeState:
       type: object
       additionalProperties: false
-      required: [nodeId, schedule, lowMemoryOverride, pausedLowMemory, recentRuns]
+      required:
+        [nodeId, schedule, lowMemoryOverride, pausedLowMemory, recentRuns]
       properties:
         nodeId:
           type: string
@@ -3369,7 +3674,19 @@ components:
     ProbeSnapshot:
       type: object
       additionalProperties: false
-      required: [id, executionId, egressId, sequence, observedAt, rawResult, starred, fields, formatIssues, changes]
+      required:
+        [
+          id,
+          executionId,
+          egressId,
+          sequence,
+          observedAt,
+          rawResult,
+          starred,
+          fields,
+          formatIssues,
+          changes,
+        ]
       properties:
         id:
           type: string
@@ -3417,7 +3734,10 @@ components:
       enum: [string, number, boolean, "null", object, array]
     KnownProbeFieldStatus:
       type: string
-      enum: [available, missing, incompatible]
+      description: >-
+        available contains a compatible value; unavailable is an explicit JSON
+        null with no upstream result; missing and incompatible are format issues.
+      enum: [available, unavailable, missing, incompatible]
     KnownProbeField:
       type: object
       additionalProperties: false
@@ -3512,7 +3832,28 @@ components:
     ProbeSnapshotSummary:
       type: object
       additionalProperties: false
-      required: [id, executionId, runId, nodeId, egressId, owner, sequence, trigger, runStatus, observedAt, receivedAt, encodedSize, starred, current, processed, baseline, changeCount, formatStatus, formatIssueCount]
+      required:
+        [
+          id,
+          executionId,
+          runId,
+          nodeId,
+          egressId,
+          owner,
+          sequence,
+          trigger,
+          runStatus,
+          observedAt,
+          receivedAt,
+          encodedSize,
+          starred,
+          current,
+          processed,
+          baseline,
+          changeCount,
+          formatStatus,
+          formatIssueCount,
+        ]
       properties:
         id:
           type: string
@@ -3595,7 +3936,7 @@ components:
         owner:
           $ref: "#/components/schemas/HistoryOwner"
         event:
-          $ref: "#/components/schemas/AgentAddressEvent"
+          $ref: "#/components/schemas/PublicAddressEvent"
     HistoryAddressGap:
       type: object
       additionalProperties: false
@@ -3607,7 +3948,7 @@ components:
         owner:
           $ref: "#/components/schemas/HistoryOwner"
         gap:
-          $ref: "#/components/schemas/AgentAddressGap"
+          $ref: "#/components/schemas/PublicAddressGap"
     AddressHistoryPage:
       type: object
       additionalProperties: false
@@ -3634,7 +3975,18 @@ components:
     ProbeHistoryGap:
       type: object
       additionalProperties: false
-      required: [id, nodeId, egressId, owner, droppedCount, firstSequence, lastSequence, firstObservedAt, lastObservedAt]
+      required:
+        [
+          id,
+          nodeId,
+          egressId,
+          owner,
+          droppedCount,
+          firstSequence,
+          lastSequence,
+          firstObservedAt,
+          lastObservedAt,
+        ]
       properties:
         id:
           type: string
@@ -3685,7 +4037,20 @@ components:
     ProbeFormatEvent:
       type: object
       additionalProperties: false
-      required: [id, nodeId, egressId, executionId, snapshotId, owner, sequence, kind, issues, observedAt, recordedAt]
+      required:
+        [
+          id,
+          nodeId,
+          egressId,
+          executionId,
+          snapshotId,
+          owner,
+          sequence,
+          kind,
+          issues,
+          observedAt,
+          recordedAt,
+        ]
       properties:
         id:
           type: string
@@ -3837,7 +4202,17 @@ components:
     HistoryUsage:
       type: object
       additionalProperties: false
-      required: [logicalBytes, protectedLogicalBytes, recordCount, databaseBytes, walBytes, sharedMemoryBytes, overBudget, overageBytes]
+      required:
+        [
+          logicalBytes,
+          protectedLogicalBytes,
+          recordCount,
+          databaseBytes,
+          walBytes,
+          sharedMemoryBytes,
+          overBudget,
+          overageBytes,
+        ]
       properties:
         logicalBytes:
           type: integer
@@ -4106,6 +4481,10 @@ components:
             id:
               type: string
               format: uuid
+            publicAddress:
+              type: string
+              minLength: 2
+              maxLength: 45
             createdAt:
               type: string
               format: date-time
@@ -4278,6 +4657,7 @@ components:
         - desiredConfigurationRevision
         - appliedConfigurationRevision
         - configurationStatus
+        - publicAddresses
         - registeredAt
       properties:
         id:
@@ -4338,6 +4718,29 @@ components:
         lastSeenAt:
           type: string
           format: date-time
+        publicAddresses:
+          type: array
+          maxItems: 64
+          items:
+            $ref: "#/components/schemas/NodePublicAddressSummary"
+    NodePublicAddressSummary:
+      type: object
+      additionalProperties: false
+      required: [id, address, family, available, probeEnabled]
+      properties:
+        id:
+          type: string
+          format: uuid
+        address:
+          type: string
+          minLength: 2
+          maxLength: 45
+        family:
+          $ref: "#/components/schemas/AddressFamily"
+        available:
+          type: boolean
+        probeEnabled:
+          type: boolean
     NodeList:
       type: object
       additionalProperties: false

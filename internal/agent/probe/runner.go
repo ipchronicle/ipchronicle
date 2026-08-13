@@ -20,6 +20,7 @@ import (
 	"unicode/utf8"
 
 	agentnetwork "github.com/ipchronicle/ipchronicle/internal/agent/network"
+	"github.com/ipchronicle/ipchronicle/internal/agent/observation"
 	"github.com/ipchronicle/ipchronicle/internal/agent/state"
 	"golang.org/x/sys/unix"
 )
@@ -38,23 +39,26 @@ type processState interface {
 }
 
 type Runner struct {
-	store      processState
-	discover   func() (agentnetwork.Inventory, error)
-	now        func() time.Time
-	scriptURL  string
-	bashPath   string
-	timeout    time.Duration
-	httpClient func(executionPath, string) *http.Client
+	store        processState
+	discover     func() (agentnetwork.Inventory, error)
+	now          func() time.Time
+	scriptURL    string
+	bashPath     string
+	timeout      time.Duration
+	httpClient   func(executionPath, string) *http.Client
+	verifyTarget func(context.Context, state.Configuration, state.Egress, time.Time) error
 }
 
 func NewRunner(store processState) *Runner {
 	if store == nil {
 		panic("probe runner state must not be nil")
 	}
+	checker := observation.NewChecker()
 	return &Runner{
 		store: store, discover: agentnetwork.Discover, now: time.Now,
 		scriptURL: officialScriptURL, bashPath: "bash", timeout: defaultProbeTimeout,
-		httpClient: pathHTTPClient,
+		httpClient:   pathHTTPClient,
+		verifyTarget: checker.VerifyTarget,
 	}
 }
 
@@ -83,6 +87,11 @@ func (runner *Runner) Run(
 	path, err := selectExecutionPath(configuration, egress, inventory)
 	if err != nil {
 		return failure("selector", err.Error()), nil
+	}
+	if egress.PublicAddress != nil {
+		if err := runner.verifyTarget(ctx, configuration, egress, runner.now().UTC()); err != nil {
+			return failure("selector", err.Error()), nil
+		}
 	}
 
 	var adapter *localProxyAdapter

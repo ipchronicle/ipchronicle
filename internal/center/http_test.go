@@ -21,6 +21,7 @@ import (
 	"github.com/ipchronicle/ipchronicle/internal/center/nodes"
 	"github.com/ipchronicle/ipchronicle/internal/center/notifications"
 	"github.com/ipchronicle/ipchronicle/internal/center/syncws"
+	"github.com/ipchronicle/ipchronicle/internal/center/systemsettings"
 	centerupdates "github.com/ipchronicle/ipchronicle/internal/center/updates"
 	"github.com/ipchronicle/ipchronicle/internal/generated/api"
 )
@@ -70,7 +71,7 @@ func TestAdministratorLoginStatusAndLogout(t *testing.T) {
 		t.Fatal(err)
 	}
 	if status.Service != api.IpchronicleCenter || status.Status != api.Ok || status.SourceRevision != "test-revision" ||
-		!status.TransportWarning || status.ConfigSchemaVersion != 12 || status.HistorySchemaVersion != 5 {
+		!status.TransportWarning || status.ConfigSchemaVersion != 18 || status.HistorySchemaVersion != 5 {
 		t.Fatalf("unexpected status response: %#v", status)
 	}
 
@@ -90,6 +91,69 @@ func TestMalformedJSONUsesStructuredError(t *testing.T) {
 	handler := newTestHTTPHandler(t, nil)
 	response := performRequest(handler, http.MethodPost, "/api/v1/auth/login", []byte("{"), "http://example.test", nil)
 	assertErrorCode(t, response, http.StatusBadRequest, api.InvalidRequest)
+}
+
+func TestExternalOriginSystemSettingDoesNotAuthorizeBrowserRequests(t *testing.T) {
+	handler, nodeService, _ := newTestHTTPHandlerWithNodes(t, nil)
+	if _, err := nodeService.RotateEnrollmentKey(context.Background()); err != nil {
+		t.Fatal(err)
+	}
+	cookie, session := loginTestAdministrator(t, handler)
+
+	automatic := performRequest(handler, http.MethodGet, "/api/v1/system/settings", nil, "", cookie)
+	if automatic.Code != http.StatusOK {
+		t.Fatalf("automatic settings status = %d, body = %s", automatic.Code, automatic.Body.String())
+	}
+	var settings api.SystemSettings
+	if err := json.NewDecoder(automatic.Body).Decode(&settings); err != nil {
+		t.Fatal(err)
+	}
+	if !settings.Automatic || settings.ExternalOrigin != "" || settings.EffectiveOrigin != "http://example.test" {
+		t.Fatalf("automatic settings = %#v", settings)
+	}
+
+	invalid := performRequestWithCSRF(
+		handler, http.MethodPut, "/api/v1/system/settings",
+		[]byte(`{"externalOrigin":"https://public.example/path"}`),
+		"http://example.test", cookie, session.CsrfToken,
+	)
+	assertErrorCode(t, invalid, http.StatusBadRequest, api.InvalidSystemSettings)
+
+	custom := performRequestWithCSRF(
+		handler, http.MethodPut, "/api/v1/system/settings",
+		[]byte(`{"externalOrigin":"HTTPS://PUBLIC.EXAMPLE/"}`),
+		"http://example.test", cookie, session.CsrfToken,
+	)
+	if custom.Code != http.StatusOK {
+		t.Fatalf("custom settings status = %d, body = %s", custom.Code, custom.Body.String())
+	}
+	if err := json.NewDecoder(custom.Body).Decode(&settings); err != nil {
+		t.Fatal(err)
+	}
+	if settings.Automatic || settings.ExternalOrigin != "https://public.example" || settings.EffectiveOrigin != "https://public.example" {
+		t.Fatalf("custom settings = %#v", settings)
+	}
+
+	enrollment := performRequest(handler, http.MethodGet, "/api/v1/agent-enrollment", nil, "", cookie)
+	if enrollment.Code != http.StatusOK || !strings.Contains(enrollment.Body.String(), "https://public.example") {
+		t.Fatalf("custom enrollment response = %d, %s", enrollment.Code, enrollment.Body.String())
+	}
+
+	wrongRequestOrigin := performRequestWithCSRF(
+		handler, http.MethodPut, "/api/v1/system/settings",
+		[]byte(`{"externalOrigin":""}`),
+		"https://public.example", cookie, session.CsrfToken,
+	)
+	assertErrorCode(t, wrongRequestOrigin, http.StatusForbidden, api.OriginNotAllowed)
+
+	reset := performRequestWithCSRF(
+		handler, http.MethodPut, "/api/v1/system/settings",
+		[]byte(`{"externalOrigin":""}`),
+		"http://example.test", cookie, session.CsrfToken,
+	)
+	if reset.Code != http.StatusOK {
+		t.Fatalf("automatic reset status = %d, body = %s", reset.Code, reset.Body.String())
+	}
 }
 
 func TestNotificationAPIConfigurationRulesAndDeliveryHistory(t *testing.T) {
@@ -412,6 +476,7 @@ func TestHistoryAPIFiltersOrderingAndComparison(t *testing.T) {
 	addressQuery.Set("page", "2")
 	addressQuery.Set("gapPage", "2")
 	addressQuery.Set("pageSize", "1")
+	addressQuery.Del("egressId")
 	addresses = performRequest(
 		handler, http.MethodGet, "/api/v1/history/address-events?"+addressQuery.Encode(), nil, "", cookie,
 	)
@@ -529,7 +594,7 @@ func TestNetworkProxyAPINeverRevealsStoredPassword(t *testing.T) {
 	}
 }
 
-func TestNetworkObservationAndEgressAPIWorkflow(t *testing.T) {
+func TestNetworkObservationAndPublicAddressAPIWorkflow(t *testing.T) {
 	handler, nodeService, _ := newTestHTTPHandlerWithNodes(t, nil)
 	login := performRequest(handler, http.MethodPost, "/api/v1/auth/login", loginBody(), "http://example.test", nil)
 	if login.Code != http.StatusOK {
@@ -599,33 +664,55 @@ func TestNetworkObservationAndEgressAPIWorkflow(t *testing.T) {
 	if err := json.NewDecoder(networkResponse.Body).Decode(&network); err != nil {
 		t.Fatal(err)
 	}
-	if len(network.Egresses) != 1 {
-		t.Fatalf("network egresses = %#v", network.Egresses)
+	if len(network.PublicAddresses) != 0 || len(network.ProxyDiscoveryPaths) != 0 {
+		t.Fatalf("initial public network state = %#v", network)
 	}
-	egress := network.Egresses[0]
-	updateBody := []byte(`{"enabled":false,"lightweightIntervalSeconds":15,"probeOnAddressChange":false}`)
-	patched := performRequestWithCSRF(
-		handler, http.MethodPatch,
-		"/api/v1/nodes/"+registration.NodeID.String()+"/egresses/"+egress.Id.String(), updateBody,
+	if bytes.Contains(networkResponse.Body.Bytes(), []byte(`"inventory"`)) ||
+		bytes.Contains(networkResponse.Body.Bytes(), []byte(`"egresses"`)) ||
+		bytes.Contains(networkResponse.Body.Bytes(), []byte(`"candidates"`)) ||
+		bytes.Contains(networkResponse.Body.Bytes(), []byte(`"addressStates"`)) {
+		t.Fatalf("network response exposed discovery internals: %s", networkResponse.Body.String())
+	}
+
+	proxy, err := nodeService.CreateNetworkProxy(ctx, nodes.NetworkProxyCreate{
+		Name: "API proxy", Scheme: "socks5", Host: "proxy.example.test", Port: 1080,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	createBody, err := json.Marshal(api.ProxyDiscoveryPathCreate{ProxyId: proxy.ID, Family: api.Ipv4})
+	if err != nil {
+		t.Fatal(err)
+	}
+	created := performRequestWithCSRF(
+		handler, http.MethodPost,
+		"/api/v1/nodes/"+registration.NodeID.String()+"/proxy-discovery-paths", createBody,
 		"http://example.test", cookie, session.CsrfToken,
 	)
-	if patched.Code != http.StatusOK || !bytes.Contains(patched.Body.Bytes(), []byte(`"lightweightIntervalSeconds":15`)) {
-		t.Fatalf("egress update = %d %s", patched.Code, patched.Body.String())
+	if created.Code != http.StatusCreated {
+		t.Fatalf("proxy discovery path creation = %d %s", created.Code, created.Body.String())
+	}
+	var path api.ProxyDiscoveryPath
+	if err := json.NewDecoder(created.Body).Decode(&path); err != nil {
+		t.Fatal(err)
+	}
+	if path.ProxyId != proxy.ID || path.Family != api.Ipv4 {
+		t.Fatalf("proxy discovery path = %#v", path)
 	}
 	queued := performRequestWithCSRF(
 		handler, http.MethodDelete,
-		"/api/v1/nodes/"+registration.NodeID.String()+"/egresses/"+egress.Id.String(), nil,
+		"/api/v1/nodes/"+registration.NodeID.String()+"/proxy-discovery-paths/"+path.Id.String(), nil,
 		"http://example.test", cookie, session.CsrfToken,
 	)
 	if queued.Code != http.StatusAccepted {
-		t.Fatalf("egress deletion = %d %s", queued.Code, queued.Body.String())
+		t.Fatalf("proxy discovery path deletion = %d %s", queued.Code, queued.Body.String())
 	}
-	var deletion api.EgressDeletion
+	var deletion api.ProxyDiscoveryPathDeletion
 	if err := json.NewDecoder(queued.Body).Decode(&deletion); err != nil {
 		t.Fatal(err)
 	}
-	if deletion.EgressId != egress.Id || deletion.Status != api.EgressDeletionStatusPending {
-		t.Fatalf("egress deletion response = %#v", deletion)
+	if deletion.PathId != path.Id || deletion.Status != api.ProxyDiscoveryPathDeletionStatusPending {
+		t.Fatalf("proxy discovery path deletion response = %#v", deletion)
 	}
 	pendingResponse := performRequest(
 		handler, http.MethodGet, "/api/v1/nodes/"+registration.NodeID.String()+"/network", nil, "", cookie,
@@ -636,9 +723,9 @@ func TestNetworkObservationAndEgressAPIWorkflow(t *testing.T) {
 	if err := json.NewDecoder(pendingResponse.Body).Decode(&network); err != nil {
 		t.Fatal(err)
 	}
-	if len(network.Egresses) != 1 || network.Egresses[0].DeletionStatus == nil ||
-		*network.Egresses[0].DeletionStatus != api.EgressDeletionStatusPending {
-		t.Fatalf("pending network egress = %#v", network.Egresses)
+	if len(network.ProxyDiscoveryPaths) != 1 || network.ProxyDiscoveryPaths[0].DeletionStatus == nil ||
+		*network.ProxyDiscoveryPaths[0].DeletionStatus != api.ProxyDiscoveryPathDeletionStatusPending {
+		t.Fatalf("pending proxy discovery path = %#v", network.ProxyDiscoveryPaths)
 	}
 }
 
@@ -946,10 +1033,11 @@ func newTestHTTPHandlerWithNotifications(t *testing.T, trustedProxies []netip.Pr
 	}
 	syncHub := syncws.NewHub()
 	nodeService := nodes.NewService(store.Config, store.History, store.ConfigQueries, store.MasterKey, syncHub)
+	systemSettingsService := systemsettings.NewService(store.ConfigQueries)
 	notificationService := notifications.NewService(notifications.ServiceOptions{
 		ConfigDatabase: store.Config, HistoryDatabase: store.History,
 		ConfigQueries: store.ConfigQueries, HistoryQueries: store.HistoryQueries,
-		MasterKey: store.MasterKey, Executable: "/proc/self/exe",
+		MasterKey: store.MasterKey, SystemSettings: systemSettingsService, Executable: "/proc/self/exe",
 	})
 	updateService := centerupdates.NewService(centerupdates.ServiceOptions{
 		Queries: store.ConfigQueries, Waker: syncHub,
@@ -958,7 +1046,7 @@ func newTestHTTPHandlerWithNotifications(t *testing.T, trustedProxies []netip.Pr
 	return NewHTTPHandler(HTTPOptions{
 		Version: "0.0.0-test", Revision: "test-revision", Web: http.NotFoundHandler(),
 		Administrator: administrator, Nodes: nodeService, Notifications: notificationService, Updates: updateService, SyncHub: syncHub,
-		Store: store, TrustedProxies: trustedProxies,
+		SystemSettings: systemSettingsService, Store: store, TrustedProxies: trustedProxies,
 	}), nodeService, notificationService, syncHub
 }
 
@@ -980,7 +1068,7 @@ func seedHTTPHistory(t *testing.T, service *nodes.Service) httpHistoryFixture {
 	now := time.Now().UTC().Truncate(time.Second)
 	metadata := nodes.Metadata{
 		Hostname: "history-edge", AgentVersion: "0.1.0", OperatingSystem: "linux", Architecture: "amd64",
-		Capabilities:        []string{"control-v1", "configuration-v5", "complete-probe-v1"},
+		Capabilities:        []string{"control-v1", "configuration-v6", "complete-probe-v1"},
 		PhysicalMemoryBytes: 512 * 1024 * 1024,
 	}
 	enrollment, err := service.RotateEnrollmentKey(ctx)
@@ -1008,10 +1096,6 @@ func seedHTTPHistory(t *testing.T, service *nodes.Service) httpHistoryFixture {
 	if _, err := service.Poll(ctx, registration.Credential, metadata, 0, nil, nil, &inventory, nil); err != nil {
 		t.Fatal(err)
 	}
-	configuration, err := service.Configuration(ctx, registration.Credential)
-	if err != nil {
-		t.Fatal(err)
-	}
 	network, err := service.Network(ctx, registration.NodeID)
 	if err != nil {
 		t.Fatal(err)
@@ -1031,24 +1115,61 @@ func seedHTTPHistory(t *testing.T, service *nodes.Service) httpHistoryFixture {
 	if primary.ID == uuid.Nil || other.ID == uuid.Nil {
 		t.Fatalf("history fixture egress families = %#v", network.Egresses)
 	}
+	systemState, err := service.History(ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
+	publicIPv4 := "8.8.8.8"
+	publicIPv6 := "2001:4860:4860::8888"
+	localInterface := "eth0"
+	localIPv4 := "10.0.0.5"
+	localIPv6 := "2001:4860::5"
+	if _, err := service.Poll(
+		ctx, registration.Credential, metadata, 0, nil, nil, nil, nil,
+		nodes.AddressUpload{States: []nodes.AddressState{
+			httpConfirmedAddressState(primary.ID, systemState.Generation, "ipv4", publicIPv4, localInterface, localIPv4, now),
+			httpConfirmedAddressState(other.ID, systemState.Generation, "ipv6", publicIPv6, localInterface, localIPv6, now),
+		}},
+	); err != nil {
+		t.Fatal(err)
+	}
+	network, err = service.Network(ctx, registration.NodeID)
+	if err != nil || len(network.PublicAddresses) != 2 {
+		t.Fatalf("history fixture public addresses = %#v, %v", network.PublicAddresses, err)
+	}
+	var primaryAddress, otherAddress nodes.PublicAddress
+	for _, address := range network.PublicAddresses {
+		switch address.Family {
+		case "ipv4":
+			primaryAddress = address
+		case "ipv6":
+			otherAddress = address
+		}
+	}
+	if primaryAddress.ID == uuid.Nil || otherAddress.ID == uuid.Nil {
+		t.Fatalf("history fixture public address families = %#v", network.PublicAddresses)
+	}
+	configuration, err := service.Configuration(ctx, registration.Credential)
+	if err != nil {
+		t.Fatal(err)
+	}
 
 	firstObserved := now.Add(-3 * time.Minute)
 	latestObserved := now.Add(-2 * time.Minute)
 	otherObserved := now.Add(-time.Minute)
 	firstSnapshot := uploadHTTPProbeSnapshot(
-		t, service, registration.Credential, configuration, primary.ID, 1, firstObserved,
+		t, service, registration.Credential, configuration, primaryAddress.ID, 1, firstObserved,
 		[]byte(`{"Head":{"IP":"198.51.100.1"}}`),
 	)
 	latestSnapshot := uploadHTTPProbeSnapshot(
-		t, service, registration.Credential, configuration, primary.ID, 2, latestObserved,
+		t, service, registration.Credential, configuration, primaryAddress.ID, 2, latestObserved,
 		[]byte(`{"Head":{"IP":"198.51.100.2"}}`),
 	)
 	otherSnapshot := uploadHTTPProbeSnapshot(
-		t, service, registration.Credential, configuration, other.ID, 1, otherObserved,
+		t, service, registration.Credential, configuration, otherAddress.ID, 1, otherObserved,
 		[]byte(`{"Head":{"IP":"2001:db8::1"}}`),
 	)
-	publicAddress := "203.0.113.10"
-	localInterface := "eth0"
+	publicAddress := publicIPv4
 	localAddress := "10.0.0.5"
 	addressEvent := uuid.New()
 	if _, err := service.Poll(
@@ -1079,7 +1200,7 @@ func seedHTTPHistory(t *testing.T, service *nodes.Service) httpHistoryFixture {
 	for index := int64(0); index < 2; index++ {
 		observedAt := now.Add(time.Duration(index) * time.Second)
 		gap := nodes.ProbeGapArtifact{
-			ID: uuid.New(), EgressID: primary.ID, HistoryGeneration: configuration.HistoryGeneration,
+			ID: uuid.New(), EgressID: primaryAddress.ID, HistoryGeneration: configuration.HistoryGeneration,
 			DroppedCount: 1, FirstSequence: index + 3, LastSequence: index + 3,
 			FirstObservedAt: observedAt, LastObservedAt: observedAt,
 		}
@@ -1090,9 +1211,23 @@ func seedHTTPHistory(t *testing.T, service *nodes.Service) httpHistoryFixture {
 		}
 	}
 	return httpHistoryFixture{
-		nodeID: registration.NodeID, primaryEgress: primary.ID, otherEgress: other.ID,
+		nodeID: registration.NodeID, primaryEgress: primaryAddress.ID, otherEgress: otherAddress.ID,
 		firstSnapshot: firstSnapshot, latestSnapshot: latestSnapshot, otherSnapshot: otherSnapshot,
 		addressEvent: addressEvent, from: now.Add(-5 * time.Minute), to: now.Add(time.Minute),
+	}
+}
+
+func httpConfirmedAddressState(
+	pathID uuid.UUID,
+	historyGeneration, family, publicAddress, localInterface, localAddress string,
+	checkedAt time.Time,
+) nodes.AddressState {
+	return nodes.AddressState{
+		EgressID: pathID, HistoryGeneration: historyGeneration, Family: family,
+		Status: "confirmed", PublicAddress: &publicAddress,
+		LocalInterface: &localInterface, LocalAddress: &localAddress,
+		LikelyNAT: localAddress != publicAddress, LastCheckedAt: checkedAt,
+		LastSucceededAt: &checkedAt, LastChangedAt: &checkedAt,
 	}
 }
 

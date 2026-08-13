@@ -85,9 +85,19 @@ WHERE expires_at <= ?;
 
 -- name: GetSystemState :one
 SELECT id, history_generation, pending_history_generation, history_reset_at,
-       release_channel
+       release_channel, external_origin
 FROM system_state
 WHERE id = 1;
+
+-- name: GetExternalOrigin :one
+SELECT external_origin
+FROM system_state
+WHERE id = 1;
+
+-- name: SetExternalOrigin :execrows
+UPDATE system_state
+SET external_origin = ?
+WHERE id = 1 AND external_origin != ?;
 
 -- name: SetReleaseChannel :execrows
 UPDATE system_state
@@ -191,6 +201,19 @@ SELECT id, name, hostname, credential_digest, enabled, revoked_at,
        probe_low_memory_override
 FROM nodes
 ORDER BY name COLLATE NOCASE, id;
+
+-- name: ListNodePublicAddressSummaries :many
+SELECT n.node_id, a.id, a.address, a.family, a.probe_enabled,
+       EXISTS (
+           SELECT 1
+           FROM public_address_paths p
+           WHERE p.public_address_id = a.id
+             AND p.node_id = n.node_id
+             AND p.available = 1
+       ) AS available
+FROM public_address_nodes n
+JOIN public_addresses a ON a.id = n.public_address_id
+ORDER BY n.node_id, a.family, a.address;
 
 -- name: SetNodeEnabled :execrows
 UPDATE nodes
@@ -557,6 +580,187 @@ WHERE id = ? AND node_id = ?
       probe_on_address_change != ?
   );
 
+-- name: UpsertPublicAddress :exec
+INSERT INTO public_addresses (
+    id, address, family, probe_enabled, probe_on_rediscovery,
+    first_seen_at, last_seen_at, updated_at
+) VALUES (?, ?, ?, 0, 1, ?, ?, ?)
+ON CONFLICT (address) DO UPDATE SET
+    family = excluded.family,
+    last_seen_at = MAX(public_addresses.last_seen_at, excluded.last_seen_at),
+    updated_at = MAX(public_addresses.updated_at, excluded.updated_at);
+
+-- name: GetPublicAddressByAddress :one
+SELECT id, address, family, probe_enabled, probe_on_rediscovery,
+       selected_path_id, first_seen_at, last_seen_at, updated_at
+FROM public_addresses
+WHERE address = ?;
+
+-- name: GetPublicAddressByID :one
+SELECT id, address, family, probe_enabled, probe_on_rediscovery,
+       selected_path_id, first_seen_at, last_seen_at, updated_at
+FROM public_addresses
+WHERE id = ?;
+
+-- name: ListPublicAddresses :many
+SELECT id, address, family, probe_enabled, probe_on_rediscovery,
+       selected_path_id, first_seen_at, last_seen_at, updated_at
+FROM public_addresses
+ORDER BY family, address;
+
+-- name: ListNodePublicAddresses :many
+SELECT DISTINCT a.id, a.address, a.family, a.probe_enabled,
+       a.probe_on_rediscovery, a.selected_path_id,
+       a.first_seen_at, a.last_seen_at, a.updated_at
+FROM public_addresses a
+JOIN public_address_nodes n ON n.public_address_id = a.id
+WHERE n.node_id = ?
+ORDER BY a.family, a.address;
+
+-- name: UpsertPublicAddressNode :exec
+INSERT INTO public_address_nodes (
+    public_address_id, node_id, first_seen_at, last_seen_at
+) VALUES (?, ?, ?, ?)
+ON CONFLICT (public_address_id, node_id) DO UPDATE SET
+    last_seen_at = MAX(public_address_nodes.last_seen_at, excluded.last_seen_at);
+
+-- name: SetPublicAddressProbeSettings :execrows
+UPDATE public_addresses
+SET probe_enabled = ?, probe_on_rediscovery = ?, updated_at = ?
+WHERE id = ? AND (
+    probe_enabled != ? OR probe_on_rediscovery != ?
+);
+
+-- name: UpsertPublicAddressPath :exec
+INSERT INTO public_address_paths (
+    public_address_id, path_id, node_id, local_interface, local_address,
+    proxy_path, likely_nat, temporary, available, last_checked_at,
+    last_succeeded_at
+) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+ON CONFLICT (path_id) DO UPDATE SET
+    public_address_id = excluded.public_address_id,
+    node_id = excluded.node_id,
+    local_interface = excluded.local_interface,
+    local_address = excluded.local_address,
+    proxy_path = excluded.proxy_path,
+    likely_nat = excluded.likely_nat,
+    temporary = excluded.temporary,
+    available = excluded.available,
+    last_checked_at = excluded.last_checked_at,
+    last_succeeded_at = excluded.last_succeeded_at;
+
+-- name: MarkNodePublicAddressPathsUnavailable :exec
+UPDATE public_address_paths
+SET available = 0
+WHERE node_id = ?;
+
+-- name: GetPublicAddressPathByPathID :one
+SELECT public_address_id, path_id, node_id, local_interface, local_address,
+       proxy_path, likely_nat, temporary, available, last_checked_at,
+       last_succeeded_at
+FROM public_address_paths
+WHERE path_id = ?;
+
+-- name: GetPublicAddressPathForNode :one
+SELECT p.public_address_id, p.path_id, p.node_id, p.local_interface,
+       p.local_address, p.proxy_path, p.likely_nat, p.temporary,
+       p.available, p.last_checked_at, p.last_succeeded_at
+FROM public_address_paths p
+WHERE p.public_address_id = ? AND p.node_id = ?
+ORDER BY p.available DESC, p.last_succeeded_at DESC, p.path_id
+LIMIT 1;
+
+-- name: ListPublicAddressPaths :many
+SELECT public_address_id, path_id, node_id, local_interface, local_address,
+       proxy_path, likely_nat, temporary, available, last_checked_at,
+       last_succeeded_at
+FROM public_address_paths
+WHERE public_address_id = ?
+ORDER BY available DESC, last_succeeded_at DESC, path_id;
+
+-- name: SelectPublicAddressPath :execrows
+UPDATE public_addresses
+SET selected_path_id = ?, updated_at = MAX(updated_at, last_seen_at)
+WHERE id = ? AND COALESCE(selected_path_id, '') != COALESCE(?, '');
+
+-- name: ClearUnavailablePublicAddressSelections :execrows
+UPDATE public_addresses
+SET selected_path_id = NULL, updated_at = MAX(updated_at, last_seen_at)
+WHERE selected_path_id IS NOT NULL
+  AND NOT EXISTS (
+      SELECT 1 FROM public_address_paths p
+      WHERE p.path_id = public_addresses.selected_path_id
+        AND p.public_address_id = public_addresses.id AND p.available = 1
+  );
+
+-- name: ListPublicAddressesWithoutSelectedPath :many
+SELECT id, address, family, probe_enabled, probe_on_rediscovery,
+       selected_path_id, first_seen_at, last_seen_at, updated_at
+FROM public_addresses
+WHERE selected_path_id IS NULL
+  AND EXISTS (
+      SELECT 1 FROM public_address_paths p
+      WHERE p.public_address_id = public_addresses.id AND p.available = 1
+  )
+ORDER BY family, address;
+
+-- name: GetPreferredPublicAddressPath :one
+SELECT public_address_id, path_id, node_id, local_interface, local_address,
+       proxy_path, likely_nat, temporary, available, last_checked_at,
+       last_succeeded_at
+FROM public_address_paths
+WHERE public_address_id = ? AND available = 1
+ORDER BY last_succeeded_at DESC, last_checked_at DESC, path_id
+LIMIT 1;
+
+-- name: ListNodeSelectedPublicAddresses :many
+SELECT a.id, a.address, a.family, a.probe_enabled, a.probe_on_rediscovery,
+       a.selected_path_id, a.first_seen_at, a.last_seen_at, a.updated_at,
+       e.node_id, e.name, e.kind, e.interface_name, e.source_address,
+       e.proxy_id, e.lightweight_interval_seconds
+FROM public_addresses a
+JOIN network_egresses e ON e.id = a.selected_path_id
+JOIN public_address_paths p ON p.path_id = e.id AND p.public_address_id = a.id
+WHERE e.node_id = ? AND a.probe_enabled = 1 AND p.available = 1
+ORDER BY a.family, a.address;
+
+-- name: PublicAddressBelongsToNode :one
+SELECT count(*)
+FROM public_address_nodes
+WHERE public_address_id = ? AND node_id = ?;
+
+-- name: UpsertPendingPublicAddressProbe :exec
+INSERT INTO pending_public_address_probes (
+    public_address_id, node_id, required_configuration_revision, created_at
+) VALUES (?, ?, ?, ?)
+ON CONFLICT (node_id) DO UPDATE SET
+    public_address_id = excluded.public_address_id,
+    required_configuration_revision = excluded.required_configuration_revision,
+    created_at = excluded.created_at;
+
+-- name: GetReadyPublicAddressProbe :one
+SELECT pending.public_address_id, pending.node_id,
+       pending.required_configuration_revision, pending.created_at
+FROM pending_public_address_probes AS pending
+JOIN public_addresses AS address ON address.id = pending.public_address_id
+JOIN public_address_paths AS path ON path.path_id = address.selected_path_id
+WHERE pending.node_id = ?
+  AND pending.required_configuration_revision <= ?
+  AND address.probe_enabled = 1
+  AND address.probe_on_rediscovery = 1
+  AND path.node_id = pending.node_id
+  AND path.public_address_id = address.id
+  AND path.available = 1
+LIMIT 1;
+
+-- name: DeletePendingPublicAddressProbe :exec
+DELETE FROM pending_public_address_probes
+WHERE node_id = ?;
+
+-- name: DeletePendingPublicAddressProbeByAddress :exec
+DELETE FROM pending_public_address_probes
+WHERE public_address_id = ?;
+
 -- name: UpdateNodePhysicalMemory :execrows
 UPDATE nodes
 SET physical_memory_bytes = ?
@@ -614,27 +818,27 @@ WHERE node_id = ?;
 
 -- name: CreateProbeTask :exec
 INSERT INTO probe_tasks (
-    id, node_id, kind, status, created_at, expires_at
-) VALUES (?, ?, 'complete-probe', 'pending', ?, ?);
+    id, node_id, kind, status, trigger, created_at, expires_at
+) VALUES (?, ?, 'complete-probe', 'pending', 'manual', ?, ?);
+
+-- name: CreateRediscoveryProbeTask :exec
+INSERT INTO probe_tasks (
+    id, node_id, kind, status, trigger, triggering_public_address_id,
+    created_at, expires_at
+) VALUES (?, ?, 'complete-probe', 'pending', 'address-change', ?, ?, ?);
 
 -- name: CreateAgentUpdateTask :exec
 INSERT INTO probe_tasks (
-    id, node_id, kind, status, target_version, created_at, expires_at
-) VALUES (?, ?, 'agent-update', 'pending', ?, ?, ?);
+    id, node_id, kind, status, trigger, target_version, created_at, expires_at
+) VALUES (?, ?, 'agent-update', 'pending', 'agent-update', ?, ?, ?);
 
 -- name: GetProbeTask :one
-SELECT id, node_id, kind, status, created_at, expires_at, acknowledged_at,
-       started_at, completed_at, run_id, rejection_reason,
-       target_version, previous_version, result_version, failure_code, diagnostic,
-       terminal_confirmed_at
+SELECT *
 FROM probe_tasks
 WHERE id = ? AND node_id = ?;
 
 -- name: GetActiveNodeTask :one
-SELECT id, node_id, kind, status, created_at, expires_at, acknowledged_at,
-       started_at, completed_at, run_id, rejection_reason,
-       target_version, previous_version, result_version, failure_code, diagnostic,
-       terminal_confirmed_at
+SELECT *
 FROM probe_tasks
 WHERE node_id = ? AND status IN (
     'pending', 'acknowledged', 'running', 'verifying', 'installing', 'restarting'
@@ -643,31 +847,21 @@ ORDER BY created_at, id
 LIMIT 1;
 
 -- name: GetLatestProbeTask :one
-SELECT id, node_id, kind, status, created_at, expires_at, acknowledged_at,
-       started_at, completed_at, run_id, rejection_reason,
-       target_version, previous_version, result_version, failure_code, diagnostic,
-       terminal_confirmed_at
+SELECT *
 FROM probe_tasks
 WHERE node_id = ? AND kind = 'complete-probe'
 ORDER BY created_at DESC, id DESC
 LIMIT 1;
 
 -- name: GetLatestAgentUpdateTask :one
-SELECT id, node_id, kind, status, created_at, expires_at, acknowledged_at,
-       started_at, completed_at, run_id, rejection_reason,
-       target_version, previous_version, result_version, failure_code, diagnostic,
-       terminal_confirmed_at
+SELECT *
 FROM probe_tasks
 WHERE node_id = ? AND kind = 'agent-update'
 ORDER BY created_at DESC, id DESC
 LIMIT 1;
 
 -- name: ListLatestAgentUpdateTasks :many
-SELECT task.id, task.node_id, task.kind, task.status, task.created_at,
-       task.expires_at, task.acknowledged_at, task.started_at,
-       task.completed_at, task.run_id, task.rejection_reason,
-       task.target_version, task.previous_version, task.result_version,
-       task.failure_code, task.diagnostic, task.terminal_confirmed_at
+SELECT task.*
 FROM probe_tasks AS task
 WHERE task.kind = 'agent-update'
   AND task.id = (

@@ -33,6 +33,7 @@ var (
 	ErrEgressNotFound              = errors.New("network egress does not exist")
 	ErrEgressDeletionPending       = errors.New("network egress deletion is pending")
 	ErrInvalidObservationSettings  = errors.New("network observation settings are invalid")
+	ErrPublicAddressNotFound       = errors.New("public address does not exist for node")
 )
 
 type NetworkInventory struct {
@@ -72,6 +73,8 @@ type NetworkRoute struct {
 
 type NetworkEgress struct {
 	ID                         uuid.UUID
+	PathID                     *uuid.UUID
+	PublicAddress              *string
 	NodeID                     uuid.UUID
 	Name                       string
 	Kind                       string
@@ -86,6 +89,30 @@ type NetworkEgress struct {
 	ProbeOnAddressChange       bool
 	DeletionStatus             *string
 	DeletionError              *string
+}
+
+type PublicAddress struct {
+	ID                    uuid.UUID
+	Address               string
+	Family                string
+	ProbeEnabled          bool
+	ProbeOnRediscovery    bool
+	Available             bool
+	SelectedPathID        *uuid.UUID
+	SelectedNodeID        *uuid.UUID
+	SelectedNodeName      *string
+	PathCount             int
+	LikelyNAT             bool
+	ProxyPath             bool
+	FirstSeenAt           time.Time
+	LastSeenAt            time.Time
+	SelectedLastChecked   *time.Time
+	SelectedLastSucceeded *time.Time
+}
+
+type PublicAddressUpdate struct {
+	ProbeEnabled       bool
+	ProbeOnRediscovery bool
 }
 
 type NetworkEgressCandidate struct {
@@ -109,6 +136,7 @@ type NodeNetworkState struct {
 	AddressStates       []AddressState
 	AddressEvents       []AddressEvent
 	AddressGaps         []AddressGap
+	PublicAddresses     []PublicAddress
 }
 
 type DiscoveryServices struct {
@@ -264,6 +292,36 @@ func (s *Service) applyNetworkReport(ctx context.Context, queries *configdb.Quer
 			}
 		}
 	}
+	domainEgresses := make([]NetworkEgress, 0, len(egresses))
+	for _, record := range egresses {
+		domain, err := egressFromRecord(record)
+		if err != nil {
+			return false, err
+		}
+		domainEgresses = append(domainEgresses, domain)
+	}
+	for _, candidate := range inventoryCandidates(*inventory, domainEgresses) {
+		if candidate.Kind != "source" || !candidate.Eligible || candidate.Temporary || candidate.SourceAddress == nil || candidate.ConfiguredEgressID != nil {
+			continue
+		}
+		if egressCount >= maxNodeEgresses {
+			break
+		}
+		id := uuid.New()
+		if err := queries.CreateNodeEgress(ctx, configdb.CreateNodeEgressParams{
+			ID: id.String(), NodeID: nodeID,
+			Name: candidate.InterfaceName + "-" + *candidate.SourceAddress,
+			Kind: "source", Family: candidate.Family,
+			InterfaceName: &candidate.InterfaceName, SourceAddress: candidate.SourceAddress,
+			Enabled: 1, Available: 1, Automatic: 1,
+			LightweightIntervalSeconds: int64(defaultLightweightInterval / time.Second),
+			ProbeOnAddressChange:       0, CreatedAt: now, UpdatedAt: now,
+		}); err != nil {
+			return false, err
+		}
+		changed = true
+		egressCount++
+	}
 	for _, item := range egresses {
 		if item.Kind == "default" || item.Kind == "proxy" {
 			continue
@@ -286,6 +344,18 @@ func (s *Service) Network(ctx context.Context, id uuid.UUID) (NodeNetworkState, 
 		return NodeNetworkState{}, err
 	}
 	state := NodeNetworkState{}
+	publicAddressRecords, err := s.queries.ListNodePublicAddresses(ctx, id.String())
+	if err != nil {
+		return NodeNetworkState{}, err
+	}
+	state.PublicAddresses = make([]PublicAddress, 0, len(publicAddressRecords))
+	for _, record := range publicAddressRecords {
+		address, err := s.publicAddressFromRecord(ctx, record)
+		if err != nil {
+			return NodeNetworkState{}, err
+		}
+		state.PublicAddresses = append(state.PublicAddresses, address)
+	}
 	record, err := s.queries.GetNodeNetworkInventory(ctx, id.String())
 	if err == nil {
 		state.InventoryError = record.LastError
@@ -369,6 +439,101 @@ func (s *Service) Network(ctx context.Context, id uuid.UUID) (NodeNetworkState, 
 		state.AddressGaps = append(state.AddressGaps, item)
 	}
 	return state, nil
+}
+
+func (s *Service) UpdatePublicAddress(ctx context.Context, nodeID, addressID uuid.UUID, update PublicAddressUpdate) (PublicAddress, error) {
+	if _, err := s.queries.GetNodeByID(ctx, nodeID.String()); errors.Is(err, sql.ErrNoRows) {
+		return PublicAddress{}, ErrNodeNotFound
+	} else if err != nil {
+		return PublicAddress{}, err
+	}
+	count, err := s.queries.PublicAddressBelongsToNode(ctx, configdb.PublicAddressBelongsToNodeParams{
+		PublicAddressID: addressID.String(), NodeID: nodeID.String(),
+	})
+	if err != nil {
+		return PublicAddress{}, err
+	}
+	if count == 0 {
+		return PublicAddress{}, ErrPublicAddressNotFound
+	}
+	record, err := s.queries.GetPublicAddressByID(ctx, addressID.String())
+	if err != nil {
+		return PublicAddress{}, err
+	}
+	value := boolInteger(update.ProbeEnabled)
+	rediscovery := boolInteger(update.ProbeOnRediscovery)
+	changed, err := s.queries.SetPublicAddressProbeSettings(ctx, configdb.SetPublicAddressProbeSettingsParams{
+		ProbeEnabled: value, ProbeOnRediscovery: rediscovery, UpdatedAt: s.now().UTC().Unix(), ID: addressID.String(),
+		ProbeEnabled_2: value, ProbeOnRediscovery_2: rediscovery,
+	})
+	if err != nil {
+		return PublicAddress{}, err
+	}
+	if changed > 0 && record.SelectedPathID != nil {
+		path, err := s.queries.GetPublicAddressPathByPathID(ctx, *record.SelectedPathID)
+		if err != nil {
+			return PublicAddress{}, err
+		}
+		if err := incrementNodeConfiguration(ctx, s.queries, path.NodeID); err != nil {
+			return PublicAddress{}, err
+		}
+		s.sync.Wake(path.NodeID)
+	}
+	if err := s.queries.DeletePendingPublicAddressProbeByAddress(ctx, addressID.String()); err != nil {
+		return PublicAddress{}, err
+	}
+	record.ProbeEnabled = value
+	record.ProbeOnRediscovery = rediscovery
+	return s.publicAddressFromRecord(ctx, record)
+}
+
+func (s *Service) publicAddressFromRecord(ctx context.Context, record configdb.PublicAddress) (PublicAddress, error) {
+	id, err := uuid.Parse(record.ID)
+	if err != nil {
+		return PublicAddress{}, err
+	}
+	result := PublicAddress{
+		ID: id, Address: record.Address, Family: record.Family,
+		ProbeEnabled: record.ProbeEnabled == 1, ProbeOnRediscovery: record.ProbeOnRediscovery == 1,
+		FirstSeenAt: time.Unix(record.FirstSeenAt, 0).UTC(), LastSeenAt: time.Unix(record.LastSeenAt, 0).UTC(),
+	}
+	paths, err := s.queries.ListPublicAddressPaths(ctx, record.ID)
+	if err != nil {
+		return PublicAddress{}, err
+	}
+	result.PathCount = len(paths)
+	for _, path := range paths {
+		if path.Available == 1 {
+			result.Available = true
+		}
+		if record.SelectedPathID == nil || path.PathID != *record.SelectedPathID {
+			continue
+		}
+		pathID, err := uuid.Parse(path.PathID)
+		if err != nil {
+			return PublicAddress{}, err
+		}
+		nodeID, err := uuid.Parse(path.NodeID)
+		if err != nil {
+			return PublicAddress{}, err
+		}
+		result.SelectedPathID = &pathID
+		result.SelectedNodeID = &nodeID
+		result.LikelyNAT = path.LikelyNat == 1
+		result.ProxyPath = path.ProxyPath == 1
+		checked := time.Unix(path.LastCheckedAt, 0).UTC()
+		result.SelectedLastChecked = &checked
+		if path.LastSucceededAt != nil {
+			value := time.Unix(*path.LastSucceededAt, 0).UTC()
+			result.SelectedLastSucceeded = &value
+		}
+		if node, err := s.queries.GetNodeByID(ctx, path.NodeID); err == nil {
+			result.SelectedNodeName = &node.Name
+		} else if !errors.Is(err, sql.ErrNoRows) {
+			return PublicAddress{}, err
+		}
+	}
+	return result, nil
 }
 
 func (s *Service) CreateEgress(ctx context.Context, nodeID uuid.UUID, selector NetworkEgressSelector) (NetworkEgress, error) {
@@ -467,6 +632,12 @@ func (s *Service) CreateEgress(ctx context.Context, nodeID uuid.UUID, selector N
 	}
 	s.sync.Wake(nodeID.String())
 	return egressFromRecord(created)
+}
+
+func (s *Service) CreateProxyDiscoveryPath(ctx context.Context, nodeID, proxyID uuid.UUID, family string) (NetworkEgress, error) {
+	return s.CreateEgress(ctx, nodeID, NetworkEgressSelector{
+		Kind: "proxy", Family: family, ProxyID: &proxyID,
+	})
 }
 
 func (s *Service) UpdateEgress(ctx context.Context, nodeID, egressID uuid.UUID, update NetworkEgressUpdate) (NetworkEgress, error) {
@@ -706,6 +877,19 @@ func (s *Service) DeleteEgress(ctx context.Context, nodeID, egressID uuid.UUID) 
 	default:
 	}
 	return egressDeletionFromRecord(operation)
+}
+
+func (s *Service) DeleteProxyDiscoveryPath(ctx context.Context, nodeID, pathID uuid.UUID) (EgressDeletion, error) {
+	record, err := s.queries.GetNodeEgress(ctx, configdb.GetNodeEgressParams{
+		ID: pathID.String(), NodeID: nodeID.String(),
+	})
+	if errors.Is(err, sql.ErrNoRows) || err == nil && record.Kind != "proxy" {
+		return EgressDeletion{}, ErrEgressNotFound
+	}
+	if err != nil {
+		return EgressDeletion{}, err
+	}
+	return s.DeleteEgress(ctx, nodeID, pathID)
 }
 
 func inventoryCandidates(inventory NetworkInventory, egresses []NetworkEgress) []NetworkEgressCandidate {

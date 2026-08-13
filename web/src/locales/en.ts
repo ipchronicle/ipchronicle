@@ -83,6 +83,10 @@ export const en = {
       historySchema: "History schema",
       transport: "Browser transport",
       externalOrigin: "External origin",
+      externalOriginMode: {
+        automatic: "Automatic",
+        custom: "Custom",
+      },
       trustedProxy: "Trusted proxy",
       configured: "Configured",
       notConfigured: "Not configured",
@@ -99,7 +103,27 @@ export const en = {
     },
     systemSettings: {
       title: "System",
-      detail: "Review release metadata and choose the product update channel.",
+      detail:
+        "Manage the external address and review product release metadata.",
+      externalOrigin: {
+        title: "External address",
+        detail:
+          "Choose the address used in Agent installation commands. A custom address also enables notification links.",
+        loadFailed: "External address settings could not be loaded",
+        retry: "Retry",
+        automatic: "Use this browser's current address",
+        label: "Custom external address",
+        valueDetail:
+          "Enter an HTTP or HTTPS origin without a path, query, or credentials.",
+        required: "Enter a custom external address or enable automatic mode.",
+        save: "Save address",
+        saving: "Saving address",
+        saved: "External address settings saved.",
+        mode: {
+          automatic: "Automatic",
+          custom: "Custom",
+        },
+      },
       release: {
         title: "Release channel",
         detail:
@@ -178,14 +202,23 @@ export const en = {
           "Generate an enrollment key, then run the installation command on a Linux node you manage.",
         node: "Node",
         status: "Status",
+        publicAddresses: "Public IPs",
+        noPublicAddresses: "Waiting for discovery",
+        probeEnabled: "Complete probe enabled",
+        probeDisabled: "Complete probe disabled",
+        addressUnavailable: "Currently unavailable",
         agent: "Agent",
         sourceRevision: "Source {{value}}",
         configuration: "Configuration",
         lastSeen: "Last seen",
         search: "Search nodes",
-        searchPlaceholder: "Name, hostname, version, or source revision",
+        searchPlaceholder:
+          "Name, hostname, public IP, version, or source revision",
         noMatches: "No nodes match the current filters",
         clearFilters: "Clear filters",
+      },
+      quickActions: {
+        runProbe: "Run probe",
       },
       updates: {
         filter: "Updates available",
@@ -202,6 +235,7 @@ export const en = {
         target: "Target {{version}}",
         result: "Running {{version}}",
         failureCode: "Failure code: {{code}}",
+        updateAction: "Update Agent",
         updateNode: "Update Agent on {{name}}",
         disabledReason: "Enable the node before updating its Agent",
         offlineReason: "The Agent must be online before an update can be sent",
@@ -257,7 +291,8 @@ export const en = {
       },
       actions: {
         title: "Node actions",
-        network: "Network egresses",
+        group: "Node actions for {{name}}",
+        network: "Public IPs",
         probe: "Complete probes",
         enable: "Enable node",
         disable: "Pause node",
@@ -274,10 +309,88 @@ export const en = {
       deletion: {
         title: "Permanently delete {{name}}?",
         detail:
-          "The node, egresses, current state, history, starred snapshots, and related notification records are irreversibly removed. The Center does not uninstall the Agent service from the host.",
+          "The node, hidden discovery paths, and node-level state are irreversibly removed, and its Agent identity is revoked. Reports, starred snapshots, and address history assigned to public IPs are retained. The Center does not uninstall the Agent service from the host.",
         confirm: "Permanently delete",
         pending: "Deleting",
         failed: "Deletion failed",
+      },
+    },
+    nodeDetail: {
+      section: "Managed node",
+      back: "Back to nodes",
+      identity: "{{hostname}} · Agent {{version}}",
+      notFound: "The node does not exist or has been deleted",
+      loadFailed: "The node could not be loaded",
+      retry: "Retry",
+      tabs: {
+        label: "Node sections",
+        overview: "Overview",
+        network: "Public IPs",
+        probe: "Probes",
+        changes: "Address changes",
+        settings: "Settings",
+      },
+      overview: {
+        loadFailed: "The node overview could not be loaded",
+        refresh: "Refresh overview",
+        node: {
+          title: "Node status",
+          detail: "Agent identity and current control-plane state.",
+          configuration: "{{status}} · {{applied}}/{{desired}}",
+          registered: "Registered",
+          capabilities: "Capabilities",
+          source: "Source revision",
+        },
+        sync: {
+          title: "Temporary sync",
+          detail:
+            "Temporarily keep an outbound connection active while adjusting this node.",
+          inactive: "Normal polling",
+        },
+        network: {
+          title: "Public IPs",
+          detail: "Deduplicated public addresses discovered by this node.",
+          empty: "No confirmed public address has been reported.",
+          nat: "{{count}} public IP(s) are reached through NAT.",
+          open: "Manage public IPs",
+        },
+        probe: {
+          title: "Complete probes",
+          detail: "Current schedule and most recent complete-probe state.",
+          open: "Open probes",
+        },
+      },
+      changes: {
+        refresh: "Refresh address changes",
+        loadFailed: "Address changes could not be loaded",
+      },
+      settings: {
+        saved: "Node availability was updated.",
+        availability: {
+          title: "Node availability",
+          detail:
+            "Pausing preserves configuration and history while stopping all probe work.",
+          toggle: "Enable node",
+          enabled: "The node is enabled and may run configured probe work.",
+          disabled:
+            "The node is paused; configuration and history are retained.",
+        },
+        agent: {
+          title: "Agent",
+          detail: "Review the installed Agent and apply an available release.",
+          platform: "Platform",
+          source: "Source revision",
+          capabilities: "Capabilities",
+          current: "The installed Agent is current for the selected channel.",
+          updateAccepted: "The Agent update task was accepted.",
+        },
+        danger: {
+          title: "Danger zone",
+          detail:
+            "Credential revocation and permanent deletion have different, irreversible effects.",
+          revoked: "The Agent credential was revoked.",
+          deletionQueued: "Permanent node deletion was queued.",
+        },
       },
     },
     proxySettings: {
@@ -307,7 +420,7 @@ export const en = {
       create: {
         title: "Add proxy",
         detail:
-          "The Center sends credentials only to Agents with an egress that references this proxy.",
+          "The Center sends credentials only to Agents with a proxy discovery path that references this proxy.",
         submit: "Add proxy",
       },
       fields: {
@@ -332,49 +445,41 @@ export const en = {
         action: "Delete proxy",
         title: "Delete this network proxy?",
         detail:
-          "A proxy referenced by any network egress cannot be deleted. Remove those egresses first.",
+          "A proxy referenced by a proxy discovery path cannot be deleted. Remove those paths first.",
         confirm: "Delete proxy",
       },
     },
     network: {
       section: "Node network",
-      title: "Network egresses",
+      title: "Public IPs",
       detail:
-        "Review Agent-reported interfaces, addresses, and routes, then manage the network paths this node can probe.",
+        "Review public IPs discovered by this node and choose which addresses receive quality probes.",
       back: "Back to nodes",
       refresh: "Refresh",
       retry: "Retry",
       loadFailed: "Node network state could not be loaded",
       nodeNotFound: "The node does not exist or was deleted",
       family: { ipv4: "IPv4", ipv6: "IPv6" },
-      egresses: {
-        title: "Configured egresses",
+      publicAddresses: {
+        title: "Discovered public IPs",
         detail:
-          "Egresses are durable probe paths. A missing selector does not delete its configuration.",
-        empty:
-          "Default egresses appear after the Agent reports usable default routes.",
+          "Each public IP appears once; interfaces, source addresses, NAT, and proxy paths are handled automatically.",
+        empty: "Waiting for the Agent's first public-address discovery.",
         available: "Available",
         unavailable: "Unavailable",
-        automatic: "Auto-discovered",
-        default: { ipv4: "Default IPv4", ipv6: "Default IPv6" },
-        interface: "Interface {{name}}",
-        source: "{{name}} · {{address}}",
-        proxy: "Proxy · {{name}}",
-        missingProxy: "Missing proxy",
-        enabledLabel: "Enable or disable {{name}}",
-        interval: "Address check interval (seconds)",
-        saveInterval: "Save address check interval",
-        probeOnChange: "Probe after a confirmed address change",
-        probeOnChangeDetail:
-          "The first confirmed address does not start a complete probe.",
-        delete: "Permanently delete egress",
-        deleteTitle: "Permanently delete this network egress?",
-        deleteDetail:
-          "The egress configuration and its owned data will be irreversibly deleted. An automatic egress may be created with a new identity while its default route remains usable; use the switch to pause it instead.",
-        deleteConfirm: "Permanently delete",
-        deletionPending: "Deletion pending",
-        deletionFailed: "Deletion failed",
-        retryDeletion: "Retry permanent deletion",
+        firstSeen: "First discovered",
+        lastSeen: "Last discovered: {{value}}",
+        executionNode: "Current execution node",
+        noNode: "No available node",
+        nat: "Reached through NAT",
+        proxy: "Reached through proxy",
+        probeEnabled: "Enable complete probe",
+        probeEnabledDetail:
+          "Only enabled public IPs are included in complete IPQuality probes.",
+        probeOnRediscovery: "Probe after rediscovery",
+        probeOnRediscoveryDetail:
+          "After this public IP returns from an unavailable state, run one complete probe once the Agent applies its latest configuration.",
+        saving: "Saving public IP settings",
       },
       observation: {
         waiting: "Waiting for the first lightweight address observation.",
@@ -398,7 +503,7 @@ export const en = {
       addressHistory: {
         title: "Address transitions",
         detail:
-          "Only first observations, confirmed changes, failure boundaries, recoveries, and reported gaps are retained.",
+          "First observations, confirmed changes, failure boundaries, and recoveries are retained by public IP; gaps that cannot be assigned to an IP remain node-level.",
         empty: "No address transition has been reported.",
         kind: {
           "first-observation": "First observation",
@@ -407,82 +512,31 @@ export const en = {
           recovery: "Recovered",
         },
         gap: "History gap",
+        nodeLevel: "Node-level",
         gapDetail:
           "{{count}} offline events were discarded (sequence {{first}} to {{last}}).",
       },
-      proxyEgress: {
-        title: "Add proxy egress",
+      proxyDiscovery: {
+        title: "Proxy discovery paths",
         detail:
-          "Create a durable IPv4 or IPv6 path through a centrally managed proxy.",
-        empty: "Configure a reusable proxy before adding a proxy egress.",
-        openSettings: "Open network settings",
-        proxy: "Proxy",
+          "A proxy cannot be inferred from node networking. Choose a stored proxy and address family so the Agent can discover its public IP.",
+        noProxies: "No reusable network proxy is configured.",
+        openSettings: "Configure network proxies",
+        proxy: "Network proxy",
+        selectProxy: "Select a proxy",
         family: "Address family",
-        add: "Add egress",
-        configured: "Already configured",
-      },
-      candidates: {
-        title: "Discovered candidate paths",
-        detail:
-          "Only stable interfaces and source addresses in the current Agent inventory can be enabled.",
-        empty: "No unconfigured candidate paths are available.",
-        interface: "Interface {{name}}",
-        source: "{{name}} · {{address}}",
-        temporary: "Temporary IPv6",
-        add: "Enable path",
-      },
-      inventory: {
-        title: "Interface inventory",
-        detail:
-          "Shows the last valid Agent capture. A collection failure does not overwrite it.",
-        empty: "The Agent has not reported a valid network inventory.",
-        failed: "The latest network inventory collection failed",
-        interface: "Interface",
-        index: "Index",
-        state: "State",
-        up: "Up",
-        down: "Down",
-        loopback: "Loopback",
-      },
-      addresses: {
-        title: "Addresses",
-        detail:
-          "Addresses stay associated with their interface and kernel lifecycle flags.",
-        address: "Address",
-        scope: "Scope",
-        lifecycle: "Lifecycle",
-        stable: "Stable",
-        temporary: "Temporary",
-        tentative: "Tentative",
-        deprecated: "Deprecated",
-        duplicate: "Duplicate",
-      },
-      routes: {
-        title: "Routes",
-        detail:
-          "The Agent reports IPv4 and IPv6 routes currently marked up by the kernel.",
-        destination: "Destination",
-        gateway: "Gateway",
-        metric: "Metric",
-        default: { ipv4: "Default IPv4", ipv6: "Default IPv6" },
-      },
-      scope: {
-        global: "Global",
-        private: "Private",
-        shared: "Shared space",
-        "unique-local": "IPv6 unique-local",
-        "link-local": "Link-local",
-        loopback: "Loopback",
-        multicast: "Multicast",
-        unspecified: "Unspecified",
-        other: "Other",
-      },
-      reason: {
-        "interface-down": "The interface is down",
-        "no-usable-route": "No usable route or address is available",
-        "temporary-address":
-          "A temporary IPv6 address cannot become its own durable egress",
-        "unusable-address": "The address is not currently usable",
+        add: "Add discovery path",
+        empty: "This node has no proxy discovery path.",
+        available: "Available",
+        unavailable: "Unavailable",
+        deletion: { pending: "Deleting", failed: "Deletion failed" },
+        delete: {
+          action: "Delete",
+          title: "Delete this proxy discovery path?",
+          detail:
+            "The node will stop using ‘{{name}}’ to discover public IPs. Previously discovered public IPs, reports, and address history are retained.",
+          confirm: "Delete path",
+        },
       },
     },
     probe: {
@@ -541,7 +595,7 @@ export const en = {
       runs: {
         title: "Recent runs",
         detail:
-          "Node-level runs retain their frozen egress order and individual outcomes.",
+          "Node-level runs retain their frozen public-IP order and individual outcomes.",
         empty: "No complete probe has been run yet.",
         progress: "{{completed}} of {{total}} complete",
       },
@@ -580,12 +634,12 @@ export const en = {
         busy: "another probe was active",
         disabled: "probing was disabled",
         "low-memory": "the node was below the memory baseline",
-        "no-egress": "no enabled egress was available",
+        "no-egress": "no enabled public IP was available",
         missed: "the occurrence was missed",
       },
       failure: {
         download: "Script download",
-        selector: "Egress selector",
+        selector: "Network path selector",
         adapter: "Proxy adapter",
         process: "Probe process",
         timeout: "Timeout",
@@ -605,7 +659,7 @@ export const en = {
       partial: {
         title: "This run completed with partial success",
         detail:
-          "Successful egress snapshots remain available alongside failed or skipped sibling executions.",
+          "Successful public-IP snapshots remain available alongside failed or skipped sibling executions.",
       },
       summary: {
         title: "Run summary",
@@ -615,9 +669,10 @@ export const en = {
         progress: "Progress",
       },
       executions: {
-        title: "Egress executions",
-        detail: "Each frozen egress is attempted at most once in this run.",
-        sequence: "Egress sequence {{value}}",
+        title: "Public-IP executions",
+        detail: "Each frozen public IP is attempted at most once in this run.",
+        addressUnavailable: "Public IP unavailable",
+        sequence: "Public-IP sequence {{value}}",
         startedAt: "Started",
         completedAt: "Completed",
         stage: "Failure stage",
@@ -629,9 +684,10 @@ export const en = {
       section: "Cross-node index",
       title: "History",
       detail:
-        "Browse complete-probe reports and address transitions by node, network egress, and time.",
+        "Browse complete-probe reports and address transitions by node, public IP, and time.",
       retry: "Retry",
       loadFailed: "History could not be loaded",
+      addressUnavailable: "Public IP unavailable",
       tabs: {
         label: "History type",
         reports: "Probe reports",
@@ -643,8 +699,8 @@ export const en = {
         clear: "Clear filters",
         node: "Node",
         allNodes: "All nodes",
-        egress: "Network egress",
-        allEgresses: "All egresses",
+        egress: "Public IP",
+        allEgresses: "All public IPs",
         from: "From",
         to: "To",
         runStatus: "Run result",
@@ -667,7 +723,7 @@ export const en = {
         title: "Complete-probe reports",
         count: "{{count}} retained snapshots",
         open: "Open report",
-        comparePrevious: "Compare with previous",
+        compare: "Compare snapshots",
         baseline: "First baseline",
         changeCount: "{{count}} changes",
         noChanges: "No field changes",
@@ -680,24 +736,15 @@ export const en = {
         previous: "Previous: {{value}}",
       },
       columns: {
-        owner: "Node and egress",
+        owner: "Node and public IP",
         result: "Run result",
         interpretation: "Interpretation",
         time: "Observed",
         actions: "Actions",
         event: "Event",
-        path: "Local to public",
+        address: "Public IP change",
       },
       starred: "Starred",
-      compareSelection: {
-        title: "First snapshot selected",
-        detail: "The list is now limited to the same network egress.",
-        clear: "Clear selection",
-        selected: "Selected",
-        compare: "Compare",
-        differentEgress: "Different egress",
-        select: "Select to compare",
-      },
       gaps: {
         probeTitle: "Probe history gaps",
         addressTitle: "Address history gaps",
@@ -705,6 +752,7 @@ export const en = {
           "Data dropped from a bounded Agent queue is never presented as continuous history.",
         probeItem: "{{count}} results missing, sequence {{first}} to {{last}}",
         addressItem: "{{count}} events missing, sequence {{first}} to {{last}}",
+        nodeLevel: "Node-level",
       },
       formatEvents: {
         title: "Upstream format events",
@@ -728,28 +776,33 @@ export const en = {
       back: "Back to history",
       section: "Probe reports",
       title: "Snapshot comparison",
-      detail: "Compare two retained snapshots from the same network egress.",
-      invalid: "Snapshots to compare were not provided",
+      detail:
+        "The earliest and latest snapshots are selected by default. Drag the timeline to choose any retained points.",
+      invalid: "Choose a public IP from history to compare its snapshots",
       notFound: "A snapshot does not exist or was removed",
-      egressMismatch: "The snapshots belong to different network egresses",
+      egressMismatch: "The snapshots belong to different public IPs",
       loadFailed: "The comparison could not be loaded",
       retry: "Retry",
-      before: "Before",
-      after: "After",
-      summary: {
-        title: "Comparison scope",
-        egress: "Network egress {{value}}",
-      },
-      changed: {
-        title: "Changed fields",
-        count: "{{count}} semantic changes",
-        empty: "No compatible field changed",
-        badge: "Changed",
-      },
-      unchanged: {
-        title: "Unchanged fields",
-        count: "{{count}} fields",
-        show: "Show unchanged fields",
+      start: "Start snapshot",
+      end: "End snapshot",
+      noChanges: "No fields changed between the selected snapshots",
+      changeCount_one: "{{count}} change",
+      changeCount_other: "{{count}} changes",
+      highlightDetail:
+        "Changed values are highlighted in their original positions in both full reports.",
+      timeline: {
+        title: "Time range",
+        owner: "{{node}} · {{egress}}",
+        range: "Earliest {{first}} · latest {{last}}",
+        snapshotCount: "{{count}} snapshots",
+        gapCount: "{{count}} history gaps",
+        snapshot: "Snapshot",
+        starred: "Starred",
+        gap: "History gap",
+        insufficient:
+          "This public IP needs at least two retained snapshots for comparison",
+        loadFailed:
+          "The snapshot timeline for this public IP could not be loaded",
       },
     },
     snapshot: {
@@ -761,7 +814,17 @@ export const en = {
       loadFailed: "The snapshot could not be loaded",
       star: "Star snapshot",
       unstar: "Unstar snapshot",
-      comparePrevious: "Compare with previous",
+      compare: "Compare snapshots",
+      pngExport: {
+        action: "Export PNG",
+        exporting: "Generating PNG",
+        failed: "The PNG could not be generated. Try again.",
+        copy: "Copy PNG",
+        copying: "Copying PNG",
+        copied: "PNG copied",
+        copyFailed:
+          "The PNG could not be copied. Check the browser's clipboard permission.",
+      },
       unavailable: "Unavailable",
       actualType: "Actual type {{actual}}; expected {{expected}}",
       summary: {
@@ -776,15 +839,104 @@ export const en = {
         title: "Upstream output format mismatch",
         detail:
           "Incompatible fields are not coerced. Unknown fields remain available in the raw JSON.",
+        expected: "Expected type: {{expected}}",
       },
       views: {
         label: "Report view",
-        structured: "Structured fields",
+        report: "Report",
         raw: "Raw JSON",
+        diagnostics: "Format diagnostics {{count}}",
       },
-      structured: { fieldCount: "{{count}} known fields" },
+      report: {
+        empty: "No usable result is available for this section.",
+        overview: {
+          unknownAddress: "IP address unavailable",
+          detail: "Public-IP sequence {{sequence}} · {{value}}",
+          version: "Upstream script version",
+          upstreamTime: "Upstream report time",
+        },
+        basic: {
+          title: "Basic information",
+          detail: "Address ownership and location returned by MaxMind.",
+          asn: "ASN",
+          organization: "Organization",
+          location: "Location",
+          registeredRegion: "Registered region",
+          timezone: "Time zone",
+          type: "IP type",
+        },
+        type: {
+          title: "IP type attributes",
+          detail: "Usage and company types returned by each database.",
+          database: "Database",
+          usage: "Usage",
+          company: "Company",
+        },
+        scores: {
+          title: "Risk scores",
+          detail: "Raw scores returned by each upstream data source.",
+          disclaimer:
+            "IPChronicle does not calculate an aggregate risk score; providers may use different scales.",
+          level: {
+            veryLow: "Very low",
+            low: "Low",
+            medium: "Medium",
+            elevated: "Elevated",
+            suspicious: "Suspicious",
+            high: "High",
+            veryHigh: "Very high",
+            risky: "Risky",
+            highRisk: "High risk",
+            block: "Block recommended",
+          },
+        },
+        factors: {
+          title: "Risk factors",
+          detail: "Regions and risk attributes returned by each database.",
+          item: "Item",
+          yes: "Yes",
+          no: "No",
+          none: "None",
+          names: {
+            CountryCode: "Region",
+            Proxy: "Proxy",
+            Tor: "Tor",
+            VPN: "VPN",
+            Server: "Server",
+            Abuser: "Abuser",
+            Robot: "Robot",
+          },
+        },
+        media: {
+          title: "Streaming and AI",
+          detail:
+            "Service availability, detected region, and upstream result type.",
+          item: "Item",
+          status: "Status",
+          region: "Region",
+          method: "Method",
+          unlocked: "Unlocked",
+          blocked: "Blocked",
+        },
+        mail: {
+          title: "Mail and blocklists",
+          detail: "Outbound mail connectivity and DNS blocklist results.",
+          port25: "Local outbound port 25",
+          services: "Mail service connectivity",
+          reachable: "Reachable",
+          unreachable: "Unreachable",
+          dns: "DNS blocklists",
+          dnsFields: {
+            Total: "Checked",
+            Clean: "Clean",
+            Marked: "Marked",
+            Blacklisted: "Blacklisted",
+          },
+        },
+      },
       fieldStatus: {
         available: "Available",
+        unavailable: "No data",
         missing: "Missing",
         incompatible: "Incompatible type",
       },
@@ -1033,7 +1185,7 @@ export const en = {
       },
       raw: {
         title: "IPQuality JSON",
-        detail: "Egress sequence {{sequence}}, observed {{value}}",
+        detail: "Public-IP sequence {{sequence}}, observed {{value}}",
         wrap: "Toggle line wrapping",
         copy: "Copy JSON",
         copied: "Copied",
@@ -1095,7 +1247,7 @@ export const en = {
       danger: {
         title: "Clear observed history",
         detail:
-          "This removes address events, probe runs, executions, snapshots, and history gaps. Node, egress, proxy, account, and task configuration remains.",
+          "This removes address events, probe runs, public-IP executions, snapshots, and history gaps. Node, public-IP settings, hidden paths, proxy, account, and task configuration remains.",
         action: "Clear history",
         confirmTitle: "Clear all observed history?",
         confirmDetail:
@@ -1167,7 +1319,7 @@ export const en = {
       rules: {
         title: "Matching rules",
         detail:
-          "Match an event and optionally narrow it to a field, node, and network egress.",
+          "Match an event and optionally narrow it to a field, node, and public IP.",
         add: "Add rule",
         empty: "No notification rules are configured.",
         deleteTitle: "Delete this notification rule?",
@@ -1182,9 +1334,10 @@ export const en = {
         field: "Known field ID",
         fieldPlaceholder: "IPQuality.ipinfo.CountryCode",
         node: "Node",
-        egress: "Network egress",
+        egress: "Public IP",
         allNodes: "All nodes",
-        allEgresses: "All egresses on this node",
+        allEgresses: "All public IPs on this node",
+        addressUnavailable: "Public IP unavailable",
         senderRequired: "Create a sender before saving a notification rule.",
       },
       eventType: {
@@ -1261,14 +1414,14 @@ export const en = {
         "The temporary sync session has ended or is unavailable.",
       network_inventory_unavailable:
         "The node has not reported a valid network inventory.",
-      invalid_egress_candidate:
-        "This interface or source address cannot currently become a network egress.",
-      egress_already_exists: "This network egress already exists.",
+      invalid_egress_candidate: "This discovery path is currently unavailable.",
+      egress_already_exists: "This proxy discovery path already exists.",
       egress_limit_reached:
-        "This node has reached the maximum of 64 configured network egresses.",
-      egress_not_found: "The network egress does not exist or was deleted.",
+        "This node has reached the maximum of 64 proxy discovery paths.",
+      egress_not_found:
+        "The proxy discovery path does not exist or was deleted.",
       egress_deletion_pending:
-        "The network egress is being permanently deleted and cannot accept other changes.",
+        "The proxy discovery path is being deleted and cannot accept other changes.",
       invalid_network_proxy: "The network proxy settings are invalid.",
       network_proxy_not_found:
         "The network proxy does not exist or was deleted.",
@@ -1277,7 +1430,7 @@ export const en = {
       network_proxy_limit_reached:
         "The installation has reached the maximum of 64 network proxies.",
       network_proxy_in_use:
-        "This proxy is still referenced by a network egress and cannot be deleted.",
+        "This proxy is still referenced by a proxy discovery path and cannot be deleted.",
       invalid_observation_settings:
         "Use 2 to 8 valid HTTP or HTTPS URLs with distinct hosts for each address family.",
       invalid_probe_settings: "The Cron expression or time zone is invalid.",
@@ -1288,13 +1441,12 @@ export const en = {
         "A complete-probe run is already active on this node.",
       probe_paused_low_memory:
         "Complete probes are paused because this node reported less than 256 MiB of memory.",
-      no_enabled_egress: "This node has no enabled network egress.",
+      no_enabled_egress: "This node has no enabled public IP.",
       probe_run_not_found:
         "The complete-probe run does not exist or was removed.",
       probe_snapshot_not_found:
         "The report snapshot does not exist or was removed.",
-      snapshot_egress_mismatch:
-        "The snapshots belong to different network egresses.",
+      snapshot_egress_mismatch: "The snapshots belong to different public IPs.",
       invalid_notification_sender:
         "The notification sender settings are invalid.",
       notification_sender_not_found:
@@ -1312,6 +1464,7 @@ export const en = {
         "A notification rule with this name already exists.",
       invalid_notification_delivery_query:
         "The notification delivery filters are invalid.",
+      invalid_system_settings: "The external address is invalid.",
       internal_error: "The center could not complete the request.",
     },
   },

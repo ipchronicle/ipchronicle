@@ -1,34 +1,26 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useState, type FormEvent } from "react";
 import {
-  ArrowLeft,
-  Cable,
-  CirclePlus,
-  Clock3,
   Globe2,
-  History,
   LoaderCircle,
   Network,
+  Plus,
   RefreshCw,
-  Route,
-  Save,
+  Server,
   Trash2,
   TriangleAlert,
-  Waypoints,
 } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { Link, useParams } from "react-router";
 
 import {
-  createNodeEgress,
-  deleteNodeEgress,
+  createNodeProxyDiscoveryPath,
+  deleteNodeProxyDiscoveryPath,
   getNodeNetwork,
-  updateNodeEgress,
-  type NetworkEgress,
-  type NetworkEgressCandidate,
-  type NetworkEgressUpdate,
+  updatePublicAddress,
   type NodeNetworkState,
+  type PublicAddress,
+  type ProxyDiscoveryPath,
 } from "@/api/network";
-import { listNodes, type Node } from "@/api/nodes";
 import { listNetworkProxies, type NetworkProxy } from "@/api/proxies";
 import { useAuth } from "@/auth-context";
 import {
@@ -54,8 +46,6 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
-import { Skeleton } from "@/components/ui/skeleton";
-import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import {
   Select,
@@ -64,58 +54,49 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { Skeleton } from "@/components/ui/skeleton";
 import { Switch } from "@/components/ui/switch";
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@/components/ui/table";
 import { formatAPIError } from "@/lib/api-error";
+import { formatTime } from "@/pages/node-probe-page";
+
+const refreshIntervalMilliseconds = 5_000;
 
 type ViewState =
   | { kind: "loading" }
   | {
       kind: "success";
-      node: Node;
       network: NodeNetworkState;
       proxies: NetworkProxy[];
     }
-  | { kind: "not-found" }
   | { kind: "error" };
 
 export function NodeNetworkPage() {
   const { nodeId = "" } = useParams();
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
   const { state: authState } = useAuth();
   const [state, setState] = useState<ViewState>({ kind: "loading" });
   const [refreshing, setRefreshing] = useState(false);
+  const [saving, setSaving] = useState<Set<string>>(() => new Set());
+  const [deleting, setDeleting] = useState<Set<string>>(() => new Set());
+  const [creatingPath, setCreatingPath] = useState(false);
   const [feedback, setFeedback] = useState<string>();
 
   const load = useCallback(
-    async (signal?: AbortSignal, initial = false) => {
+    async (signal?: AbortSignal, initial = false, quiet = false) => {
       if (initial) setState({ kind: "loading" });
-      else setRefreshing(true);
+      else if (!quiet) setRefreshing(true);
       try {
-        const [nodes, network, proxies] = await Promise.all([
-          listNodes(signal),
+        const [network, proxies] = await Promise.all([
           getNodeNetwork(nodeId, signal),
           listNetworkProxies(signal),
         ]);
-        const node = nodes.find((item) => item.id === nodeId);
-        setState(
-          node
-            ? { kind: "success", node, network, proxies }
-            : { kind: "not-found" },
-        );
+        setState({ kind: "success", network, proxies });
       } catch (error) {
         if (error instanceof DOMException && error.name === "AbortError")
           return;
-        setState({ kind: "error" });
+        if (!quiet) setState({ kind: "error" });
       } finally {
-        setRefreshing(false);
+        if (!quiet) setRefreshing(false);
       }
     },
     [nodeId],
@@ -127,684 +108,431 @@ export function NodeNetworkPage() {
     return () => controller.abort();
   }, [load]);
 
+  useEffect(() => {
+    if (state.kind !== "success") return;
+    let active = true;
+    let controller: AbortController | undefined;
+    const refresh = () => {
+      if (!active || document.visibilityState !== "visible") return;
+      controller?.abort();
+      controller = new AbortController();
+      void load(controller.signal, false, true);
+    };
+    const timer = window.setInterval(refresh, refreshIntervalMilliseconds);
+    document.addEventListener("visibilitychange", refresh);
+    window.addEventListener("focus", refresh);
+    return () => {
+      active = false;
+      controller?.abort();
+      window.clearInterval(timer);
+      document.removeEventListener("visibilitychange", refresh);
+      window.removeEventListener("focus", refresh);
+    };
+  }, [load, state.kind]);
+
   const csrfToken =
     authState.status === "authenticated" ? authState.session.csrfToken : "";
 
-  function replaceEgress(egress: NetworkEgress) {
-    setState((current) =>
-      current.kind === "success"
-        ? {
-            ...current,
-            network: {
-              ...current.network,
-              egresses: current.network.egresses.map((item) =>
-                item.id === egress.id ? egress : item,
-              ),
-            },
-          }
-        : current,
-    );
-  }
-
-  async function updateEgress(
-    egress: NetworkEgress,
-    update: NetworkEgressUpdate,
+  async function saveAddress(
+    address: PublicAddress,
+    update: Pick<PublicAddress, "probeEnabled" | "probeOnRediscovery">,
   ) {
+    setSaving((current) => new Set(current).add(address.id));
     setFeedback(undefined);
     try {
-      replaceEgress(
-        await updateNodeEgress(nodeId, egress.id, update, csrfToken),
-      );
-    } catch (error) {
-      setFeedback(formatAPIError(error, t));
-    }
-  }
-
-  async function addCandidate(candidate: NetworkEgressCandidate) {
-    setFeedback(undefined);
-    try {
-      await createNodeEgress(
+      const updated = await updatePublicAddress(
         nodeId,
-        {
-          kind: candidate.kind,
-          family: candidate.family,
-          interfaceName: candidate.interfaceName,
-          sourceAddress: candidate.sourceAddress,
-        },
+        address.id,
+        update,
         csrfToken,
       );
-      await load();
-    } catch (error) {
-      setFeedback(formatAPIError(error, t));
-    }
-  }
-
-  async function addProxyEgress(proxyId: string, family: "ipv4" | "ipv6") {
-    setFeedback(undefined);
-    try {
-      await createNodeEgress(
-        nodeId,
-        { kind: "proxy", family, proxyId },
-        csrfToken,
+      setState((current) =>
+        current.kind === "success"
+          ? {
+              kind: "success",
+              network: {
+                ...current.network,
+                publicAddresses: current.network.publicAddresses.map((item) =>
+                  item.id === updated.id ? updated : item,
+                ),
+              },
+              proxies: current.proxies,
+            }
+          : current,
       );
-      await load();
     } catch (error) {
       setFeedback(formatAPIError(error, t));
-    }
-  }
-
-  async function removeEgress(egress: NetworkEgress) {
-    setFeedback(undefined);
-    try {
-      const deletion = await deleteNodeEgress(nodeId, egress.id, csrfToken);
-      replaceEgress({
-        ...egress,
-        deletionStatus: deletion.status,
-        deletionError: deletion.error,
-      });
-    } catch (error) {
-      setFeedback(formatAPIError(error, t));
-    }
-  }
-
-  return (
-    <main className="mx-auto w-full max-w-6xl px-4 py-10 sm:px-6 sm:py-14">
-      <div className="flex flex-wrap items-end justify-between gap-4">
-        <div className="min-w-0 max-w-2xl">
-          <Button variant="ghost" size="sm" asChild className="mb-3 -ml-3">
-            <Link to="/nodes">
-              <ArrowLeft data-icon="inline-start" aria-hidden="true" />
-              {t("network.back")}
-            </Link>
-          </Button>
-          <p className="text-xs font-medium text-muted-foreground uppercase">
-            {t("network.section")}
-          </p>
-          <h1 className="mt-2 truncate text-2xl font-semibold sm:text-3xl">
-            {state.kind === "success" ? state.node.name : t("network.title")}
-          </h1>
-          <p className="mt-2 text-sm text-muted-foreground">
-            {t("network.detail")}
-          </p>
-        </div>
-        <Button
-          variant="outline"
-          disabled={refreshing || state.kind === "loading"}
-          onClick={() => void load()}
-        >
-          <RefreshCw
-            data-icon="inline-start"
-            aria-hidden="true"
-            className={refreshing ? "animate-spin" : undefined}
-          />
-          {t("network.refresh")}
-        </Button>
-      </div>
-
-      <div className="mt-8 space-y-4" aria-live="polite">
-        {state.kind === "loading" ? <NetworkSkeleton /> : null}
-        {state.kind === "not-found" ? (
-          <Alert variant="destructive">
-            <TriangleAlert aria-hidden="true" />
-            <AlertTitle>{t("network.nodeNotFound")}</AlertTitle>
-          </Alert>
-        ) : null}
-        {state.kind === "error" ? (
-          <Alert variant="destructive">
-            <TriangleAlert aria-hidden="true" />
-            <AlertTitle>{t("network.loadFailed")}</AlertTitle>
-            <AlertDescription>
-              <Button
-                variant="outline"
-                size="sm"
-                className="mt-3"
-                onClick={() => void load(undefined, true)}
-              >
-                <RefreshCw data-icon="inline-start" aria-hidden="true" />
-                {t("network.retry")}
-              </Button>
-            </AlertDescription>
-          </Alert>
-        ) : null}
-        {feedback ? (
-          <Alert variant="destructive">
-            <TriangleAlert aria-hidden="true" />
-            <AlertDescription>{feedback}</AlertDescription>
-          </Alert>
-        ) : null}
-        {state.kind === "success" ? (
-          <>
-            <EgressCard
-              egresses={state.network.egresses}
-              addressStates={state.network.addressStates}
-              proxies={state.proxies}
-              onUpdate={updateEgress}
-              onDelete={removeEgress}
-            />
-            <AddressHistoryCard network={state.network} />
-            <ProxyEgressCard
-              proxies={state.proxies}
-              egresses={state.network.egresses}
-              onAdd={addProxyEgress}
-            />
-            <CandidateCard
-              candidates={state.network.candidates}
-              onAdd={addCandidate}
-            />
-            <InventoryCards network={state.network} />
-          </>
-        ) : null}
-      </div>
-    </main>
-  );
-}
-
-function EgressCard({
-  egresses,
-  addressStates,
-  proxies,
-  onUpdate,
-  onDelete,
-}: {
-  egresses: NetworkEgress[];
-  addressStates: NodeNetworkState["addressStates"];
-  proxies: NetworkProxy[];
-  onUpdate: (
-    egress: NetworkEgress,
-    update: NetworkEgressUpdate,
-  ) => Promise<void>;
-  onDelete: (egress: NetworkEgress) => Promise<void>;
-}) {
-  const { t } = useTranslation();
-
-  return (
-    <Card>
-      <CardHeader>
-        <CardTitle className="flex items-center gap-2">
-          <Globe2 aria-hidden="true" className="size-4" />
-          {t("network.egresses.title")}
-        </CardTitle>
-        <CardDescription>{t("network.egresses.detail")}</CardDescription>
-        <CardAction>
-          <Badge variant="secondary">{egresses.length}</Badge>
-        </CardAction>
-      </CardHeader>
-      <CardContent className="space-y-3">
-        {egresses.length === 0 ? (
-          <p className="py-6 text-center text-sm text-muted-foreground">
-            {t("network.egresses.empty")}
-          </p>
-        ) : (
-          egresses.map((egress) => (
-            <EgressItem
-              key={egress.id}
-              egress={egress}
-              addressState={addressStates.find(
-                (item) => item.egressId === egress.id,
-              )}
-              proxies={proxies}
-              onUpdate={onUpdate}
-              onDelete={onDelete}
-            />
-          ))
-        )}
-      </CardContent>
-    </Card>
-  );
-}
-
-function EgressItem({
-  egress,
-  addressState,
-  proxies,
-  onUpdate,
-  onDelete,
-}: {
-  egress: NetworkEgress;
-  addressState: NodeNetworkState["addressStates"][number] | undefined;
-  proxies: NetworkProxy[];
-  onUpdate: (
-    egress: NetworkEgress,
-    update: NetworkEgressUpdate,
-  ) => Promise<void>;
-  onDelete: (egress: NetworkEgress) => Promise<void>;
-}) {
-  const { i18n, t } = useTranslation();
-  const [interval, setInterval] = useState(
-    String(egress.lightweightIntervalSeconds),
-  );
-  const [working, setWorking] = useState(false);
-
-  useEffect(() => {
-    setInterval(String(egress.lightweightIntervalSeconds));
-  }, [egress.lightweightIntervalSeconds]);
-
-  async function update(update: NetworkEgressUpdate) {
-    setWorking(true);
-    try {
-      await onUpdate(egress, update);
     } finally {
-      setWorking(false);
+      setSaving((current) => {
+        const next = new Set(current);
+        next.delete(address.id);
+        return next;
+      });
     }
   }
 
-  const common = {
-    enabled: egress.enabled,
-    lightweightIntervalSeconds: egress.lightweightIntervalSeconds,
-    probeOnAddressChange: egress.probeOnAddressChange,
-  };
-  const deletionPending = egress.deletionStatus === "pending";
-  const deletionFailed = egress.deletionStatus === "failed";
-  const deletionActive = deletionPending || deletionFailed;
+  async function createProxyPath(proxyId: string, family: "ipv4" | "ipv6") {
+    setCreatingPath(true);
+    setFeedback(undefined);
+    try {
+      const created = await createNodeProxyDiscoveryPath(
+        nodeId,
+        { proxyId, family },
+        csrfToken,
+      );
+      setState((current) =>
+        current.kind === "success"
+          ? {
+              ...current,
+              network: {
+                ...current.network,
+                proxyDiscoveryPaths: [
+                  ...current.network.proxyDiscoveryPaths,
+                  created,
+                ],
+              },
+            }
+          : current,
+      );
+      return true;
+    } catch (error) {
+      setFeedback(formatAPIError(error, t));
+      return false;
+    } finally {
+      setCreatingPath(false);
+    }
+  }
+
+  async function deleteProxyPath(path: ProxyDiscoveryPath) {
+    setDeleting((current) => new Set(current).add(path.id));
+    setFeedback(undefined);
+    try {
+      const deletion = await deleteNodeProxyDiscoveryPath(
+        nodeId,
+        path.id,
+        csrfToken,
+      );
+      setState((current) =>
+        current.kind === "success"
+          ? {
+              ...current,
+              network: {
+                ...current.network,
+                proxyDiscoveryPaths: current.network.proxyDiscoveryPaths.map(
+                  (item) =>
+                    item.id === path.id
+                      ? {
+                          ...item,
+                          deletionStatus: deletion.status,
+                          deletionError: deletion.error,
+                        }
+                      : item,
+                ),
+              },
+            }
+          : current,
+      );
+    } catch (error) {
+      setFeedback(formatAPIError(error, t));
+    } finally {
+      setDeleting((current) => {
+        const next = new Set(current);
+        next.delete(path.id);
+        return next;
+      });
+    }
+  }
 
   return (
-    <div className="space-y-4 rounded-md border p-4">
-      <div className="flex flex-wrap items-start justify-between gap-4">
-        <div className="min-w-0">
-          <div className="flex flex-wrap items-center gap-2">
-            <p className="font-medium">{egressLabel(egress, proxies, t)}</p>
-            <Badge variant={egress.available ? "outline" : "destructive"}>
-              {egress.available
-                ? t("network.egresses.available")
-                : t("network.egresses.unavailable")}
-            </Badge>
-            {egress.automatic ? (
+    <div className="space-y-4" aria-live="polite">
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <Globe2 aria-hidden="true" className="size-4" />
+            {t("network.publicAddresses.title")}
+          </CardTitle>
+          <CardDescription>
+            {t("network.publicAddresses.detail")}
+          </CardDescription>
+          <CardAction className="flex items-center gap-2">
+            {state.kind === "success" ? (
               <Badge variant="secondary">
-                {t("network.egresses.automatic")}
+                {state.network.publicAddresses.length}
               </Badge>
             ) : null}
-            {deletionActive ? (
-              <Badge variant="destructive">
-                <Trash2 aria-hidden="true" />
-                {deletionFailed
-                  ? t("network.egresses.deletionFailed")
-                  : t("network.egresses.deletionPending")}
-              </Badge>
-            ) : null}
-          </div>
-          <p className="mt-1 break-all text-xs text-muted-foreground">
-            {t(`network.family.${egress.family}`)} · {egress.id}
-          </p>
-        </div>
-        <div className="flex items-center gap-2">
-          {!deletionPending ? (
-            <AlertDialog>
-              <AlertDialogTrigger asChild>
-                <Button
-                  variant="ghost"
-                  size="icon"
-                  disabled={working}
-                  aria-label={t(
-                    deletionFailed
-                      ? "network.egresses.retryDeletion"
-                      : "network.egresses.delete",
-                  )}
-                >
-                  {deletionFailed ? (
-                    <RefreshCw aria-hidden="true" />
-                  ) : (
-                    <Trash2 aria-hidden="true" />
-                  )}
-                </Button>
-              </AlertDialogTrigger>
-              <AlertDialogContent>
-                <AlertDialogHeader>
-                  <AlertDialogMedia>
-                    <TriangleAlert aria-hidden="true" />
-                  </AlertDialogMedia>
-                  <AlertDialogTitle>
-                    {t("network.egresses.deleteTitle")}
-                  </AlertDialogTitle>
-                  <AlertDialogDescription>
-                    {t("network.egresses.deleteDetail")}
-                  </AlertDialogDescription>
-                </AlertDialogHeader>
-                <AlertDialogFooter>
-                  <AlertDialogCancel>{t("common.cancel")}</AlertDialogCancel>
-                  <AlertDialogAction
-                    variant="destructive"
-                    onClick={() => {
-                      setWorking(true);
-                      void onDelete(egress).finally(() => setWorking(false));
-                    }}
-                  >
-                    {t(
-                      deletionFailed
-                        ? "network.egresses.retryDeletion"
-                        : "network.egresses.deleteConfirm",
-                    )}
-                  </AlertDialogAction>
-                </AlertDialogFooter>
-              </AlertDialogContent>
-            </AlertDialog>
-          ) : null}
-          <Switch
-            checked={egress.enabled}
-            disabled={working || deletionActive}
-            aria-label={t("network.egresses.enabledLabel", {
-              name: egressLabel(egress, proxies, t),
-            })}
-            onCheckedChange={(enabled) => void update({ ...common, enabled })}
-          />
-        </div>
-      </div>
+            <Button
+              variant="outline"
+              size="sm"
+              disabled={refreshing || state.kind === "loading"}
+              onClick={() => void load()}
+            >
+              <RefreshCw
+                data-icon="inline-start"
+                aria-hidden="true"
+                className={refreshing ? "animate-spin" : undefined}
+              />
+              {t("network.refresh")}
+            </Button>
+          </CardAction>
+        </CardHeader>
+      </Card>
 
-      {deletionFailed && egress.deletionError ? (
+      {feedback ? (
         <Alert variant="destructive">
           <TriangleAlert aria-hidden="true" />
-          <AlertTitle>{t("network.egresses.deletionFailed")}</AlertTitle>
-          <AlertDescription>{egress.deletionError}</AlertDescription>
+          <AlertDescription>{feedback}</AlertDescription>
         </Alert>
       ) : null}
 
-      <AddressSummary state={addressState} locale={i18n.language} />
-
-      <div className="grid items-end gap-4 border-t pt-4 sm:grid-cols-[minmax(0,14rem)_minmax(0,1fr)]">
-        <div className="space-y-2">
-          <Label htmlFor={`interval-${egress.id}`}>
-            {t("network.egresses.interval")}
-          </Label>
-          <div className="flex gap-2">
-            <Input
-              id={`interval-${egress.id}`}
-              type="number"
-              min={1}
-              max={9223372036}
-              value={interval}
-              disabled={working || deletionActive}
-              onChange={(event) => setInterval(event.target.value)}
-            />
-            <Button
-              size="icon"
-              variant="outline"
-              disabled={working || deletionActive || Number(interval) < 1}
-              aria-label={t("network.egresses.saveInterval")}
-              onClick={() =>
-                void update({
-                  ...common,
-                  lightweightIntervalSeconds: Number(interval),
-                })
-              }
-            >
-              <Save aria-hidden="true" />
-            </Button>
-          </div>
-        </div>
-        <div className="flex items-center justify-between gap-4 rounded-md border px-3 py-2">
-          <div>
-            <Label htmlFor={`change-probe-${egress.id}`}>
-              {t("network.egresses.probeOnChange")}
-            </Label>
-            <p className="text-xs text-muted-foreground">
-              {t("network.egresses.probeOnChangeDetail")}
-            </p>
-          </div>
-          <Switch
-            id={`change-probe-${egress.id}`}
-            checked={egress.probeOnAddressChange}
-            disabled={working || deletionActive}
-            onCheckedChange={(probeOnAddressChange) =>
-              void update({ ...common, probeOnAddressChange })
-            }
-          />
-        </div>
-      </div>
-    </div>
-  );
-}
-
-function AddressSummary({
-  state,
-  locale,
-}: {
-  state: NodeNetworkState["addressStates"][number] | undefined;
-  locale: string;
-}) {
-  const { t } = useTranslation();
-  if (!state) {
-    return (
-      <div className="rounded-md bg-muted/40 px-3 py-3 text-sm text-muted-foreground">
-        {t("network.observation.waiting")}
-      </div>
-    );
-  }
-  const mapping = state.proxyPath
-    ? (state.publicAddress ?? t("network.observation.unknown"))
-    : state.localAddress && state.publicAddress
-      ? `${state.localInterface} · ${state.localAddress}${state.localAddress === state.publicAddress ? "" : ` -> ${state.publicAddress}`}`
-      : (state.publicAddress ?? t("network.observation.unknown"));
-  return (
-    <div className="space-y-3 rounded-md bg-muted/40 px-3 py-3">
-      <div className="flex flex-wrap items-center gap-2">
-        <span className="break-all font-mono text-sm">{mapping}</span>
-        <Badge variant={state.status === "failed" ? "destructive" : "outline"}>
-          {t(`network.observation.status.${state.status}`)}
-        </Badge>
-        {state.proxyPath ? (
-          <Badge variant="secondary">{t("network.observation.proxy")}</Badge>
-        ) : null}
-        {state.likelyNat ? (
-          <Badge variant="destructive">{t("network.observation.nat")}</Badge>
-        ) : null}
-        {state.temporary ? (
-          <Badge variant="secondary">
-            {t("network.observation.temporary")}
-          </Badge>
-        ) : null}
-      </div>
-      <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-muted-foreground">
-        <span className="inline-flex items-center gap-1">
-          <Clock3 aria-hidden="true" className="size-3" />
-          {new Date(state.lastCheckedAt).toLocaleString(locale)}
-        </span>
-        {state.failureReason ? (
-          <span>{t(`network.observation.failure.${state.failureReason}`)}</span>
-        ) : null}
-      </div>
-      {state.likelyNat ? (
-        <Alert>
+      {state.kind === "loading" ? <NetworkSkeleton /> : null}
+      {state.kind === "error" ? (
+        <Alert variant="destructive">
           <TriangleAlert aria-hidden="true" />
+          <AlertTitle>{t("network.loadFailed")}</AlertTitle>
           <AlertDescription>
-            {t("network.observation.natDetail")}
+            <Button
+              variant="outline"
+              size="sm"
+              className="mt-3"
+              onClick={() => void load(undefined, true)}
+            >
+              <RefreshCw data-icon="inline-start" aria-hidden="true" />
+              {t("network.retry")}
+            </Button>
           </AlertDescription>
         </Alert>
       ) : null}
+
+      {state.kind === "success" ? (
+        <>
+          {state.network.publicAddresses.length === 0 ? (
+            <Card>
+              <CardContent className="py-10 text-center">
+                <Network
+                  aria-hidden="true"
+                  className="mx-auto size-8 text-muted-foreground"
+                />
+                <p className="mt-3 text-sm text-muted-foreground">
+                  {t("network.publicAddresses.empty")}
+                </p>
+              </CardContent>
+            </Card>
+          ) : (
+            <div className="grid gap-4 xl:grid-cols-2">
+              {state.network.publicAddresses.map((address) => (
+                <PublicAddressCard
+                  key={address.id}
+                  address={address}
+                  saving={saving.has(address.id)}
+                  locale={i18n.resolvedLanguage}
+                  onChange={(update) => void saveAddress(address, update)}
+                />
+              ))}
+            </div>
+          )}
+          <ProxyDiscoveryPathsCard
+            paths={state.network.proxyDiscoveryPaths}
+            proxies={state.proxies}
+            creating={creatingPath}
+            deleting={deleting}
+            onCreate={createProxyPath}
+            onDelete={(path) => void deleteProxyPath(path)}
+          />
+        </>
+      ) : null}
     </div>
   );
 }
 
-function AddressHistoryCard({ network }: { network: NodeNetworkState }) {
-  const { i18n, t } = useTranslation();
-  const items = [
-    ...network.addressEvents.map((event) => ({
-      type: "event" as const,
-      id: event.id,
-      time: event.observedAt,
-      event,
-    })),
-    ...network.addressGaps.map((gap) => ({
-      type: "gap" as const,
-      id: gap.id,
-      time: gap.lastObservedAt,
-      gap,
-    })),
-  ].sort((left, right) => right.time.localeCompare(left.time));
-
+function PublicAddressCard({
+  address,
+  saving,
+  locale,
+  onChange,
+}: {
+  address: PublicAddress;
+  saving: boolean;
+  locale: string | undefined;
+  onChange: (
+    update: Pick<PublicAddress, "probeEnabled" | "probeOnRediscovery">,
+  ) => void;
+}) {
+  const { t } = useTranslation();
   return (
-    <Card>
+    <Card className="min-w-0">
       <CardHeader>
-        <CardTitle className="flex items-center gap-2">
-          <History aria-hidden="true" className="size-4" />
-          {t("network.addressHistory.title")}
+        <CardTitle className="min-w-0 break-all font-mono text-lg">
+          {address.address}
         </CardTitle>
-        <CardDescription>{t("network.addressHistory.detail")}</CardDescription>
-        <CardAction>
-          <Badge variant="secondary">{items.length}</Badge>
+        <CardDescription>
+          {t("network.publicAddresses.lastSeen", {
+            value: formatTime(
+              address.lastSeenAt,
+              locale,
+              t("nodes.notAvailable"),
+            ),
+          })}
+        </CardDescription>
+        <CardAction className="flex items-center gap-2">
+          {saving ? (
+            <LoaderCircle
+              aria-label={t("network.publicAddresses.saving")}
+              className="size-4 animate-spin text-muted-foreground"
+            />
+          ) : null}
+          <Badge variant={address.available ? "default" : "outline"}>
+            {address.available
+              ? t("network.publicAddresses.available")
+              : t("network.publicAddresses.unavailable")}
+          </Badge>
+          <Badge variant="secondary">{address.family.toUpperCase()}</Badge>
         </CardAction>
       </CardHeader>
-      <CardContent className="space-y-3">
-        {items.length === 0 ? (
-          <p className="py-6 text-center text-sm text-muted-foreground">
-            {t("network.addressHistory.empty")}
-          </p>
-        ) : (
-          items.map((item) =>
-            item.type === "event" ? (
-              <div
-                key={item.id}
-                className="flex flex-wrap items-start justify-between gap-3 rounded-md border p-3"
-              >
-                <div className="min-w-0">
-                  <div className="flex flex-wrap items-center gap-2">
-                    <Badge
-                      variant={
-                        item.event.kind === "check-failure"
-                          ? "destructive"
-                          : "outline"
-                      }
-                    >
-                      {t(`network.addressHistory.kind.${item.event.kind}`)}
-                    </Badge>
-                    <span className="break-all font-mono text-xs">
-                      {eventMapping(item.event, t)}
-                    </span>
-                  </div>
-                  {item.event.failureReason ? (
-                    <p className="mt-2 text-xs text-muted-foreground">
-                      {t(
-                        `network.observation.failure.${item.event.failureReason}`,
-                      )}
-                    </p>
-                  ) : null}
-                </div>
-                <time className="text-xs whitespace-nowrap text-muted-foreground">
-                  {new Date(item.event.observedAt).toLocaleString(
-                    i18n.language,
-                  )}
-                </time>
-              </div>
-            ) : (
-              <div
-                key={item.id}
-                className="flex flex-wrap items-start justify-between gap-3 rounded-md border border-destructive/40 p-3"
-              >
-                <div>
-                  <Badge variant="destructive">
-                    {t("network.addressHistory.gap")}
-                  </Badge>
-                  <p className="mt-2 text-sm">
-                    {t("network.addressHistory.gapDetail", {
-                      count: item.gap.droppedCount,
-                      first: item.gap.firstSequence,
-                      last: item.gap.lastSequence,
-                    })}
-                  </p>
-                </div>
-                <time className="text-xs whitespace-nowrap text-muted-foreground">
-                  {new Date(item.gap.lastObservedAt).toLocaleString(
-                    i18n.language,
-                  )}
-                </time>
-              </div>
-            ),
-          )
-        )}
+      <CardContent className="space-y-5">
+        <dl className="grid gap-3 text-sm sm:grid-cols-2">
+          <AddressValue
+            label={t("network.publicAddresses.firstSeen")}
+            value={formatTime(
+              address.firstSeenAt,
+              locale,
+              t("nodes.notAvailable"),
+            )}
+          />
+          <AddressValue
+            label={t("network.publicAddresses.executionNode")}
+            value={
+              address.selectedNodeName ?? t("network.publicAddresses.noNode")
+            }
+          />
+        </dl>
+
+        {address.likelyNat || address.proxyPath ? (
+          <div className="flex flex-wrap gap-2">
+            {address.likelyNat ? (
+              <Badge variant="secondary">
+                {t("network.publicAddresses.nat")}
+              </Badge>
+            ) : null}
+            {address.proxyPath ? (
+              <Badge variant="secondary">
+                {t("network.publicAddresses.proxy")}
+              </Badge>
+            ) : null}
+          </div>
+        ) : null}
+
+        <div className="space-y-4 border-t pt-4">
+          <SettingSwitch
+            id={`probe-${address.id}`}
+            label={t("network.publicAddresses.probeEnabled")}
+            detail={t("network.publicAddresses.probeEnabledDetail")}
+            checked={address.probeEnabled}
+            disabled={saving}
+            onCheckedChange={(probeEnabled) =>
+              onChange({
+                probeEnabled,
+                probeOnRediscovery: address.probeOnRediscovery,
+              })
+            }
+          />
+          <SettingSwitch
+            id={`rediscovery-${address.id}`}
+            label={t("network.publicAddresses.probeOnRediscovery")}
+            detail={t("network.publicAddresses.probeOnRediscoveryDetail")}
+            checked={address.probeOnRediscovery}
+            disabled={saving || !address.probeEnabled}
+            onCheckedChange={(probeOnRediscovery) =>
+              onChange({
+                probeEnabled: address.probeEnabled,
+                probeOnRediscovery,
+              })
+            }
+          />
+        </div>
       </CardContent>
     </Card>
   );
 }
 
-function eventMapping(
-  event: NodeNetworkState["addressEvents"][number],
-  t: ReturnType<typeof useTranslation>["t"],
-) {
-  if (event.previousAddress && event.publicAddress) {
-    return `${event.previousAddress} -> ${event.publicAddress}`;
-  }
-  if (event.proxyPath) {
-    return event.publicAddress ?? t("network.observation.unknown");
-  }
-  if (event.localAddress && event.publicAddress) {
-    return `${event.localInterface} · ${event.localAddress}${event.localAddress === event.publicAddress ? "" : ` -> ${event.publicAddress}`}`;
-  }
-  return event.publicAddress ?? t("network.observation.unknown");
-}
-
-function ProxyEgressCard({
+function ProxyDiscoveryPathsCard({
+  paths,
   proxies,
-  egresses,
-  onAdd,
+  creating,
+  deleting,
+  onCreate,
+  onDelete,
 }: {
+  paths: ProxyDiscoveryPath[];
   proxies: NetworkProxy[];
-  egresses: NetworkEgress[];
-  onAdd: (proxyId: string, family: "ipv4" | "ipv6") => Promise<void>;
+  creating: boolean;
+  deleting: Set<string>;
+  onCreate: (proxyId: string, family: "ipv4" | "ipv6") => Promise<boolean>;
+  onDelete: (path: ProxyDiscoveryPath) => void;
 }) {
   const { t } = useTranslation();
-  const [proxyId, setProxyId] = useState(proxies[0]?.id ?? "");
+  const [proxyId, setProxyId] = useState("");
   const [family, setFamily] = useState<"ipv4" | "ipv6">("ipv4");
-  const [working, setWorking] = useState(false);
-  const duplicate = egresses.some(
-    (egress) =>
-      egress.kind === "proxy" &&
-      egress.proxyId === proxyId &&
-      egress.family === family,
-  );
+
+  async function submit(event: FormEvent) {
+    event.preventDefault();
+    if (!proxyId) return;
+    if (await onCreate(proxyId, family)) setProxyId("");
+  }
 
   return (
     <Card>
       <CardHeader>
-        <CardTitle className="flex items-center gap-2">
-          <Waypoints aria-hidden="true" className="size-4" />
-          {t("network.proxyEgress.title")}
-        </CardTitle>
-        <CardDescription>{t("network.proxyEgress.detail")}</CardDescription>
+        <CardTitle>{t("network.proxyDiscovery.title")}</CardTitle>
+        <CardDescription>{t("network.proxyDiscovery.detail")}</CardDescription>
+        <CardAction>
+          <Badge variant="secondary">{paths.length}</Badge>
+        </CardAction>
       </CardHeader>
-      <CardContent>
+      <CardContent className="space-y-5">
         {proxies.length === 0 ? (
-          <div className="flex flex-wrap items-center justify-between gap-3">
+          <div className="flex flex-wrap items-center justify-between gap-3 rounded-md border p-4">
             <p className="text-sm text-muted-foreground">
-              {t("network.proxyEgress.empty")}
+              {t("network.proxyDiscovery.noProxies")}
             </p>
             <Button variant="outline" size="sm" asChild>
               <Link to="/settings/network">
-                {t("network.proxyEgress.openSettings")}
+                {t("network.proxyDiscovery.openSettings")}
               </Link>
             </Button>
           </div>
         ) : (
-          <div className="grid items-end gap-4 sm:grid-cols-[minmax(0,1fr)_10rem_auto]">
+          <form
+            className="grid items-end gap-3 sm:grid-cols-[minmax(0,1fr)_minmax(9rem,0.4fr)_auto]"
+            onSubmit={(event) => void submit(event)}
+          >
             <div className="space-y-2">
-              <span className="text-sm font-medium">
-                {t("network.proxyEgress.proxy")}
-              </span>
+              <Label htmlFor="proxy-discovery-proxy">
+                {t("network.proxyDiscovery.proxy")}
+              </Label>
               <Select value={proxyId} onValueChange={setProxyId}>
-                <SelectTrigger
-                  className="w-full"
-                  aria-label={t("network.proxyEgress.proxy")}
-                >
-                  <SelectValue />
+                <SelectTrigger id="proxy-discovery-proxy" className="w-full">
+                  <SelectValue
+                    placeholder={t("network.proxyDiscovery.selectProxy")}
+                  />
                 </SelectTrigger>
                 <SelectContent>
                   {proxies.map((proxy) => (
                     <SelectItem key={proxy.id} value={proxy.id}>
-                      {proxy.name} · {proxy.scheme.toUpperCase()}
+                      {proxy.name}
                     </SelectItem>
                   ))}
                 </SelectContent>
               </Select>
             </div>
             <div className="space-y-2">
-              <span className="text-sm font-medium">
-                {t("network.proxyEgress.family")}
-              </span>
+              <Label htmlFor="proxy-discovery-family">
+                {t("network.proxyDiscovery.family")}
+              </Label>
               <Select
                 value={family}
-                onValueChange={(value: "ipv4" | "ipv6") => setFamily(value)}
+                onValueChange={(value) => setFamily(value as "ipv4" | "ipv6")}
               >
-                <SelectTrigger
-                  className="w-full"
-                  aria-label={t("network.proxyEgress.family")}
-                >
+                <SelectTrigger id="proxy-discovery-family" className="w-full">
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
@@ -813,26 +541,80 @@ function ProxyEgressCard({
                 </SelectContent>
               </Select>
             </div>
-            <Button
-              disabled={working || !proxyId || duplicate}
-              onClick={() => {
-                setWorking(true);
-                void onAdd(proxyId, family).finally(() => setWorking(false));
-              }}
-            >
-              {working ? (
+            <Button type="submit" disabled={!proxyId || creating}>
+              {creating ? (
                 <LoaderCircle
                   data-icon="inline-start"
                   aria-hidden="true"
                   className="animate-spin"
                 />
               ) : (
-                <CirclePlus data-icon="inline-start" aria-hidden="true" />
+                <Plus data-icon="inline-start" aria-hidden="true" />
               )}
-              {duplicate
-                ? t("network.proxyEgress.configured")
-                : t("network.proxyEgress.add")}
+              {t("network.proxyDiscovery.add")}
             </Button>
+          </form>
+        )}
+
+        {paths.length === 0 ? (
+          <p className="py-5 text-center text-sm text-muted-foreground">
+            {t("network.proxyDiscovery.empty")}
+          </p>
+        ) : (
+          <div className="divide-y rounded-md border">
+            {paths.map((path) => {
+              const proxyName =
+                proxies.find((proxy) => proxy.id === path.proxyId)?.name ??
+                path.name;
+              const displayName = `${proxyName} · ${path.family.toUpperCase()}`;
+              return (
+                <div
+                  key={path.id}
+                  className="flex flex-wrap items-center justify-between gap-3 p-3"
+                >
+                  <div className="min-w-0">
+                    <p className="break-words text-sm font-medium">
+                      {displayName}
+                    </p>
+                    <div className="mt-1 flex flex-wrap gap-2">
+                      <Badge variant="secondary">
+                        {path.family.toUpperCase()}
+                      </Badge>
+                      <Badge variant={path.available ? "default" : "outline"}>
+                        {path.available
+                          ? t("network.proxyDiscovery.available")
+                          : t("network.proxyDiscovery.unavailable")}
+                      </Badge>
+                      {path.deletionStatus ? (
+                        <Badge
+                          variant={
+                            path.deletionStatus === "failed"
+                              ? "destructive"
+                              : "outline"
+                          }
+                        >
+                          {t(
+                            `network.proxyDiscovery.deletion.${path.deletionStatus}`,
+                          )}
+                        </Badge>
+                      ) : null}
+                    </div>
+                    {path.deletionError ? (
+                      <p className="mt-2 text-xs text-destructive">
+                        {path.deletionError}
+                      </p>
+                    ) : null}
+                  </div>
+                  <DeleteProxyPathButton
+                    displayName={displayName}
+                    disabled={
+                      deleting.has(path.id) || path.deletionStatus === "pending"
+                    }
+                    onDelete={() => onDelete(path)}
+                  />
+                </div>
+              );
+            })}
           </div>
         )}
       </CardContent>
@@ -840,331 +622,116 @@ function ProxyEgressCard({
   );
 }
 
-function CandidateCard({
-  candidates,
-  onAdd,
+function DeleteProxyPathButton({
+  displayName,
+  disabled,
+  onDelete,
 }: {
-  candidates: NetworkEgressCandidate[];
-  onAdd: (candidate: NetworkEgressCandidate) => Promise<void>;
+  displayName: string;
+  disabled: boolean;
+  onDelete: () => void;
 }) {
   const { t } = useTranslation();
-  const [working, setWorking] = useState<string>();
-  const visible = useMemo(
-    () =>
-      candidates.filter(
-        (candidate) => candidate.configuredEgressId === undefined,
-      ),
-    [candidates],
-  );
-
   return (
-    <Card>
-      <CardHeader>
-        <CardTitle className="flex items-center gap-2">
-          <Cable aria-hidden="true" className="size-4" />
-          {t("network.candidates.title")}
-        </CardTitle>
-        <CardDescription>{t("network.candidates.detail")}</CardDescription>
-        <CardAction>
-          <Badge variant="secondary">{visible.length}</Badge>
-        </CardAction>
-      </CardHeader>
-      <CardContent className="space-y-3">
-        {visible.length === 0 ? (
-          <p className="py-6 text-center text-sm text-muted-foreground">
-            {t("network.candidates.empty")}
-          </p>
-        ) : (
-          visible.map((candidate) => {
-            const key = candidateKey(candidate);
-            return (
-              <div
-                key={key}
-                className="flex flex-wrap items-center justify-between gap-4 rounded-md border p-4"
-              >
-                <div className="min-w-0">
-                  <p className="break-all font-medium">
-                    {candidateLabel(candidate, t)}
-                  </p>
-                  <div className="mt-2 flex flex-wrap gap-2">
-                    <Badge variant="outline">
-                      {t(`network.family.${candidate.family}`)}
-                    </Badge>
-                    {candidate.scope ? (
-                      <Badge variant="secondary">
-                        {t(`network.scope.${candidate.scope}`)}
-                      </Badge>
-                    ) : null}
-                    {candidate.temporary ? (
-                      <Badge variant="destructive">
-                        {t("network.candidates.temporary")}
-                      </Badge>
-                    ) : null}
-                    {!candidate.eligible && candidate.unavailableReason ? (
-                      <span className="text-xs text-muted-foreground">
-                        {t(`network.reason.${candidate.unavailableReason}`)}
-                      </span>
-                    ) : null}
-                  </div>
-                </div>
-                <Button
-                  variant="outline"
-                  size="sm"
-                  disabled={!candidate.eligible || working === key}
-                  onClick={() => {
-                    setWorking(key);
-                    void onAdd(candidate).finally(() => setWorking(undefined));
-                  }}
-                >
-                  {working === key ? (
-                    <LoaderCircle
-                      data-icon="inline-start"
-                      aria-hidden="true"
-                      className="animate-spin"
-                    />
-                  ) : (
-                    <CirclePlus data-icon="inline-start" aria-hidden="true" />
-                  )}
-                  {t("network.candidates.add")}
-                </Button>
-              </div>
-            );
-          })
-        )}
-      </CardContent>
-    </Card>
+    <AlertDialog>
+      <AlertDialogTrigger asChild>
+        <Button variant="outline" size="sm" disabled={disabled}>
+          <Trash2 data-icon="inline-start" aria-hidden="true" />
+          {t("network.proxyDiscovery.delete.action")}
+        </Button>
+      </AlertDialogTrigger>
+      <AlertDialogContent>
+        <AlertDialogHeader>
+          <AlertDialogMedia>
+            <Trash2 aria-hidden="true" />
+          </AlertDialogMedia>
+          <AlertDialogTitle>
+            {t("network.proxyDiscovery.delete.title")}
+          </AlertDialogTitle>
+          <AlertDialogDescription>
+            {t("network.proxyDiscovery.delete.detail", { name: displayName })}
+          </AlertDialogDescription>
+        </AlertDialogHeader>
+        <AlertDialogFooter>
+          <AlertDialogCancel>{t("common.cancel")}</AlertDialogCancel>
+          <AlertDialogAction variant="destructive" onClick={onDelete}>
+            {t("network.proxyDiscovery.delete.confirm")}
+          </AlertDialogAction>
+        </AlertDialogFooter>
+      </AlertDialogContent>
+    </AlertDialog>
   );
 }
 
-function InventoryCards({ network }: { network: NodeNetworkState }) {
-  const { i18n, t } = useTranslation();
-  const inventory = network.inventory;
+function SettingSwitch({
+  id,
+  label,
+  detail,
+  checked,
+  disabled,
+  onCheckedChange,
+}: {
+  id: string;
+  label: string;
+  detail: string;
+  checked: boolean;
+  disabled: boolean;
+  onCheckedChange: (checked: boolean) => void;
+}) {
   return (
-    <>
-      <Card>
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            <Network aria-hidden="true" className="size-4" />
-            {t("network.inventory.title")}
-          </CardTitle>
-          <CardDescription>{t("network.inventory.detail")}</CardDescription>
-          <CardAction>
-            {network.inventoryReceivedAt ? (
-              <Badge variant="outline">
-                {new Intl.DateTimeFormat(i18n.language, {
-                  dateStyle: "short",
-                  timeStyle: "medium",
-                }).format(new Date(network.inventoryReceivedAt))}
-              </Badge>
-            ) : null}
-          </CardAction>
-        </CardHeader>
-        <CardContent>
-          {network.inventoryError ? (
-            <Alert variant="destructive" className="mb-4">
-              <TriangleAlert aria-hidden="true" />
-              <AlertTitle>{t("network.inventory.failed")}</AlertTitle>
-              <AlertDescription className="break-all">
-                {network.inventoryError}
-              </AlertDescription>
-            </Alert>
-          ) : null}
-          {!inventory ? (
-            <p className="py-6 text-center text-sm text-muted-foreground">
-              {t("network.inventory.empty")}
-            </p>
-          ) : (
-            <div className="overflow-x-auto rounded-md border">
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead>{t("network.inventory.interface")}</TableHead>
-                    <TableHead>{t("network.inventory.index")}</TableHead>
-                    <TableHead>{t("network.inventory.state")}</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {inventory.interfaces.map((item) => (
-                    <TableRow key={`${item.index}:${item.name}`}>
-                      <TableCell className="font-medium">{item.name}</TableCell>
-                      <TableCell>{item.index}</TableCell>
-                      <TableCell>
-                        <Badge variant={item.up ? "outline" : "secondary"}>
-                          {item.loopback
-                            ? t("network.inventory.loopback")
-                            : item.up
-                              ? t("network.inventory.up")
-                              : t("network.inventory.down")}
-                        </Badge>
-                      </TableCell>
-                    </TableRow>
-                  ))}
-                </TableBody>
-              </Table>
-            </div>
-          )}
-        </CardContent>
-      </Card>
-
-      {inventory ? (
-        <>
-          <Card>
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2">
-                <Globe2 aria-hidden="true" className="size-4" />
-                {t("network.addresses.title")}
-              </CardTitle>
-              <CardDescription>{t("network.addresses.detail")}</CardDescription>
-            </CardHeader>
-            <CardContent>
-              <div className="overflow-x-auto rounded-md border">
-                <Table>
-                  <TableHeader>
-                    <TableRow>
-                      <TableHead>{t("network.inventory.interface")}</TableHead>
-                      <TableHead>{t("network.addresses.address")}</TableHead>
-                      <TableHead>{t("network.addresses.scope")}</TableHead>
-                      <TableHead>{t("network.addresses.lifecycle")}</TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {inventory.addresses.map((item) => (
-                      <TableRow key={`${item.interfaceName}:${item.address}`}>
-                        <TableCell>{item.interfaceName}</TableCell>
-                        <TableCell className="font-mono text-xs whitespace-nowrap">
-                          {item.address}/{item.prefixLength}
-                        </TableCell>
-                        <TableCell>
-                          {t(`network.scope.${item.scope}`)}
-                        </TableCell>
-                        <TableCell>
-                          {addressLifecycle(item, t).map((label) => (
-                            <Badge
-                              key={label}
-                              variant="secondary"
-                              className="mr-1"
-                            >
-                              {label}
-                            </Badge>
-                          ))}
-                        </TableCell>
-                      </TableRow>
-                    ))}
-                  </TableBody>
-                </Table>
-              </div>
-            </CardContent>
-          </Card>
-
-          <Card>
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2">
-                <Route aria-hidden="true" className="size-4" />
-                {t("network.routes.title")}
-              </CardTitle>
-              <CardDescription>{t("network.routes.detail")}</CardDescription>
-            </CardHeader>
-            <CardContent>
-              <div className="overflow-x-auto rounded-md border">
-                <Table>
-                  <TableHeader>
-                    <TableRow>
-                      <TableHead>{t("network.inventory.interface")}</TableHead>
-                      <TableHead>{t("network.routes.destination")}</TableHead>
-                      <TableHead>{t("network.routes.gateway")}</TableHead>
-                      <TableHead>{t("network.routes.metric")}</TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {inventory.routes.map((item, index) => (
-                      <TableRow
-                        key={`${item.family}:${item.interfaceName}:${item.destination}:${item.metric}:${index}`}
-                      >
-                        <TableCell>{item.interfaceName}</TableCell>
-                        <TableCell className="font-mono text-xs whitespace-nowrap">
-                          {item.default
-                            ? t(`network.routes.default.${item.family}`)
-                            : item.destination}
-                        </TableCell>
-                        <TableCell className="font-mono text-xs whitespace-nowrap">
-                          {item.gateway ?? "-"}
-                        </TableCell>
-                        <TableCell>{item.metric}</TableCell>
-                      </TableRow>
-                    ))}
-                  </TableBody>
-                </Table>
-              </div>
-            </CardContent>
-          </Card>
-        </>
-      ) : null}
-    </>
+    <div className="flex items-start justify-between gap-4">
+      <div className="min-w-0 space-y-1">
+        <Label htmlFor={id}>{label}</Label>
+        <p className="text-xs text-muted-foreground">{detail}</p>
+      </div>
+      <Switch
+        id={id}
+        checked={checked}
+        disabled={disabled}
+        onCheckedChange={onCheckedChange}
+      />
+    </div>
   );
 }
 
-function egressLabel(
-  egress: NetworkEgress,
-  proxies: NetworkProxy[],
-  t: ReturnType<typeof useTranslation>["t"],
-) {
-  if (egress.kind === "default")
-    return t(`network.egresses.default.${egress.family}`);
-  if (egress.kind === "interface") {
-    return t("network.egresses.interface", { name: egress.interfaceName });
-  }
-  if (egress.kind === "proxy") {
-    const proxy = proxies.find((item) => item.id === egress.proxyId);
-    return t("network.egresses.proxy", {
-      name: proxy?.name ?? t("network.egresses.missingProxy"),
-    });
-  }
-  return t("network.egresses.source", {
-    name: egress.interfaceName,
-    address: egress.sourceAddress,
-  });
-}
-
-function candidateLabel(
-  candidate: NetworkEgressCandidate,
-  t: ReturnType<typeof useTranslation>["t"],
-) {
-  return candidate.kind === "interface"
-    ? t("network.candidates.interface", { name: candidate.interfaceName })
-    : t("network.candidates.source", {
-        name: candidate.interfaceName,
-        address: candidate.sourceAddress,
-      });
-}
-
-function candidateKey(candidate: NetworkEgressCandidate) {
-  return `${candidate.kind}:${candidate.family}:${candidate.interfaceName}:${candidate.sourceAddress ?? ""}`;
-}
-
-function addressLifecycle(
-  address: NonNullable<NodeNetworkState["inventory"]>["addresses"][number],
-  t: ReturnType<typeof useTranslation>["t"],
-) {
-  const labels: string[] = [];
-  if (address.temporary) labels.push(t("network.addresses.temporary"));
-  if (address.tentative) labels.push(t("network.addresses.tentative"));
-  if (address.deprecated) labels.push(t("network.addresses.deprecated"));
-  if (address.duplicate) labels.push(t("network.addresses.duplicate"));
-  if (labels.length === 0) labels.push(t("network.addresses.stable"));
-  return labels;
+function AddressValue({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="min-w-0">
+      <dt className="text-xs text-muted-foreground">{label}</dt>
+      <dd className="mt-1 break-words font-medium">
+        <Server aria-hidden="true" className="mr-1 inline size-3.5" />
+        {value}
+      </dd>
+    </div>
+  );
 }
 
 function NetworkSkeleton() {
   return (
-    <Card>
-      <CardHeader>
-        <Skeleton className="h-5 w-40" />
-        <Skeleton className="h-4 w-72 max-w-full" />
-      </CardHeader>
-      <CardContent className="space-y-3">
-        <Skeleton className="h-20 w-full" />
-        <Skeleton className="h-20 w-full" />
-      </CardContent>
-    </Card>
+    <div className="grid gap-4 xl:grid-cols-2" aria-busy="true">
+      {[0, 1].map((item) => (
+        <Card key={item}>
+          <CardHeader>
+            <Skeleton className="h-6 w-44" />
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <Skeleton className="h-12 w-full" />
+            <Skeleton className="h-16 w-full" />
+          </CardContent>
+        </Card>
+      ))}
+      <Card className="xl:col-span-2">
+        <CardHeader>
+          <Skeleton className="h-5 w-40" />
+          <Skeleton className="h-4 w-72 max-w-full" />
+        </CardHeader>
+        <CardContent>
+          <div className="space-y-3">
+            <Skeleton className="h-9 w-full" />
+            <Skeleton className="h-14 w-full" />
+          </div>
+        </CardContent>
+      </Card>
+    </div>
   );
 }

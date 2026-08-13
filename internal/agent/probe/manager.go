@@ -118,11 +118,10 @@ func (manager *Manager) AcceptTask(ctx context.Context, task state.ProbeTaskDeli
 	} else if exists {
 		return nil
 	}
-	return manager.tryStart(ctx, "manual", &task, nil, manager.now())
-}
-
-func (manager *Manager) TriggerAddressChange(ctx context.Context, egressID string, at time.Time) error {
-	return manager.tryStart(ctx, "address-change", nil, &egressID, at)
+	if task.Trigger == "" {
+		task.Trigger = "manual"
+	}
+	return manager.tryStart(ctx, task.Trigger, &task, task.TriggeringPublicAddressID, manager.now())
 }
 
 func (manager *Manager) reconcileSchedule(ctx context.Context, fingerprint *string, next **time.Time, initialized *bool) error {
@@ -259,7 +258,7 @@ func (manager *Manager) ineligibleReason(
 	}
 	enabled := 0
 	triggerAllowed := triggeringEgressID == nil
-	for _, egress := range configuration.Egresses {
+	for _, egress := range configuration.ProbeTargetList() {
 		if !egress.Enabled {
 			continue
 		}
@@ -297,8 +296,9 @@ func (manager *Manager) execute(ctx context.Context, configuration state.Configu
 		manager.mu.Unlock()
 		manager.signalWake()
 	}()
-	egresses := make(map[string]state.Egress, len(configuration.Egresses))
-	for _, egress := range configuration.Egresses {
+	targets := configuration.ProbeTargetList()
+	egresses := make(map[string]state.Egress, len(targets))
+	for _, egress := range targets {
 		egresses[egress.ID] = egress
 	}
 	for _, manifest := range run.Executions {

@@ -1,3 +1,6 @@
+import { randomUUID } from "node:crypto";
+import { readFile } from "node:fs/promises";
+
 import { expect, test } from "@playwright/test";
 
 async function signIn(page: import("@playwright/test").Page) {
@@ -26,6 +29,32 @@ async function expectNoPageOverflow(page: import("@playwright/test").Page) {
       ),
     )
     .toBe(true);
+}
+
+function nodeAction(
+  page: import("@playwright/test").Page,
+  nodeName: string,
+  action: string,
+) {
+  const group = page
+    .getByRole("group", {
+      name: `Node actions for ${nodeName}`,
+      exact: true,
+    })
+    .filter({ visible: true });
+  return group
+    .getByRole("button", { name: action, exact: true })
+    .or(group.getByRole("link", { name: action, exact: true }))
+    .filter({ visible: true })
+    .first();
+}
+
+async function clickNodeAction(
+  page: import("@playwright/test").Page,
+  nodeName: string,
+  action: string,
+) {
+  await nodeAction(page, nodeName, action).click();
 }
 
 function updateState(channel: "stable" | "rc") {
@@ -190,9 +219,58 @@ test("switches the release channel from system settings", async ({ page }) => {
   await expectNoPageOverflow(page);
 });
 
+test("customizes and restores the automatic external address", async ({
+  page,
+}, testInfo) => {
+  await signIn(page);
+  const systemLink = page.getByRole("link", { name: "System", exact: true });
+  if (!(await systemLink.isVisible())) {
+    await page.getByRole("button", { name: "Toggle sidebar" }).click();
+  }
+  await systemLink.click();
+
+  const automatic = page.getByRole("switch", {
+    name: "Use this browser's current address",
+  });
+  const externalAddress = page.getByLabel("Custom external address");
+  await expect(automatic).toBeChecked();
+  await expect(externalAddress).toBeDisabled();
+  await expect(externalAddress).toHaveValue(new URL(page.url()).origin);
+
+  await automatic.click();
+  await externalAddress.fill("https://ip.example.com");
+  await page.getByRole("button", { name: "Save address" }).click();
+  await expect(
+    page.getByText("External address settings saved."),
+  ).toBeVisible();
+  await page.reload();
+  await expect(automatic).not.toBeChecked();
+  await expect(externalAddress).toHaveValue("https://ip.example.com");
+
+  await page.screenshot({
+    path: testInfo.outputPath("system-settings.png"),
+    fullPage: true,
+  });
+  await expectNoPageOverflow(page);
+
+  await automatic.click();
+  await page.getByRole("button", { name: "Save address" }).click();
+  await expect(
+    page.getByText("External address settings saved."),
+  ).toBeVisible();
+  await page.reload();
+  await expect(automatic).toBeChecked();
+  await expect(externalAddress).toHaveValue(new URL(page.url()).origin);
+});
+
 test("generates an Agent installation command from the nodes page", async ({
   page,
 }, testInfo) => {
+  const fixtureSuffix =
+    testInfo.project.name === "mobile-chromium" ? "mobile" : "desktop";
+  const nodeName = `edge-e2e-${fixtureSuffix}`;
+  const proxyName = `E2E proxy ${fixtureSuffix}`;
+  const publicAddress = fixtureSuffix === "mobile" ? "8.8.4.4" : "8.8.8.8";
   await signIn(page);
   const nodesLink = page.getByRole("link", { name: "Nodes", exact: true });
   if (!(await nodesLink.isVisible())) {
@@ -211,8 +289,6 @@ test("generates an Agent installation command from the nodes page", async ({
   await expect(
     page.getByText("install-agent.sh", { exact: false }),
   ).toBeVisible();
-  await expect(page.getByText("No nodes are registered")).toBeVisible();
-
   const installationCommand = await page.locator("pre code").textContent();
   const registrationKey = installationCommand?.match(
     /--registration-key '([^']+)'/,
@@ -222,14 +298,14 @@ test("generates an Agent installation command from the nodes page", async ({
     data: {
       registrationKey,
       metadata: {
-        hostname: "edge-e2e",
+        hostname: nodeName,
         agentVersion: "0.1.0-e2e",
         operatingSystem: "linux",
         architecture: "amd64",
         physicalMemoryBytes: 536870912,
         capabilities: [
           "control-v1",
-          "configuration-v5",
+          "configuration-v6",
           "complete-probe-v1",
           "network-inventory-v1",
           "sync-wakeup-v1",
@@ -243,30 +319,36 @@ test("generates an Agent installation command from the nodes page", async ({
     nodeId: string;
   };
 
-  await page.reload();
   const responsiveItem = (text: string | RegExp) => {
     const items = page.getByText(text, { exact: true });
     return testInfo.project.name === "mobile-chromium"
       ? items.last()
       : items.first();
   };
-  await expect(responsiveItem("edge-e2e")).toBeVisible();
+  await expect(responsiveItem(nodeName)).toBeVisible({ timeout: 8_000 });
+  await responsiveItem("Offline").click();
+  await expect(page.getByRole("tab", { name: "Overview" })).toHaveAttribute(
+    "data-state",
+    "active",
+  );
   await page.getByRole("button", { name: "Start temporary sync" }).click();
-  await expect(responsiveItem("Waiting for Agent")).toBeVisible();
+  await expect(
+    page.getByText("Waiting for Agent", { exact: true }),
+  ).toBeVisible();
 
   const poll = await page.request.post("/api/v1/agent/control", {
     headers: { Authorization: `Bearer ${registered.credential}` },
     data: {
       appliedConfigurationRevision: 0,
       metadata: {
-        hostname: "edge-e2e",
+        hostname: nodeName,
         agentVersion: "0.1.0-e2e",
         operatingSystem: "linux",
         architecture: "amd64",
         physicalMemoryBytes: 536870912,
         capabilities: [
           "control-v1",
-          "configuration-v5",
+          "configuration-v6",
           "complete-probe-v1",
           "network-inventory-v1",
           "sync-wakeup-v1",
@@ -329,26 +411,26 @@ test("generates an Agent installation command from the nodes page", async ({
   const configuration = (await configurationResponse.json()) as {
     revision: number;
     historyGeneration: string;
-    egresses: Array<{ id: string; family: "ipv4" | "ipv6" }>;
+    discoveryPaths: Array<{ id: string; family: "ipv4" | "ipv6" }>;
   };
-  const ipv4Egress = configuration.egresses.find(
-    (egress) => egress.family === "ipv4",
+  const ipv4Path = configuration.discoveryPaths.find(
+    (path) => path.family === "ipv4",
   );
-  expect(ipv4Egress).toBeTruthy();
+  expect(ipv4Path).toBeTruthy();
   const observedAt = "2026-08-09T06:02:00Z";
   const addressPoll = await page.request.post("/api/v1/agent/control", {
     headers: { Authorization: `Bearer ${registered.credential}` },
     data: {
       appliedConfigurationRevision: configuration.revision,
       metadata: {
-        hostname: "edge-e2e",
+        hostname: nodeName,
         agentVersion: "0.1.0-e2e",
         operatingSystem: "linux",
         architecture: "amd64",
         physicalMemoryBytes: 536870912,
         capabilities: [
           "control-v1",
-          "configuration-v5",
+          "configuration-v6",
           "network-inventory-v1",
           "address-observation-v1",
           "complete-probe-v1",
@@ -357,12 +439,12 @@ test("generates an Agent installation command from the nodes page", async ({
       },
       addressStates: [
         {
-          egressId: ipv4Egress?.id,
+          egressId: ipv4Path?.id,
           historyGeneration: configuration.historyGeneration,
           family: "ipv4",
           status: "confirmed",
           sequence: 1,
-          publicAddress: "8.8.8.8",
+          publicAddress,
           localInterface: "eth0",
           localAddress: "10.0.0.5",
           proxyPath: false,
@@ -375,13 +457,13 @@ test("generates an Agent installation command from the nodes page", async ({
       ],
       addressEvents: [
         {
-          id: "76e22263-00ee-4656-a97a-90d74fd5f86d",
-          egressId: ipv4Egress?.id,
+          id: randomUUID(),
+          egressId: ipv4Path?.id,
           historyGeneration: configuration.historyGeneration,
           sequence: 1,
           kind: "first-observation",
           family: "ipv4",
-          publicAddress: "8.8.8.8",
+          publicAddress,
           localInterface: "eth0",
           localAddress: "10.0.0.5",
           proxyPath: false,
@@ -433,7 +515,7 @@ test("generates an Agent installation command from the nodes page", async ({
       return body.ipv4Services[0];
     })
     .toBe("http://one.example/ip");
-  await page.getByLabel("Name", { exact: true }).fill("E2E proxy");
+  await page.getByLabel("Name", { exact: true }).fill(proxyName);
   await page.getByLabel("Protocol").click();
   await page.getByRole("option", { name: "SOCKS5" }).click();
   await page.getByLabel("Host or IP address").fill("proxy.example.test");
@@ -469,44 +551,30 @@ test("generates an Agent installation command from the nodes page", async ({
   await returnToNodes.click();
   await expect(page.getByRole("heading", { name: "Nodes" })).toBeVisible();
 
-  await page.getByRole("link", { name: "Network egresses" }).click();
-  await expect(page.getByRole("heading", { name: "edge-e2e" })).toBeVisible();
-  await expect(page.getByText("Default IPv4").first()).toBeVisible();
-  await expect(page.getByText("Temporary IPv6").first()).toBeVisible();
-  await expect(
-    page.getByText("eth0 · 10.0.0.5 -> 8.8.8.8", { exact: true }).first(),
-  ).toBeVisible();
-  await expect(page.getByText("Likely NAT")).toBeVisible();
-  await expect(
-    page.getByText("First observation", { exact: true }),
-  ).toBeVisible();
-  await expect(
-    page.getByRole("button", { name: "Enable path" }).last(),
-  ).toBeDisabled();
-  await page.getByRole("button", { name: "Add egress" }).click();
-  await expect(page.getByText("Proxy · E2E proxy")).toBeVisible();
-  const interval = page
-    .getByRole("spinbutton", { name: "Address check interval (seconds)" })
-    .first();
-  await interval.fill("15");
   await page
-    .getByRole("button", { name: "Save address check interval" })
+    .getByRole("link", { name: nodeName, exact: true })
+    .filter({ visible: true })
     .first()
     .click();
-  await expect(interval).toHaveValue("15");
-  const proxyEgress = page
-    .getByText("Proxy · E2E proxy", { exact: true })
-    .locator(
-      "xpath=ancestor::div[contains(@class, 'space-y-4') and contains(@class, 'rounded-md')][1]",
-    );
-  await proxyEgress
-    .getByRole("button", { name: "Permanently delete egress" })
-    .click();
+  await page.getByRole("tab", { name: "Public IPs" }).click();
+  await expect(page.getByRole("heading", { name: nodeName })).toBeVisible();
+  await expect(page.getByText(publicAddress, { exact: true })).toBeVisible();
+  await expect(page.getByText("Reached through NAT")).toBeVisible();
+  await expect(page.getByText("eth0")).toHaveCount(0);
+  await page.getByRole("switch", { name: "Enable complete probe" }).click();
+  await expect(
+    page.getByRole("switch", { name: "Enable complete probe" }),
+  ).toBeChecked();
+  await page.getByRole("combobox", { name: "Network proxy" }).click();
+  await page.getByRole("option", { name: proxyName }).click();
+  await page.getByRole("button", { name: "Add discovery path" }).click();
+  await expect(page.getByText(`${proxyName} · IPv4`)).toBeVisible();
+  await page.getByRole("button", { name: "Delete", exact: true }).click();
   await page
     .getByRole("alertdialog")
-    .getByRole("button", { name: "Permanently delete", exact: true })
+    .getByRole("button", { name: "Delete path", exact: true })
     .click();
-  await expect(proxyEgress.getByText("Deletion pending")).toBeVisible();
+  await expect(page.getByText("Deleting", { exact: true })).toBeVisible();
   await expect
     .poll(() =>
       page.evaluate(
@@ -517,13 +585,21 @@ test("generates an Agent installation command from the nodes page", async ({
     )
     .toBe(true);
   await page.screenshot({
-    path: testInfo.outputPath("network-egresses.png"),
+    path: testInfo.outputPath("public-ips.png"),
     fullPage: true,
   });
-  await page.getByRole("link", { name: "Back to nodes" }).click();
+  await page.getByRole("tab", { name: "Address changes" }).click();
+  await expect(
+    page.getByText("First observation", { exact: true }),
+  ).toBeVisible();
+  await expectNoPageOverflow(page);
+  await page.screenshot({
+    path: testInfo.outputPath("node-address-changes.png"),
+    fullPage: true,
+  });
 
-  await page.getByRole("link", { name: "Complete probes" }).click();
-  await expect(page.getByRole("heading", { name: "edge-e2e" })).toBeVisible();
+  await page.getByRole("tab", { name: "Probes" }).click();
+  await expect(page.getByRole("heading", { name: nodeName })).toBeVisible();
   await expect(page.getByLabel("Cron expression")).toHaveValue("0 0 0 * * *");
   await page.getByRole("button", { name: "Run complete probe" }).click();
   await expect(
@@ -538,12 +614,16 @@ test("generates an Agent installation command from the nodes page", async ({
   const probeConfiguration = (await probeConfigurationResponse.json()) as {
     revision: number;
     historyGeneration: string;
-    egresses: Array<{ id: string; family: "ipv4" | "ipv6" }>;
+    probeTargets: Array<{
+      id: string;
+      publicAddress: string;
+      family: "ipv4" | "ipv6";
+    }>;
   };
-  const probeEgress = probeConfiguration.egresses.find(
-    (egress) => egress.family === "ipv4",
+  const probeTarget = probeConfiguration.probeTargets.find(
+    (target) => target.publicAddress === publicAddress,
   );
-  expect(probeEgress).toBeTruthy();
+  expect(probeTarget).toBeTruthy();
   const deliveredTaskResponse = await page.request.post(
     "/api/v1/agent/control",
     {
@@ -551,14 +631,14 @@ test("generates an Agent installation command from the nodes page", async ({
       data: {
         appliedConfigurationRevision: probeConfiguration.revision,
         metadata: {
-          hostname: "edge-e2e",
+          hostname: nodeName,
           agentVersion: "0.1.0-e2e",
           operatingSystem: "linux",
           architecture: "amd64",
           physicalMemoryBytes: 536870912,
           capabilities: [
             "control-v1",
-            "configuration-v5",
+            "configuration-v6",
             "network-inventory-v1",
             "address-observation-v1",
             "complete-probe-v1",
@@ -573,8 +653,8 @@ test("generates an Agent installation command from the nodes page", async ({
     task: { id: string; createdAt: string; expiresAt: string };
   };
   expect(deliveredTask.task.id).toBeTruthy();
-  const runId = "d3173c4d-d437-49f8-89ac-f6cac3a73df3";
-  const executionId = "9c862898-d88c-47af-bd04-52dfb293b9f3";
+  const runId = randomUUID();
+  const executionId = randomUUID();
   const startedAt = new Date(
     Date.parse(deliveredTask.task.createdAt) + 1000,
   ).toISOString();
@@ -586,14 +666,14 @@ test("generates an Agent installation command from the nodes page", async ({
     data: {
       appliedConfigurationRevision: probeConfiguration.revision,
       metadata: {
-        hostname: "edge-e2e",
+        hostname: nodeName,
         agentVersion: "0.1.0-e2e",
         operatingSystem: "linux",
         architecture: "amd64",
         physicalMemoryBytes: 536870912,
         capabilities: [
           "control-v1",
-          "configuration-v5",
+          "configuration-v6",
           "network-inventory-v1",
           "address-observation-v1",
           "complete-probe-v1",
@@ -627,7 +707,7 @@ test("generates an Agent installation command from the nodes page", async ({
     executions: [
       {
         id: executionId,
-        egressId: probeEgress?.id,
+        egressId: probeTarget?.id,
         ordinal: 0,
         sequence: 1,
       },
@@ -657,7 +737,7 @@ test("generates an Agent installation command from the nodes page", async ({
         run: terminalRun,
         execution: {
           id: executionId,
-          egressId: probeEgress?.id,
+          egressId: probeTarget?.id,
           ordinal: 0,
           sequence: 1,
           status: "succeeded",
@@ -665,8 +745,159 @@ test("generates an Agent installation command from the nodes page", async ({
           completedAt,
           rawResult: Buffer.from(
             JSON.stringify({
-              Head: { IP: "8.8.8.8", Version: "e2e-1" },
-              Info: { ASN: "AS15169" },
+              Head: {
+                IP: publicAddress,
+                Time: "2026-08-11 14:53:00 UTC",
+                Version: "e2e-1",
+              },
+              Info: {
+                ASN: "AS15169",
+                Organization: "Google LLC",
+                TimeZone: "America/Chicago",
+                City: { Name: "Council Bluffs" },
+                Region: { Code: "US", Name: "United States" },
+                RegisteredRegion: { Code: "US", Name: "United States" },
+                Type: "Geo-consistent",
+              },
+              Type: {
+                Usage: {
+                  IPinfo: "Hosting",
+                  ipregistry: "Business",
+                  ipapi: "ISP",
+                  AbuseIPDB: "Line ISP",
+                  IP2LOCATION: "Line ISP",
+                },
+                Company: {
+                  IPinfo: "ISP",
+                  ipregistry: "ISP",
+                  ipapi: "ISP",
+                },
+              },
+              Score: {
+                IP2LOCATION: "33",
+                SCAMALYTICS: "75",
+                ipapi: "0.47%",
+                AbuseIPDB: "75",
+                IPQS: "75",
+                DBIP: "100",
+              },
+              Factor: {
+                CountryCode: {
+                  IP2LOCATION: "US",
+                  ipapi: "US",
+                  ipregistry: "US",
+                  IPQS: "US",
+                  SCAMALYTICS: "US",
+                  ipdata: "US",
+                  IPinfo: "US",
+                  IPWHOIS: "US",
+                  DBIP: "US",
+                },
+                Proxy: {
+                  IP2LOCATION: false,
+                  ipapi: false,
+                  ipregistry: false,
+                  IPQS: false,
+                  SCAMALYTICS: false,
+                  ipdata: false,
+                  IPinfo: false,
+                  IPWHOIS: false,
+                  DBIP: null,
+                },
+                Tor: {
+                  IP2LOCATION: false,
+                  ipapi: false,
+                  ipregistry: false,
+                  IPQS: false,
+                  SCAMALYTICS: false,
+                  ipdata: false,
+                  IPinfo: false,
+                  IPWHOIS: false,
+                  DBIP: null,
+                },
+                VPN: {
+                  IP2LOCATION: false,
+                  ipapi: false,
+                  ipregistry: false,
+                  IPQS: false,
+                  SCAMALYTICS: false,
+                  ipdata: null,
+                  IPinfo: false,
+                  IPWHOIS: false,
+                  DBIP: null,
+                },
+                Server: {
+                  IP2LOCATION: false,
+                  ipapi: false,
+                  ipregistry: false,
+                  IPQS: null,
+                  SCAMALYTICS: false,
+                  ipdata: false,
+                  IPinfo: false,
+                  IPWHOIS: false,
+                  DBIP: null,
+                },
+                Abuser: {
+                  IP2LOCATION: false,
+                  ipapi: false,
+                  ipregistry: false,
+                  IPQS: false,
+                  SCAMALYTICS: false,
+                  ipdata: false,
+                  IPinfo: null,
+                  IPWHOIS: null,
+                  DBIP: false,
+                },
+                Robot: {
+                  IP2LOCATION: false,
+                  ipapi: false,
+                  ipregistry: null,
+                  IPQS: false,
+                  SCAMALYTICS: false,
+                  ipdata: null,
+                  IPinfo: null,
+                  IPWHOIS: null,
+                  DBIP: false,
+                },
+              },
+              Media: {
+                TikTok: { Status: "Yes", Region: "US", Type: "Native" },
+                DisneyPlus: {
+                  Status: "Pending",
+                  Region: "US",
+                  Type: "ViaDNS",
+                },
+                Netflix: { Status: "Yes", Region: "US", Type: "Native" },
+                Youtube: { Status: "Yes", Region: "US", Type: "Native" },
+                AmazonPrimeVideo: {
+                  Status: "Yes",
+                  Region: "US",
+                  Type: "Native",
+                },
+                Reddit: { Status: "Block", Region: null, Type: "" },
+                ChatGPT: { Status: "Yes", Region: "US", Type: "Native" },
+              },
+              Mail: {
+                Port25: false,
+                Gmail: false,
+                Outlook: false,
+                Yahoo: false,
+                Apple: false,
+                QQ: false,
+                MailRU: false,
+                AOL: false,
+                GMX: false,
+                MailCOM: false,
+                "163": false,
+                Sohu: false,
+                Sina: false,
+                DNSBlacklist: {
+                  Total: 439,
+                  Clean: 411,
+                  Marked: 26,
+                  Blacklisted: 2,
+                },
+              },
             }),
           ).toString("base64"),
         },
@@ -679,14 +910,14 @@ test("generates an Agent installation command from the nodes page", async ({
     data: {
       appliedConfigurationRevision: probeConfiguration.revision,
       metadata: {
-        hostname: "edge-e2e",
+        hostname: nodeName,
         agentVersion: "0.1.0-e2e",
         operatingSystem: "linux",
         architecture: "amd64",
         physicalMemoryBytes: 536870912,
         capabilities: [
           "control-v1",
-          "configuration-v5",
+          "configuration-v6",
           "network-inventory-v1",
           "address-observation-v1",
           "complete-probe-v1",
@@ -719,14 +950,14 @@ test("generates an Agent installation command from the nodes page", async ({
     credential: registered.credential,
     configurationRevision: probeConfiguration.revision,
     historyGeneration: probeConfiguration.historyGeneration,
-    egressId: probeEgress?.id ?? "",
-    runId: "2d6b34bf-4d3d-452f-a6a3-c2b94c5cb990",
-    executionId: "54087de0-787a-4a99-8b75-4f321852e755",
+    egressId: probeTarget?.id ?? "",
+    runId: randomUUID(),
+    executionId: randomUUID(),
     sequence: 2,
     startedAt: secondStartedAt,
     completedAt: secondCompletedAt,
     raw: {
-      Head: { IP: "8.8.4.4", Version: "e2e-2" },
+      Head: { IP: publicAddress, Version: "e2e-2" },
       Info: { ASN: "AS15169" },
     },
   });
@@ -737,24 +968,142 @@ test("generates an Agent installation command from the nodes page", async ({
     page.getByRole("heading", { name: "Complete-probe run" }),
   ).toBeVisible();
   await page.getByRole("link", { name: "Open report snapshot" }).click();
+  await expect(page.getByRole("tab", { name: "Report" })).toHaveAttribute(
+    "aria-selected",
+    "true",
+  );
+  await expect(page.getByText(publicAddress, { exact: true })).toBeVisible();
   await expect(
-    page.getByRole("tab", { name: "Structured fields" }),
-  ).toHaveAttribute("aria-selected", "true");
-  await expect(page.getByText("IP address").first()).toBeVisible();
-  await expect(page.getByText("Head.IP").first()).toBeVisible();
-  await expect(page.getByText("8.8.8.8", { exact: true })).toBeVisible();
-  await expect(page.getByText("Missing").first()).toBeVisible();
+    page.getByRole("heading", { name: "Basic information" }),
+  ).toBeVisible();
+  await expect(page.getByText("AS15169", { exact: true })).toBeVisible();
+  await expect(
+    page.getByRole("heading", { name: "IP type attributes" }),
+  ).toBeVisible();
+  await expect(
+    page.getByRole("row", {
+      name: /^Usage Hosting Business ISP Line ISP Line ISP/,
+    }),
+  ).toBeVisible();
+  await expect(
+    page.getByRole("heading", { name: "Risk scores" }),
+  ).toBeVisible();
+  await expect(page.getByText("Hosting", { exact: true })).toHaveClass(
+    /text-destructive/,
+  );
+  await expect(page.getByText("Business", { exact: true })).toHaveClass(
+    /text-amber-700/,
+  );
+  await expect(
+    page.getByRole("row", { name: /^Region US US US US US US US US US/ }),
+  ).toBeVisible();
+  await expect(
+    page.getByRole("row", {
+      name: /^Status Unlocked Pending Unlocked Unlocked Unlocked Blocked Unlocked/,
+    }),
+  ).toBeVisible();
+  await expect(page.getByText("Pending", { exact: true })).toHaveClass(
+    /text-amber-700/,
+  );
+  await expect(
+    page.locator('[data-report-path="Media.Reddit.Region"]'),
+  ).toHaveText("—");
+  await page.evaluate(() => {
+    Object.defineProperty(navigator.clipboard, "write", {
+      configurable: true,
+      value: async (items: ClipboardItem[]) => {
+        const blob = await items[0].getType("image/png");
+        const bytes = new Uint8Array(await blob.arrayBuffer());
+        (
+          window as typeof window & {
+            __ipchroniclePNGClipboard?: {
+              signature: number[];
+              size: number;
+              type: string;
+            };
+          }
+        ).__ipchroniclePNGClipboard = {
+          signature: Array.from(bytes.slice(0, 8)),
+          size: blob.size,
+          type: blob.type,
+        };
+      },
+    });
+  });
+  await page.getByRole("button", { name: "Copy PNG" }).click();
+  await expect(page.getByRole("button", { name: "PNG copied" })).toBeVisible();
+  const copiedPNG = await page.evaluate(
+    () =>
+      (
+        window as typeof window & {
+          __ipchroniclePNGClipboard?: {
+            signature: number[];
+            size: number;
+            type: string;
+          };
+        }
+      ).__ipchroniclePNGClipboard,
+  );
+  expect(copiedPNG?.type).toBe("image/png");
+  expect(copiedPNG?.size).toBeGreaterThan(100_000);
+  expect(copiedPNG?.signature).toEqual([137, 80, 78, 71, 13, 10, 26, 10]);
+  const pngDownloadPromise = page.waitForEvent("download");
+  await page.getByRole("button", { name: "Export PNG" }).click();
+  const pngDownload = await pngDownloadPromise;
+  expect(pngDownload.suggestedFilename()).toMatch(
+    /^ipchronicle-[0-9a-f-]+\.png$/,
+  );
+  const pngPath = await pngDownload.path();
+  expect(pngPath).not.toBeNull();
+  const png = await readFile(pngPath!);
+  expect(png.subarray(0, 8)).toEqual(
+    Buffer.from([137, 80, 78, 71, 13, 10, 26, 10]),
+  );
+  expect(png.readUInt32BE(16)).toBe(2400);
+  expect(png.readUInt32BE(20)).toBeGreaterThan(2000);
+  const nonBackgroundPixels = await page.evaluate(async (base64) => {
+    const image = new Image();
+    image.src = `data:image/png;base64,${base64}`;
+    await image.decode();
+    const canvas = document.createElement("canvas");
+    canvas.width = 240;
+    canvas.height = Math.round((image.height / image.width) * canvas.width);
+    const context = canvas.getContext("2d");
+    if (!context) return 0;
+    context.drawImage(image, 0, 0, canvas.width, canvas.height);
+    const pixels = context.getImageData(0, 0, canvas.width, canvas.height).data;
+    let count = 0;
+    for (let index = 0; index < pixels.length; index += 4) {
+      if (
+        pixels[index] < 245 ||
+        pixels[index + 1] < 245 ||
+        pixels[index + 2] < 245
+      ) {
+        count += 1;
+      }
+    }
+    return count;
+  }, png.toString("base64"));
+  expect(nonBackgroundPixels).toBeGreaterThan(1000);
+  await pngDownload.saveAs(testInfo.outputPath("probe-export.png"));
   await page.getByRole("button", { name: "Star snapshot" }).click();
   await expect(
     page.getByRole("button", { name: "Unstar snapshot" }),
   ).toBeVisible();
-  await page.getByRole("tab", { name: "Raw JSON" }).click();
-  await expect(page.locator("pre")).toContainText('"IP": "8.8.8.8"');
   await expectNoPageOverflow(page);
   await page.screenshot({
     path: testInfo.outputPath("probe-snapshot.png"),
     fullPage: true,
   });
+  await page.getByRole("tab", { name: /Format diagnostics/ }).click();
+  await expect(page.getByText("Head.Command", { exact: true })).toBeVisible();
+  await expect(
+    page.getByText("Media.Reddit.Region", { exact: true }),
+  ).toHaveCount(0);
+  await page.getByRole("tab", { name: "Raw JSON" }).click();
+  await expect(page.locator("pre")).toContainText(`"IP": "${publicAddress}"`);
+  await expect(page.locator("pre")).toContainText('"Region": null');
+  await expectNoPageOverflow(page);
 
   const historyLink = page.getByRole("link", {
     name: "History",
@@ -766,32 +1115,66 @@ test("generates an Agent installation command from the nodes page", async ({
   await historyLink.click();
   await expect(page.getByRole("heading", { name: "History" })).toBeVisible();
   await expect(page.getByText("2 retained snapshots")).toBeVisible();
-  await expect(responsiveItem(/Default IPv4/)).toBeVisible();
+  await expect(responsiveItem(`${publicAddress} · #2`)).toBeVisible();
   await page.getByRole("tab", { name: "Address changes" }).click();
   await expect(responsiveItem("First observation")).toBeVisible();
-  await expect(responsiveItem("eth0 · 10.0.0.5 -> 8.8.8.8")).toBeVisible();
+  await expect(responsiveItem(publicAddress)).toBeVisible();
+  await expect(page.getByText("eth0", { exact: true })).toHaveCount(0);
+  await expect(page.getByText("10.0.0.5", { exact: true })).toHaveCount(0);
   await page.getByRole("tab", { name: "Probe reports" }).click();
-  const comparePrevious = page.getByRole("link", {
-    name: "Compare with previous",
+  const compareSnapshots = page.getByRole("link", {
+    name: "Compare snapshots",
   });
   await (
     testInfo.project.name === "mobile-chromium"
-      ? comparePrevious.last()
-      : comparePrevious.first()
+      ? compareSnapshots.last()
+      : compareSnapshots.first()
   ).click();
   await expect(
     page.getByRole("heading", { name: "Snapshot comparison" }),
   ).toBeVisible();
-  await expect(page.getByText("IP address").first()).toBeVisible();
-  await expect(page.getByText("Head.IP").first()).toBeVisible();
-  await expect(page.getByText("8.8.8.8", { exact: true })).toBeVisible();
-  await expect(page.getByText("8.8.4.4", { exact: true })).toBeVisible();
+  await expect(page.getByText("2 snapshots")).toBeVisible();
+  await expect(
+    page.getByRole("slider", { name: "Start snapshot" }),
+  ).toHaveAttribute("aria-valuenow", "0");
+  await expect(
+    page.getByRole("slider", { name: "End snapshot" }),
+  ).toHaveAttribute("aria-valuenow", "1");
+  await expect(
+    page
+      .getByRole("region", { name: "Start snapshot" })
+      .getByText(publicAddress, { exact: true }),
+  ).toBeVisible();
+  await expect(
+    page
+      .getByRole("region", { name: "End snapshot" })
+      .getByText(publicAddress, { exact: true }),
+  ).toBeVisible();
+  await expect(
+    page.getByText("No fields changed between the selected snapshots"),
+  ).toBeVisible();
+  await expect(
+    page.locator('[data-report-path="Head.IP"][data-report-changed]'),
+  ).toHaveCount(0);
   await page
     .getByRole("button", { name: "Switch to Simplified Chinese" })
     .click();
   await expect(page.getByRole("heading", { name: "快照比较" })).toBeVisible();
-  await expect(page.getByText("IP 地址").first()).toBeVisible();
+  await expect(page.getByText("2 份快照")).toBeVisible();
   await expectNoPageOverflow(page);
+  const timeline = page.getByTestId("comparison-timeline");
+  await page.evaluate(() => window.scrollTo(0, document.body.scrollHeight));
+  await expect
+    .poll(async () => (await timeline.boundingBox())?.y ?? -1)
+    .toBeGreaterThanOrEqual(60);
+  await expect
+    .poll(async () => (await timeline.boundingBox())?.y ?? 999)
+    .toBeLessThan(72);
+  await expect(timeline).toBeInViewport();
+  await page.screenshot({
+    path: testInfo.outputPath("history-comparison-sticky.png"),
+  });
+  await page.evaluate(() => window.scrollTo(0, 0));
   await page.screenshot({
     path: testInfo.outputPath("history-comparison.png"),
     fullPage: true,
@@ -844,7 +1227,7 @@ test("generates an Agent installation command from the nodes page", async ({
   }
   await probesNodesLink.click();
 
-  await page.getByRole("button", { name: "Pause node" }).click();
+  await clickNodeAction(page, nodeName, "Pause node");
   await expect(responsiveItem("Disabled")).toBeVisible();
   await expect(responsiveItem(/Pending · \d+\/\d+/)).toBeVisible();
   await page.screenshot({
@@ -852,14 +1235,20 @@ test("generates an Agent installation command from the nodes page", async ({
     fullPage: true,
   });
 
+  await page
+    .getByRole("link", { name: nodeName, exact: true })
+    .filter({ visible: true })
+    .first()
+    .click();
+  await page.getByRole("tab", { name: "Settings" }).click();
   await page.getByRole("button", { name: "Revoke Agent credential" }).click();
   await expect(
     page.getByRole("heading", {
-      name: "Revoke the Agent credential for edge-e2e?",
+      name: `Revoke the Agent credential for ${nodeName}?`,
     }),
   ).toBeVisible();
   await page.getByRole("button", { name: "Revoke credential" }).click();
-  await expect(responsiveItem("Revoked")).toBeVisible();
+  await expect(page.getByText("Revoked", { exact: true })).toBeVisible();
 
   await page.getByRole("button", { name: "Permanently delete node" }).click();
   await expect(
@@ -874,11 +1263,17 @@ test("generates an Agent installation command from the nodes page", async ({
     .poll(async () => {
       const response = await page.request.get("/api/v1/nodes");
       const body = (await response.json()) as { items: unknown[] };
-      return body.items.length;
+      return body.items.some(
+        (node) =>
+          typeof node === "object" &&
+          node !== null &&
+          "name" in node &&
+          node.name === nodeName,
+      );
     })
-    .toBe(0);
-  await page.reload();
-  await expect(page.getByText("No nodes are registered")).toBeVisible();
+    .toBe(false);
+  await page.getByRole("link", { name: "Back to nodes" }).click();
+  await expect(page.getByText(nodeName, { exact: true })).toHaveCount(0);
   await page.screenshot({
     path: testInfo.outputPath("nodes.png"),
     fullPage: true,
@@ -978,7 +1373,7 @@ test("updates one registered Agent and keeps the task phase visible", async ({
     operatingSystem: "linux",
     architecture: "amd64",
     physicalMemoryBytes: 536870912,
-    capabilities: ["control-v1", "configuration-v5", "agent-update-v1"],
+    capabilities: ["control-v1", "configuration-v6", "agent-update-v1"],
   } as const;
   const registration = await page.request.post("/api/v1/agent/enroll", {
     data: {
@@ -1004,10 +1399,7 @@ test("updates one registered Agent and keeps the task phase visible", async ({
   await expect(
     page.getByText(nodeName, { exact: true }).filter({ visible: true }).first(),
   ).toBeVisible();
-  await page
-    .getByRole("button", { name: `Update Agent on ${nodeName}` })
-    .filter({ visible: true })
-    .click();
+  await clickNodeAction(page, nodeName, "Update Agent");
   await expect(
     page
       .getByText("Waiting for Agent", { exact: true })
@@ -1016,9 +1408,12 @@ test("updates one registered Agent and keeps the task phase visible", async ({
   await expectNoPageOverflow(page);
 
   await page
-    .getByRole("button", { name: "Permanently delete node" })
+    .getByRole("link", { name: nodeName, exact: true })
     .filter({ visible: true })
+    .first()
     .click();
+  await page.getByRole("tab", { name: "Settings" }).click();
+  await page.getByRole("button", { name: "Permanently delete node" }).click();
   await page
     .getByRole("alertdialog")
     .getByRole("button", { name: "Permanently delete", exact: true })

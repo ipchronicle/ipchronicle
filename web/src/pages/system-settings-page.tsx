@@ -1,15 +1,28 @@
-import { type ReactNode, useCallback, useEffect, useState } from "react";
+import {
+  type FormEvent,
+  type ReactNode,
+  useCallback,
+  useEffect,
+  useState,
+} from "react";
 import {
   CalendarClock,
   GitCommitHorizontal,
+  Globe2,
   LoaderCircle,
   PackageCheck,
   RefreshCw,
+  Save,
   ServerCog,
   TriangleAlert,
 } from "lucide-react";
 import { useTranslation } from "react-i18next";
 
+import {
+  getSystemSettings,
+  updateSystemSettings,
+  type SystemSettings,
+} from "@/api/system";
 import {
   getAgentUpdateState,
   updateReleaseChannel,
@@ -28,6 +41,8 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 import {
   Select,
   SelectContent,
@@ -36,6 +51,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Skeleton } from "@/components/ui/skeleton";
+import { Switch } from "@/components/ui/switch";
 import { formatAPIError } from "@/lib/api-error";
 
 type ViewState =
@@ -89,7 +105,7 @@ export function SystemSettingsPage() {
   }
 
   return (
-    <div className="mx-auto w-full max-w-6xl px-4 py-10 sm:px-6 sm:py-14">
+    <div className="w-full min-w-0 px-4 py-10 sm:px-6 sm:py-14">
       <div className="max-w-2xl">
         <p className="text-xs font-medium text-muted-foreground uppercase">
           {t("settings.section")}
@@ -101,6 +117,8 @@ export function SystemSettingsPage() {
           {t("systemSettings.detail")}
         </p>
       </div>
+
+      <ExternalOriginSettings csrfToken={csrfToken} />
 
       <Card className="mt-8" aria-live="polite">
         <CardHeader>
@@ -256,6 +274,200 @@ export function SystemSettingsPage() {
         </CardContent>
       </Card>
     </div>
+  );
+}
+
+type OriginViewState =
+  | { kind: "loading" }
+  | { kind: "success"; value: SystemSettings }
+  | { kind: "error" };
+
+function ExternalOriginSettings({ csrfToken }: { csrfToken: string }) {
+  const { t } = useTranslation();
+  const browserOrigin = window.location.origin;
+  const [state, setState] = useState<OriginViewState>({ kind: "loading" });
+  const [automatic, setAutomatic] = useState(true);
+  const [externalOrigin, setExternalOrigin] = useState(browserOrigin);
+  const [saving, setSaving] = useState(false);
+  const [saved, setSaved] = useState(false);
+  const [error, setError] = useState<string>();
+
+  const load = useCallback(
+    (signal?: AbortSignal) => {
+      setState({ kind: "loading" });
+      setError(undefined);
+      setSaved(false);
+      void getSystemSettings(signal)
+        .then((value) => {
+          setState({ kind: "success", value });
+          setAutomatic(value.automatic);
+          setExternalOrigin(
+            value.automatic ? browserOrigin : value.externalOrigin,
+          );
+        })
+        .catch((cause: unknown) => {
+          if (cause instanceof DOMException && cause.name === "AbortError") {
+            return;
+          }
+          setState({ kind: "error" });
+        });
+    },
+    [browserOrigin],
+  );
+
+  useEffect(() => {
+    const controller = new AbortController();
+    load(controller.signal);
+    return () => controller.abort();
+  }, [load]);
+
+  async function save(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    if (state.kind !== "success") return;
+    const value = automatic ? "" : externalOrigin.trim();
+    if (!automatic && value === "") {
+      setError(t("systemSettings.externalOrigin.required"));
+      return;
+    }
+    setSaving(true);
+    setSaved(false);
+    setError(undefined);
+    try {
+      const updated = await updateSystemSettings(value, csrfToken);
+      setState({ kind: "success", value: updated });
+      setAutomatic(updated.automatic);
+      setExternalOrigin(
+        updated.automatic ? browserOrigin : updated.externalOrigin,
+      );
+      setSaved(true);
+    } catch (cause) {
+      setError(formatAPIError(cause, t));
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  return (
+    <Card className="mt-8" aria-live="polite">
+      <CardHeader>
+        <CardTitle className="flex items-center gap-2">
+          <Globe2 aria-hidden="true" className="size-4" />
+          {t("systemSettings.externalOrigin.title")}
+        </CardTitle>
+        <CardDescription>
+          {t("systemSettings.externalOrigin.detail")}
+        </CardDescription>
+        {state.kind === "success" ? (
+          <CardAction>
+            <Badge variant="secondary">
+              {t(
+                automatic
+                  ? "systemSettings.externalOrigin.mode.automatic"
+                  : "systemSettings.externalOrigin.mode.custom",
+              )}
+            </Badge>
+          </CardAction>
+        ) : null}
+      </CardHeader>
+      <CardContent>
+        {state.kind === "loading" ? (
+          <Skeleton className="h-36 w-full" aria-busy="true" />
+        ) : null}
+        {state.kind === "error" ? (
+          <Alert variant="destructive">
+            <TriangleAlert aria-hidden="true" />
+            <AlertTitle>
+              {t("systemSettings.externalOrigin.loadFailed")}
+            </AlertTitle>
+            <AlertDescription>
+              <Button
+                className="mt-3"
+                variant="outline"
+                size="sm"
+                onClick={() => load()}
+              >
+                <RefreshCw data-icon="inline-start" aria-hidden="true" />
+                {t("systemSettings.externalOrigin.retry")}
+              </Button>
+            </AlertDescription>
+          </Alert>
+        ) : null}
+        {state.kind === "success" ? (
+          <form className="space-y-5" onSubmit={(event) => void save(event)}>
+            {error !== undefined ? (
+              <Alert variant="destructive">
+                <TriangleAlert aria-hidden="true" />
+                <AlertDescription>{error}</AlertDescription>
+              </Alert>
+            ) : null}
+            {saved ? (
+              <Alert>
+                <AlertDescription>
+                  {t("systemSettings.externalOrigin.saved")}
+                </AlertDescription>
+              </Alert>
+            ) : null}
+
+            <div className="flex items-center justify-between gap-4 rounded-md border p-4">
+              <div className="min-w-0">
+                <Label htmlFor="external-origin-automatic">
+                  {t("systemSettings.externalOrigin.automatic")}
+                </Label>
+                <p className="mt-1 break-all text-sm text-muted-foreground">
+                  {browserOrigin}
+                </p>
+              </div>
+              <Switch
+                id="external-origin-automatic"
+                checked={automatic}
+                disabled={saving}
+                onCheckedChange={(checked) => {
+                  setAutomatic(checked);
+                  setSaved(false);
+                  setError(undefined);
+                  if (checked) setExternalOrigin(browserOrigin);
+                }}
+              />
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="external-origin-value">
+                {t("systemSettings.externalOrigin.label")}
+              </Label>
+              <Input
+                id="external-origin-value"
+                type="url"
+                value={externalOrigin}
+                disabled={automatic || saving}
+                required={!automatic}
+                maxLength={2048}
+                placeholder="https://ip.example.com"
+                onChange={(event) => {
+                  setExternalOrigin(event.target.value);
+                  setSaved(false);
+                }}
+              />
+              <p className="text-sm text-muted-foreground">
+                {t("systemSettings.externalOrigin.valueDetail")}
+              </p>
+            </div>
+
+            <Button type="submit" disabled={saving}>
+              {saving ? (
+                <LoaderCircle className="animate-spin" aria-hidden="true" />
+              ) : (
+                <Save aria-hidden="true" />
+              )}
+              {t(
+                saving
+                  ? "systemSettings.externalOrigin.saving"
+                  : "systemSettings.externalOrigin.save",
+              )}
+            </Button>
+          </form>
+        ) : null}
+      </CardContent>
+    </Card>
   );
 }
 

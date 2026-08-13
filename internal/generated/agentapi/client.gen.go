@@ -122,13 +122,13 @@ func (e AgentArchitecture) Valid() bool {
 
 // Defines values for AgentConfigurationSnapshotSchemaVersion.
 const (
-	N5 AgentConfigurationSnapshotSchemaVersion = 5
+	N6 AgentConfigurationSnapshotSchemaVersion = 6
 )
 
 // Valid indicates whether the value is a known member of the AgentConfigurationSnapshotSchemaVersion enum.
 func (e AgentConfigurationSnapshotSchemaVersion) Valid() bool {
 	switch e {
-	case N5:
+	case N6:
 		return true
 	default:
 		return false
@@ -218,16 +218,37 @@ func (e AgentProbeSkipReason) Valid() bool {
 
 // Defines values for AgentTaskKind.
 const (
-	AgentUpdate   AgentTaskKind = "agent-update"
-	CompleteProbe AgentTaskKind = "complete-probe"
+	AgentTaskKindAgentUpdate   AgentTaskKind = "agent-update"
+	AgentTaskKindCompleteProbe AgentTaskKind = "complete-probe"
 )
 
 // Valid indicates whether the value is a known member of the AgentTaskKind enum.
 func (e AgentTaskKind) Valid() bool {
 	switch e {
-	case AgentUpdate:
+	case AgentTaskKindAgentUpdate:
 		return true
-	case CompleteProbe:
+	case AgentTaskKindCompleteProbe:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for AgentTaskTrigger.
+const (
+	AgentTaskTriggerAddressChange AgentTaskTrigger = "address-change"
+	AgentTaskTriggerAgentUpdate   AgentTaskTrigger = "agent-update"
+	AgentTaskTriggerManual        AgentTaskTrigger = "manual"
+)
+
+// Valid indicates whether the value is a known member of the AgentTaskTrigger enum.
+func (e AgentTaskTrigger) Valid() bool {
+	switch e {
+	case AgentTaskTriggerAddressChange:
+		return true
+	case AgentTaskTriggerAgentUpdate:
+		return true
+	case AgentTaskTriggerManual:
 		return true
 	default:
 		return false
@@ -372,24 +393,6 @@ func (e AgentUpdateTaskStatus) Valid() bool {
 	}
 }
 
-// Defines values for EgressDeletionStatus.
-const (
-	EgressDeletionStatusFailed  EgressDeletionStatus = "failed"
-	EgressDeletionStatusPending EgressDeletionStatus = "pending"
-)
-
-// Valid indicates whether the value is a known member of the EgressDeletionStatus enum.
-func (e EgressDeletionStatus) Valid() bool {
-	switch e {
-	case EgressDeletionStatusFailed:
-		return true
-	case EgressDeletionStatusPending:
-		return true
-	default:
-		return false
-	}
-}
-
 // Defines values for ErrorCode.
 const (
 	AgentRevoked                     ErrorCode = "agent_revoked"
@@ -410,6 +413,7 @@ const (
 	InvalidObservationSettings       ErrorCode = "invalid_observation_settings"
 	InvalidProbeSettings             ErrorCode = "invalid_probe_settings"
 	InvalidRequest                   ErrorCode = "invalid_request"
+	InvalidSystemSettings            ErrorCode = "invalid_system_settings"
 	InvalidTotp                      ErrorCode = "invalid_totp"
 	NetworkInventoryUnavailable      ErrorCode = "network_inventory_unavailable"
 	NetworkProxyAlreadyExists        ErrorCode = "network_proxy_already_exists"
@@ -487,6 +491,8 @@ func (e ErrorCode) Valid() bool {
 	case InvalidProbeSettings:
 		return true
 	case InvalidRequest:
+		return true
+	case InvalidSystemSettings:
 		return true
 	case InvalidTotp:
 		return true
@@ -593,6 +599,7 @@ const (
 	KnownProbeFieldStatusAvailable    KnownProbeFieldStatus = "available"
 	KnownProbeFieldStatusIncompatible KnownProbeFieldStatus = "incompatible"
 	KnownProbeFieldStatusMissing      KnownProbeFieldStatus = "missing"
+	KnownProbeFieldStatusUnavailable  KnownProbeFieldStatus = "unavailable"
 )
 
 // Valid indicates whether the value is a known member of the KnownProbeFieldStatus enum.
@@ -603,6 +610,8 @@ func (e KnownProbeFieldStatus) Valid() bool {
 	case KnownProbeFieldStatusIncompatible:
 		return true
 	case KnownProbeFieldStatusMissing:
+		return true
+	case KnownProbeFieldStatusUnavailable:
 		return true
 	default:
 		return false
@@ -648,87 +657,24 @@ func (e NetworkAddressScope) Valid() bool {
 	}
 }
 
-// Defines values for NetworkEgressCandidateKind.
-const (
-	NetworkEgressCandidateKindInterface NetworkEgressCandidateKind = "interface"
-	NetworkEgressCandidateKindSource    NetworkEgressCandidateKind = "source"
-)
-
-// Valid indicates whether the value is a known member of the NetworkEgressCandidateKind enum.
-func (e NetworkEgressCandidateKind) Valid() bool {
-	switch e {
-	case NetworkEgressCandidateKindInterface:
-		return true
-	case NetworkEgressCandidateKindSource:
-		return true
-	default:
-		return false
-	}
-}
-
-// Defines values for NetworkEgressCandidateUnavailableReason.
-const (
-	InterfaceDown    NetworkEgressCandidateUnavailableReason = "interface-down"
-	NoUsableRoute    NetworkEgressCandidateUnavailableReason = "no-usable-route"
-	TemporaryAddress NetworkEgressCandidateUnavailableReason = "temporary-address"
-	UnusableAddress  NetworkEgressCandidateUnavailableReason = "unusable-address"
-)
-
-// Valid indicates whether the value is a known member of the NetworkEgressCandidateUnavailableReason enum.
-func (e NetworkEgressCandidateUnavailableReason) Valid() bool {
-	switch e {
-	case InterfaceDown:
-		return true
-	case NoUsableRoute:
-		return true
-	case TemporaryAddress:
-		return true
-	case UnusableAddress:
-		return true
-	default:
-		return false
-	}
-}
-
-// Defines values for NetworkEgressCreateKind.
-const (
-	NetworkEgressCreateKindInterface NetworkEgressCreateKind = "interface"
-	NetworkEgressCreateKindProxy     NetworkEgressCreateKind = "proxy"
-	NetworkEgressCreateKindSource    NetworkEgressCreateKind = "source"
-)
-
-// Valid indicates whether the value is a known member of the NetworkEgressCreateKind enum.
-func (e NetworkEgressCreateKind) Valid() bool {
-	switch e {
-	case NetworkEgressCreateKindInterface:
-		return true
-	case NetworkEgressCreateKindProxy:
-		return true
-	case NetworkEgressCreateKindSource:
-		return true
-	default:
-		return false
-	}
-}
-
 // Defines values for NetworkEgressKind.
 const (
-	NetworkEgressKindDefault   NetworkEgressKind = "default"
-	NetworkEgressKindInterface NetworkEgressKind = "interface"
-	NetworkEgressKindProxy     NetworkEgressKind = "proxy"
-	NetworkEgressKindSource    NetworkEgressKind = "source"
+	Default   NetworkEgressKind = "default"
+	Interface NetworkEgressKind = "interface"
+	Proxy     NetworkEgressKind = "proxy"
+	Source    NetworkEgressKind = "source"
 )
 
 // Valid indicates whether the value is a known member of the NetworkEgressKind enum.
 func (e NetworkEgressKind) Valid() bool {
 	switch e {
-	case NetworkEgressKindDefault:
+	case Default:
 		return true
-	case NetworkEgressKindInterface:
+	case Interface:
 		return true
-	case NetworkEgressKindProxy:
+	case Proxy:
 		return true
-	case NetworkEgressKindSource:
+	case Source:
 		return true
 	default:
 		return false
@@ -1188,6 +1134,24 @@ func (e ProbeTrigger) Valid() bool {
 	}
 }
 
+// Defines values for ProxyDiscoveryPathDeletionStatus.
+const (
+	ProxyDiscoveryPathDeletionStatusFailed  ProxyDiscoveryPathDeletionStatus = "failed"
+	ProxyDiscoveryPathDeletionStatusPending ProxyDiscoveryPathDeletionStatus = "pending"
+)
+
+// Valid indicates whether the value is a known member of the ProxyDiscoveryPathDeletionStatus enum.
+func (e ProxyDiscoveryPathDeletionStatus) Valid() bool {
+	switch e {
+	case ProxyDiscoveryPathDeletionStatusFailed:
+		return true
+	case ProxyDiscoveryPathDeletionStatusPending:
+		return true
+	default:
+		return false
+	}
+}
+
 // Defines values for ReleaseChannel.
 const (
 	Rc     ReleaseChannel = "rc"
@@ -1218,6 +1182,24 @@ func (e SupportedLocale) Valid() bool {
 	case En:
 		return true
 	case ZhCN:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for SystemStatusExternalOriginMode.
+const (
+	Automatic SystemStatusExternalOriginMode = "automatic"
+	Custom    SystemStatusExternalOriginMode = "custom"
+)
+
+// Valid indicates whether the value is a known member of the SystemStatusExternalOriginMode enum.
+func (e SystemStatusExternalOriginMode) Valid() bool {
+	switch e {
+	case Automatic:
+		return true
+	case Custom:
 		return true
 	default:
 		return false
@@ -1382,12 +1364,13 @@ type AgentArchitecture string
 
 // AgentConfigurationSnapshot defines model for AgentConfigurationSnapshot.
 type AgentConfigurationSnapshot struct {
+	DiscoveryPaths         []AgentDiscoveryPath                    `json:"discoveryPaths"`
 	DiscoveryServices      NetworkObservationSettingsUpdate        `json:"discoveryServices"`
-	Egresses               []AgentEgressConfiguration              `json:"egresses"`
 	Enabled                bool                                    `json:"enabled"`
 	HistoryGeneration      string                                  `json:"historyGeneration"`
 	ProbeLowMemoryOverride bool                                    `json:"probeLowMemoryOverride"`
 	ProbeSchedule          ProbeSchedule                           `json:"probeSchedule"`
+	ProbeTargets           []AgentProbeTarget                      `json:"probeTargets"`
 	Proxies                []AgentProxyConfiguration               `json:"proxies"`
 	Revision               int64                                   `json:"revision"`
 	SchemaVersion          AgentConfigurationSnapshotSchemaVersion `json:"schemaVersion"`
@@ -1396,15 +1379,13 @@ type AgentConfigurationSnapshot struct {
 // AgentConfigurationSnapshotSchemaVersion defines model for AgentConfigurationSnapshot.SchemaVersion.
 type AgentConfigurationSnapshotSchemaVersion int
 
-// AgentEgressConfiguration defines model for AgentEgressConfiguration.
-type AgentEgressConfiguration struct {
-	Enabled                    bool                `json:"enabled"`
+// AgentDiscoveryPath defines model for AgentDiscoveryPath.
+type AgentDiscoveryPath struct {
 	Family                     AddressFamily       `json:"family"`
 	Id                         openapi_types.UUID  `json:"id"`
 	InterfaceName              *string             `json:"interfaceName,omitempty"`
 	Kind                       NetworkEgressKind   `json:"kind"`
 	LightweightIntervalSeconds int64               `json:"lightweightIntervalSeconds"`
-	ProbeOnAddressChange       bool                `json:"probeOnAddressChange"`
 	ProxyId                    *openapi_types.UUID `json:"proxyId,omitempty"`
 	SourceAddress              *string             `json:"sourceAddress,omitempty"`
 }
@@ -1550,6 +1531,19 @@ type AgentProbeStatus struct {
 	NextScheduledAt                   *time.Time                  `json:"nextScheduledAt,omitempty"`
 }
 
+// AgentProbeTarget defines model for AgentProbeTarget.
+type AgentProbeTarget struct {
+	Family             AddressFamily       `json:"family"`
+	Id                 openapi_types.UUID  `json:"id"`
+	InterfaceName      *string             `json:"interfaceName,omitempty"`
+	Kind               NetworkEgressKind   `json:"kind"`
+	PathId             openapi_types.UUID  `json:"pathId"`
+	ProbeOnRediscovery bool                `json:"probeOnRediscovery"`
+	ProxyId            *openapi_types.UUID `json:"proxyId,omitempty"`
+	PublicAddress      string              `json:"publicAddress"`
+	SourceAddress      *string             `json:"sourceAddress,omitempty"`
+}
+
 // AgentProxyConfiguration defines model for AgentProxyConfiguration.
 type AgentProxyConfiguration struct {
 	Host     string             `json:"host"`
@@ -1582,15 +1576,20 @@ type AgentSyncSession struct {
 
 // AgentTask defines model for AgentTask.
 type AgentTask struct {
-	CreatedAt     time.Time          `json:"createdAt"`
-	ExpiresAt     time.Time          `json:"expiresAt"`
-	Id            openapi_types.UUID `json:"id"`
-	Kind          AgentTaskKind      `json:"kind"`
-	TargetVersion *string            `json:"targetVersion,omitempty"`
+	CreatedAt                 time.Time           `json:"createdAt"`
+	ExpiresAt                 time.Time           `json:"expiresAt"`
+	Id                        openapi_types.UUID  `json:"id"`
+	Kind                      AgentTaskKind       `json:"kind"`
+	TargetVersion             *string             `json:"targetVersion,omitempty"`
+	Trigger                   AgentTaskTrigger    `json:"trigger"`
+	TriggeringPublicAddressId *openapi_types.UUID `json:"triggeringPublicAddressId,omitempty"`
 }
 
 // AgentTaskKind defines model for AgentTask.Kind.
 type AgentTaskKind string
+
+// AgentTaskTrigger defines model for AgentTask.Trigger.
+type AgentTaskTrigger string
 
 // AgentTaskReport defines model for AgentTaskReport.
 type AgentTaskReport struct {
@@ -1710,18 +1709,6 @@ type DisableTOTPRequest struct {
 // DiscoveryServiceList defines model for DiscoveryServiceList.
 type DiscoveryServiceList = []string
 
-// EgressDeletion defines model for EgressDeletion.
-type EgressDeletion struct {
-	EgressId    openapi_types.UUID   `json:"egressId"`
-	Error       *string              `json:"error,omitempty"`
-	NodeId      openapi_types.UUID   `json:"nodeId"`
-	RequestedAt time.Time            `json:"requestedAt"`
-	Status      EgressDeletionStatus `json:"status"`
-}
-
-// EgressDeletionStatus defines model for EgressDeletionStatus.
-type EgressDeletionStatus string
-
 // ErrorCode defines model for ErrorCode.
 type ErrorCode string
 
@@ -1733,14 +1720,14 @@ type ErrorResponse struct {
 
 // HistoryAddressEvent defines model for HistoryAddressEvent.
 type HistoryAddressEvent struct {
-	Event  AgentAddressEvent  `json:"event"`
+	Event  PublicAddressEvent `json:"event"`
 	NodeId openapi_types.UUID `json:"nodeId"`
 	Owner  HistoryOwner       `json:"owner"`
 }
 
 // HistoryAddressGap defines model for HistoryAddressGap.
 type HistoryAddressGap struct {
-	Gap    AgentAddressGap    `json:"gap"`
+	Gap    PublicAddressGap   `json:"gap"`
 	NodeId openapi_types.UUID `json:"nodeId"`
 	Owner  HistoryOwner       `json:"owner"`
 }
@@ -1806,16 +1793,18 @@ type JavaScriptSenderConfiguration struct {
 
 // KnownProbeField defines model for KnownProbeField.
 type KnownProbeField struct {
-	ActualType    *ProbeJSONType        `json:"actualType,omitempty"`
-	ExpectedTypes []ProbeJSONType       `json:"expectedTypes"`
-	Group         string                `json:"group"`
-	Id            string                `json:"id"`
-	Path          string                `json:"path"`
-	Status        KnownProbeFieldStatus `json:"status"`
-	Value         *string               `json:"value,omitempty"`
+	ActualType    *ProbeJSONType  `json:"actualType,omitempty"`
+	ExpectedTypes []ProbeJSONType `json:"expectedTypes"`
+	Group         string          `json:"group"`
+	Id            string          `json:"id"`
+	Path          string          `json:"path"`
+
+	// Status available contains a compatible value; unavailable is an explicit JSON null with no upstream result; missing and incompatible are format issues.
+	Status KnownProbeFieldStatus `json:"status"`
+	Value  *string               `json:"value,omitempty"`
 }
 
-// KnownProbeFieldStatus defines model for KnownProbeFieldStatus.
+// KnownProbeFieldStatus available contains a compatible value; unavailable is an explicit JSON null with no upstream result; missing and incompatible are format issues.
 type KnownProbeFieldStatus string
 
 // LocaleUpdateRequest defines model for LocaleUpdateRequest.
@@ -1846,65 +1835,8 @@ type NetworkAddress struct {
 // NetworkAddressScope defines model for NetworkAddressScope.
 type NetworkAddressScope string
 
-// NetworkEgress defines model for NetworkEgress.
-type NetworkEgress struct {
-	Automatic                  bool                  `json:"automatic"`
-	Available                  bool                  `json:"available"`
-	DeletionError              *string               `json:"deletionError,omitempty"`
-	DeletionStatus             *EgressDeletionStatus `json:"deletionStatus,omitempty"`
-	Enabled                    bool                  `json:"enabled"`
-	Family                     AddressFamily         `json:"family"`
-	Id                         openapi_types.UUID    `json:"id"`
-	InterfaceName              *string               `json:"interfaceName,omitempty"`
-	Kind                       NetworkEgressKind     `json:"kind"`
-	LightweightIntervalSeconds int64                 `json:"lightweightIntervalSeconds"`
-	Name                       string                `json:"name"`
-	NodeId                     openapi_types.UUID    `json:"nodeId"`
-	ProbeOnAddressChange       bool                  `json:"probeOnAddressChange"`
-	ProxyId                    *openapi_types.UUID   `json:"proxyId,omitempty"`
-	SourceAddress              *string               `json:"sourceAddress,omitempty"`
-}
-
-// NetworkEgressCandidate defines model for NetworkEgressCandidate.
-type NetworkEgressCandidate struct {
-	ConfiguredEgressId *openapi_types.UUID                      `json:"configuredEgressId,omitempty"`
-	Eligible           bool                                     `json:"eligible"`
-	Family             AddressFamily                            `json:"family"`
-	InterfaceName      string                                   `json:"interfaceName"`
-	Kind               NetworkEgressCandidateKind               `json:"kind"`
-	Scope              *NetworkAddressScope                     `json:"scope,omitempty"`
-	SourceAddress      *string                                  `json:"sourceAddress,omitempty"`
-	Temporary          bool                                     `json:"temporary"`
-	UnavailableReason  *NetworkEgressCandidateUnavailableReason `json:"unavailableReason,omitempty"`
-}
-
-// NetworkEgressCandidateKind defines model for NetworkEgressCandidate.Kind.
-type NetworkEgressCandidateKind string
-
-// NetworkEgressCandidateUnavailableReason defines model for NetworkEgressCandidate.UnavailableReason.
-type NetworkEgressCandidateUnavailableReason string
-
-// NetworkEgressCreate defines model for NetworkEgressCreate.
-type NetworkEgressCreate struct {
-	Family        AddressFamily           `json:"family"`
-	InterfaceName *string                 `json:"interfaceName,omitempty"`
-	Kind          NetworkEgressCreateKind `json:"kind"`
-	ProxyId       *openapi_types.UUID     `json:"proxyId,omitempty"`
-	SourceAddress *string                 `json:"sourceAddress,omitempty"`
-}
-
-// NetworkEgressCreateKind defines model for NetworkEgressCreate.Kind.
-type NetworkEgressCreateKind string
-
 // NetworkEgressKind defines model for NetworkEgressKind.
 type NetworkEgressKind string
-
-// NetworkEgressUpdate defines model for NetworkEgressUpdate.
-type NetworkEgressUpdate struct {
-	Enabled                    bool  `json:"enabled"`
-	LightweightIntervalSeconds int64 `json:"lightweightIntervalSeconds"`
-	ProbeOnAddressChange       bool  `json:"probeOnAddressChange"`
-}
 
 // NetworkInterface defines model for NetworkInterface.
 type NetworkInterface struct {
@@ -1992,26 +1924,27 @@ type NetworkRoute struct {
 
 // Node defines model for Node.
 type Node struct {
-	AgentVersion                 string                  `json:"agentVersion"`
-	AppliedConfigurationRevision int64                   `json:"appliedConfigurationRevision"`
-	Architecture                 AgentArchitecture       `json:"architecture"`
-	Capabilities                 []string                `json:"capabilities"`
-	ConfigurationError           *string                 `json:"configurationError,omitempty"`
-	ConfigurationStatus          NodeConfigurationStatus `json:"configurationStatus"`
-	DeletionError                *string                 `json:"deletionError,omitempty"`
-	DeletionStatus               *NodeDeletionStatus     `json:"deletionStatus,omitempty"`
-	DesiredConfigurationRevision int64                   `json:"desiredConfigurationRevision"`
-	Enabled                      bool                    `json:"enabled"`
-	Hostname                     string                  `json:"hostname"`
-	Id                           openapi_types.UUID      `json:"id"`
-	LastSeenAt                   *time.Time              `json:"lastSeenAt,omitempty"`
-	Name                         string                  `json:"name"`
-	OperatingSystem              AgentPlatform           `json:"operatingSystem"`
-	RegisteredAt                 time.Time               `json:"registeredAt"`
-	SourceRevision               *string                 `json:"sourceRevision,omitempty"`
-	Status                       NodeStatus              `json:"status"`
-	SyncExpiresAt                *time.Time              `json:"syncExpiresAt,omitempty"`
-	SyncStatus                   *NodeSyncStatus         `json:"syncStatus,omitempty"`
+	AgentVersion                 string                     `json:"agentVersion"`
+	AppliedConfigurationRevision int64                      `json:"appliedConfigurationRevision"`
+	Architecture                 AgentArchitecture          `json:"architecture"`
+	Capabilities                 []string                   `json:"capabilities"`
+	ConfigurationError           *string                    `json:"configurationError,omitempty"`
+	ConfigurationStatus          NodeConfigurationStatus    `json:"configurationStatus"`
+	DeletionError                *string                    `json:"deletionError,omitempty"`
+	DeletionStatus               *NodeDeletionStatus        `json:"deletionStatus,omitempty"`
+	DesiredConfigurationRevision int64                      `json:"desiredConfigurationRevision"`
+	Enabled                      bool                       `json:"enabled"`
+	Hostname                     string                     `json:"hostname"`
+	Id                           openapi_types.UUID         `json:"id"`
+	LastSeenAt                   *time.Time                 `json:"lastSeenAt,omitempty"`
+	Name                         string                     `json:"name"`
+	OperatingSystem              AgentPlatform              `json:"operatingSystem"`
+	PublicAddresses              []NodePublicAddressSummary `json:"publicAddresses"`
+	RegisteredAt                 time.Time                  `json:"registeredAt"`
+	SourceRevision               *string                    `json:"sourceRevision,omitempty"`
+	Status                       NodeStatus                 `json:"status"`
+	SyncExpiresAt                *time.Time                 `json:"syncExpiresAt,omitempty"`
+	SyncStatus                   *NodeSyncStatus            `json:"syncStatus,omitempty"`
 }
 
 // NodeConfigurationStatus defines model for NodeConfigurationStatus.
@@ -2035,14 +1968,10 @@ type NodeList struct {
 
 // NodeNetworkState defines model for NodeNetworkState.
 type NodeNetworkState struct {
-	AddressEvents       []AgentAddressEvent      `json:"addressEvents"`
-	AddressGaps         []AgentAddressGap        `json:"addressGaps"`
-	AddressStates       []AgentAddressState      `json:"addressStates"`
-	Candidates          []NetworkEgressCandidate `json:"candidates"`
-	Egresses            []NetworkEgress          `json:"egresses"`
-	Inventory           *NetworkInventory        `json:"inventory,omitempty"`
-	InventoryError      *string                  `json:"inventoryError,omitempty"`
-	InventoryReceivedAt *time.Time               `json:"inventoryReceivedAt,omitempty"`
+	AddressEvents       []PublicAddressEvent `json:"addressEvents"`
+	AddressGaps         []PublicAddressGap   `json:"addressGaps"`
+	ProxyDiscoveryPaths []ProxyDiscoveryPath `json:"proxyDiscoveryPaths"`
+	PublicAddresses     []PublicAddress      `json:"publicAddresses"`
 }
 
 // NodeProbeSettingsUpdate defines model for NodeProbeSettingsUpdate.
@@ -2061,6 +1990,15 @@ type NodeProbeState struct {
 	RecentRuns          []ProbeRunSummary  `json:"recentRuns"`
 	Schedule            ProbeSchedule      `json:"schedule"`
 	Task                *ProbeTask         `json:"task,omitempty"`
+}
+
+// NodePublicAddressSummary defines model for NodePublicAddressSummary.
+type NodePublicAddressSummary struct {
+	Address      string             `json:"address"`
+	Available    bool               `json:"available"`
+	Family       AddressFamily      `json:"family"`
+	Id           openapi_types.UUID `json:"id"`
+	ProbeEnabled bool               `json:"probeEnabled"`
 }
 
 // NodeStatus defines model for NodeStatus.
@@ -2116,16 +2054,17 @@ type NotificationEventType string
 
 // NotificationRule defines model for NotificationRule.
 type NotificationRule struct {
-	CreatedAt time.Time             `json:"createdAt"`
-	EgressId  *openapi_types.UUID   `json:"egressId,omitempty"`
-	Enabled   bool                  `json:"enabled"`
-	EventType NotificationEventType `json:"eventType"`
-	FieldId   *string               `json:"fieldId,omitempty"`
-	Id        openapi_types.UUID    `json:"id"`
-	Name      string                `json:"name"`
-	NodeId    *openapi_types.UUID   `json:"nodeId,omitempty"`
-	SenderId  openapi_types.UUID    `json:"senderId"`
-	UpdatedAt time.Time             `json:"updatedAt"`
+	CreatedAt     time.Time             `json:"createdAt"`
+	EgressId      *openapi_types.UUID   `json:"egressId,omitempty"`
+	Enabled       bool                  `json:"enabled"`
+	EventType     NotificationEventType `json:"eventType"`
+	FieldId       *string               `json:"fieldId,omitempty"`
+	Id            openapi_types.UUID    `json:"id"`
+	Name          string                `json:"name"`
+	NodeId        *openapi_types.UUID   `json:"nodeId,omitempty"`
+	PublicAddress *string               `json:"publicAddress,omitempty"`
+	SenderId      openapi_types.UUID    `json:"senderId"`
+	UpdatedAt     time.Time             `json:"updatedAt"`
 }
 
 // NotificationRuleList defines model for NotificationRuleList.
@@ -2390,6 +2329,83 @@ type ProbeTaskStatus string
 // ProbeTrigger defines model for ProbeTrigger.
 type ProbeTrigger string
 
+// ProxyDiscoveryPath defines model for ProxyDiscoveryPath.
+type ProxyDiscoveryPath struct {
+	Available      bool                              `json:"available"`
+	DeletionError  *string                           `json:"deletionError,omitempty"`
+	DeletionStatus *ProxyDiscoveryPathDeletionStatus `json:"deletionStatus,omitempty"`
+	Family         AddressFamily                     `json:"family"`
+	Id             openapi_types.UUID                `json:"id"`
+	Name           string                            `json:"name"`
+	NodeId         openapi_types.UUID                `json:"nodeId"`
+	ProxyId        openapi_types.UUID                `json:"proxyId"`
+}
+
+// ProxyDiscoveryPathCreate defines model for ProxyDiscoveryPathCreate.
+type ProxyDiscoveryPathCreate struct {
+	Family  AddressFamily      `json:"family"`
+	ProxyId openapi_types.UUID `json:"proxyId"`
+}
+
+// ProxyDiscoveryPathDeletion defines model for ProxyDiscoveryPathDeletion.
+type ProxyDiscoveryPathDeletion struct {
+	Error       *string                          `json:"error,omitempty"`
+	NodeId      openapi_types.UUID               `json:"nodeId"`
+	PathId      openapi_types.UUID               `json:"pathId"`
+	RequestedAt time.Time                        `json:"requestedAt"`
+	Status      ProxyDiscoveryPathDeletionStatus `json:"status"`
+}
+
+// ProxyDiscoveryPathDeletionStatus defines model for ProxyDiscoveryPathDeletionStatus.
+type ProxyDiscoveryPathDeletionStatus string
+
+// PublicAddress defines model for PublicAddress.
+type PublicAddress struct {
+	Address            string              `json:"address"`
+	Available          bool                `json:"available"`
+	Family             AddressFamily       `json:"family"`
+	FirstSeenAt        time.Time           `json:"firstSeenAt"`
+	Id                 openapi_types.UUID  `json:"id"`
+	LastCheckedAt      *time.Time          `json:"lastCheckedAt,omitempty"`
+	LastSeenAt         time.Time           `json:"lastSeenAt"`
+	LastSucceededAt    *time.Time          `json:"lastSucceededAt,omitempty"`
+	LikelyNat          bool                `json:"likelyNat"`
+	PathCount          int                 `json:"pathCount"`
+	ProbeEnabled       bool                `json:"probeEnabled"`
+	ProbeOnRediscovery bool                `json:"probeOnRediscovery"`
+	ProxyPath          bool                `json:"proxyPath"`
+	SelectedNodeId     *openapi_types.UUID `json:"selectedNodeId,omitempty"`
+	SelectedNodeName   *string             `json:"selectedNodeName,omitempty"`
+}
+
+// PublicAddressEvent defines model for PublicAddressEvent.
+type PublicAddressEvent struct {
+	FailureReason   *AddressFailureReason `json:"failureReason,omitempty"`
+	Family          AddressFamily         `json:"family"`
+	Id              openapi_types.UUID    `json:"id"`
+	Kind            AddressEventKind      `json:"kind"`
+	ObservedAt      time.Time             `json:"observedAt"`
+	PreviousAddress *string               `json:"previousAddress,omitempty"`
+	PublicAddress   *string               `json:"publicAddress,omitempty"`
+	Sequence        int64                 `json:"sequence"`
+}
+
+// PublicAddressGap defines model for PublicAddressGap.
+type PublicAddressGap struct {
+	DroppedCount    int64              `json:"droppedCount"`
+	FirstObservedAt time.Time          `json:"firstObservedAt"`
+	FirstSequence   int64              `json:"firstSequence"`
+	Id              openapi_types.UUID `json:"id"`
+	LastObservedAt  time.Time          `json:"lastObservedAt"`
+	LastSequence    int64              `json:"lastSequence"`
+}
+
+// PublicAddressUpdate defines model for PublicAddressUpdate.
+type PublicAddressUpdate struct {
+	ProbeEnabled       bool `json:"probeEnabled"`
+	ProbeOnRediscovery bool `json:"probeOnRediscovery"`
+}
+
 // ReleaseChannel defines model for ReleaseChannel.
 type ReleaseChannel string
 
@@ -2401,19 +2417,34 @@ type ReleaseChannelUpdate struct {
 // SupportedLocale defines model for SupportedLocale.
 type SupportedLocale string
 
+// SystemSettings defines model for SystemSettings.
+type SystemSettings struct {
+	Automatic       bool   `json:"automatic"`
+	EffectiveOrigin string `json:"effectiveOrigin"`
+	ExternalOrigin  string `json:"externalOrigin"`
+}
+
+// SystemSettingsUpdate defines model for SystemSettingsUpdate.
+type SystemSettingsUpdate struct {
+	ExternalOrigin string `json:"externalOrigin"`
+}
+
 // SystemStatus defines model for SystemStatus.
 type SystemStatus struct {
-	ConfigSchemaVersion      int64                         `json:"configSchemaVersion"`
-	ExternalOriginConfigured bool                          `json:"externalOriginConfigured"`
-	HistorySchemaVersion     int64                         `json:"historySchemaVersion"`
-	Service                  SystemStatusService           `json:"service"`
-	SourceRevision           string                        `json:"sourceRevision"`
-	Status                   SystemStatusStatus            `json:"status"`
-	TransportSecurity        SystemStatusTransportSecurity `json:"transportSecurity"`
-	TransportWarning         bool                          `json:"transportWarning"`
-	TrustedProxyConfigured   bool                          `json:"trustedProxyConfigured"`
-	Version                  string                        `json:"version"`
+	ConfigSchemaVersion    int64                          `json:"configSchemaVersion"`
+	ExternalOriginMode     SystemStatusExternalOriginMode `json:"externalOriginMode"`
+	HistorySchemaVersion   int64                          `json:"historySchemaVersion"`
+	Service                SystemStatusService            `json:"service"`
+	SourceRevision         string                         `json:"sourceRevision"`
+	Status                 SystemStatusStatus             `json:"status"`
+	TransportSecurity      SystemStatusTransportSecurity  `json:"transportSecurity"`
+	TransportWarning       bool                           `json:"transportWarning"`
+	TrustedProxyConfigured bool                           `json:"trustedProxyConfigured"`
+	Version                string                         `json:"version"`
 }
+
+// SystemStatusExternalOriginMode defines model for SystemStatus.ExternalOriginMode.
+type SystemStatusExternalOriginMode string
 
 // SystemStatusService defines model for SystemStatus.Service.
 type SystemStatusService string
@@ -2473,9 +2504,6 @@ type WebhookSenderView struct {
 
 // CSRFToken defines model for CSRFToken.
 type CSRFToken = string
-
-// EgressId defines model for EgressId.
-type EgressId = openapi_types.UUID
 
 // HistoryAddressEventKind defines model for HistoryAddressEventKind.
 type HistoryAddressEventKind = AddressEventKind
@@ -2714,21 +2742,6 @@ type UpdateNodeParams struct {
 	XCSRFToken *CSRFToken `json:"X-CSRF-Token,omitempty"`
 }
 
-// CreateNodeEgressParams defines parameters for CreateNodeEgress.
-type CreateNodeEgressParams struct {
-	XCSRFToken *CSRFToken `json:"X-CSRF-Token,omitempty"`
-}
-
-// DeleteNodeEgressParams defines parameters for DeleteNodeEgress.
-type DeleteNodeEgressParams struct {
-	XCSRFToken *CSRFToken `json:"X-CSRF-Token,omitempty"`
-}
-
-// UpdateNodeEgressParams defines parameters for UpdateNodeEgress.
-type UpdateNodeEgressParams struct {
-	XCSRFToken *CSRFToken `json:"X-CSRF-Token,omitempty"`
-}
-
 // UpdateNodeProbeSettingsParams defines parameters for UpdateNodeProbeSettings.
 type UpdateNodeProbeSettingsParams struct {
 	XCSRFToken *CSRFToken `json:"X-CSRF-Token,omitempty"`
@@ -2736,6 +2749,21 @@ type UpdateNodeProbeSettingsParams struct {
 
 // CreateCompleteProbeTaskParams defines parameters for CreateCompleteProbeTask.
 type CreateCompleteProbeTaskParams struct {
+	XCSRFToken *CSRFToken `json:"X-CSRF-Token,omitempty"`
+}
+
+// CreateNodeProxyDiscoveryPathParams defines parameters for CreateNodeProxyDiscoveryPath.
+type CreateNodeProxyDiscoveryPathParams struct {
+	XCSRFToken *CSRFToken `json:"X-CSRF-Token,omitempty"`
+}
+
+// DeleteNodeProxyDiscoveryPathParams defines parameters for DeleteNodeProxyDiscoveryPath.
+type DeleteNodeProxyDiscoveryPathParams struct {
+	XCSRFToken *CSRFToken `json:"X-CSRF-Token,omitempty"`
+}
+
+// UpdatePublicAddressParams defines parameters for UpdatePublicAddress.
+type UpdatePublicAddressParams struct {
 	XCSRFToken *CSRFToken `json:"X-CSRF-Token,omitempty"`
 }
 
@@ -2807,6 +2835,11 @@ type StarProbeSnapshotParams struct {
 	XCSRFToken *CSRFToken `json:"X-CSRF-Token,omitempty"`
 }
 
+// UpdateSystemSettingsParams defines parameters for UpdateSystemSettings.
+type UpdateSystemSettingsParams struct {
+	XCSRFToken *CSRFToken `json:"X-CSRF-Token,omitempty"`
+}
+
 // UpdateAccountJSONRequestBody defines body for UpdateAccount for application/json ContentType.
 type UpdateAccountJSONRequestBody = AccountUpdateRequest
 
@@ -2858,14 +2891,14 @@ type UpdateNetworkProxyJSONRequestBody = NetworkProxyUpdate
 // UpdateNodeJSONRequestBody defines body for UpdateNode for application/json ContentType.
 type UpdateNodeJSONRequestBody = NodeUpdate
 
-// CreateNodeEgressJSONRequestBody defines body for CreateNodeEgress for application/json ContentType.
-type CreateNodeEgressJSONRequestBody = NetworkEgressCreate
-
-// UpdateNodeEgressJSONRequestBody defines body for UpdateNodeEgress for application/json ContentType.
-type UpdateNodeEgressJSONRequestBody = NetworkEgressUpdate
-
 // UpdateNodeProbeSettingsJSONRequestBody defines body for UpdateNodeProbeSettings for application/json ContentType.
 type UpdateNodeProbeSettingsJSONRequestBody = NodeProbeSettingsUpdate
+
+// CreateNodeProxyDiscoveryPathJSONRequestBody defines body for CreateNodeProxyDiscoveryPath for application/json ContentType.
+type CreateNodeProxyDiscoveryPathJSONRequestBody = ProxyDiscoveryPathCreate
+
+// UpdatePublicAddressJSONRequestBody defines body for UpdatePublicAddress for application/json ContentType.
+type UpdatePublicAddressJSONRequestBody = PublicAddressUpdate
 
 // CreateNotificationRuleJSONRequestBody defines body for CreateNotificationRule for application/json ContentType.
 type CreateNotificationRuleJSONRequestBody = NotificationRuleWrite
@@ -2878,6 +2911,9 @@ type CreateNotificationSenderJSONRequestBody = NotificationSenderCreate
 
 // UpdateNotificationSenderJSONRequestBody defines body for UpdateNotificationSender for application/json ContentType.
 type UpdateNotificationSenderJSONRequestBody = NotificationSenderUpdate
+
+// UpdateSystemSettingsJSONRequestBody defines body for UpdateSystemSettings for application/json ContentType.
+type UpdateSystemSettingsJSONRequestBody = SystemSettingsUpdate
 
 // RequestEditorFn is the function signature for the RequestEditor callback function
 type RequestEditorFn func(ctx context.Context, req *http.Request) error
@@ -3181,7 +3217,7 @@ type ClientInterface interface {
 	// Corresponds with POST /api/v1/history/cleanup (the `CleanupHistory` operationId).
 	CleanupHistory(ctx context.Context, params *CleanupHistoryParams, reqEditors ...RequestEditorFn) (*http.Response, error)
 
-	// CompareProbeSnapshots Compare two retained snapshots from the same network egress
+	// CompareProbeSnapshots Compare two retained snapshots for the same public IP
 	//
 	// Corresponds with GET /api/v1/history/comparison (the `CompareProbeSnapshots` operationId).
 	CompareProbeSnapshots(ctx context.Context, params *CompareProbeSnapshotsParams, reqEditors ...RequestEditorFn) (*http.Response, error)
@@ -3277,7 +3313,7 @@ type ClientInterface interface {
 	// Corresponds with GET /api/v1/nodes (the `ListNodes` operationId).
 	ListNodes(ctx context.Context, reqEditors ...RequestEditorFn) (*http.Response, error)
 
-	// DeleteNode Permanently delete a node and all owned data
+	// DeleteNode Permanently delete a node and its execution metadata
 	//
 	// Corresponds with DELETE /api/v1/nodes/{nodeId} (the `DeleteNode` operationId).
 	DeleteNode(ctx context.Context, nodeId NodeId, params *DeleteNodeParams, reqEditors ...RequestEditorFn) (*http.Response, error)
@@ -3296,40 +3332,7 @@ type ClientInterface interface {
 	// Corresponds with PATCH /api/v1/nodes/{nodeId} (the `UpdateNode` operationId).
 	UpdateNode(ctx context.Context, nodeId NodeId, params *UpdateNodeParams, body UpdateNodeJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
 
-	// CreateNodeEgressWithBody Enable a discovered interface or source-address egress
-	//
-	// Takes any type of body and a specified content type.
-	//
-	// Corresponds with POST /api/v1/nodes/{nodeId}/egresses (the `CreateNodeEgress` operationId).
-	CreateNodeEgressWithBody(ctx context.Context, nodeId NodeId, params *CreateNodeEgressParams, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
-
-	// CreateNodeEgress Enable a discovered interface or source-address egress
-	//
-	// Takes a body of the `application/json` content type.
-	//
-	// Corresponds with POST /api/v1/nodes/{nodeId}/egresses (the `CreateNodeEgress` operationId).
-	CreateNodeEgress(ctx context.Context, nodeId NodeId, params *CreateNodeEgressParams, body CreateNodeEgressJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
-
-	// DeleteNodeEgress Permanently delete a durable network egress
-	//
-	// Corresponds with DELETE /api/v1/nodes/{nodeId}/egresses/{egressId} (the `DeleteNodeEgress` operationId).
-	DeleteNodeEgress(ctx context.Context, nodeId NodeId, egressId EgressId, params *DeleteNodeEgressParams, reqEditors ...RequestEditorFn) (*http.Response, error)
-
-	// UpdateNodeEgressWithBody Update a durable network egress
-	//
-	// Takes any type of body and a specified content type.
-	//
-	// Corresponds with PATCH /api/v1/nodes/{nodeId}/egresses/{egressId} (the `UpdateNodeEgress` operationId).
-	UpdateNodeEgressWithBody(ctx context.Context, nodeId NodeId, egressId EgressId, params *UpdateNodeEgressParams, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
-
-	// UpdateNodeEgress Update a durable network egress
-	//
-	// Takes a body of the `application/json` content type.
-	//
-	// Corresponds with PATCH /api/v1/nodes/{nodeId}/egresses/{egressId} (the `UpdateNodeEgress` operationId).
-	UpdateNodeEgress(ctx context.Context, nodeId NodeId, egressId EgressId, params *UpdateNodeEgressParams, body UpdateNodeEgressJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
-
-	// GetNodeNetwork Read the latest network inventory, candidates, and configured egresses
+	// GetNodeNetwork Read discovered public addresses and explicit proxy discovery paths
 	//
 	// Corresponds with GET /api/v1/nodes/{nodeId}/network (the `GetNodeNetwork` operationId).
 	GetNodeNetwork(ctx context.Context, nodeId NodeId, reqEditors ...RequestEditorFn) (*http.Response, error)
@@ -3357,6 +3360,39 @@ type ClientInterface interface {
 	//
 	// Corresponds with POST /api/v1/nodes/{nodeId}/probe/tasks (the `CreateCompleteProbeTask` operationId).
 	CreateCompleteProbeTask(ctx context.Context, nodeId NodeId, params *CreateCompleteProbeTaskParams, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// CreateNodeProxyDiscoveryPathWithBody Add an explicit proxy path for public-address discovery
+	//
+	// Takes any type of body and a specified content type.
+	//
+	// Corresponds with POST /api/v1/nodes/{nodeId}/proxy-discovery-paths (the `CreateNodeProxyDiscoveryPath` operationId).
+	CreateNodeProxyDiscoveryPathWithBody(ctx context.Context, nodeId NodeId, params *CreateNodeProxyDiscoveryPathParams, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// CreateNodeProxyDiscoveryPath Add an explicit proxy path for public-address discovery
+	//
+	// Takes a body of the `application/json` content type.
+	//
+	// Corresponds with POST /api/v1/nodes/{nodeId}/proxy-discovery-paths (the `CreateNodeProxyDiscoveryPath` operationId).
+	CreateNodeProxyDiscoveryPath(ctx context.Context, nodeId NodeId, params *CreateNodeProxyDiscoveryPathParams, body CreateNodeProxyDiscoveryPathJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// DeleteNodeProxyDiscoveryPath Remove an explicit proxy discovery path
+	//
+	// Corresponds with DELETE /api/v1/nodes/{nodeId}/proxy-discovery-paths/{pathId} (the `DeleteNodeProxyDiscoveryPath` operationId).
+	DeleteNodeProxyDiscoveryPath(ctx context.Context, nodeId NodeId, pathId openapi_types.UUID, params *DeleteNodeProxyDiscoveryPathParams, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// UpdatePublicAddressWithBody Update complete-probe settings for a discovered public address
+	//
+	// Takes any type of body and a specified content type.
+	//
+	// Corresponds with PATCH /api/v1/nodes/{nodeId}/public-addresses/{publicAddressId} (the `UpdatePublicAddress` operationId).
+	UpdatePublicAddressWithBody(ctx context.Context, nodeId NodeId, publicAddressId openapi_types.UUID, params *UpdatePublicAddressParams, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// UpdatePublicAddress Update complete-probe settings for a discovered public address
+	//
+	// Takes a body of the `application/json` content type.
+	//
+	// Corresponds with PATCH /api/v1/nodes/{nodeId}/public-addresses/{publicAddressId} (the `UpdatePublicAddress` operationId).
+	UpdatePublicAddress(ctx context.Context, nodeId NodeId, publicAddressId openapi_types.UUID, params *UpdatePublicAddressParams, body UpdatePublicAddressJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
 
 	// RevokeNode Permanently revoke a node Agent credential
 	//
@@ -3478,6 +3514,25 @@ type ClientInterface interface {
 	//
 	// Corresponds with PUT /api/v1/probe-snapshots/{snapshotId}/star (the `StarProbeSnapshot` operationId).
 	StarProbeSnapshot(ctx context.Context, snapshotId SnapshotId, params *StarProbeSnapshotParams, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// GetSystemSettings Read administrator-managed system settings
+	//
+	// Corresponds with GET /api/v1/system/settings (the `GetSystemSettings` operationId).
+	GetSystemSettings(ctx context.Context, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// UpdateSystemSettingsWithBody Replace administrator-managed system settings
+	//
+	// Takes any type of body and a specified content type.
+	//
+	// Corresponds with PUT /api/v1/system/settings (the `UpdateSystemSettings` operationId).
+	UpdateSystemSettingsWithBody(ctx context.Context, params *UpdateSystemSettingsParams, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// UpdateSystemSettings Replace administrator-managed system settings
+	//
+	// Takes a body of the `application/json` content type.
+	//
+	// Corresponds with PUT /api/v1/system/settings (the `UpdateSystemSettings` operationId).
+	UpdateSystemSettings(ctx context.Context, params *UpdateSystemSettingsParams, body UpdateSystemSettingsJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
 
 	// GetSystemStatus Read center status
 	//
@@ -4073,7 +4128,7 @@ func (c *Client) CleanupHistory(ctx context.Context, params *CleanupHistoryParam
 	return c.Client.Do(req)
 }
 
-// CompareProbeSnapshots Compare two retained snapshots from the same network egress
+// CompareProbeSnapshots Compare two retained snapshots for the same public IP
 //
 // Corresponds with GET /api/v1/history/comparison (the `CompareProbeSnapshots` operationId).
 func (c *Client) CompareProbeSnapshots(ctx context.Context, params *CompareProbeSnapshotsParams, reqEditors ...RequestEditorFn) (*http.Response, error) {
@@ -4329,7 +4384,7 @@ func (c *Client) ListNodes(ctx context.Context, reqEditors ...RequestEditorFn) (
 	return c.Client.Do(req)
 }
 
-// DeleteNode Permanently delete a node and all owned data
+// DeleteNode Permanently delete a node and its execution metadata
 //
 // Corresponds with DELETE /api/v1/nodes/{nodeId} (the `DeleteNode` operationId).
 func (c *Client) DeleteNode(ctx context.Context, nodeId NodeId, params *DeleteNodeParams, reqEditors ...RequestEditorFn) (*http.Response, error) {
@@ -4378,90 +4433,7 @@ func (c *Client) UpdateNode(ctx context.Context, nodeId NodeId, params *UpdateNo
 	return c.Client.Do(req)
 }
 
-// CreateNodeEgressWithBody Enable a discovered interface or source-address egress
-//
-// Takes any type of body and a specified content type.
-//
-// Corresponds with POST /api/v1/nodes/{nodeId}/egresses (the `CreateNodeEgress` operationId).
-func (c *Client) CreateNodeEgressWithBody(ctx context.Context, nodeId NodeId, params *CreateNodeEgressParams, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error) {
-	req, err := NewCreateNodeEgressRequestWithBody(c.Server, nodeId, params, contentType, body)
-	if err != nil {
-		return nil, err
-	}
-	req = req.WithContext(ctx)
-	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
-		return nil, err
-	}
-	return c.Client.Do(req)
-}
-
-// CreateNodeEgress Enable a discovered interface or source-address egress
-//
-// Takes a body of the `application/json` content type.
-//
-// Corresponds with POST /api/v1/nodes/{nodeId}/egresses (the `CreateNodeEgress` operationId).
-func (c *Client) CreateNodeEgress(ctx context.Context, nodeId NodeId, params *CreateNodeEgressParams, body CreateNodeEgressJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error) {
-	req, err := NewCreateNodeEgressRequest(c.Server, nodeId, params, body)
-	if err != nil {
-		return nil, err
-	}
-	req = req.WithContext(ctx)
-	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
-		return nil, err
-	}
-	return c.Client.Do(req)
-}
-
-// DeleteNodeEgress Permanently delete a durable network egress
-//
-// Corresponds with DELETE /api/v1/nodes/{nodeId}/egresses/{egressId} (the `DeleteNodeEgress` operationId).
-func (c *Client) DeleteNodeEgress(ctx context.Context, nodeId NodeId, egressId EgressId, params *DeleteNodeEgressParams, reqEditors ...RequestEditorFn) (*http.Response, error) {
-	req, err := NewDeleteNodeEgressRequest(c.Server, nodeId, egressId, params)
-	if err != nil {
-		return nil, err
-	}
-	req = req.WithContext(ctx)
-	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
-		return nil, err
-	}
-	return c.Client.Do(req)
-}
-
-// UpdateNodeEgressWithBody Update a durable network egress
-//
-// Takes any type of body and a specified content type.
-//
-// Corresponds with PATCH /api/v1/nodes/{nodeId}/egresses/{egressId} (the `UpdateNodeEgress` operationId).
-func (c *Client) UpdateNodeEgressWithBody(ctx context.Context, nodeId NodeId, egressId EgressId, params *UpdateNodeEgressParams, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error) {
-	req, err := NewUpdateNodeEgressRequestWithBody(c.Server, nodeId, egressId, params, contentType, body)
-	if err != nil {
-		return nil, err
-	}
-	req = req.WithContext(ctx)
-	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
-		return nil, err
-	}
-	return c.Client.Do(req)
-}
-
-// UpdateNodeEgress Update a durable network egress
-//
-// Takes a body of the `application/json` content type.
-//
-// Corresponds with PATCH /api/v1/nodes/{nodeId}/egresses/{egressId} (the `UpdateNodeEgress` operationId).
-func (c *Client) UpdateNodeEgress(ctx context.Context, nodeId NodeId, egressId EgressId, params *UpdateNodeEgressParams, body UpdateNodeEgressJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error) {
-	req, err := NewUpdateNodeEgressRequest(c.Server, nodeId, egressId, params, body)
-	if err != nil {
-		return nil, err
-	}
-	req = req.WithContext(ctx)
-	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
-		return nil, err
-	}
-	return c.Client.Do(req)
-}
-
-// GetNodeNetwork Read the latest network inventory, candidates, and configured egresses
+// GetNodeNetwork Read discovered public addresses and explicit proxy discovery paths
 //
 // Corresponds with GET /api/v1/nodes/{nodeId}/network (the `GetNodeNetwork` operationId).
 func (c *Client) GetNodeNetwork(ctx context.Context, nodeId NodeId, reqEditors ...RequestEditorFn) (*http.Response, error) {
@@ -4530,6 +4502,89 @@ func (c *Client) UpdateNodeProbeSettings(ctx context.Context, nodeId NodeId, par
 // Corresponds with POST /api/v1/nodes/{nodeId}/probe/tasks (the `CreateCompleteProbeTask` operationId).
 func (c *Client) CreateCompleteProbeTask(ctx context.Context, nodeId NodeId, params *CreateCompleteProbeTaskParams, reqEditors ...RequestEditorFn) (*http.Response, error) {
 	req, err := NewCreateCompleteProbeTaskRequest(c.Server, nodeId, params)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+// CreateNodeProxyDiscoveryPathWithBody Add an explicit proxy path for public-address discovery
+//
+// Takes any type of body and a specified content type.
+//
+// Corresponds with POST /api/v1/nodes/{nodeId}/proxy-discovery-paths (the `CreateNodeProxyDiscoveryPath` operationId).
+func (c *Client) CreateNodeProxyDiscoveryPathWithBody(ctx context.Context, nodeId NodeId, params *CreateNodeProxyDiscoveryPathParams, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewCreateNodeProxyDiscoveryPathRequestWithBody(c.Server, nodeId, params, contentType, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+// CreateNodeProxyDiscoveryPath Add an explicit proxy path for public-address discovery
+//
+// Takes a body of the `application/json` content type.
+//
+// Corresponds with POST /api/v1/nodes/{nodeId}/proxy-discovery-paths (the `CreateNodeProxyDiscoveryPath` operationId).
+func (c *Client) CreateNodeProxyDiscoveryPath(ctx context.Context, nodeId NodeId, params *CreateNodeProxyDiscoveryPathParams, body CreateNodeProxyDiscoveryPathJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewCreateNodeProxyDiscoveryPathRequest(c.Server, nodeId, params, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+// DeleteNodeProxyDiscoveryPath Remove an explicit proxy discovery path
+//
+// Corresponds with DELETE /api/v1/nodes/{nodeId}/proxy-discovery-paths/{pathId} (the `DeleteNodeProxyDiscoveryPath` operationId).
+func (c *Client) DeleteNodeProxyDiscoveryPath(ctx context.Context, nodeId NodeId, pathId openapi_types.UUID, params *DeleteNodeProxyDiscoveryPathParams, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewDeleteNodeProxyDiscoveryPathRequest(c.Server, nodeId, pathId, params)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+// UpdatePublicAddressWithBody Update complete-probe settings for a discovered public address
+//
+// Takes any type of body and a specified content type.
+//
+// Corresponds with PATCH /api/v1/nodes/{nodeId}/public-addresses/{publicAddressId} (the `UpdatePublicAddress` operationId).
+func (c *Client) UpdatePublicAddressWithBody(ctx context.Context, nodeId NodeId, publicAddressId openapi_types.UUID, params *UpdatePublicAddressParams, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewUpdatePublicAddressRequestWithBody(c.Server, nodeId, publicAddressId, params, contentType, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+// UpdatePublicAddress Update complete-probe settings for a discovered public address
+//
+// Takes a body of the `application/json` content type.
+//
+// Corresponds with PATCH /api/v1/nodes/{nodeId}/public-addresses/{publicAddressId} (the `UpdatePublicAddress` operationId).
+func (c *Client) UpdatePublicAddress(ctx context.Context, nodeId NodeId, publicAddressId openapi_types.UUID, params *UpdatePublicAddressParams, body UpdatePublicAddressJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewUpdatePublicAddressRequest(c.Server, nodeId, publicAddressId, params, body)
 	if err != nil {
 		return nil, err
 	}
@@ -4861,6 +4916,55 @@ func (c *Client) UnstarProbeSnapshot(ctx context.Context, snapshotId SnapshotId,
 // Corresponds with PUT /api/v1/probe-snapshots/{snapshotId}/star (the `StarProbeSnapshot` operationId).
 func (c *Client) StarProbeSnapshot(ctx context.Context, snapshotId SnapshotId, params *StarProbeSnapshotParams, reqEditors ...RequestEditorFn) (*http.Response, error) {
 	req, err := NewStarProbeSnapshotRequest(c.Server, snapshotId, params)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+// GetSystemSettings Read administrator-managed system settings
+//
+// Corresponds with GET /api/v1/system/settings (the `GetSystemSettings` operationId).
+func (c *Client) GetSystemSettings(ctx context.Context, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewGetSystemSettingsRequest(c.Server)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+// UpdateSystemSettingsWithBody Replace administrator-managed system settings
+//
+// Takes any type of body and a specified content type.
+//
+// Corresponds with PUT /api/v1/system/settings (the `UpdateSystemSettings` operationId).
+func (c *Client) UpdateSystemSettingsWithBody(ctx context.Context, params *UpdateSystemSettingsParams, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewUpdateSystemSettingsRequestWithBody(c.Server, params, contentType, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+// UpdateSystemSettings Replace administrator-managed system settings
+//
+// Takes a body of the `application/json` content type.
+//
+// Corresponds with PUT /api/v1/system/settings (the `UpdateSystemSettings` operationId).
+func (c *Client) UpdateSystemSettings(ctx context.Context, params *UpdateSystemSettingsParams, body UpdateSystemSettingsJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewUpdateSystemSettingsRequest(c.Server, params, body)
 	if err != nil {
 		return nil, err
 	}
@@ -6924,193 +7028,6 @@ func NewUpdateNodeRequestWithBody(server string, nodeId NodeId, params *UpdateNo
 	return req, nil
 }
 
-// NewCreateNodeEgressRequest calls the generic CreateNodeEgress builder with application/json body
-func NewCreateNodeEgressRequest(server string, nodeId NodeId, params *CreateNodeEgressParams, body CreateNodeEgressJSONRequestBody) (*http.Request, error) {
-	var bodyReader io.Reader
-	buf, err := json.Marshal(body)
-	if err != nil {
-		return nil, err
-	}
-	bodyReader = bytes.NewReader(buf)
-	return NewCreateNodeEgressRequestWithBody(server, nodeId, params, "application/json", bodyReader)
-}
-
-// NewCreateNodeEgressRequestWithBody constructs an http.Request for the CreateNodeEgress method, with any body, and a specified content type
-func NewCreateNodeEgressRequestWithBody(server string, nodeId NodeId, params *CreateNodeEgressParams, contentType string, body io.Reader) (*http.Request, error) {
-	var err error
-
-	var pathParam0 string
-
-	pathParam0, err = runtime.StyleParamWithOptions("simple", false, "nodeId", nodeId, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationPath, Type: "string", Format: "uuid"})
-	if err != nil {
-		return nil, err
-	}
-
-	serverURL, err := url.Parse(server)
-	if err != nil {
-		return nil, err
-	}
-
-	operationPath := fmt.Sprintf("/api/v1/nodes/%s/egresses", pathParam0)
-	if operationPath[0] == '/' {
-		operationPath = "." + operationPath
-	}
-
-	queryURL, err := serverURL.Parse(operationPath)
-	if err != nil {
-		return nil, err
-	}
-
-	req, err := http.NewRequest(http.MethodPost, queryURL.String(), body)
-	if err != nil {
-		return nil, err
-	}
-
-	req.Header.Add("Content-Type", contentType)
-
-	if params != nil {
-
-		if params.XCSRFToken != nil {
-			var headerParam0 string
-
-			headerParam0, err = runtime.StyleParamWithOptions("simple", false, "X-CSRF-Token", *params.XCSRFToken, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationHeader, Type: "string", Format: ""})
-			if err != nil {
-				return nil, err
-			}
-
-			req.Header.Set("X-CSRF-Token", headerParam0)
-		}
-
-	}
-
-	return req, nil
-}
-
-// NewDeleteNodeEgressRequest constructs an http.Request for the DeleteNodeEgress method
-func NewDeleteNodeEgressRequest(server string, nodeId NodeId, egressId EgressId, params *DeleteNodeEgressParams) (*http.Request, error) {
-	var err error
-
-	var pathParam0 string
-
-	pathParam0, err = runtime.StyleParamWithOptions("simple", false, "nodeId", nodeId, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationPath, Type: "string", Format: "uuid"})
-	if err != nil {
-		return nil, err
-	}
-
-	var pathParam1 string
-
-	pathParam1, err = runtime.StyleParamWithOptions("simple", false, "egressId", egressId, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationPath, Type: "string", Format: "uuid"})
-	if err != nil {
-		return nil, err
-	}
-
-	serverURL, err := url.Parse(server)
-	if err != nil {
-		return nil, err
-	}
-
-	operationPath := fmt.Sprintf("/api/v1/nodes/%s/egresses/%s", pathParam0, pathParam1)
-	if operationPath[0] == '/' {
-		operationPath = "." + operationPath
-	}
-
-	queryURL, err := serverURL.Parse(operationPath)
-	if err != nil {
-		return nil, err
-	}
-
-	req, err := http.NewRequest(http.MethodDelete, queryURL.String(), nil)
-	if err != nil {
-		return nil, err
-	}
-
-	if params != nil {
-
-		if params.XCSRFToken != nil {
-			var headerParam0 string
-
-			headerParam0, err = runtime.StyleParamWithOptions("simple", false, "X-CSRF-Token", *params.XCSRFToken, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationHeader, Type: "string", Format: ""})
-			if err != nil {
-				return nil, err
-			}
-
-			req.Header.Set("X-CSRF-Token", headerParam0)
-		}
-
-	}
-
-	return req, nil
-}
-
-// NewUpdateNodeEgressRequest calls the generic UpdateNodeEgress builder with application/json body
-func NewUpdateNodeEgressRequest(server string, nodeId NodeId, egressId EgressId, params *UpdateNodeEgressParams, body UpdateNodeEgressJSONRequestBody) (*http.Request, error) {
-	var bodyReader io.Reader
-	buf, err := json.Marshal(body)
-	if err != nil {
-		return nil, err
-	}
-	bodyReader = bytes.NewReader(buf)
-	return NewUpdateNodeEgressRequestWithBody(server, nodeId, egressId, params, "application/json", bodyReader)
-}
-
-// NewUpdateNodeEgressRequestWithBody constructs an http.Request for the UpdateNodeEgress method, with any body, and a specified content type
-func NewUpdateNodeEgressRequestWithBody(server string, nodeId NodeId, egressId EgressId, params *UpdateNodeEgressParams, contentType string, body io.Reader) (*http.Request, error) {
-	var err error
-
-	var pathParam0 string
-
-	pathParam0, err = runtime.StyleParamWithOptions("simple", false, "nodeId", nodeId, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationPath, Type: "string", Format: "uuid"})
-	if err != nil {
-		return nil, err
-	}
-
-	var pathParam1 string
-
-	pathParam1, err = runtime.StyleParamWithOptions("simple", false, "egressId", egressId, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationPath, Type: "string", Format: "uuid"})
-	if err != nil {
-		return nil, err
-	}
-
-	serverURL, err := url.Parse(server)
-	if err != nil {
-		return nil, err
-	}
-
-	operationPath := fmt.Sprintf("/api/v1/nodes/%s/egresses/%s", pathParam0, pathParam1)
-	if operationPath[0] == '/' {
-		operationPath = "." + operationPath
-	}
-
-	queryURL, err := serverURL.Parse(operationPath)
-	if err != nil {
-		return nil, err
-	}
-
-	req, err := http.NewRequest(http.MethodPatch, queryURL.String(), body)
-	if err != nil {
-		return nil, err
-	}
-
-	req.Header.Add("Content-Type", contentType)
-
-	if params != nil {
-
-		if params.XCSRFToken != nil {
-			var headerParam0 string
-
-			headerParam0, err = runtime.StyleParamWithOptions("simple", false, "X-CSRF-Token", *params.XCSRFToken, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationHeader, Type: "string", Format: ""})
-			if err != nil {
-				return nil, err
-			}
-
-			req.Header.Set("X-CSRF-Token", headerParam0)
-		}
-
-	}
-
-	return req, nil
-}
-
 // NewGetNodeNetworkRequest constructs an http.Request for the GetNodeNetwork method
 func NewGetNodeNetworkRequest(server string, nodeId NodeId) (*http.Request, error) {
 	var err error
@@ -7271,6 +7188,193 @@ func NewCreateCompleteProbeTaskRequest(server string, nodeId NodeId, params *Cre
 	if err != nil {
 		return nil, err
 	}
+
+	if params != nil {
+
+		if params.XCSRFToken != nil {
+			var headerParam0 string
+
+			headerParam0, err = runtime.StyleParamWithOptions("simple", false, "X-CSRF-Token", *params.XCSRFToken, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationHeader, Type: "string", Format: ""})
+			if err != nil {
+				return nil, err
+			}
+
+			req.Header.Set("X-CSRF-Token", headerParam0)
+		}
+
+	}
+
+	return req, nil
+}
+
+// NewCreateNodeProxyDiscoveryPathRequest calls the generic CreateNodeProxyDiscoveryPath builder with application/json body
+func NewCreateNodeProxyDiscoveryPathRequest(server string, nodeId NodeId, params *CreateNodeProxyDiscoveryPathParams, body CreateNodeProxyDiscoveryPathJSONRequestBody) (*http.Request, error) {
+	var bodyReader io.Reader
+	buf, err := json.Marshal(body)
+	if err != nil {
+		return nil, err
+	}
+	bodyReader = bytes.NewReader(buf)
+	return NewCreateNodeProxyDiscoveryPathRequestWithBody(server, nodeId, params, "application/json", bodyReader)
+}
+
+// NewCreateNodeProxyDiscoveryPathRequestWithBody constructs an http.Request for the CreateNodeProxyDiscoveryPath method, with any body, and a specified content type
+func NewCreateNodeProxyDiscoveryPathRequestWithBody(server string, nodeId NodeId, params *CreateNodeProxyDiscoveryPathParams, contentType string, body io.Reader) (*http.Request, error) {
+	var err error
+
+	var pathParam0 string
+
+	pathParam0, err = runtime.StyleParamWithOptions("simple", false, "nodeId", nodeId, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationPath, Type: "string", Format: "uuid"})
+	if err != nil {
+		return nil, err
+	}
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/api/v1/nodes/%s/proxy-discovery-paths", pathParam0)
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest(http.MethodPost, queryURL.String(), body)
+	if err != nil {
+		return nil, err
+	}
+
+	req.Header.Add("Content-Type", contentType)
+
+	if params != nil {
+
+		if params.XCSRFToken != nil {
+			var headerParam0 string
+
+			headerParam0, err = runtime.StyleParamWithOptions("simple", false, "X-CSRF-Token", *params.XCSRFToken, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationHeader, Type: "string", Format: ""})
+			if err != nil {
+				return nil, err
+			}
+
+			req.Header.Set("X-CSRF-Token", headerParam0)
+		}
+
+	}
+
+	return req, nil
+}
+
+// NewDeleteNodeProxyDiscoveryPathRequest constructs an http.Request for the DeleteNodeProxyDiscoveryPath method
+func NewDeleteNodeProxyDiscoveryPathRequest(server string, nodeId NodeId, pathId openapi_types.UUID, params *DeleteNodeProxyDiscoveryPathParams) (*http.Request, error) {
+	var err error
+
+	var pathParam0 string
+
+	pathParam0, err = runtime.StyleParamWithOptions("simple", false, "nodeId", nodeId, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationPath, Type: "string", Format: "uuid"})
+	if err != nil {
+		return nil, err
+	}
+
+	var pathParam1 string
+
+	pathParam1, err = runtime.StyleParamWithOptions("simple", false, "pathId", pathId, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationPath, Type: "string", Format: "uuid"})
+	if err != nil {
+		return nil, err
+	}
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/api/v1/nodes/%s/proxy-discovery-paths/%s", pathParam0, pathParam1)
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest(http.MethodDelete, queryURL.String(), nil)
+	if err != nil {
+		return nil, err
+	}
+
+	if params != nil {
+
+		if params.XCSRFToken != nil {
+			var headerParam0 string
+
+			headerParam0, err = runtime.StyleParamWithOptions("simple", false, "X-CSRF-Token", *params.XCSRFToken, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationHeader, Type: "string", Format: ""})
+			if err != nil {
+				return nil, err
+			}
+
+			req.Header.Set("X-CSRF-Token", headerParam0)
+		}
+
+	}
+
+	return req, nil
+}
+
+// NewUpdatePublicAddressRequest calls the generic UpdatePublicAddress builder with application/json body
+func NewUpdatePublicAddressRequest(server string, nodeId NodeId, publicAddressId openapi_types.UUID, params *UpdatePublicAddressParams, body UpdatePublicAddressJSONRequestBody) (*http.Request, error) {
+	var bodyReader io.Reader
+	buf, err := json.Marshal(body)
+	if err != nil {
+		return nil, err
+	}
+	bodyReader = bytes.NewReader(buf)
+	return NewUpdatePublicAddressRequestWithBody(server, nodeId, publicAddressId, params, "application/json", bodyReader)
+}
+
+// NewUpdatePublicAddressRequestWithBody constructs an http.Request for the UpdatePublicAddress method, with any body, and a specified content type
+func NewUpdatePublicAddressRequestWithBody(server string, nodeId NodeId, publicAddressId openapi_types.UUID, params *UpdatePublicAddressParams, contentType string, body io.Reader) (*http.Request, error) {
+	var err error
+
+	var pathParam0 string
+
+	pathParam0, err = runtime.StyleParamWithOptions("simple", false, "nodeId", nodeId, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationPath, Type: "string", Format: "uuid"})
+	if err != nil {
+		return nil, err
+	}
+
+	var pathParam1 string
+
+	pathParam1, err = runtime.StyleParamWithOptions("simple", false, "publicAddressId", publicAddressId, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationPath, Type: "string", Format: "uuid"})
+	if err != nil {
+		return nil, err
+	}
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/api/v1/nodes/%s/public-addresses/%s", pathParam0, pathParam1)
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest(http.MethodPatch, queryURL.String(), body)
+	if err != nil {
+		return nil, err
+	}
+
+	req.Header.Add("Content-Type", contentType)
 
 	if params != nil {
 
@@ -8128,6 +8232,88 @@ func NewStarProbeSnapshotRequest(server string, snapshotId SnapshotId, params *S
 	return req, nil
 }
 
+// NewGetSystemSettingsRequest constructs an http.Request for the GetSystemSettings method
+func NewGetSystemSettingsRequest(server string) (*http.Request, error) {
+	var err error
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/api/v1/system/settings")
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest(http.MethodGet, queryURL.String(), nil)
+	if err != nil {
+		return nil, err
+	}
+
+	return req, nil
+}
+
+// NewUpdateSystemSettingsRequest calls the generic UpdateSystemSettings builder with application/json body
+func NewUpdateSystemSettingsRequest(server string, params *UpdateSystemSettingsParams, body UpdateSystemSettingsJSONRequestBody) (*http.Request, error) {
+	var bodyReader io.Reader
+	buf, err := json.Marshal(body)
+	if err != nil {
+		return nil, err
+	}
+	bodyReader = bytes.NewReader(buf)
+	return NewUpdateSystemSettingsRequestWithBody(server, params, "application/json", bodyReader)
+}
+
+// NewUpdateSystemSettingsRequestWithBody constructs an http.Request for the UpdateSystemSettings method, with any body, and a specified content type
+func NewUpdateSystemSettingsRequestWithBody(server string, params *UpdateSystemSettingsParams, contentType string, body io.Reader) (*http.Request, error) {
+	var err error
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/api/v1/system/settings")
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest(http.MethodPut, queryURL.String(), body)
+	if err != nil {
+		return nil, err
+	}
+
+	req.Header.Add("Content-Type", contentType)
+
+	if params != nil {
+
+		if params.XCSRFToken != nil {
+			var headerParam0 string
+
+			headerParam0, err = runtime.StyleParamWithOptions("simple", false, "X-CSRF-Token", *params.XCSRFToken, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationHeader, Type: "string", Format: ""})
+			if err != nil {
+				return nil, err
+			}
+
+			req.Header.Set("X-CSRF-Token", headerParam0)
+		}
+
+	}
+
+	return req, nil
+}
+
 // NewGetSystemStatusRequest constructs an http.Request for the GetSystemStatus method
 func NewGetSystemStatusRequest(server string) (*http.Request, error) {
 	var err error
@@ -8451,7 +8637,7 @@ type ClientWithResponsesInterface interface {
 	// Corresponds with POST /api/v1/history/cleanup (the `CleanupHistory` operationId).
 	CleanupHistoryWithResponse(ctx context.Context, params *CleanupHistoryParams, reqEditors ...RequestEditorFn) (*CleanupHistoryResponse, error)
 
-	// CompareProbeSnapshotsWithResponse Compare two retained snapshots from the same network egress
+	// CompareProbeSnapshotsWithResponse Compare two retained snapshots for the same public IP
 	//
 	// Returns a wrapper object for the known response body format(s).
 	//
@@ -8563,7 +8749,7 @@ type ClientWithResponsesInterface interface {
 	// Corresponds with GET /api/v1/nodes (the `ListNodes` operationId).
 	ListNodesWithResponse(ctx context.Context, reqEditors ...RequestEditorFn) (*ListNodesResponse, error)
 
-	// DeleteNodeWithResponse Permanently delete a node and all owned data
+	// DeleteNodeWithResponse Permanently delete a node and its execution metadata
 	//
 	// Returns a wrapper object for the known response body format(s).
 	//
@@ -8584,42 +8770,7 @@ type ClientWithResponsesInterface interface {
 	// Corresponds with PATCH /api/v1/nodes/{nodeId} (the `UpdateNode` operationId).
 	UpdateNodeWithResponse(ctx context.Context, nodeId NodeId, params *UpdateNodeParams, body UpdateNodeJSONRequestBody, reqEditors ...RequestEditorFn) (*UpdateNodeResponse, error)
 
-	// CreateNodeEgressWithBodyWithResponse Enable a discovered interface or source-address egress
-	//
-	// Takes any type of body and a specified content type, and returns a wrapper object for the known response body format(s).
-	//
-	// Corresponds with POST /api/v1/nodes/{nodeId}/egresses (the `CreateNodeEgress` operationId).
-	CreateNodeEgressWithBodyWithResponse(ctx context.Context, nodeId NodeId, params *CreateNodeEgressParams, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*CreateNodeEgressResponse, error)
-
-	// CreateNodeEgressWithResponse Enable a discovered interface or source-address egress
-	//
-	// Takes a body of the `application/json` content type, and returns a wrapper object for the known response body format(s).
-	//
-	// Corresponds with POST /api/v1/nodes/{nodeId}/egresses (the `CreateNodeEgress` operationId).
-	CreateNodeEgressWithResponse(ctx context.Context, nodeId NodeId, params *CreateNodeEgressParams, body CreateNodeEgressJSONRequestBody, reqEditors ...RequestEditorFn) (*CreateNodeEgressResponse, error)
-
-	// DeleteNodeEgressWithResponse Permanently delete a durable network egress
-	//
-	// Returns a wrapper object for the known response body format(s).
-	//
-	// Corresponds with DELETE /api/v1/nodes/{nodeId}/egresses/{egressId} (the `DeleteNodeEgress` operationId).
-	DeleteNodeEgressWithResponse(ctx context.Context, nodeId NodeId, egressId EgressId, params *DeleteNodeEgressParams, reqEditors ...RequestEditorFn) (*DeleteNodeEgressResponse, error)
-
-	// UpdateNodeEgressWithBodyWithResponse Update a durable network egress
-	//
-	// Takes any type of body and a specified content type, and returns a wrapper object for the known response body format(s).
-	//
-	// Corresponds with PATCH /api/v1/nodes/{nodeId}/egresses/{egressId} (the `UpdateNodeEgress` operationId).
-	UpdateNodeEgressWithBodyWithResponse(ctx context.Context, nodeId NodeId, egressId EgressId, params *UpdateNodeEgressParams, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*UpdateNodeEgressResponse, error)
-
-	// UpdateNodeEgressWithResponse Update a durable network egress
-	//
-	// Takes a body of the `application/json` content type, and returns a wrapper object for the known response body format(s).
-	//
-	// Corresponds with PATCH /api/v1/nodes/{nodeId}/egresses/{egressId} (the `UpdateNodeEgress` operationId).
-	UpdateNodeEgressWithResponse(ctx context.Context, nodeId NodeId, egressId EgressId, params *UpdateNodeEgressParams, body UpdateNodeEgressJSONRequestBody, reqEditors ...RequestEditorFn) (*UpdateNodeEgressResponse, error)
-
-	// GetNodeNetworkWithResponse Read the latest network inventory, candidates, and configured egresses
+	// GetNodeNetworkWithResponse Read discovered public addresses and explicit proxy discovery paths
 	//
 	// Returns a wrapper object for the known response body format(s).
 	//
@@ -8653,6 +8804,41 @@ type ClientWithResponsesInterface interface {
 	//
 	// Corresponds with POST /api/v1/nodes/{nodeId}/probe/tasks (the `CreateCompleteProbeTask` operationId).
 	CreateCompleteProbeTaskWithResponse(ctx context.Context, nodeId NodeId, params *CreateCompleteProbeTaskParams, reqEditors ...RequestEditorFn) (*CreateCompleteProbeTaskResponse, error)
+
+	// CreateNodeProxyDiscoveryPathWithBodyWithResponse Add an explicit proxy path for public-address discovery
+	//
+	// Takes any type of body and a specified content type, and returns a wrapper object for the known response body format(s).
+	//
+	// Corresponds with POST /api/v1/nodes/{nodeId}/proxy-discovery-paths (the `CreateNodeProxyDiscoveryPath` operationId).
+	CreateNodeProxyDiscoveryPathWithBodyWithResponse(ctx context.Context, nodeId NodeId, params *CreateNodeProxyDiscoveryPathParams, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*CreateNodeProxyDiscoveryPathResponse, error)
+
+	// CreateNodeProxyDiscoveryPathWithResponse Add an explicit proxy path for public-address discovery
+	//
+	// Takes a body of the `application/json` content type, and returns a wrapper object for the known response body format(s).
+	//
+	// Corresponds with POST /api/v1/nodes/{nodeId}/proxy-discovery-paths (the `CreateNodeProxyDiscoveryPath` operationId).
+	CreateNodeProxyDiscoveryPathWithResponse(ctx context.Context, nodeId NodeId, params *CreateNodeProxyDiscoveryPathParams, body CreateNodeProxyDiscoveryPathJSONRequestBody, reqEditors ...RequestEditorFn) (*CreateNodeProxyDiscoveryPathResponse, error)
+
+	// DeleteNodeProxyDiscoveryPathWithResponse Remove an explicit proxy discovery path
+	//
+	// Returns a wrapper object for the known response body format(s).
+	//
+	// Corresponds with DELETE /api/v1/nodes/{nodeId}/proxy-discovery-paths/{pathId} (the `DeleteNodeProxyDiscoveryPath` operationId).
+	DeleteNodeProxyDiscoveryPathWithResponse(ctx context.Context, nodeId NodeId, pathId openapi_types.UUID, params *DeleteNodeProxyDiscoveryPathParams, reqEditors ...RequestEditorFn) (*DeleteNodeProxyDiscoveryPathResponse, error)
+
+	// UpdatePublicAddressWithBodyWithResponse Update complete-probe settings for a discovered public address
+	//
+	// Takes any type of body and a specified content type, and returns a wrapper object for the known response body format(s).
+	//
+	// Corresponds with PATCH /api/v1/nodes/{nodeId}/public-addresses/{publicAddressId} (the `UpdatePublicAddress` operationId).
+	UpdatePublicAddressWithBodyWithResponse(ctx context.Context, nodeId NodeId, publicAddressId openapi_types.UUID, params *UpdatePublicAddressParams, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*UpdatePublicAddressResponse, error)
+
+	// UpdatePublicAddressWithResponse Update complete-probe settings for a discovered public address
+	//
+	// Takes a body of the `application/json` content type, and returns a wrapper object for the known response body format(s).
+	//
+	// Corresponds with PATCH /api/v1/nodes/{nodeId}/public-addresses/{publicAddressId} (the `UpdatePublicAddress` operationId).
+	UpdatePublicAddressWithResponse(ctx context.Context, nodeId NodeId, publicAddressId openapi_types.UUID, params *UpdatePublicAddressParams, body UpdatePublicAddressJSONRequestBody, reqEditors ...RequestEditorFn) (*UpdatePublicAddressResponse, error)
 
 	// RevokeNodeWithResponse Permanently revoke a node Agent credential
 	//
@@ -8800,6 +8986,27 @@ type ClientWithResponsesInterface interface {
 	//
 	// Corresponds with PUT /api/v1/probe-snapshots/{snapshotId}/star (the `StarProbeSnapshot` operationId).
 	StarProbeSnapshotWithResponse(ctx context.Context, snapshotId SnapshotId, params *StarProbeSnapshotParams, reqEditors ...RequestEditorFn) (*StarProbeSnapshotResponse, error)
+
+	// GetSystemSettingsWithResponse Read administrator-managed system settings
+	//
+	// Returns a wrapper object for the known response body format(s).
+	//
+	// Corresponds with GET /api/v1/system/settings (the `GetSystemSettings` operationId).
+	GetSystemSettingsWithResponse(ctx context.Context, reqEditors ...RequestEditorFn) (*GetSystemSettingsResponse, error)
+
+	// UpdateSystemSettingsWithBodyWithResponse Replace administrator-managed system settings
+	//
+	// Takes any type of body and a specified content type, and returns a wrapper object for the known response body format(s).
+	//
+	// Corresponds with PUT /api/v1/system/settings (the `UpdateSystemSettings` operationId).
+	UpdateSystemSettingsWithBodyWithResponse(ctx context.Context, params *UpdateSystemSettingsParams, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*UpdateSystemSettingsResponse, error)
+
+	// UpdateSystemSettingsWithResponse Replace administrator-managed system settings
+	//
+	// Takes a body of the `application/json` content type, and returns a wrapper object for the known response body format(s).
+	//
+	// Corresponds with PUT /api/v1/system/settings (the `UpdateSystemSettings` operationId).
+	UpdateSystemSettingsWithResponse(ctx context.Context, params *UpdateSystemSettingsParams, body UpdateSystemSettingsJSONRequestBody, reqEditors ...RequestEditorFn) (*UpdateSystemSettingsResponse, error)
 
 	// GetSystemStatusWithResponse Read center status
 	//
@@ -11046,227 +11253,6 @@ func (r UpdateNodeResponse) ContentType() string {
 	return ""
 }
 
-type CreateNodeEgressResponse struct {
-	Body         []byte
-	HTTPResponse *http.Response
-	// JSON201 the response for an HTTP 201 `application/json` response
-	JSON201 *NetworkEgress
-	// JSON400 the response for an HTTP 400 `application/json` response
-	JSON400 *BadRequest
-	// JSON401 the response for an HTTP 401 `application/json` response
-	JSON401 *Unauthorized
-	// JSON403 the response for an HTTP 403 `application/json` response
-	JSON403 *Forbidden
-	// JSON404 the response for an HTTP 404 `application/json` response
-	JSON404 *NotFound
-	// JSON409 the response for an HTTP 409 `application/json` response
-	JSON409 *Conflict
-}
-
-// GetJSON201 returns the response for an HTTP 201 `application/json` response
-func (r CreateNodeEgressResponse) GetJSON201() *NetworkEgress {
-	return r.JSON201
-}
-
-// GetJSON400 returns the response for an HTTP 400 `application/json` response
-func (r CreateNodeEgressResponse) GetJSON400() *BadRequest {
-	return r.JSON400
-}
-
-// GetJSON401 returns the response for an HTTP 401 `application/json` response
-func (r CreateNodeEgressResponse) GetJSON401() *Unauthorized {
-	return r.JSON401
-}
-
-// GetJSON403 returns the response for an HTTP 403 `application/json` response
-func (r CreateNodeEgressResponse) GetJSON403() *Forbidden {
-	return r.JSON403
-}
-
-// GetJSON404 returns the response for an HTTP 404 `application/json` response
-func (r CreateNodeEgressResponse) GetJSON404() *NotFound {
-	return r.JSON404
-}
-
-// GetJSON409 returns the response for an HTTP 409 `application/json` response
-func (r CreateNodeEgressResponse) GetJSON409() *Conflict {
-	return r.JSON409
-}
-
-// GetBody returns the raw response body bytes
-func (r CreateNodeEgressResponse) GetBody() []byte {
-	return r.Body
-}
-
-// Status returns HTTPResponse.Status
-func (r CreateNodeEgressResponse) Status() string {
-	if r.HTTPResponse != nil {
-		return r.HTTPResponse.Status
-	}
-	return http.StatusText(0)
-}
-
-// StatusCode returns HTTPResponse.StatusCode
-func (r CreateNodeEgressResponse) StatusCode() int {
-	if r.HTTPResponse != nil {
-		return r.HTTPResponse.StatusCode
-	}
-	return 0
-}
-
-// ContentType is a convenience method to retrieve the Content-Type value from the HTTP response headers
-func (r CreateNodeEgressResponse) ContentType() string {
-	if r.HTTPResponse != nil {
-		return r.HTTPResponse.Header.Get("Content-Type")
-	}
-	return ""
-}
-
-type DeleteNodeEgressResponse struct {
-	Body         []byte
-	HTTPResponse *http.Response
-	// JSON202 the response for an HTTP 202 `application/json` response
-	JSON202 *EgressDeletion
-	// JSON401 the response for an HTTP 401 `application/json` response
-	JSON401 *Unauthorized
-	// JSON403 the response for an HTTP 403 `application/json` response
-	JSON403 *Forbidden
-	// JSON404 the response for an HTTP 404 `application/json` response
-	JSON404 *NotFound
-	// JSON409 the response for an HTTP 409 `application/json` response
-	JSON409 *Conflict
-}
-
-// GetJSON202 returns the response for an HTTP 202 `application/json` response
-func (r DeleteNodeEgressResponse) GetJSON202() *EgressDeletion {
-	return r.JSON202
-}
-
-// GetJSON401 returns the response for an HTTP 401 `application/json` response
-func (r DeleteNodeEgressResponse) GetJSON401() *Unauthorized {
-	return r.JSON401
-}
-
-// GetJSON403 returns the response for an HTTP 403 `application/json` response
-func (r DeleteNodeEgressResponse) GetJSON403() *Forbidden {
-	return r.JSON403
-}
-
-// GetJSON404 returns the response for an HTTP 404 `application/json` response
-func (r DeleteNodeEgressResponse) GetJSON404() *NotFound {
-	return r.JSON404
-}
-
-// GetJSON409 returns the response for an HTTP 409 `application/json` response
-func (r DeleteNodeEgressResponse) GetJSON409() *Conflict {
-	return r.JSON409
-}
-
-// GetBody returns the raw response body bytes
-func (r DeleteNodeEgressResponse) GetBody() []byte {
-	return r.Body
-}
-
-// Status returns HTTPResponse.Status
-func (r DeleteNodeEgressResponse) Status() string {
-	if r.HTTPResponse != nil {
-		return r.HTTPResponse.Status
-	}
-	return http.StatusText(0)
-}
-
-// StatusCode returns HTTPResponse.StatusCode
-func (r DeleteNodeEgressResponse) StatusCode() int {
-	if r.HTTPResponse != nil {
-		return r.HTTPResponse.StatusCode
-	}
-	return 0
-}
-
-// ContentType is a convenience method to retrieve the Content-Type value from the HTTP response headers
-func (r DeleteNodeEgressResponse) ContentType() string {
-	if r.HTTPResponse != nil {
-		return r.HTTPResponse.Header.Get("Content-Type")
-	}
-	return ""
-}
-
-type UpdateNodeEgressResponse struct {
-	Body         []byte
-	HTTPResponse *http.Response
-	// JSON200 the response for an HTTP 200 `application/json` response
-	JSON200 *NetworkEgress
-	// JSON400 the response for an HTTP 400 `application/json` response
-	JSON400 *BadRequest
-	// JSON401 the response for an HTTP 401 `application/json` response
-	JSON401 *Unauthorized
-	// JSON403 the response for an HTTP 403 `application/json` response
-	JSON403 *Forbidden
-	// JSON404 the response for an HTTP 404 `application/json` response
-	JSON404 *NotFound
-	// JSON409 the response for an HTTP 409 `application/json` response
-	JSON409 *Conflict
-}
-
-// GetJSON200 returns the response for an HTTP 200 `application/json` response
-func (r UpdateNodeEgressResponse) GetJSON200() *NetworkEgress {
-	return r.JSON200
-}
-
-// GetJSON400 returns the response for an HTTP 400 `application/json` response
-func (r UpdateNodeEgressResponse) GetJSON400() *BadRequest {
-	return r.JSON400
-}
-
-// GetJSON401 returns the response for an HTTP 401 `application/json` response
-func (r UpdateNodeEgressResponse) GetJSON401() *Unauthorized {
-	return r.JSON401
-}
-
-// GetJSON403 returns the response for an HTTP 403 `application/json` response
-func (r UpdateNodeEgressResponse) GetJSON403() *Forbidden {
-	return r.JSON403
-}
-
-// GetJSON404 returns the response for an HTTP 404 `application/json` response
-func (r UpdateNodeEgressResponse) GetJSON404() *NotFound {
-	return r.JSON404
-}
-
-// GetJSON409 returns the response for an HTTP 409 `application/json` response
-func (r UpdateNodeEgressResponse) GetJSON409() *Conflict {
-	return r.JSON409
-}
-
-// GetBody returns the raw response body bytes
-func (r UpdateNodeEgressResponse) GetBody() []byte {
-	return r.Body
-}
-
-// Status returns HTTPResponse.Status
-func (r UpdateNodeEgressResponse) Status() string {
-	if r.HTTPResponse != nil {
-		return r.HTTPResponse.Status
-	}
-	return http.StatusText(0)
-}
-
-// StatusCode returns HTTPResponse.StatusCode
-func (r UpdateNodeEgressResponse) StatusCode() int {
-	if r.HTTPResponse != nil {
-		return r.HTTPResponse.StatusCode
-	}
-	return 0
-}
-
-// ContentType is a convenience method to retrieve the Content-Type value from the HTTP response headers
-func (r UpdateNodeEgressResponse) ContentType() string {
-	if r.HTTPResponse != nil {
-		return r.HTTPResponse.Header.Get("Content-Type")
-	}
-	return ""
-}
-
 type GetNodeNetworkResponse struct {
 	Body         []byte
 	HTTPResponse *http.Response
@@ -11516,6 +11502,220 @@ func (r CreateCompleteProbeTaskResponse) StatusCode() int {
 
 // ContentType is a convenience method to retrieve the Content-Type value from the HTTP response headers
 func (r CreateCompleteProbeTaskResponse) ContentType() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Header.Get("Content-Type")
+	}
+	return ""
+}
+
+type CreateNodeProxyDiscoveryPathResponse struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	// JSON201 the response for an HTTP 201 `application/json` response
+	JSON201 *ProxyDiscoveryPath
+	// JSON400 the response for an HTTP 400 `application/json` response
+	JSON400 *BadRequest
+	// JSON401 the response for an HTTP 401 `application/json` response
+	JSON401 *Unauthorized
+	// JSON403 the response for an HTTP 403 `application/json` response
+	JSON403 *Forbidden
+	// JSON404 the response for an HTTP 404 `application/json` response
+	JSON404 *NotFound
+	// JSON409 the response for an HTTP 409 `application/json` response
+	JSON409 *Conflict
+}
+
+// GetJSON201 returns the response for an HTTP 201 `application/json` response
+func (r CreateNodeProxyDiscoveryPathResponse) GetJSON201() *ProxyDiscoveryPath {
+	return r.JSON201
+}
+
+// GetJSON400 returns the response for an HTTP 400 `application/json` response
+func (r CreateNodeProxyDiscoveryPathResponse) GetJSON400() *BadRequest {
+	return r.JSON400
+}
+
+// GetJSON401 returns the response for an HTTP 401 `application/json` response
+func (r CreateNodeProxyDiscoveryPathResponse) GetJSON401() *Unauthorized {
+	return r.JSON401
+}
+
+// GetJSON403 returns the response for an HTTP 403 `application/json` response
+func (r CreateNodeProxyDiscoveryPathResponse) GetJSON403() *Forbidden {
+	return r.JSON403
+}
+
+// GetJSON404 returns the response for an HTTP 404 `application/json` response
+func (r CreateNodeProxyDiscoveryPathResponse) GetJSON404() *NotFound {
+	return r.JSON404
+}
+
+// GetJSON409 returns the response for an HTTP 409 `application/json` response
+func (r CreateNodeProxyDiscoveryPathResponse) GetJSON409() *Conflict {
+	return r.JSON409
+}
+
+// GetBody returns the raw response body bytes
+func (r CreateNodeProxyDiscoveryPathResponse) GetBody() []byte {
+	return r.Body
+}
+
+// Status returns HTTPResponse.Status
+func (r CreateNodeProxyDiscoveryPathResponse) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r CreateNodeProxyDiscoveryPathResponse) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+// ContentType is a convenience method to retrieve the Content-Type value from the HTTP response headers
+func (r CreateNodeProxyDiscoveryPathResponse) ContentType() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Header.Get("Content-Type")
+	}
+	return ""
+}
+
+type DeleteNodeProxyDiscoveryPathResponse struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	// JSON202 the response for an HTTP 202 `application/json` response
+	JSON202 *ProxyDiscoveryPathDeletion
+	// JSON401 the response for an HTTP 401 `application/json` response
+	JSON401 *Unauthorized
+	// JSON403 the response for an HTTP 403 `application/json` response
+	JSON403 *Forbidden
+	// JSON404 the response for an HTTP 404 `application/json` response
+	JSON404 *NotFound
+	// JSON409 the response for an HTTP 409 `application/json` response
+	JSON409 *Conflict
+}
+
+// GetJSON202 returns the response for an HTTP 202 `application/json` response
+func (r DeleteNodeProxyDiscoveryPathResponse) GetJSON202() *ProxyDiscoveryPathDeletion {
+	return r.JSON202
+}
+
+// GetJSON401 returns the response for an HTTP 401 `application/json` response
+func (r DeleteNodeProxyDiscoveryPathResponse) GetJSON401() *Unauthorized {
+	return r.JSON401
+}
+
+// GetJSON403 returns the response for an HTTP 403 `application/json` response
+func (r DeleteNodeProxyDiscoveryPathResponse) GetJSON403() *Forbidden {
+	return r.JSON403
+}
+
+// GetJSON404 returns the response for an HTTP 404 `application/json` response
+func (r DeleteNodeProxyDiscoveryPathResponse) GetJSON404() *NotFound {
+	return r.JSON404
+}
+
+// GetJSON409 returns the response for an HTTP 409 `application/json` response
+func (r DeleteNodeProxyDiscoveryPathResponse) GetJSON409() *Conflict {
+	return r.JSON409
+}
+
+// GetBody returns the raw response body bytes
+func (r DeleteNodeProxyDiscoveryPathResponse) GetBody() []byte {
+	return r.Body
+}
+
+// Status returns HTTPResponse.Status
+func (r DeleteNodeProxyDiscoveryPathResponse) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r DeleteNodeProxyDiscoveryPathResponse) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+// ContentType is a convenience method to retrieve the Content-Type value from the HTTP response headers
+func (r DeleteNodeProxyDiscoveryPathResponse) ContentType() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Header.Get("Content-Type")
+	}
+	return ""
+}
+
+type UpdatePublicAddressResponse struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	// JSON200 the response for an HTTP 200 `application/json` response
+	JSON200 *PublicAddress
+	// JSON400 the response for an HTTP 400 `application/json` response
+	JSON400 *BadRequest
+	// JSON401 the response for an HTTP 401 `application/json` response
+	JSON401 *Unauthorized
+	// JSON403 the response for an HTTP 403 `application/json` response
+	JSON403 *Forbidden
+	// JSON404 the response for an HTTP 404 `application/json` response
+	JSON404 *NotFound
+}
+
+// GetJSON200 returns the response for an HTTP 200 `application/json` response
+func (r UpdatePublicAddressResponse) GetJSON200() *PublicAddress {
+	return r.JSON200
+}
+
+// GetJSON400 returns the response for an HTTP 400 `application/json` response
+func (r UpdatePublicAddressResponse) GetJSON400() *BadRequest {
+	return r.JSON400
+}
+
+// GetJSON401 returns the response for an HTTP 401 `application/json` response
+func (r UpdatePublicAddressResponse) GetJSON401() *Unauthorized {
+	return r.JSON401
+}
+
+// GetJSON403 returns the response for an HTTP 403 `application/json` response
+func (r UpdatePublicAddressResponse) GetJSON403() *Forbidden {
+	return r.JSON403
+}
+
+// GetJSON404 returns the response for an HTTP 404 `application/json` response
+func (r UpdatePublicAddressResponse) GetJSON404() *NotFound {
+	return r.JSON404
+}
+
+// GetBody returns the raw response body bytes
+func (r UpdatePublicAddressResponse) GetBody() []byte {
+	return r.Body
+}
+
+// Status returns HTTPResponse.Status
+func (r UpdatePublicAddressResponse) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r UpdatePublicAddressResponse) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+// ContentType is a convenience method to retrieve the Content-Type value from the HTTP response headers
+func (r UpdatePublicAddressResponse) ContentType() string {
 	if r.HTTPResponse != nil {
 		return r.HTTPResponse.Header.Get("Content-Type")
 	}
@@ -12576,6 +12776,116 @@ func (r StarProbeSnapshotResponse) ContentType() string {
 	return ""
 }
 
+type GetSystemSettingsResponse struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	// JSON200 the response for an HTTP 200 `application/json` response
+	JSON200 *SystemSettings
+	// JSON401 the response for an HTTP 401 `application/json` response
+	JSON401 *Unauthorized
+}
+
+// GetJSON200 returns the response for an HTTP 200 `application/json` response
+func (r GetSystemSettingsResponse) GetJSON200() *SystemSettings {
+	return r.JSON200
+}
+
+// GetJSON401 returns the response for an HTTP 401 `application/json` response
+func (r GetSystemSettingsResponse) GetJSON401() *Unauthorized {
+	return r.JSON401
+}
+
+// GetBody returns the raw response body bytes
+func (r GetSystemSettingsResponse) GetBody() []byte {
+	return r.Body
+}
+
+// Status returns HTTPResponse.Status
+func (r GetSystemSettingsResponse) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r GetSystemSettingsResponse) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+// ContentType is a convenience method to retrieve the Content-Type value from the HTTP response headers
+func (r GetSystemSettingsResponse) ContentType() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Header.Get("Content-Type")
+	}
+	return ""
+}
+
+type UpdateSystemSettingsResponse struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	// JSON200 the response for an HTTP 200 `application/json` response
+	JSON200 *SystemSettings
+	// JSON400 the response for an HTTP 400 `application/json` response
+	JSON400 *BadRequest
+	// JSON401 the response for an HTTP 401 `application/json` response
+	JSON401 *Unauthorized
+	// JSON403 the response for an HTTP 403 `application/json` response
+	JSON403 *Forbidden
+}
+
+// GetJSON200 returns the response for an HTTP 200 `application/json` response
+func (r UpdateSystemSettingsResponse) GetJSON200() *SystemSettings {
+	return r.JSON200
+}
+
+// GetJSON400 returns the response for an HTTP 400 `application/json` response
+func (r UpdateSystemSettingsResponse) GetJSON400() *BadRequest {
+	return r.JSON400
+}
+
+// GetJSON401 returns the response for an HTTP 401 `application/json` response
+func (r UpdateSystemSettingsResponse) GetJSON401() *Unauthorized {
+	return r.JSON401
+}
+
+// GetJSON403 returns the response for an HTTP 403 `application/json` response
+func (r UpdateSystemSettingsResponse) GetJSON403() *Forbidden {
+	return r.JSON403
+}
+
+// GetBody returns the raw response body bytes
+func (r UpdateSystemSettingsResponse) GetBody() []byte {
+	return r.Body
+}
+
+// Status returns HTTPResponse.Status
+func (r UpdateSystemSettingsResponse) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r UpdateSystemSettingsResponse) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+// ContentType is a convenience method to retrieve the Content-Type value from the HTTP response headers
+func (r UpdateSystemSettingsResponse) ContentType() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Header.Get("Content-Type")
+	}
+	return ""
+}
+
 type GetSystemStatusResponse struct {
 	Body         []byte
 	HTTPResponse *http.Response
@@ -13092,7 +13402,7 @@ func (c *ClientWithResponses) CleanupHistoryWithResponse(ctx context.Context, pa
 	return ParseCleanupHistoryResponse(rsp)
 }
 
-// CompareProbeSnapshotsWithResponse Compare two retained snapshots from the same network egress
+// CompareProbeSnapshotsWithResponse Compare two retained snapshots for the same public IP
 //
 // Returns a wrapper object for the known response body format(s).
 //
@@ -13300,7 +13610,7 @@ func (c *ClientWithResponses) ListNodesWithResponse(ctx context.Context, reqEdit
 	return ParseListNodesResponse(rsp)
 }
 
-// DeleteNodeWithResponse Permanently delete a node and all owned data
+// DeleteNodeWithResponse Permanently delete a node and its execution metadata
 //
 // Returns a wrapper object for the known response body format(s).
 //
@@ -13339,72 +13649,7 @@ func (c *ClientWithResponses) UpdateNodeWithResponse(ctx context.Context, nodeId
 	return ParseUpdateNodeResponse(rsp)
 }
 
-// CreateNodeEgressWithBodyWithResponse Enable a discovered interface or source-address egress
-//
-// Takes any type of body and a specified content type, and returns a wrapper object for the known response body format(s).
-//
-// Corresponds with POST /api/v1/nodes/{nodeId}/egresses (the `CreateNodeEgress` operationId).
-func (c *ClientWithResponses) CreateNodeEgressWithBodyWithResponse(ctx context.Context, nodeId NodeId, params *CreateNodeEgressParams, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*CreateNodeEgressResponse, error) {
-	rsp, err := c.CreateNodeEgressWithBody(ctx, nodeId, params, contentType, body, reqEditors...)
-	if err != nil {
-		return nil, err
-	}
-	return ParseCreateNodeEgressResponse(rsp)
-}
-
-// CreateNodeEgressWithResponse Enable a discovered interface or source-address egress
-//
-// Takes a body of the `application/json` content type, and returns a wrapper object for the known response body format(s).
-//
-// Corresponds with POST /api/v1/nodes/{nodeId}/egresses (the `CreateNodeEgress` operationId).
-func (c *ClientWithResponses) CreateNodeEgressWithResponse(ctx context.Context, nodeId NodeId, params *CreateNodeEgressParams, body CreateNodeEgressJSONRequestBody, reqEditors ...RequestEditorFn) (*CreateNodeEgressResponse, error) {
-	rsp, err := c.CreateNodeEgress(ctx, nodeId, params, body, reqEditors...)
-	if err != nil {
-		return nil, err
-	}
-	return ParseCreateNodeEgressResponse(rsp)
-}
-
-// DeleteNodeEgressWithResponse Permanently delete a durable network egress
-//
-// Returns a wrapper object for the known response body format(s).
-//
-// Corresponds with DELETE /api/v1/nodes/{nodeId}/egresses/{egressId} (the `DeleteNodeEgress` operationId).
-func (c *ClientWithResponses) DeleteNodeEgressWithResponse(ctx context.Context, nodeId NodeId, egressId EgressId, params *DeleteNodeEgressParams, reqEditors ...RequestEditorFn) (*DeleteNodeEgressResponse, error) {
-	rsp, err := c.DeleteNodeEgress(ctx, nodeId, egressId, params, reqEditors...)
-	if err != nil {
-		return nil, err
-	}
-	return ParseDeleteNodeEgressResponse(rsp)
-}
-
-// UpdateNodeEgressWithBodyWithResponse Update a durable network egress
-//
-// Takes any type of body and a specified content type, and returns a wrapper object for the known response body format(s).
-//
-// Corresponds with PATCH /api/v1/nodes/{nodeId}/egresses/{egressId} (the `UpdateNodeEgress` operationId).
-func (c *ClientWithResponses) UpdateNodeEgressWithBodyWithResponse(ctx context.Context, nodeId NodeId, egressId EgressId, params *UpdateNodeEgressParams, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*UpdateNodeEgressResponse, error) {
-	rsp, err := c.UpdateNodeEgressWithBody(ctx, nodeId, egressId, params, contentType, body, reqEditors...)
-	if err != nil {
-		return nil, err
-	}
-	return ParseUpdateNodeEgressResponse(rsp)
-}
-
-// UpdateNodeEgressWithResponse Update a durable network egress
-//
-// Takes a body of the `application/json` content type, and returns a wrapper object for the known response body format(s).
-//
-// Corresponds with PATCH /api/v1/nodes/{nodeId}/egresses/{egressId} (the `UpdateNodeEgress` operationId).
-func (c *ClientWithResponses) UpdateNodeEgressWithResponse(ctx context.Context, nodeId NodeId, egressId EgressId, params *UpdateNodeEgressParams, body UpdateNodeEgressJSONRequestBody, reqEditors ...RequestEditorFn) (*UpdateNodeEgressResponse, error) {
-	rsp, err := c.UpdateNodeEgress(ctx, nodeId, egressId, params, body, reqEditors...)
-	if err != nil {
-		return nil, err
-	}
-	return ParseUpdateNodeEgressResponse(rsp)
-}
-
-// GetNodeNetworkWithResponse Read the latest network inventory, candidates, and configured egresses
+// GetNodeNetworkWithResponse Read discovered public addresses and explicit proxy discovery paths
 //
 // Returns a wrapper object for the known response body format(s).
 //
@@ -13467,6 +13712,71 @@ func (c *ClientWithResponses) CreateCompleteProbeTaskWithResponse(ctx context.Co
 		return nil, err
 	}
 	return ParseCreateCompleteProbeTaskResponse(rsp)
+}
+
+// CreateNodeProxyDiscoveryPathWithBodyWithResponse Add an explicit proxy path for public-address discovery
+//
+// Takes any type of body and a specified content type, and returns a wrapper object for the known response body format(s).
+//
+// Corresponds with POST /api/v1/nodes/{nodeId}/proxy-discovery-paths (the `CreateNodeProxyDiscoveryPath` operationId).
+func (c *ClientWithResponses) CreateNodeProxyDiscoveryPathWithBodyWithResponse(ctx context.Context, nodeId NodeId, params *CreateNodeProxyDiscoveryPathParams, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*CreateNodeProxyDiscoveryPathResponse, error) {
+	rsp, err := c.CreateNodeProxyDiscoveryPathWithBody(ctx, nodeId, params, contentType, body, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseCreateNodeProxyDiscoveryPathResponse(rsp)
+}
+
+// CreateNodeProxyDiscoveryPathWithResponse Add an explicit proxy path for public-address discovery
+//
+// Takes a body of the `application/json` content type, and returns a wrapper object for the known response body format(s).
+//
+// Corresponds with POST /api/v1/nodes/{nodeId}/proxy-discovery-paths (the `CreateNodeProxyDiscoveryPath` operationId).
+func (c *ClientWithResponses) CreateNodeProxyDiscoveryPathWithResponse(ctx context.Context, nodeId NodeId, params *CreateNodeProxyDiscoveryPathParams, body CreateNodeProxyDiscoveryPathJSONRequestBody, reqEditors ...RequestEditorFn) (*CreateNodeProxyDiscoveryPathResponse, error) {
+	rsp, err := c.CreateNodeProxyDiscoveryPath(ctx, nodeId, params, body, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseCreateNodeProxyDiscoveryPathResponse(rsp)
+}
+
+// DeleteNodeProxyDiscoveryPathWithResponse Remove an explicit proxy discovery path
+//
+// Returns a wrapper object for the known response body format(s).
+//
+// Corresponds with DELETE /api/v1/nodes/{nodeId}/proxy-discovery-paths/{pathId} (the `DeleteNodeProxyDiscoveryPath` operationId).
+func (c *ClientWithResponses) DeleteNodeProxyDiscoveryPathWithResponse(ctx context.Context, nodeId NodeId, pathId openapi_types.UUID, params *DeleteNodeProxyDiscoveryPathParams, reqEditors ...RequestEditorFn) (*DeleteNodeProxyDiscoveryPathResponse, error) {
+	rsp, err := c.DeleteNodeProxyDiscoveryPath(ctx, nodeId, pathId, params, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseDeleteNodeProxyDiscoveryPathResponse(rsp)
+}
+
+// UpdatePublicAddressWithBodyWithResponse Update complete-probe settings for a discovered public address
+//
+// Takes any type of body and a specified content type, and returns a wrapper object for the known response body format(s).
+//
+// Corresponds with PATCH /api/v1/nodes/{nodeId}/public-addresses/{publicAddressId} (the `UpdatePublicAddress` operationId).
+func (c *ClientWithResponses) UpdatePublicAddressWithBodyWithResponse(ctx context.Context, nodeId NodeId, publicAddressId openapi_types.UUID, params *UpdatePublicAddressParams, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*UpdatePublicAddressResponse, error) {
+	rsp, err := c.UpdatePublicAddressWithBody(ctx, nodeId, publicAddressId, params, contentType, body, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseUpdatePublicAddressResponse(rsp)
+}
+
+// UpdatePublicAddressWithResponse Update complete-probe settings for a discovered public address
+//
+// Takes a body of the `application/json` content type, and returns a wrapper object for the known response body format(s).
+//
+// Corresponds with PATCH /api/v1/nodes/{nodeId}/public-addresses/{publicAddressId} (the `UpdatePublicAddress` operationId).
+func (c *ClientWithResponses) UpdatePublicAddressWithResponse(ctx context.Context, nodeId NodeId, publicAddressId openapi_types.UUID, params *UpdatePublicAddressParams, body UpdatePublicAddressJSONRequestBody, reqEditors ...RequestEditorFn) (*UpdatePublicAddressResponse, error) {
+	rsp, err := c.UpdatePublicAddress(ctx, nodeId, publicAddressId, params, body, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseUpdatePublicAddressResponse(rsp)
 }
 
 // RevokeNodeWithResponse Permanently revoke a node Agent credential
@@ -13740,6 +14050,45 @@ func (c *ClientWithResponses) StarProbeSnapshotWithResponse(ctx context.Context,
 		return nil, err
 	}
 	return ParseStarProbeSnapshotResponse(rsp)
+}
+
+// GetSystemSettingsWithResponse Read administrator-managed system settings
+//
+// Returns a wrapper object for the known response body format(s).
+//
+// Corresponds with GET /api/v1/system/settings (the `GetSystemSettings` operationId).
+func (c *ClientWithResponses) GetSystemSettingsWithResponse(ctx context.Context, reqEditors ...RequestEditorFn) (*GetSystemSettingsResponse, error) {
+	rsp, err := c.GetSystemSettings(ctx, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseGetSystemSettingsResponse(rsp)
+}
+
+// UpdateSystemSettingsWithBodyWithResponse Replace administrator-managed system settings
+//
+// Takes any type of body and a specified content type, and returns a wrapper object for the known response body format(s).
+//
+// Corresponds with PUT /api/v1/system/settings (the `UpdateSystemSettings` operationId).
+func (c *ClientWithResponses) UpdateSystemSettingsWithBodyWithResponse(ctx context.Context, params *UpdateSystemSettingsParams, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*UpdateSystemSettingsResponse, error) {
+	rsp, err := c.UpdateSystemSettingsWithBody(ctx, params, contentType, body, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseUpdateSystemSettingsResponse(rsp)
+}
+
+// UpdateSystemSettingsWithResponse Replace administrator-managed system settings
+//
+// Takes a body of the `application/json` content type, and returns a wrapper object for the known response body format(s).
+//
+// Corresponds with PUT /api/v1/system/settings (the `UpdateSystemSettings` operationId).
+func (c *ClientWithResponses) UpdateSystemSettingsWithResponse(ctx context.Context, params *UpdateSystemSettingsParams, body UpdateSystemSettingsJSONRequestBody, reqEditors ...RequestEditorFn) (*UpdateSystemSettingsResponse, error) {
+	rsp, err := c.UpdateSystemSettings(ctx, params, body, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseUpdateSystemSettingsResponse(rsp)
 }
 
 // GetSystemStatusWithResponse Read center status
@@ -15464,182 +15813,6 @@ func ParseUpdateNodeResponse(rsp *http.Response) (*UpdateNodeResponse, error) {
 	return response, nil
 }
 
-// ParseCreateNodeEgressResponse parses an HTTP response from a CreateNodeEgressWithResponse call
-func ParseCreateNodeEgressResponse(rsp *http.Response) (*CreateNodeEgressResponse, error) {
-	bodyBytes, err := io.ReadAll(rsp.Body)
-	defer func() { _ = rsp.Body.Close() }()
-	if err != nil {
-		return nil, err
-	}
-
-	response := &CreateNodeEgressResponse{
-		Body:         bodyBytes,
-		HTTPResponse: rsp,
-	}
-
-	switch {
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 201:
-		var dest NetworkEgress
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON201 = &dest
-
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 400:
-		var dest BadRequest
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON400 = &dest
-
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 401:
-		var dest Unauthorized
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON401 = &dest
-
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 403:
-		var dest Forbidden
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON403 = &dest
-
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 404:
-		var dest NotFound
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON404 = &dest
-
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 409:
-		var dest Conflict
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON409 = &dest
-
-	}
-
-	return response, nil
-}
-
-// ParseDeleteNodeEgressResponse parses an HTTP response from a DeleteNodeEgressWithResponse call
-func ParseDeleteNodeEgressResponse(rsp *http.Response) (*DeleteNodeEgressResponse, error) {
-	bodyBytes, err := io.ReadAll(rsp.Body)
-	defer func() { _ = rsp.Body.Close() }()
-	if err != nil {
-		return nil, err
-	}
-
-	response := &DeleteNodeEgressResponse{
-		Body:         bodyBytes,
-		HTTPResponse: rsp,
-	}
-
-	switch {
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 202:
-		var dest EgressDeletion
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON202 = &dest
-
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 401:
-		var dest Unauthorized
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON401 = &dest
-
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 403:
-		var dest Forbidden
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON403 = &dest
-
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 404:
-		var dest NotFound
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON404 = &dest
-
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 409:
-		var dest Conflict
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON409 = &dest
-
-	}
-
-	return response, nil
-}
-
-// ParseUpdateNodeEgressResponse parses an HTTP response from a UpdateNodeEgressWithResponse call
-func ParseUpdateNodeEgressResponse(rsp *http.Response) (*UpdateNodeEgressResponse, error) {
-	bodyBytes, err := io.ReadAll(rsp.Body)
-	defer func() { _ = rsp.Body.Close() }()
-	if err != nil {
-		return nil, err
-	}
-
-	response := &UpdateNodeEgressResponse{
-		Body:         bodyBytes,
-		HTTPResponse: rsp,
-	}
-
-	switch {
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
-		var dest NetworkEgress
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON200 = &dest
-
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 400:
-		var dest BadRequest
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON400 = &dest
-
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 401:
-		var dest Unauthorized
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON401 = &dest
-
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 403:
-		var dest Forbidden
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON403 = &dest
-
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 404:
-		var dest NotFound
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON404 = &dest
-
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 409:
-		var dest Conflict
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON409 = &dest
-
-	}
-
-	return response, nil
-}
-
 // ParseGetNodeNetworkResponse parses an HTTP response from a GetNodeNetworkWithResponse call
 func ParseGetNodeNetworkResponse(rsp *http.Response) (*GetNodeNetworkResponse, error) {
 	bodyBytes, err := io.ReadAll(rsp.Body)
@@ -15829,6 +16002,175 @@ func ParseCreateCompleteProbeTaskResponse(rsp *http.Response) (*CreateCompletePr
 			return nil, err
 		}
 		response.JSON409 = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseCreateNodeProxyDiscoveryPathResponse parses an HTTP response from a CreateNodeProxyDiscoveryPathWithResponse call
+func ParseCreateNodeProxyDiscoveryPathResponse(rsp *http.Response) (*CreateNodeProxyDiscoveryPathResponse, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &CreateNodeProxyDiscoveryPathResponse{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 201:
+		var dest ProxyDiscoveryPath
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON201 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 400:
+		var dest BadRequest
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON400 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 401:
+		var dest Unauthorized
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON401 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 403:
+		var dest Forbidden
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON403 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 404:
+		var dest NotFound
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON404 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 409:
+		var dest Conflict
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON409 = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseDeleteNodeProxyDiscoveryPathResponse parses an HTTP response from a DeleteNodeProxyDiscoveryPathWithResponse call
+func ParseDeleteNodeProxyDiscoveryPathResponse(rsp *http.Response) (*DeleteNodeProxyDiscoveryPathResponse, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &DeleteNodeProxyDiscoveryPathResponse{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 202:
+		var dest ProxyDiscoveryPathDeletion
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON202 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 401:
+		var dest Unauthorized
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON401 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 403:
+		var dest Forbidden
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON403 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 404:
+		var dest NotFound
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON404 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 409:
+		var dest Conflict
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON409 = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseUpdatePublicAddressResponse parses an HTTP response from a UpdatePublicAddressWithResponse call
+func ParseUpdatePublicAddressResponse(rsp *http.Response) (*UpdatePublicAddressResponse, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &UpdatePublicAddressResponse{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest PublicAddress
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 400:
+		var dest BadRequest
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON400 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 401:
+		var dest Unauthorized
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON401 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 403:
+		var dest Forbidden
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON403 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 404:
+		var dest NotFound
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON404 = &dest
 
 	}
 
@@ -16634,6 +16976,86 @@ func ParseStarProbeSnapshotResponse(rsp *http.Response) (*StarProbeSnapshotRespo
 			return nil, err
 		}
 		response.JSON404 = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseGetSystemSettingsResponse parses an HTTP response from a GetSystemSettingsWithResponse call
+func ParseGetSystemSettingsResponse(rsp *http.Response) (*GetSystemSettingsResponse, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &GetSystemSettingsResponse{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest SystemSettings
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 401:
+		var dest Unauthorized
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON401 = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseUpdateSystemSettingsResponse parses an HTTP response from a UpdateSystemSettingsWithResponse call
+func ParseUpdateSystemSettingsResponse(rsp *http.Response) (*UpdateSystemSettingsResponse, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &UpdateSystemSettingsResponse{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest SystemSettings
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 400:
+		var dest BadRequest
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON400 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 401:
+		var dest Unauthorized
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON401 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 403:
+		var dest Forbidden
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON403 = &dest
 
 	}
 
