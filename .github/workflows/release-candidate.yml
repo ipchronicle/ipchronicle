@@ -40,7 +40,7 @@ jobs:
       - name: Run deterministic release failure gate
         run: make release-failure-gate
       - name: Upload temporary candidate artifact
-        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
           name: ipchronicle-v${{ inputs.version }}-${{ github.sha }}-unvalidated-a
           path: dist/release/${{ inputs.version }}/
@@ -91,7 +91,7 @@ jobs:
           VERSION: ${{ inputs.version }}
         run: scripts/compare-release-candidates.sh "dist/reference/$VERSION" "dist/rebuilt/$VERSION"
       - name: Upload independent temporary candidate
-        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
           name: ipchronicle-v${{ inputs.version }}-${{ github.sha }}-unvalidated-b
           path: dist/rebuilt/${{ inputs.version }}/
@@ -242,7 +242,7 @@ jobs:
           VERSION: ${{ inputs.version }}
         run: scripts/compare-release-candidates.sh "dist/final-a/$VERSION" "dist/final-b/$VERSION"
       - name: Upload final release candidate
-        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
           name: ipchronicle-v${{ inputs.version }}-${{ github.sha }}
           path: dist/final-a/${{ inputs.version }}/
