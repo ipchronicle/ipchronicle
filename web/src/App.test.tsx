@@ -88,6 +88,8 @@ import { AuthProvider } from "@/auth-context";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import i18n from "@/i18n";
 
+const writeClipboardTextMock = vi.fn();
+
 vi.mock("@/api/auth", async (importOriginal) => {
   const original = await importOriginal<typeof import("@/api/auth")>();
   return {
@@ -303,6 +305,12 @@ describe("administrator application", () => {
     window.localStorage.clear();
     document.documentElement.className = "";
     await i18n.changeLanguage("en");
+    writeClipboardTextMock.mockReset();
+    writeClipboardTextMock.mockResolvedValue(undefined);
+    Object.defineProperty(navigator, "clipboard", {
+      configurable: true,
+      value: { writeText: writeClipboardTextMock },
+    });
     getSessionMock.mockReset();
     loginMock.mockReset();
     logoutMock.mockReset();
@@ -795,6 +803,19 @@ describe("administrator application", () => {
       `--center-url '${window.location.origin}'`,
     );
     expect(installationCommand).not.toContain("--version");
+    const copyCommandButton = screen.getByRole("button", {
+      name: "Copy command",
+    });
+    expect(screen.queryByRole("tooltip")).not.toBeInTheDocument();
+    fireEvent.click(copyCommandButton);
+    await waitFor(() =>
+      expect(writeClipboardTextMock).toHaveBeenCalledWith(installationCommand),
+    );
+    expect(copyCommandButton).toHaveTextContent("Copy command");
+    expect(await screen.findByRole("tooltip")).toHaveTextContent(
+      "Installation command copied.",
+    );
+    expect(screen.queryByRole("alert")).not.toBeInTheDocument();
     expect((await screen.findAllByText("edge-1")).length).toBeGreaterThan(0);
     expect(screen.getAllByText("203.0.113.10").length).toBeGreaterThan(0);
     expect(

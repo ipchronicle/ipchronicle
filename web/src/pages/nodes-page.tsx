@@ -75,6 +75,11 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
 import { formatAPIError } from "@/lib/api-error";
 import {
   canRequestAgentUpdate,
@@ -352,6 +357,8 @@ function EnrollmentCard({
 }) {
   const { i18n, t } = useTranslation();
   const [working, setWorking] = useState(false);
+  const [commandCopied, setCommandCopied] = useState(false);
+  const copyFeedbackTimeoutRef = useRef<number | undefined>(undefined);
   const [feedback, setFeedback] = useState<
     { kind: "success" | "error"; message: string } | undefined
   >();
@@ -365,6 +372,15 @@ function EnrollmentCard({
             releaseChannel,
           ),
     [centerURL, enrollment.registrationKey, releaseChannel],
+  );
+
+  useEffect(
+    () => () => {
+      if (copyFeedbackTimeoutRef.current !== undefined) {
+        window.clearTimeout(copyFeedbackTimeoutRef.current);
+      }
+    },
+    [],
   );
 
   async function setEnabled(enabled: boolean) {
@@ -401,11 +417,20 @@ function EnrollmentCard({
     if (installationCommand === undefined) return;
     try {
       await navigator.clipboard.writeText(installationCommand);
-      setFeedback({
-        kind: "success",
-        message: t("nodes.enrollment.copied"),
-      });
+      setCommandCopied(true);
+      if (copyFeedbackTimeoutRef.current !== undefined) {
+        window.clearTimeout(copyFeedbackTimeoutRef.current);
+      }
+      copyFeedbackTimeoutRef.current = window.setTimeout(() => {
+        setCommandCopied(false);
+        copyFeedbackTimeoutRef.current = undefined;
+      }, 2_000);
     } catch {
+      setCommandCopied(false);
+      if (copyFeedbackTimeoutRef.current !== undefined) {
+        window.clearTimeout(copyFeedbackTimeoutRef.current);
+        copyFeedbackTimeoutRef.current = undefined;
+      }
       setFeedback({ kind: "error", message: t("errors.actionFailed") });
     }
   }
@@ -469,15 +494,22 @@ function EnrollmentCard({
                     {t("nodes.enrollment.commandDetail")}
                   </p>
                 </div>
-                <Button
-                  variant="outline"
-                  size="sm"
-                  disabled={working || installationCommand === undefined}
-                  onClick={() => void copyCommand()}
-                >
-                  <Clipboard data-icon="inline-start" aria-hidden="true" />
-                  {t("nodes.enrollment.copy")}
-                </Button>
+                <Tooltip open={commandCopied}>
+                  <TooltipTrigger asChild>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      disabled={working || installationCommand === undefined}
+                      onClick={() => void copyCommand()}
+                    >
+                      <Clipboard data-icon="inline-start" aria-hidden="true" />
+                      {t("nodes.enrollment.copy")}
+                    </Button>
+                  </TooltipTrigger>
+                  <TooltipContent side="top" sideOffset={6}>
+                    {t("nodes.enrollment.copied")}
+                  </TooltipContent>
+                </Tooltip>
               </div>
               <pre className="overflow-x-auto rounded-md bg-muted p-4 text-xs leading-5">
                 <code>

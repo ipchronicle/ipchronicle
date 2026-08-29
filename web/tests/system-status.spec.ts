@@ -289,6 +289,18 @@ test("generates an Agent installation command from the nodes page", async ({
   await expect(
     page.getByText("install-agent.sh", { exact: false }),
   ).toBeVisible();
+  await page.evaluate(() => {
+    Object.defineProperty(navigator, "clipboard", {
+      configurable: true,
+      value: { writeText: async () => undefined },
+    });
+  });
+  const copyCommand = page.getByRole("button", { name: "Copy command" });
+  await copyCommand.click();
+  await expect(copyCommand).toHaveText("Copy command");
+  await expect(page.getByRole("tooltip")).toHaveText(
+    "Installation command copied.",
+  );
   const installationCommand = await page.locator("pre code").textContent();
   const registrationKey = installationCommand?.match(
     /--registration-key '([^']+)'/,
