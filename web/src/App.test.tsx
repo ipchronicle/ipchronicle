@@ -38,8 +38,6 @@ import {
   updateHistoryRetention,
 } from "@/api/history";
 import {
-  createNodeProxyDiscoveryPath,
-  deleteNodeProxyDiscoveryPath,
   getNetworkObservationSettings,
   getNodeNetwork,
   updateNetworkObservationSettings,
@@ -59,7 +57,6 @@ import {
 import {
   createNetworkProxy,
   deleteNetworkProxy,
-  listNetworkProxies,
   updateNetworkProxy,
 } from "@/api/proxies";
 import {
@@ -125,8 +122,6 @@ vi.mock("@/api/history", () => ({
 }));
 
 vi.mock("@/api/network", () => ({
-  createNodeProxyDiscoveryPath: vi.fn(),
-  deleteNodeProxyDiscoveryPath: vi.fn(),
   getNetworkObservationSettings: vi.fn(),
   getNodeNetwork: vi.fn(),
   updateNetworkObservationSettings: vi.fn(),
@@ -148,7 +143,6 @@ vi.mock("@/api/nodes", () => ({
 vi.mock("@/api/proxies", () => ({
   createNetworkProxy: vi.fn(),
   deleteNetworkProxy: vi.fn(),
-  listNetworkProxies: vi.fn(),
   updateNetworkProxy: vi.fn(),
 }));
 
@@ -197,8 +191,6 @@ const listHistoryGapsMock = vi.mocked(listHistoryProbeGaps);
 const listHistorySnapshotsMock = vi.mocked(listHistoryProbeSnapshots);
 const setSnapshotStarredMock = vi.mocked(setProbeSnapshotStarred);
 const updateRetentionMock = vi.mocked(updateHistoryRetention);
-const createProxyPathMock = vi.mocked(createNodeProxyDiscoveryPath);
-const deleteProxyPathMock = vi.mocked(deleteNodeProxyDiscoveryPath);
 const getObservationSettingsMock = vi.mocked(getNetworkObservationSettings);
 const getNodeNetworkMock = vi.mocked(getNodeNetwork);
 const updateObservationSettingsMock = vi.mocked(
@@ -216,7 +208,6 @@ const updateNodeMock = vi.mocked(updateNode);
 const updateEnrollmentMock = vi.mocked(updateAgentEnrollment);
 const createProxyMock = vi.mocked(createNetworkProxy);
 const deleteProxyMock = vi.mocked(deleteNetworkProxy);
-const listProxiesMock = vi.mocked(listNetworkProxies);
 const updateProxyMock = vi.mocked(updateNetworkProxy);
 const createNotificationRuleMock = vi.mocked(createNotificationRule);
 const createNotificationSenderMock = vi.mocked(createNotificationSender);
@@ -255,8 +246,8 @@ const healthyStatus = {
   status: "ok" as const,
   version: "0.0.0-test",
   sourceRevision: "1111111111111111111111111111111111111111",
-  configSchemaVersion: 8,
-  historySchemaVersion: 2,
+  configSchemaVersion: 1,
+  historySchemaVersion: 1,
   transportSecurity: "http" as const,
   transportWarning: true,
   externalOriginMode: "automatic" as const,
@@ -344,8 +335,6 @@ describe("administrator application", () => {
     listHistorySnapshotsMock.mockResolvedValue({ items: [], total: 0 });
     setSnapshotStarredMock.mockReset();
     updateRetentionMock.mockReset();
-    createProxyPathMock.mockReset();
-    deleteProxyPathMock.mockReset();
     getObservationSettingsMock.mockReset();
     getObservationSettingsMock.mockResolvedValue({
       ipv4Services: ["https://one.example/ip", "https://two.example/ip"],
@@ -368,8 +357,6 @@ describe("administrator application", () => {
     updateEnrollmentMock.mockReset();
     createProxyMock.mockReset();
     deleteProxyMock.mockReset();
-    listProxiesMock.mockReset();
-    listProxiesMock.mockResolvedValue([]);
     updateProxyMock.mockReset();
     createNotificationRuleMock.mockReset();
     createNotificationSenderMock.mockReset();
@@ -393,6 +380,18 @@ describe("administrator application", () => {
     createProbeTaskMock.mockReset();
     getHistoryStateMock.mockReset();
     getNodeProbeMock.mockReset();
+    getNodeProbeMock.mockResolvedValue({
+      nodeId: "7289cfa3-a75d-4a3f-ac06-8f1074446a85",
+      schedule: {
+        enabled: true,
+        cron: "0 0 0 * * *",
+        timezone: "UTC",
+      },
+      lowMemoryOverride: false,
+      probeOnNewAddress: true,
+      pausedLowMemory: false,
+      recentRuns: [],
+    });
     getProbeRunMock.mockReset();
     getProbeSnapshotMock.mockReset();
     resetHistoryMock.mockReset();
@@ -499,7 +498,11 @@ describe("administrator application", () => {
       name: "Use this browser's current address",
     });
     expect(automaticSwitch).toBeChecked();
+    expect(automaticSwitch).toHaveClass("cursor-pointer");
+    fireEvent.click(screen.getByText("Use this browser's current address"));
+    expect(automaticSwitch).toBeChecked();
     fireEvent.click(automaticSwitch);
+    expect(automaticSwitch).not.toBeChecked();
     const externalOrigin = screen.getByLabelText("Custom external address");
     fireEvent.change(externalOrigin, {
       target: { value: "https://ip.example.com" },
@@ -670,6 +673,36 @@ describe("administrator application", () => {
     expect(document.documentElement).toHaveClass("dark");
   });
 
+  it("uses the browser timezone when generating an enrollment key", async () => {
+    getSessionMock.mockResolvedValue(session);
+    getEnrollmentMock.mockResolvedValue({
+      enabled: false,
+      hasKey: false,
+    });
+    listNodesMock.mockResolvedValue([]);
+    const defaultProbeTimezone =
+      Intl.DateTimeFormat().resolvedOptions().timeZone;
+    rotateEnrollmentMock.mockResolvedValue({
+      enabled: true,
+      hasKey: true,
+      registrationKey: "secret",
+      defaultProbeTimezone,
+      rotatedAt: "2026-08-31T10:00:00Z",
+    });
+
+    renderApplication("/nodes");
+
+    fireEvent.click(
+      await screen.findByRole("button", { name: "Generate key" }),
+    );
+    await waitFor(() =>
+      expect(rotateEnrollmentMock).toHaveBeenCalledWith(
+        defaultProbeTimezone,
+        session.csrfToken,
+      ),
+    );
+  });
+
   it("shows the installation command and registered node state", async () => {
     getSessionMock.mockResolvedValue(session);
     getEnrollmentMock.mockResolvedValue({
@@ -774,8 +807,23 @@ describe("administrator application", () => {
       offline: false,
     });
     getNodeNetworkMock.mockResolvedValue({
-      publicAddresses: [],
-      proxyDiscoveryPaths: [],
+      publicAddresses: [
+        {
+          id: "14f44250-67e7-44d6-bb15-e30fc80af44c",
+          address: "203.0.113.10",
+          family: "ipv4",
+          probeEnabled: false,
+          available: true,
+          selectedNodeId: "7289cfa3-a75d-4a3f-ac06-8f1074446a85",
+          selectedNodeName: "edge-1",
+          pathCount: 1,
+          likelyNat: false,
+          proxyPath: false,
+          firstSeenAt: "2026-08-07T12:01:00Z",
+          lastSeenAt: "2026-08-07T12:02:00Z",
+        },
+      ],
+      networkProxies: [],
       addressEvents: [],
       addressGaps: [],
     });
@@ -784,9 +832,10 @@ describe("administrator application", () => {
       schedule: {
         enabled: true,
         cron: "0 0 0 * * *",
-        timezone: "agent-local",
+        timezone: "UTC",
       },
       lowMemoryOverride: false,
+      probeOnNewAddress: true,
       pausedLowMemory: false,
       recentRuns: [],
     });
@@ -795,10 +844,13 @@ describe("administrator application", () => {
     expect(
       await screen.findByRole("heading", { name: "Nodes" }),
     ).toBeInTheDocument();
-    const installationCommand = document.querySelector("pre code")?.textContent;
-    expect(installationCommand).toContain(
-      "https://raw.githubusercontent.com/ipchronicle/ipchronicle/main/scripts/install-agent.sh",
-    );
+    const installationCommand = await waitFor(() => {
+      const command = document.querySelector("pre code")?.textContent;
+      expect(command).toContain(
+        "https://raw.githubusercontent.com/ipchronicle/ipchronicle/main/scripts/install-agent.sh",
+      );
+      return command;
+    });
     expect(installationCommand).toContain(
       `--center-url '${window.location.origin}'`,
     );
@@ -848,9 +900,19 @@ describe("administrator application", () => {
       screen.queryByRole("button", { name: "Start temporary sync" }),
     ).not.toBeInTheDocument();
     fireEvent.click(screen.getAllByRole("button", { name: "Run probe" })[0]);
+    const probeDialog = await screen.findByRole("alertdialog");
+    fireEvent.click(within(probeDialog).getByText("203.0.113.10"));
+    expect(
+      within(probeDialog).getByRole("checkbox", { name: /203\.0\.113\.10/ }),
+    ).toBeChecked();
+    expect(screen.getByRole("alertdialog")).toBe(probeDialog);
+    fireEvent.click(screen.getByRole("button", { name: "Save and run probe" }));
     await waitFor(() =>
       expect(createProbeTaskMock).toHaveBeenCalledWith(
         "7289cfa3-a75d-4a3f-ac06-8f1074446a85",
+        {
+          publicAddressIds: ["14f44250-67e7-44d6-bb15-e30fc80af44c"],
+        },
         session.csrfToken,
       ),
     );
@@ -858,7 +920,7 @@ describe("administrator application", () => {
     await waitFor(() =>
       expect(updateNodeMock).toHaveBeenCalledWith(
         "7289cfa3-a75d-4a3f-ac06-8f1074446a85",
-        false,
+        { enabled: false },
         session.csrfToken,
       ),
     );
@@ -932,6 +994,34 @@ describe("administrator application", () => {
       expect(listNodesMock).toHaveBeenCalledTimes(2);
     } finally {
       interval.mockRestore();
+    }
+  });
+
+  it("copies preserving and purging Agent uninstall commands", async () => {
+    getSessionMock.mockResolvedValue(session);
+    listNodesMock.mockResolvedValue([probeTestNode]);
+
+    renderApplication(`/nodes/${probeTestNode.id}/settings`);
+
+    expect(await screen.findByText("Uninstall Agent")).toBeInTheDocument();
+    fireEvent.click(
+      screen.getByRole("button", { name: "Copy uninstall command" }),
+    );
+    await waitFor(() =>
+      expect(writeClipboardTextMock).toHaveBeenLastCalledWith(
+        expect.stringMatching(/sh -s -- --uninstall$/),
+      ),
+    );
+    fireEvent.click(
+      screen.getByRole("button", { name: "Copy complete uninstall command" }),
+    );
+    await waitFor(() =>
+      expect(writeClipboardTextMock).toHaveBeenLastCalledWith(
+        expect.stringMatching(/sh -s -- --uninstall --purge$/),
+      ),
+    );
+    for (const [command] of writeClipboardTextMock.mock.calls) {
+      expect(command).not.toContain("--registration-key");
     }
   });
 
@@ -1059,20 +1149,8 @@ describe("administrator application", () => {
     ).toBeGreaterThan(0);
   });
 
-  it("shows deduplicated public IPs and updates probe settings", async () => {
+  it("shows public IPs and node-scoped automatic proxy results", async () => {
     getSessionMock.mockResolvedValue(session);
-    listProxiesMock.mockResolvedValue([
-      {
-        id: "6fc6d7e8-bc63-49e2-91fc-d4c58b43ac16",
-        name: "Primary proxy",
-        scheme: "socks5",
-        host: "proxy.example.test",
-        port: 1080,
-        passwordConfigured: true,
-        createdAt: "2026-08-09T06:00:00Z",
-        updatedAt: "2026-08-09T06:00:00Z",
-      },
-    ]);
     listNodesMock.mockResolvedValue([
       {
         id: "7289cfa3-a75d-4a3f-ac06-8f1074446a85",
@@ -1098,7 +1176,6 @@ describe("administrator application", () => {
           address: "8.8.8.8",
           family: "ipv4",
           probeEnabled: false,
-          probeOnRediscovery: true,
           available: true,
           selectedNodeId: "7289cfa3-a75d-4a3f-ac06-8f1074446a85",
           selectedNodeName: "edge-1",
@@ -1107,16 +1184,47 @@ describe("administrator application", () => {
           proxyPath: false,
           firstSeenAt: "2026-08-09T06:01:00Z",
           lastSeenAt: "2026-08-09T06:02:00Z",
+          latestSnapshotId: "cd6233d2-a600-443b-9cf5-a0bc3c241ea5",
+          latestSnapshotAt: "2026-08-09T06:03:00Z",
+        },
+        {
+          id: "48e69536-e0aa-47be-8832-0ca085fdc622",
+          address: "2001:db8::8",
+          family: "ipv6",
+          probeEnabled: true,
+          available: true,
+          selectedNodeId: "7289cfa3-a75d-4a3f-ac06-8f1074446a85",
+          selectedNodeName: "edge-1",
+          pathCount: 1,
+          likelyNat: false,
+          proxyPath: false,
+          firstSeenAt: "2026-08-09T06:01:00Z",
+          lastSeenAt: "2026-08-09T06:02:00Z",
         },
       ],
-      proxyDiscoveryPaths: [
+      networkProxies: [
         {
-          id: "a6a2f052-f9c4-4f37-88d5-4dc4c95d68d9",
+          id: "6fc6d7e8-bc63-49e2-91fc-d4c58b43ac16",
           nodeId: "7289cfa3-a75d-4a3f-ac06-8f1074446a85",
-          name: "Primary proxy · IPv4",
-          family: "ipv4",
-          proxyId: "6fc6d7e8-bc63-49e2-91fc-d4c58b43ac16",
-          available: true,
+          name: "Primary proxy",
+          scheme: "socks5",
+          host: "proxy.example.test",
+          port: 1080,
+          username: "probe-user",
+          passwordConfigured: true,
+          status: "ipv4-only",
+          ipv4: {
+            status: "available",
+            publicAddress: "198.51.100.20",
+            lastCheckedAt: "2026-08-09T06:02:00Z",
+          },
+          ipv6: {
+            status: "unavailable",
+            failureReason: "no-valid-response",
+            lastCheckedAt: "2026-08-09T06:02:00Z",
+          },
+          createdAt: "2026-08-09T06:00:00Z",
+          updatedAt: "2026-08-09T06:00:00Z",
         },
       ],
       addressEvents: [],
@@ -1127,7 +1235,6 @@ describe("administrator application", () => {
       address: "8.8.8.8",
       family: "ipv4",
       probeEnabled: true,
-      probeOnRediscovery: true,
       available: true,
       selectedNodeId: "7289cfa3-a75d-4a3f-ac06-8f1074446a85",
       selectedNodeName: "edge-1",
@@ -1146,98 +1253,220 @@ describe("administrator application", () => {
     expect(await screen.findByText("8.8.8.8")).toBeInTheDocument();
     expect(screen.getByText("Reached through NAT")).toBeInTheDocument();
     expect(screen.queryByText("eth0")).not.toBeInTheDocument();
+    expect(screen.getByText("Primary proxy")).toBeInTheDocument();
+    expect(screen.getByText("IPv4 only")).toBeInTheDocument();
+    expect(screen.getByText("198.51.100.20")).toBeInTheDocument();
+    expect(screen.getByText("No public IP discovered")).toBeInTheDocument();
+    expect(screen.queryByLabelText("Address family")).not.toBeInTheDocument();
+    expect(screen.getByText("Password configured")).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "View result" })).toHaveAttribute(
+      "href",
+      "/probe-snapshots/cd6233d2-a600-443b-9cf5-a0bc3c241ea5",
+    );
+    expect(screen.getByRole("button", { name: "View result" })).toBeDisabled();
+    fireEvent.click(screen.getAllByRole("button", { name: "Probe now" })[0]);
+    const targetDialog = await screen.findByRole("alertdialog");
+    expect(
+      within(targetDialog).getByRole("checkbox", { name: /8\.8\.8\.8/ }),
+    ).toBeChecked();
+    expect(
+      within(targetDialog).getByRole("checkbox", { name: /2001:db8::8/ }),
+    ).not.toBeChecked();
     fireEvent.click(
-      screen.getByRole("switch", { name: "Enable complete probe" }),
+      within(targetDialog).getByRole("button", { name: "Cancel" }),
+    );
+    expect(screen.getByRole("button", { name: "Edit" })).toBeEnabled();
+    expect(
+      screen.queryByDisplayValue("retained-secret"),
+    ).not.toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Edit" }));
+    const editDialog = screen.getByRole("dialog", { name: "Edit proxy" });
+    expect(within(editDialog).getByLabelText("Password")).toHaveValue("");
+    fireEvent.click(within(editDialog).getByRole("button", { name: "Cancel" }));
+    fireEvent.click(
+      screen.getAllByRole("switch", { name: "Enable complete probe" })[0],
     );
     await waitFor(() =>
       expect(updatePublicAddressMock).toHaveBeenCalledWith(
         "7289cfa3-a75d-4a3f-ac06-8f1074446a85",
         "4a44d3d7-7b45-4a3e-9e5c-e70fdba46e72",
-        { probeEnabled: true, probeOnRediscovery: true },
+        { probeEnabled: true },
         session.csrfToken,
       ),
     );
 
-    deleteProxyPathMock.mockResolvedValue({
-      pathId: "a6a2f052-f9c4-4f37-88d5-4dc4c95d68d9",
+    deleteProxyMock.mockResolvedValue({
+      id: "6fc6d7e8-bc63-49e2-91fc-d4c58b43ac16",
       nodeId: "7289cfa3-a75d-4a3f-ac06-8f1074446a85",
-      status: "pending",
-      requestedAt: "2026-08-09T06:03:00Z",
+      name: "Primary proxy",
+      scheme: "socks5",
+      host: "proxy.example.test",
+      port: 1080,
+      username: "probe-user",
+      passwordConfigured: true,
+      status: "ipv4-only",
+      ipv4: { status: "available", publicAddress: "198.51.100.20" },
+      ipv6: { status: "unavailable", failureReason: "no-valid-response" },
+      deletionStatus: "pending",
+      createdAt: "2026-08-09T06:00:00Z",
+      updatedAt: "2026-08-09T06:03:00Z",
     });
-    fireEvent.click(screen.getByRole("button", { name: "Delete" }));
+    fireEvent.click(screen.getByRole("button", { name: "Delete proxy" }));
     expect(
       await screen.findByText(
-        "Previously discovered public IPs, reports, and address history are retained.",
+        "Discovered public IPs, reports, and address history are retained.",
         { exact: false },
       ),
     ).toBeInTheDocument();
-    fireEvent.click(screen.getByRole("button", { name: "Delete path" }));
-    await waitFor(() =>
-      expect(deleteProxyPathMock).toHaveBeenCalledWith(
-        "7289cfa3-a75d-4a3f-ac06-8f1074446a85",
-        "a6a2f052-f9c4-4f37-88d5-4dc4c95d68d9",
-        session.csrfToken,
-      ),
-    );
-
-    createProxyPathMock.mockResolvedValue({
-      id: "5af1f0b2-477f-4a7a-a122-0682a78fdf55",
-      nodeId: "7289cfa3-a75d-4a3f-ac06-8f1074446a85",
-      name: "Primary proxy · IPv6",
-      family: "ipv6",
-      proxyId: "6fc6d7e8-bc63-49e2-91fc-d4c58b43ac16",
-      available: false,
-    });
-    fireEvent.click(screen.getByRole("combobox", { name: "Network proxy" }));
     fireEvent.click(
-      await screen.findByRole("option", { name: "Primary proxy" }),
+      within(screen.getByRole("alertdialog")).getByRole("button", {
+        name: "Delete proxy",
+      }),
     );
-    fireEvent.click(screen.getByRole("combobox", { name: "Address family" }));
-    fireEvent.click(await screen.findByRole("option", { name: "IPv6" }));
-    fireEvent.click(screen.getByRole("button", { name: "Add discovery path" }));
     await waitFor(() =>
-      expect(createProxyPathMock).toHaveBeenCalledWith(
+      expect(deleteProxyMock).toHaveBeenCalledWith(
         "7289cfa3-a75d-4a3f-ac06-8f1074446a85",
-        {
-          proxyId: "6fc6d7e8-bc63-49e2-91fc-d4c58b43ac16",
-          family: "ipv6",
-        },
+        "6fc6d7e8-bc63-49e2-91fc-d4c58b43ac16",
         session.csrfToken,
       ),
     );
   });
 
-  it("shows replace-only proxy credentials in network settings", async () => {
+  it("creates one node proxy and starts both family checks", async () => {
     getSessionMock.mockResolvedValue(session);
-    listProxiesMock.mockResolvedValue([
+    listNodesMock.mockResolvedValue([
       {
-        id: "6fc6d7e8-bc63-49e2-91fc-d4c58b43ac16",
-        name: "Primary proxy",
-        scheme: "socks5",
-        host: "proxy.example.test",
-        port: 1080,
-        username: "probe-user",
-        passwordConfigured: true,
-        createdAt: "2026-08-09T06:00:00Z",
-        updatedAt: "2026-08-09T06:00:00Z",
+        id: "7289cfa3-a75d-4a3f-ac06-8f1074446a85",
+        name: "edge-1",
+        hostname: "edge-1",
+        status: "online",
+        enabled: true,
+        agentVersion: "0.1.0",
+        operatingSystem: "linux",
+        architecture: "amd64",
+        capabilities: ["network-inventory-v1"],
+        desiredConfigurationRevision: 2,
+        appliedConfigurationRevision: 2,
+        configurationStatus: "current",
+        publicAddresses: [],
+        registeredAt: "2026-08-09T06:00:00Z",
       },
     ]);
+    getNodeNetworkMock.mockResolvedValue({
+      publicAddresses: [],
+      networkProxies: [],
+      addressEvents: [],
+      addressGaps: [],
+    });
+    createProxyMock.mockResolvedValue({
+      id: "6fc6d7e8-bc63-49e2-91fc-d4c58b43ac16",
+      nodeId: "7289cfa3-a75d-4a3f-ac06-8f1074446a85",
+      name: "Automatic proxy",
+      scheme: "http",
+      host: "proxy.example.test",
+      port: 8080,
+      passwordConfigured: false,
+      status: "checking",
+      ipv4: { status: "checking" },
+      ipv6: { status: "checking" },
+      createdAt: "2026-08-09T06:00:00Z",
+      updatedAt: "2026-08-09T06:00:00Z",
+    });
 
-    renderApplication("/settings/network");
+    renderApplication("/nodes/7289cfa3-a75d-4a3f-ac06-8f1074446a85/network");
 
     expect(
-      await screen.findByRole("heading", { name: "Network probes" }),
+      await screen.findByText("This node has no network proxy."),
     ).toBeInTheDocument();
-    expect(await screen.findByText("Password configured")).toBeInTheDocument();
     expect(
-      screen.getByRole("button", { name: "Replace password" }),
-    ).toBeDisabled();
-    expect(
-      screen.queryByDisplayValue("retained-secret"),
+      screen.queryByLabelText("Name", { exact: true }),
     ).not.toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Add proxy" }));
+    const createDialog = screen.getByRole("dialog", { name: "Add proxy" });
+    fireEvent.change(
+      within(createDialog).getByLabelText("Name", { exact: true }),
+      {
+        target: { value: "Automatic proxy" },
+      },
+    );
+    fireEvent.change(
+      within(createDialog).getByLabelText("Host or IP address"),
+      {
+        target: { value: "proxy.example.test" },
+      },
+    );
+    fireEvent.click(
+      within(createDialog).getByRole("button", { name: "Add proxy" }),
+    );
+    await waitFor(() =>
+      expect(createProxyMock).toHaveBeenCalledWith(
+        "7289cfa3-a75d-4a3f-ac06-8f1074446a85",
+        {
+          name: "Automatic proxy",
+          scheme: "http",
+          host: "proxy.example.test",
+          port: 8080,
+          username: undefined,
+          password: undefined,
+        },
+        session.csrfToken,
+      ),
+    );
+    expect(await screen.findByText("Automatic proxy")).toBeInTheDocument();
     expect(
-      screen.getByRole("link", { name: "Network probes" }),
-    ).toHaveAttribute("aria-current", "page");
+      screen.queryByRole("dialog", { name: "Add proxy" }),
+    ).not.toBeInTheDocument();
+    expect(screen.getAllByText("Checking")).toHaveLength(3);
+    expect(screen.queryByLabelText("Address family")).not.toBeInTheDocument();
+  });
+
+  it("searches and saves an explicit probe timezone", async () => {
+    getSessionMock.mockResolvedValue(session);
+    listNodesMock.mockResolvedValue([probeTestNode]);
+    const probeState = {
+      nodeId: probeTestNode.id,
+      schedule: { enabled: true, cron: "0 0 0 * * *", timezone: "UTC" },
+      lowMemoryOverride: false,
+      probeOnNewAddress: true,
+      pausedLowMemory: false,
+      recentRuns: [],
+    };
+    getNodeProbeMock.mockResolvedValue(probeState);
+    updateProbeSettingsMock.mockResolvedValue({
+      ...probeState,
+      schedule: { ...probeState.schedule, timezone: "Asia/Shanghai" },
+    });
+
+    renderApplication(`/nodes/${probeTestNode.id}/probe`);
+
+    const timezone = await screen.findByRole("combobox", {
+      name: "Time zone",
+    });
+    expect(timezone).toHaveTextContent("UTC");
+    fireEvent.click(timezone);
+    fireEvent.change(screen.getByPlaceholderText("Search time zones..."), {
+      target: { value: "Asia/Shanghai" },
+    });
+    fireEvent.click(await screen.findByText("Asia/Shanghai"));
+    fireEvent.click(
+      screen.getByRole("button", { name: "Save probe settings" }),
+    );
+
+    await waitFor(() =>
+      expect(updateProbeSettingsMock).toHaveBeenCalledWith(
+        probeTestNode.id,
+        {
+          schedule: {
+            enabled: true,
+            cron: "0 0 0 * * *",
+            timezone: "Asia/Shanghai",
+          },
+          lowMemoryOverride: false,
+          probeOnNewAddress: true,
+        },
+        session.csrfToken,
+      ),
+    );
   });
 
   it("configures a low-memory node and creates an immediate probe task", async () => {
@@ -1245,8 +1474,9 @@ describe("administrator application", () => {
     listNodesMock.mockResolvedValue([probeTestNode]);
     const pausedState = {
       nodeId: probeTestNode.id,
-      schedule: { enabled: true, cron: "0 0 0 * * *", timezone: "agent-local" },
+      schedule: { enabled: true, cron: "0 0 0 * * *", timezone: "UTC" },
       lowMemoryOverride: false,
+      probeOnNewAddress: true,
       physicalMemoryBytes: 64 * 1024 * 1024,
       pausedLowMemory: true,
       recentRuns: [],
@@ -1256,8 +1486,32 @@ describe("administrator application", () => {
       lowMemoryOverride: true,
       pausedLowMemory: false,
     };
-    getNodeProbeMock.mockResolvedValue(pausedState);
+    getNodeProbeMock
+      .mockResolvedValueOnce(pausedState)
+      .mockResolvedValueOnce(pausedState)
+      .mockResolvedValue(enabledState);
     updateProbeSettingsMock.mockResolvedValue(enabledState);
+    getNodeNetworkMock.mockResolvedValue({
+      publicAddresses: [
+        {
+          id: "a6a2f052-f9c4-4f37-88d5-4dc4c95d68d9",
+          address: "8.8.8.8",
+          family: "ipv4",
+          probeEnabled: true,
+          available: true,
+          selectedNodeId: probeTestNode.id,
+          selectedNodeName: probeTestNode.name,
+          pathCount: 1,
+          likelyNat: false,
+          proxyPath: false,
+          firstSeenAt: "2026-08-09T11:00:00Z",
+          lastSeenAt: "2026-08-09T12:00:00Z",
+        },
+      ],
+      networkProxies: [],
+      addressEvents: [],
+      addressGaps: [],
+    });
     createProbeTaskMock.mockResolvedValue({
       id: "b4bd9b72-a761-4f53-8a21-570aed465b88",
       nodeId: probeTestNode.id,
@@ -1278,12 +1532,13 @@ describe("administrator application", () => {
     expect(
       screen.getByRole("button", { name: "Run complete probe" }),
     ).toBeDisabled();
+    fireEvent.click(screen.getByRole("tab", { name: "Settings" }));
     fireEvent.click(
-      screen.getByRole("switch", { name: "Allow probes below 256 MiB" }),
+      await screen.findByRole("switch", {
+        name: "Allow probes below 256 MiB",
+      }),
     );
-    fireEvent.click(
-      screen.getByRole("button", { name: "Save probe settings" }),
-    );
+    fireEvent.click(screen.getByRole("button", { name: "Save policies" }));
     await waitFor(() =>
       expect(updateProbeSettingsMock).toHaveBeenCalledWith(
         probeTestNode.id,
@@ -1291,17 +1546,29 @@ describe("administrator application", () => {
           schedule: {
             enabled: true,
             cron: "0 0 0 * * *",
-            timezone: "agent-local",
+            timezone: "UTC",
           },
           lowMemoryOverride: true,
+          probeOnNewAddress: true,
         },
         session.csrfToken,
       ),
     );
+    fireEvent.click(screen.getByRole("tab", { name: "Probes" }));
+    expect(
+      await screen.findByRole("button", { name: "Run complete probe" }),
+    ).toBeEnabled();
     fireEvent.click(screen.getByRole("button", { name: "Run complete probe" }));
+    expect(
+      await screen.findByRole("checkbox", { name: /8\.8\.8\.8/ }),
+    ).toBeChecked();
+    fireEvent.click(screen.getByRole("button", { name: "Save and run probe" }));
     await waitFor(() =>
       expect(createProbeTaskMock).toHaveBeenCalledWith(
         probeTestNode.id,
+        {
+          publicAddressIds: ["a6a2f052-f9c4-4f37-88d5-4dc4c95d68d9"],
+        },
         session.csrfToken,
       ),
     );
@@ -1354,7 +1621,6 @@ describe("administrator application", () => {
           address: "8.8.8.8",
           family: "ipv4",
           probeEnabled: true,
-          probeOnRediscovery: true,
           available: true,
           pathCount: 1,
           likelyNat: false,
@@ -1363,7 +1629,7 @@ describe("administrator application", () => {
           lastSeenAt: "2026-08-09T12:00:00Z",
         },
       ],
-      proxyDiscoveryPaths: [],
+      networkProxies: [],
       addressEvents: [],
       addressGaps: [],
     });
@@ -1693,9 +1959,8 @@ describe("administrator application", () => {
           event: {
             id: "758db6d8-d8cd-44c5-a18d-ab7713012ec8",
             sequence: 3,
-            kind: "address-change",
+            kind: "address-added",
             family: "ipv4",
-            previousAddress: "203.0.113.9",
             publicAddress: "203.0.113.10",
             observedAt: "2026-08-09T12:00:00Z",
           },
@@ -1705,12 +1970,12 @@ describe("administrator application", () => {
     });
 
     renderApplication(
-      "/history?tab=addresses&from=2026-08-01T00%3A00&to=2026-08-10T00%3A00&eventKind=address-change&family=ipv4",
+      "/history?tab=addresses&from=2026-08-01T00%3A00&to=2026-08-10T00%3A00&eventKind=address-added&family=ipv4",
     );
 
     expect(
       (
-        await screen.findAllByText("203.0.113.9 -> 203.0.113.10", {
+        await screen.findAllByText("203.0.113.10", {
           exact: false,
         })
       ).length,
@@ -1723,7 +1988,7 @@ describe("administrator application", () => {
         page: 1,
         gapPage: 1,
         pageSize: 25,
-        eventKind: "address-change",
+        eventKind: "address-added",
         family: "ipv4",
       },
       expect.any(AbortSignal),

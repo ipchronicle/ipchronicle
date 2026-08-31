@@ -155,7 +155,7 @@ func limitAPIRequestBody(next http.Handler) http.Handler {
 				limit = maxAgentControlRequestBodySize
 			} else if r.URL.Path == "/api/v1/agent/probe-artifacts" {
 				limit = maxProbeArtifactRequestBodySize
-			} else if strings.HasPrefix(r.URL.Path, "/api/v1/network-proxies") {
+			} else if strings.Contains(r.URL.Path, "/network-proxies") {
 				limit = maxProxyRequestBodySize
 			} else if strings.HasPrefix(r.URL.Path, "/api/v1/notification-senders") {
 				limit = maxNotificationRequestBodySize

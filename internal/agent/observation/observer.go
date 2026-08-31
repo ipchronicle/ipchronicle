@@ -25,22 +25,13 @@ type checker interface {
 }
 
 type Observer struct {
-	store             *state.Store
-	checker           checker
-	logger            *log.Logger
-	now               func() time.Time
-	onConfirmedChange func(context.Context, string, time.Time) error
+	store   *state.Store
+	checker checker
+	logger  *log.Logger
+	now     func() time.Time
 }
 
 func NewObserver(store *state.Store, logger *log.Logger) *Observer {
-	return NewObserverWithChangeHandler(store, logger, nil)
-}
-
-func NewObserverWithChangeHandler(
-	store *state.Store,
-	logger *log.Logger,
-	onConfirmedChange func(context.Context, string, time.Time) error,
-) *Observer {
 	if store == nil {
 		panic("address observer store must not be nil")
 	}
@@ -49,7 +40,6 @@ func NewObserverWithChangeHandler(
 	}
 	return &Observer{
 		store: store, checker: NewChecker(), logger: logger, now: time.Now,
-		onConfirmedChange: onConfirmedChange,
 	}
 }
 
@@ -86,7 +76,7 @@ func (o *Observer) Run(ctx context.Context) error {
 		if ctx.Err() != nil {
 			return nil
 		}
-		changed, err := o.store.RecordAddressObservation(observation)
+		err = o.store.RecordAddressObservation(observation)
 		if errors.Is(err, state.ErrInvalidAddressObservation) {
 			current, currentErr := o.store.Configuration()
 			if currentErr != nil {
@@ -99,11 +89,6 @@ func (o *Observer) Run(ctx context.Context) error {
 		}
 		if err != nil {
 			return err
-		}
-		if changed && egress.ProbeOnAddressChange && o.onConfirmedChange != nil {
-			if err := o.onConfirmedChange(ctx, egress.ID, observation.CheckedAt); err != nil {
-				return fmt.Errorf("trigger complete probe after address change: %w", err)
-			}
 		}
 		if !observation.Confirmed {
 			o.logger.Printf("lightweight address check for egress %s failed: %s", egress.ID, observation.FailureReason)

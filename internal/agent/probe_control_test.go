@@ -17,6 +17,7 @@ import (
 func TestPollCarriesProbeStatusAndTaskReportAndAcceptsTask(t *testing.T) {
 	oldTaskID := uuid.New()
 	newTaskID := uuid.New()
+	var publicAddressIDs []uuid.UUID
 	now := time.Date(2026, 8, 9, 12, 0, 0, 0, time.UTC)
 	var received agentapi.AgentPollRequest
 	server := httptest.NewServer(http.HandlerFunc(func(response http.ResponseWriter, request *http.Request) {
@@ -39,15 +40,18 @@ func TestPollCarriesProbeStatusAndTaskReportAndAcceptsTask(t *testing.T) {
 			AcceptedTerminalTaskId: &oldTaskID,
 			Task: &agentapi.AgentTask{
 				Id: newTaskID, Kind: agentapi.AgentTaskKindCompleteProbe,
-				Trigger: agentapi.AgentTaskTriggerManual, CreatedAt: now, ExpiresAt: now.Add(2 * time.Minute),
+				Trigger: agentapi.AgentTaskTriggerManual, PublicAddressIds: &publicAddressIDs,
+				CreatedAt: now, ExpiresAt: now.Add(2 * time.Minute),
 			},
 		})
 	}))
 	defer server.Close()
 	store, identity, configuration := openProbeControlTestStore(t, server.URL)
 	defer store.Close()
+	publicAddressIDs = []uuid.UUID{uuid.MustParse(configuration.ProbeTargets[0].ID)}
 	if _, err := store.RejectProbeTask(state.ProbeTaskDelivery{
-		ID: oldTaskID.String(), CreatedAt: now.Add(-time.Minute), ExpiresAt: now.Add(time.Minute),
+		ID: oldTaskID.String(), Trigger: "manual", PublicAddressIDs: []string{configuration.ProbeTargets[0].ID},
+		CreatedAt: now.Add(-time.Minute), ExpiresAt: now.Add(time.Minute),
 	}, "busy", now); err != nil {
 		t.Fatal(err)
 	}
@@ -120,7 +124,7 @@ func TestProbeUploaderSurvivesCenterOutageAndRetransmitsWithoutExecuting(t *test
 	store, identity, _ := openProbeControlTestStore(t, server.URL)
 	defer store.Close()
 	startedAt := time.Date(2026, 8, 9, 12, 0, 0, 0, time.UTC)
-	run, err := store.StartProbeRun("schedule", nil, nil, startedAt)
+	run, err := store.StartProbeRun("schedule", nil, startedAt)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -195,16 +199,16 @@ func openProbeControlTestStore(t *testing.T, centerURL string) (*state.Store, st
 		t.Fatal(err)
 	}
 	configuration := state.Configuration{
-		SchemaVersion: 5, Revision: 1, Enabled: true,
+		SchemaVersion: 7, Revision: 1, Enabled: true,
 		HistoryGeneration: "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef",
-		ProbeSchedule:     state.ProbeSchedule{Enabled: true, Cron: "0 0 0 * * *", Timezone: "agent-local"},
+		ProbeSchedule:     state.ProbeSchedule{Enabled: true, Cron: "0 0 0 * * *", Timezone: "UTC"},
 		DiscoveryServices: state.DiscoveryServices{
 			IPv4: []string{"https://one.example/ip", "https://two.example/ip"},
 			IPv6: []string{"https://six-one.example/ip", "https://six-two.example/ip"},
 		},
-		Egresses: []state.Egress{{
-			ID: uuid.NewString(), Kind: "default", Family: "ipv4", Enabled: true,
-			LightweightIntervalSeconds: 600, ProbeOnAddressChange: true,
+		ProbeTargets: []state.Egress{{
+			ID: uuid.NewString(), PathID: pointer(uuid.NewString()), PublicAddress: pointer("203.0.113.10"),
+			Kind: "default", Family: "ipv4", Enabled: true,
 		}},
 	}
 	if err := store.ApplyConfiguration(configuration); err != nil {

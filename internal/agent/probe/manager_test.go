@@ -21,7 +21,7 @@ func TestManagerRunsFrozenEgressesSequentiallyAndRejectsOverlaps(t *testing.T) {
 	now := time.Date(2026, 8, 9, 12, 0, 0, 0, time.UTC)
 	manager.now = func() time.Time { return now }
 
-	if err := manager.tryStart(context.Background(), "schedule", nil, nil, now); err != nil {
+	if err := manager.tryStart(context.Background(), "schedule", nil, now); err != nil {
 		t.Fatal(err)
 	}
 	if actual := receiveWithin(t, runner.started); actual != configuration.ProbeTargets[0].ID {
@@ -32,7 +32,7 @@ func TestManagerRunsFrozenEgressesSequentiallyAndRejectsOverlaps(t *testing.T) {
 		t.Fatalf("active status = %#v, %v", status, err)
 	}
 	runID := *status.ActiveRunID
-	task := state.ProbeTaskDelivery{ID: uuid.NewString(), Trigger: "manual", CreatedAt: now, ExpiresAt: now.Add(2 * time.Minute)}
+	task := state.ProbeTaskDelivery{ID: uuid.NewString(), Trigger: "manual", PublicAddressIDs: []string{configuration.ProbeTargets[0].ID}, CreatedAt: now, ExpiresAt: now.Add(2 * time.Minute)}
 	if err := manager.AcceptTask(context.Background(), task); err != nil {
 		t.Fatal(err)
 	}
@@ -64,7 +64,7 @@ func TestManagerPausesLowMemoryUntilOverride(t *testing.T) {
 	manager.runner = runner
 	now := time.Date(2026, 8, 9, 12, 0, 0, 0, time.UTC)
 	manager.now = func() time.Time { return now }
-	task := state.ProbeTaskDelivery{ID: uuid.NewString(), Trigger: "manual", CreatedAt: now, ExpiresAt: now.Add(2 * time.Minute)}
+	task := state.ProbeTaskDelivery{ID: uuid.NewString(), Trigger: "manual", PublicAddressIDs: []string{configuration.ProbeTargets[0].ID}, CreatedAt: now, ExpiresAt: now.Add(2 * time.Minute)}
 	if err := manager.AcceptTask(context.Background(), task); err != nil {
 		t.Fatal(err)
 	}
@@ -81,7 +81,7 @@ func TestManagerPausesLowMemoryUntilOverride(t *testing.T) {
 	if err := store.ApplyConfiguration(configuration); err != nil {
 		t.Fatal(err)
 	}
-	second := state.ProbeTaskDelivery{ID: uuid.NewString(), Trigger: "manual", CreatedAt: now, ExpiresAt: now.Add(2 * time.Minute)}
+	second := state.ProbeTaskDelivery{ID: uuid.NewString(), Trigger: "manual", PublicAddressIDs: []string{configuration.ProbeTargets[0].ID}, CreatedAt: now, ExpiresAt: now.Add(2 * time.Minute)}
 	if err := manager.AcceptTask(context.Background(), second); err != nil {
 		t.Fatal(err)
 	}
@@ -122,12 +122,12 @@ func TestManagerSkipsPersistedMissedScheduleWithoutCatchUp(t *testing.T) {
 }
 
 func TestManagerCleansConfirmedTasksHourly(t *testing.T) {
-	store, _ := openManagerTestStore(t, 1)
+	store, configuration := openManagerTestStore(t, 1)
 	defer store.Close()
 	manager := NewManager(store, minimumProbeMemoryBytes, nil)
 	now := time.Date(2026, 8, 9, 12, 0, 0, 0, time.UTC)
 	manager.now = func() time.Time { return now }
-	task := state.ProbeTaskDelivery{ID: uuid.NewString(), CreatedAt: now, ExpiresAt: now.Add(2 * time.Minute)}
+	task := state.ProbeTaskDelivery{ID: uuid.NewString(), Trigger: "manual", PublicAddressIDs: []string{configuration.ProbeTargets[0].ID}, CreatedAt: now, ExpiresAt: now.Add(2 * time.Minute)}
 	if _, err := store.RejectProbeTask(task, "disabled", now); err != nil {
 		t.Fatal(err)
 	}
@@ -156,9 +156,9 @@ func openManagerTestStore(t *testing.T, egressCount int) (*state.Store, state.Co
 		t.Fatal(err)
 	}
 	configuration := state.Configuration{
-		SchemaVersion: 6, Revision: 1, Enabled: true,
+		SchemaVersion: 7, Revision: 1, Enabled: true,
 		HistoryGeneration: "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef",
-		ProbeSchedule:     state.ProbeSchedule{Enabled: true, Cron: "0 0 0 * * *", Timezone: "agent-local"},
+		ProbeSchedule:     state.ProbeSchedule{Enabled: true, Cron: "0 0 0 * * *", Timezone: "UTC"},
 		DiscoveryServices: state.DiscoveryServices{
 			IPv4: []string{"https://one.example/ip", "https://two.example/ip"},
 			IPv6: []string{"https://six-one.example/ip", "https://six-two.example/ip"},
@@ -174,7 +174,7 @@ func openManagerTestStore(t *testing.T, egressCount int) (*state.Store, state.Co
 		pathID := uuid.NewString()
 		configuration.ProbeTargets = append(configuration.ProbeTargets, state.Egress{
 			ID: uuid.NewString(), PathID: &pathID, PublicAddress: &publicAddress,
-			Kind: "default", Family: family, Enabled: true, ProbeOnAddressChange: true,
+			Kind: "default", Family: family, Enabled: true,
 		})
 	}
 	if err := store.ApplyConfiguration(configuration); err != nil {

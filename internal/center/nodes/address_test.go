@@ -23,7 +23,7 @@ func TestAddressUploadIsIdempotentAndRejectsConflictingOrder(t *testing.T) {
 	service := NewService(store.Config, store.History, store.ConfigQueries, store.MasterKey, &testSyncConnections{})
 	now := time.Date(2026, 8, 9, 11, 0, 0, 0, time.UTC)
 	service.now = func() time.Time { return now }
-	enrollment, err := service.RotateEnrollmentKey(ctx)
+	enrollment, err := service.RotateEnrollmentKey(ctx, "UTC")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -35,12 +35,12 @@ func TestAddressUploadIsIdempotentAndRejectsConflictingOrder(t *testing.T) {
 	if _, err := service.Poll(ctx, registration.Credential, testMetadata(), 0, nil, nil, &inventory, nil); err != nil {
 		t.Fatal(err)
 	}
-	network, err := service.Network(ctx, registration.NodeID)
-	if err != nil || len(network.Egresses) != 4 {
-		t.Fatalf("network egresses = %#v, %v", network.Egresses, err)
+	configuration, err := service.Configuration(ctx, registration.Credential)
+	if err != nil || len(configuration.DiscoveryPaths) != 4 {
+		t.Fatalf("discovery paths = %#v, %v", configuration.DiscoveryPaths, err)
 	}
 	var egress NetworkEgress
-	for _, item := range network.Egresses {
+	for _, item := range configuration.DiscoveryPaths {
 		if item.Family == "ipv4" && item.Kind == "default" {
 			egress = item
 		}
@@ -74,8 +74,59 @@ func TestAddressUploadIsIdempotentAndRejectsConflictingOrder(t *testing.T) {
 		}
 	}
 	state, err := service.Network(ctx, registration.NodeID)
-	if err != nil || len(state.AddressStates) != 1 || len(state.AddressEvents) != 1 || !state.AddressStates[0].LikelyNAT {
+	if err != nil || len(state.AddressEvents) != 1 {
 		t.Fatalf("stored address state = %#v, %v", state, err)
+	}
+	addressStates, err := store.HistoryQueries.ListNodeAddressStates(ctx, registration.NodeID.String())
+	if err != nil || len(addressStates) != 1 || addressStates[0].LikelyNat != 1 {
+		t.Fatalf("stored address state records = %#v, %v", addressStates, err)
+	}
+	if len(state.PublicAddresses) != 1 || !state.PublicAddresses[0].ProbeEnabled {
+		t.Fatalf("new public address defaults = %#v", state.PublicAddresses)
+	}
+	publicAddressID := state.PublicAddresses[0].ID.String()
+	runID := uuid.NewString()
+	executionID := uuid.NewString()
+	snapshotID := uuid.NewString()
+	startedAt := succeededAt.Unix()
+	completedAt := succeededAt.Add(time.Minute).Unix()
+	if _, err := store.HistoryQueries.CreateProbeRun(ctx, historydb.CreateProbeRunParams{
+		ID: runID, NodeID: registration.NodeID.String(), HistoryGeneration: systemState.HistoryGeneration,
+		ConfigurationRevision: 2, Trigger: "manual", Status: "succeeded", ExpectedExecutions: 1,
+		StartedAt: succeededAt.Unix(), CompletedAt: &completedAt, ReceivedAt: completedAt,
+	}); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := store.HistoryQueries.CreateProbeExecution(ctx, historydb.CreateProbeExecutionParams{
+		ID: executionID, RunID: runID, EgressID: publicAddressID, Ordinal: 0, Sequence: 1,
+		Status: "succeeded", StartedAt: &startedAt, CompletedAt: &completedAt, ReceivedAt: completedAt,
+	}); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := store.HistoryQueries.CreateProbeSnapshot(ctx, historydb.CreateProbeSnapshotParams{
+		ID: snapshotID, ExecutionID: executionID, EgressID: publicAddressID, Sequence: 1,
+		ObservedAt: completedAt, RawResult: []byte(`{}`), EncodedSize: 2, ReceivedAt: completedAt,
+	}); err != nil {
+		t.Fatal(err)
+	}
+	if err := store.HistoryQueries.UpsertCurrentProbeSnapshot(ctx, historydb.UpsertCurrentProbeSnapshotParams{
+		EgressID: publicAddressID, ExecutionID: executionID, SnapshotID: snapshotID,
+		Sequence: 1, ObservedAt: completedAt, ReceivedAt: completedAt,
+	}); err != nil {
+		t.Fatal(err)
+	}
+	state, err = service.Network(ctx, registration.NodeID)
+	if err != nil || state.PublicAddresses[0].LatestSnapshotID == nil ||
+		state.PublicAddresses[0].LatestSnapshotID.String() != snapshotID ||
+		state.PublicAddresses[0].LatestSnapshotAt == nil || state.PublicAddresses[0].LatestSnapshotAt.Unix() != completedAt {
+		t.Fatalf("public address latest snapshot = %#v, %v", state.PublicAddresses[0], err)
+	}
+	var pendingProbeCount int
+	if err := store.Config.QueryRowContext(ctx, `SELECT count(*) FROM pending_public_address_probes`).Scan(&pendingProbeCount); err != nil {
+		t.Fatal(err)
+	}
+	if pendingProbeCount != 0 {
+		t.Fatalf("first observation queued %d complete probes", pendingProbeCount)
 	}
 
 	conflict := upload
@@ -85,62 +136,8 @@ func TestAddressUploadIsIdempotentAndRejectsConflictingOrder(t *testing.T) {
 		t.Fatalf("conflicting ordered event error = %v", err)
 	}
 
-	deletion, err := service.DeleteEgress(ctx, registration.NodeID, egress.ID)
-	if err != nil || deletion.Status != "pending" {
-		t.Fatalf("queued egress deletion = %#v, %v", deletion, err)
-	}
-	configuration, err := service.Configuration(ctx, registration.Credential)
-	if err != nil {
-		t.Fatal(err)
-	}
-	for _, configured := range configuration.Egresses {
-		if configured.ID == egress.ID {
-			t.Fatalf("deleting egress remained in Agent configuration: %#v", configured)
-		}
-	}
-	discarded, err := service.ingestAddressUpload(ctx, registration.NodeID.String(), upload, now.Unix())
-	if err != nil || len(discarded.DiscardedEventIDs) != 1 || discarded.DiscardedEventIDs[0] != eventID {
-		t.Fatalf("pending-deletion upload receipt = %#v, %v", discarded, err)
-	}
-	service.deleteEgressHistory = func(context.Context, string) error {
-		return errors.New("history disk unavailable")
-	}
-	if err := service.processDeletions(ctx, 1); err != nil {
-		t.Fatal(err)
-	}
-	failed, err := service.Network(ctx, registration.NodeID)
-	if err != nil {
-		t.Fatal(err)
-	}
-	var failedEgress *NetworkEgress
-	for index := range failed.Egresses {
-		if failed.Egresses[index].ID == egress.ID {
-			failedEgress = &failed.Egresses[index]
-		}
-	}
-	if failedEgress == nil || failedEgress.DeletionStatus == nil || *failedEgress.DeletionStatus != "failed" || failedEgress.DeletionError == nil {
-		t.Fatalf("failed egress deletion = %#v", failedEgress)
-	}
-	deletion, err = service.DeleteEgress(ctx, registration.NodeID, egress.ID)
-	if err != nil || deletion.Status != "pending" {
-		t.Fatalf("retried egress deletion = %#v, %v", deletion, err)
-	}
-	service.deleteEgressHistory = service.deleteNetworkEgressHistory
-	if err := service.processDeletions(ctx, 1); err != nil {
-		t.Fatal(err)
-	}
-	completed, err := service.Network(ctx, registration.NodeID)
-	if err != nil {
-		t.Fatal(err)
-	}
-	for _, configured := range completed.Egresses {
-		if configured.ID == egress.ID {
-			t.Fatalf("completed deletion retained egress: %#v", configured)
-		}
-	}
-	if len(completed.AddressStates) != 0 || len(completed.AddressEvents) != 1 ||
-		completed.AddressEvents[0].EgressID != completed.PublicAddresses[0].ID {
-		t.Fatalf("completed deletion did not preserve public-address history: %#v", completed)
+	if state.AddressEvents[0].EgressID != state.PublicAddresses[0].ID {
+		t.Fatalf("public-address history was not rebound to the public address: %#v", state)
 	}
 }
 
@@ -228,7 +225,7 @@ func TestPublicAddressesAreGlobalAndPathsRemainExecutionDetails(t *testing.T) {
 	service := NewService(store.Config, store.History, store.ConfigQueries, store.MasterKey, connections)
 	now := time.Date(2026, 8, 9, 14, 0, 0, 0, time.UTC)
 	service.now = func() time.Time { return now }
-	enrollment, err := service.RotateEnrollmentKey(ctx)
+	enrollment, err := service.RotateEnrollmentKey(ctx, "UTC")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -251,16 +248,16 @@ func TestPublicAddressesAreGlobalAndPathsRemainExecutionDetails(t *testing.T) {
 	if _, err := service.Poll(ctx, second.Credential, secondMetadata, 0, nil, nil, &inventory, nil); err != nil {
 		t.Fatal(err)
 	}
-	firstNetwork, err := service.Network(ctx, first.NodeID)
+	firstConfiguration, err := service.Configuration(ctx, first.Credential)
 	if err != nil {
 		t.Fatal(err)
 	}
-	secondNetwork, err := service.Network(ctx, second.NodeID)
+	secondConfiguration, err := service.Configuration(ctx, second.Credential)
 	if err != nil {
 		t.Fatal(err)
 	}
-	firstPaths := publicAddressTestPaths(t, firstNetwork.Egresses)
-	secondPaths := publicAddressTestPaths(t, secondNetwork.Egresses)
+	firstPaths := publicAddressTestPaths(t, firstConfiguration.DiscoveryPaths)
+	secondPaths := publicAddressTestPaths(t, secondConfiguration.DiscoveryPaths)
 	systemState, err := store.ConfigQueries.GetSystemState(ctx)
 	if err != nil {
 		t.Fatal(err)
@@ -273,9 +270,12 @@ func TestPublicAddressesAreGlobalAndPathsRemainExecutionDetails(t *testing.T) {
 	if _, err := service.Poll(ctx, first.Credential, firstMetadata, 0, nil, nil, nil, nil, AddressUpload{States: firstStates}); err != nil {
 		t.Fatal(err)
 	}
-	firstNetwork, err = service.Network(ctx, first.NodeID)
+	firstNetwork, err := service.Network(ctx, first.NodeID)
 	if err != nil || len(firstNetwork.PublicAddresses) != 1 || firstNetwork.PublicAddresses[0].PathCount != 2 {
 		t.Fatalf("first node public addresses = %#v, %v", firstNetwork.PublicAddresses, err)
+	}
+	if !firstNetwork.PublicAddresses[0].ProbeEnabled {
+		t.Fatalf("first public-address defaults = %#v", firstNetwork.PublicAddresses[0])
 	}
 	publicAddressID := firstNetwork.PublicAddresses[0].ID
 	now = now.Add(time.Minute)
@@ -289,14 +289,9 @@ func TestPublicAddressesAreGlobalAndPathsRemainExecutionDetails(t *testing.T) {
 	if err != nil || len(addresses) != 1 || addresses[0].ID != publicAddressID.String() {
 		t.Fatalf("global public addresses = %#v, %v", addresses, err)
 	}
-	secondNetwork, err = service.Network(ctx, second.NodeID)
+	secondNetwork, err := service.Network(ctx, second.NodeID)
 	if err != nil || len(secondNetwork.PublicAddresses) != 1 || secondNetwork.PublicAddresses[0].ID != publicAddressID || secondNetwork.PublicAddresses[0].PathCount != 3 {
 		t.Fatalf("second node public addresses = %#v, %v", secondNetwork.PublicAddresses, err)
-	}
-	if _, err := service.UpdatePublicAddress(ctx, first.NodeID, publicAddressID, PublicAddressUpdate{
-		ProbeEnabled: true, ProbeOnRediscovery: true,
-	}); err != nil {
-		t.Fatal(err)
 	}
 	listed, err := service.List(ctx)
 	if err != nil {
@@ -358,7 +353,7 @@ func TestDynamicPublicAddressesKeepIndependentIdentityAndReuseOldAddress(t *test
 	service := NewService(store.Config, store.History, store.ConfigQueries, store.MasterKey, &testSyncConnections{})
 	now := time.Date(2026, 8, 9, 15, 0, 0, 0, time.UTC)
 	service.now = func() time.Time { return now }
-	enrollment, _ := service.RotateEnrollmentKey(ctx)
+	enrollment, _ := service.RotateEnrollmentKey(ctx, "UTC")
 	registration, err := service.Register(ctx, enrollment.Key, testMetadata())
 	if err != nil {
 		t.Fatal(err)
@@ -367,11 +362,11 @@ func TestDynamicPublicAddressesKeepIndependentIdentityAndReuseOldAddress(t *test
 	if _, err := service.Poll(ctx, registration.Credential, testMetadata(), 0, nil, nil, &inventory, nil); err != nil {
 		t.Fatal(err)
 	}
-	network, err := service.Network(ctx, registration.NodeID)
+	configuration, err := service.Configuration(ctx, registration.Credential)
 	if err != nil {
 		t.Fatal(err)
 	}
-	path := publicAddressTestPaths(t, network.Egresses)[0]
+	path := publicAddressTestPaths(t, configuration.DiscoveryPaths)[0]
 	systemState, err := store.ConfigQueries.GetSystemState(ctx)
 	if err != nil {
 		t.Fatal(err)
@@ -396,24 +391,187 @@ func TestDynamicPublicAddressesKeepIndependentIdentityAndReuseOldAddress(t *test
 	}
 	first := observe("8.8.8.8")
 	if _, err := service.UpdatePublicAddress(ctx, registration.NodeID, first.ID, PublicAddressUpdate{
-		ProbeEnabled: true, ProbeOnRediscovery: false,
+		ProbeEnabled: false,
 	}); err != nil {
 		t.Fatal(err)
 	}
 	now = now.Add(time.Minute)
 	second := observe("1.1.1.1")
-	if second.ID == first.ID || second.ProbeEnabled {
+	if second.ID == first.ID || !second.ProbeEnabled {
 		t.Fatalf("dynamic replacement reused identity or settings: first=%#v second=%#v", first, second)
 	}
 	now = now.Add(time.Minute)
 	reappeared := observe("8.8.8.8")
-	if reappeared.ID != first.ID || !reappeared.ProbeEnabled || reappeared.ProbeOnRediscovery {
+	if reappeared.ID != first.ID || reappeared.ProbeEnabled {
 		t.Fatalf("reappeared address did not reuse identity and settings: %#v", reappeared)
 	}
 	addresses, err := store.ConfigQueries.ListPublicAddresses(ctx)
 	if err != nil || len(addresses) != 2 {
 		t.Fatalf("dynamic public address registry = %#v, %v", addresses, err)
 	}
+}
+
+func TestFailedAddressCheckKeepsConfirmedBaselineCurrent(t *testing.T) {
+	fixture := newProbeServiceFixture(t, 512*1024*1024)
+	var ipv4Path, ipv6Path NetworkEgress
+	for _, path := range fixture.configuration.DiscoveryPaths {
+		if path.Kind != "default" {
+			continue
+		}
+		if path.Family == "ipv4" {
+			ipv4Path = path
+		} else if path.Family == "ipv6" {
+			ipv6Path = path
+		}
+	}
+	checkedAt := fixture.now.Add(time.Minute)
+	lastSucceededAt := fixture.now
+	failureReason := "no-valid-response"
+	publicIPv4 := "8.8.8.8"
+	localInterface := "eth0"
+	localIPv4 := "10.0.0.5"
+	failed := AddressState{
+		EgressID: ipv4Path.ID, HistoryGeneration: fixture.configuration.HistoryGeneration,
+		Family: "ipv4", Status: "failed", PublicAddress: &publicIPv4,
+		LocalInterface: &localInterface, LocalAddress: &localIPv4, LikelyNAT: true,
+		FailureReason: &failureReason, LastCheckedAt: checkedAt, LastSucceededAt: &lastSucceededAt,
+	}
+	confirmedIPv6 := confirmedAddressState(
+		ipv6Path.ID, fixture.configuration.HistoryGeneration, "ipv6",
+		"2001:4860:4860::8888", "eth0", "fd00::5", checkedAt,
+	)
+	poll, err := fixture.service.Poll(
+		fixture.ctx, fixture.registration.Credential, fixture.metadata,
+		fixture.configuration.Revision, nil, nil, nil, nil,
+		AddressUpload{States: []AddressState{failed, confirmedIPv6}},
+	)
+	if err != nil || poll.Task != nil {
+		t.Fatalf("failed-check poll = %#v, %v", poll, err)
+	}
+	network, err := fixture.service.Network(fixture.ctx, fixture.registration.NodeID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !containsAvailablePublicAddress(network.PublicAddresses, publicIPv4) {
+		t.Fatalf("confirmed baseline disappeared after a failed check: %#v", network.PublicAddresses)
+	}
+
+	checkedAt = checkedAt.Add(time.Minute)
+	recoveredIPv4 := confirmedAddressState(
+		ipv4Path.ID, fixture.configuration.HistoryGeneration, "ipv4",
+		publicIPv4, localInterface, localIPv4, checkedAt,
+	)
+	confirmedIPv6 = confirmedAddressState(
+		ipv6Path.ID, fixture.configuration.HistoryGeneration, "ipv6",
+		"2001:4860:4860::8888", "eth0", "fd00::5", checkedAt,
+	)
+	poll, err = fixture.service.Poll(
+		fixture.ctx, fixture.registration.Credential, fixture.metadata,
+		fixture.configuration.Revision, nil, nil, nil, nil,
+		AddressUpload{States: []AddressState{recoveredIPv4, confirmedIPv6}},
+	)
+	if err != nil || poll.Task != nil {
+		t.Fatalf("same-address recovery poll = %#v, %v", poll, err)
+	}
+	var pending int
+	if err := fixture.store.Config.QueryRowContext(
+		fixture.ctx, `SELECT count(*) FROM pending_public_address_probes`,
+	).Scan(&pending); err != nil || pending != 0 {
+		t.Fatalf("pending probes after failure and recovery = %d, %v", pending, err)
+	}
+}
+
+func TestNewAddressProbeTaskContainsOnlyNewlyCurrentAddresses(t *testing.T) {
+	fixture := newProbeServiceFixture(t, 512*1024*1024)
+	var defaultIPv4, sourceIPv4, defaultIPv6 NetworkEgress
+	for _, path := range fixture.configuration.DiscoveryPaths {
+		switch {
+		case path.Kind == "default" && path.Family == "ipv4":
+			defaultIPv4 = path
+		case path.Kind == "source" && path.Family == "ipv4":
+			sourceIPv4 = path
+		case path.Kind == "default" && path.Family == "ipv6":
+			defaultIPv6 = path
+		}
+	}
+	if defaultIPv4.ID == uuid.Nil || sourceIPv4.ID == uuid.Nil || defaultIPv6.ID == uuid.Nil {
+		t.Fatalf("required discovery paths = %#v", fixture.configuration.DiscoveryPaths)
+	}
+	states := func(at time.Time, ipv4, ipv6 string) []AddressState {
+		return []AddressState{
+			confirmedAddressState(defaultIPv4.ID, fixture.configuration.HistoryGeneration, "ipv4", ipv4, "eth0", "10.0.0.5", at),
+			confirmedAddressState(sourceIPv4.ID, fixture.configuration.HistoryGeneration, "ipv4", "9.9.9.9", "eth0", "10.0.0.5", at),
+			confirmedAddressState(defaultIPv6.ID, fixture.configuration.HistoryGeneration, "ipv6", ipv6, "eth0", "fd00::5", at),
+		}
+	}
+
+	fixture.now = fixture.now.Add(time.Minute)
+	baselinePoll, err := fixture.service.Poll(
+		fixture.ctx, fixture.registration.Credential, fixture.metadata,
+		fixture.configuration.Revision, nil, nil, nil, nil,
+		AddressUpload{States: states(fixture.now, "8.8.8.8", "2001:4860:4860::8888")},
+	)
+	if err != nil || baselinePoll.Task != nil {
+		t.Fatalf("new-path baseline poll = %#v, %v", baselinePoll, err)
+	}
+	baselineConfiguration, err := fixture.service.Configuration(fixture.ctx, fixture.registration.Credential)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	fixture.now = fixture.now.Add(time.Minute)
+	changePoll, err := fixture.service.Poll(
+		fixture.ctx, fixture.registration.Credential, fixture.metadata,
+		baselineConfiguration.Revision, nil, nil, nil, nil,
+		AddressUpload{States: states(fixture.now, "1.1.1.1", "2606:4700:4700::1111")},
+	)
+	if err != nil || changePoll.Task != nil {
+		t.Fatalf("new-address configuration poll = %#v, %v", changePoll, err)
+	}
+	changedConfiguration, err := fixture.service.Configuration(fixture.ctx, fixture.registration.Credential)
+	if err != nil {
+		t.Fatal(err)
+	}
+	network, err := fixture.service.Network(fixture.ctx, fixture.registration.NodeID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	want := make(map[uuid.UUID]struct{}, 2)
+	for _, address := range network.PublicAddresses {
+		if address.Address == "1.1.1.1" || address.Address == "2606:4700:4700::1111" {
+			want[address.ID] = struct{}{}
+		}
+	}
+	if len(want) != 2 || !containsAvailablePublicAddress(network.PublicAddresses, "9.9.9.9") {
+		t.Fatalf("current public addresses = %#v", network.PublicAddresses)
+	}
+
+	fixture.now = fixture.now.Add(time.Second)
+	delivery, err := fixture.service.Poll(
+		fixture.ctx, fixture.registration.Credential, fixture.metadata,
+		changedConfiguration.Revision, nil, nil, nil, nil,
+	)
+	if err != nil || delivery.Task == nil || delivery.Task.Trigger != "new-address" || len(delivery.Task.PublicAddressIDs) != 2 {
+		t.Fatalf("new-address task delivery = %#v, %v", delivery.Task, err)
+	}
+	for _, id := range delivery.Task.PublicAddressIDs {
+		if _, exists := want[id]; !exists {
+			t.Fatalf("unrelated public address %s included in task %#v", id, delivery.Task.PublicAddressIDs)
+		}
+		delete(want, id)
+	}
+	if len(want) != 0 {
+		t.Fatalf("new public addresses missing from task: %#v", want)
+	}
+}
+
+func containsAvailablePublicAddress(addresses []PublicAddress, value string) bool {
+	for _, address := range addresses {
+		if address.Address == value && address.Available {
+			return true
+		}
+	}
+	return false
 }
 
 func TestIPv4MappedAddressNormalizesAndNotificationsUsePublicAddressIdentity(t *testing.T) {
@@ -426,7 +584,7 @@ func TestIPv4MappedAddressNormalizesAndNotificationsUsePublicAddressIdentity(t *
 	service := NewService(store.Config, store.History, store.ConfigQueries, store.MasterKey, &testSyncConnections{})
 	now := time.Date(2026, 8, 9, 16, 0, 0, 0, time.UTC)
 	service.now = func() time.Time { return now }
-	enrollment, _ := service.RotateEnrollmentKey(ctx)
+	enrollment, _ := service.RotateEnrollmentKey(ctx, "UTC")
 	registration, err := service.Register(ctx, enrollment.Key, testMetadata())
 	if err != nil {
 		t.Fatal(err)
@@ -435,11 +593,11 @@ func TestIPv4MappedAddressNormalizesAndNotificationsUsePublicAddressIdentity(t *
 	if _, err := service.Poll(ctx, registration.Credential, testMetadata(), 0, nil, nil, &inventory, nil); err != nil {
 		t.Fatal(err)
 	}
-	network, err := service.Network(ctx, registration.NodeID)
+	configuration, err := service.Configuration(ctx, registration.Credential)
 	if err != nil {
 		t.Fatal(err)
 	}
-	path := publicAddressTestPaths(t, network.Egresses)[0]
+	path := publicAddressTestPaths(t, configuration.DiscoveryPaths)[0]
 	systemState, err := store.ConfigQueries.GetSystemState(ctx)
 	if err != nil {
 		t.Fatal(err)
@@ -475,16 +633,24 @@ func TestIPv4MappedAddressNormalizesAndNotificationsUsePublicAddressIdentity(t *
 	}
 
 	nextAddress := "1.1.1.1"
+	removedEventID := uuid.New()
 	changeEventID := uuid.New()
 	change := AddressUpload{
 		States: []AddressState{confirmedAddressState(
 			path.ID, systemState.HistoryGeneration, "ipv4", nextAddress, localInterface, localAddress, checkedAt.Add(time.Minute),
 		)},
-		Events: []AddressEvent{{
-			ID: changeEventID, EgressID: path.ID, HistoryGeneration: systemState.HistoryGeneration,
-			Sequence: 2, Kind: "address-change", Family: "ipv4", PreviousAddress: stringPointer("8.8.8.8"), PublicAddress: &nextAddress,
-			LocalInterface: &localInterface, LocalAddress: &localAddress, LikelyNAT: true, ObservedAt: checkedAt.Add(time.Minute),
-		}},
+		Events: []AddressEvent{
+			{
+				ID: removedEventID, EgressID: path.ID, HistoryGeneration: systemState.HistoryGeneration,
+				Sequence: 2, Kind: "address-removed", Family: "ipv4", PublicAddress: stringPointer("8.8.8.8"),
+				LocalInterface: &localInterface, LocalAddress: &localAddress, LikelyNAT: true, ObservedAt: checkedAt.Add(time.Minute),
+			},
+			{
+				ID: changeEventID, EgressID: path.ID, HistoryGeneration: systemState.HistoryGeneration,
+				Sequence: 3, Kind: "address-added", Family: "ipv4", PublicAddress: &nextAddress,
+				LocalInterface: &localInterface, LocalAddress: &localAddress, LikelyNAT: true, ObservedAt: checkedAt.Add(time.Minute),
+			},
+		},
 	}
 	if _, err := service.ingestAddressUpload(ctx, registration.NodeID.String(), change, now.Unix()); err != nil {
 		t.Fatal(err)
@@ -497,12 +663,16 @@ func TestIPv4MappedAddressNormalizesAndNotificationsUsePublicAddressIdentity(t *
 	if err != nil || changeNotification.EgressID == nil || *changeNotification.EgressID != next.ID {
 		t.Fatalf("address-change notification = %#v, %v", changeNotification, err)
 	}
+	removedNotification, err := notificationForSource(ctx, store, removedEventID)
+	if err != nil || removedNotification.EgressID == nil || *removedNotification.EgressID != canonical.ID {
+		t.Fatalf("address-removed notification = %#v, %v", removedNotification, err)
+	}
 
 	failureEventID := uuid.New()
 	failureReason := "no-valid-response"
 	failure := AddressUpload{Events: []AddressEvent{{
 		ID: failureEventID, EgressID: path.ID, HistoryGeneration: systemState.HistoryGeneration,
-		Sequence: 3, Kind: "check-failure", Family: "ipv4", FailureReason: &failureReason,
+		Sequence: 4, Kind: "check-failure", Family: "ipv4", FailureReason: &failureReason,
 		ObservedAt: checkedAt.Add(2 * time.Minute),
 	}}}
 	if _, err := service.ingestAddressUpload(ctx, registration.NodeID.String(), failure, now.Unix()); err != nil {
@@ -516,7 +686,7 @@ func TestIPv4MappedAddressNormalizesAndNotificationsUsePublicAddressIdentity(t *
 	gapID := uuid.New()
 	gap := AddressUpload{Gaps: []AddressGap{{
 		ID: gapID, EgressID: path.ID, HistoryGeneration: systemState.HistoryGeneration,
-		DroppedCount: 1, FirstSequence: 4, LastSequence: 4,
+		DroppedCount: 1, FirstSequence: 5, LastSequence: 5,
 		FirstObservedAt: checkedAt.Add(3 * time.Minute), LastObservedAt: checkedAt.Add(3 * time.Minute),
 	}}}
 	if _, err := service.ingestAddressUpload(ctx, registration.NodeID.String(), gap, now.Unix()); err != nil {

@@ -139,7 +139,7 @@ func TestAgentUpdateTaskRejectsInvalidTransitionsAndMixedFields(t *testing.T) {
 
 	t.Run("probe task rejects update fields", func(t *testing.T) {
 		fixture := newProbeServiceFixture(t, 512*1024*1024)
-		task, err := fixture.service.CreateCompleteProbeTask(fixture.ctx, fixture.registration.NodeID)
+		task, err := fixture.service.CreateCompleteProbeTask(fixture.ctx, fixture.registration.NodeID, fixture.probeTargetIDs())
 		if err != nil {
 			t.Fatal(err)
 		}

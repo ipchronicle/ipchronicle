@@ -379,16 +379,16 @@ func newNotificationTestService(t *testing.T) (*Service, *database.Store, uuid.U
 	if _, err := store.Config.ExecContext(ctx, `
 		INSERT INTO network_egresses (
 			id, node_id, name, kind, family, enabled, available, automatic,
-			lightweight_interval_seconds, probe_on_address_change, created_at, updated_at
-		) VALUES (?, ?, 'default IPv4', 'default', 'ipv4', 1, 1, 1, 600, 1, 1, 1)
+			lightweight_interval_seconds, created_at, updated_at
+		) VALUES (?, ?, 'default IPv4', 'default', 'ipv4', 1, 1, 1, 600, 1, 1)
 	`, pathID.String(), nodeID.String()); err != nil {
 		t.Fatal(err)
 	}
 	if _, err := store.Config.ExecContext(ctx, `
 		INSERT INTO public_addresses (
-			id, address, family, probe_enabled, probe_on_rediscovery,
+			id, address, family, probe_enabled,
 			selected_path_id, first_seen_at, last_seen_at, updated_at
-		) VALUES (?, '203.0.113.10', 'ipv4', 1, 1, ?, 1, 1, 1)
+		) VALUES (?, '203.0.113.10', 'ipv4', 1, ?, 1, 1, 1)
 	`, publicAddressID.String(), pathID.String()); err != nil {
 		t.Fatal(err)
 	}

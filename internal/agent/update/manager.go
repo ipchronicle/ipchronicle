@@ -221,6 +221,10 @@ func (manager *Manager) stage(ctx context.Context, update state.AgentUpdate) err
 		_ = os.Remove(stagedPath)
 		return stageError{code: "binary-metadata", cause: err}
 	}
+	if info.StateSchemaVersion != state.SchemaVersion() {
+		_ = os.Remove(stagedPath)
+		return stageError{code: "binary-metadata", cause: errors.New("Agent update requires an incompatible local state schema")}
+	}
 	return nil
 }
 

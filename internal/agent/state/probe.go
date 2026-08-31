@@ -53,7 +53,6 @@ type ProbeRun struct {
 	HistoryGeneration     string                   `json:"historyGeneration"`
 	Trigger               string                   `json:"trigger"`
 	TaskID                *string                  `json:"taskId,omitempty"`
-	TriggeringEgressID    *string                  `json:"triggeringEgressId,omitempty"`
 	StartedAt             time.Time                `json:"startedAt"`
 	CompletedAt           *time.Time               `json:"completedAt,omitempty"`
 	Status                string                   `json:"status"`
@@ -115,11 +114,11 @@ type ProbeArtifactReceipt struct {
 }
 
 type ProbeTaskDelivery struct {
-	ID                        string    `json:"id"`
-	Trigger                   string    `json:"trigger"`
-	TriggeringPublicAddressID *string   `json:"triggeringPublicAddressId,omitempty"`
-	CreatedAt                 time.Time `json:"createdAt"`
-	ExpiresAt                 time.Time `json:"expiresAt"`
+	ID               string    `json:"id"`
+	Trigger          string    `json:"trigger"`
+	PublicAddressIDs []string  `json:"publicAddressIds"`
+	CreatedAt        time.Time `json:"createdAt"`
+	ExpiresAt        time.Time `json:"expiresAt"`
 }
 
 type ProbeTaskReport struct {
@@ -165,22 +164,20 @@ type queuedProbeArtifact struct {
 	Revision int64  `json:"revision"`
 }
 
-func (s *Store) StartProbeRun(trigger string, task *ProbeTaskDelivery, triggeringEgressID *string, startedAt time.Time) (ProbeRun, error) {
-	return s.StartProbeRunAtRevision(0, trigger, task, triggeringEgressID, startedAt)
+func (s *Store) StartProbeRun(trigger string, task *ProbeTaskDelivery, startedAt time.Time) (ProbeRun, error) {
+	return s.StartProbeRunAtRevision(0, trigger, task, startedAt)
 }
 
 func (s *Store) StartProbeRunAtRevision(
 	expectedConfigurationRevision int64,
 	trigger string,
 	task *ProbeTaskDelivery,
-	triggeringEgressID *string,
 	startedAt time.Time,
 ) (ProbeRun, error) {
 	s.probeMu.Lock()
 	defer s.probeMu.Unlock()
 	if !validProbeTrigger(trigger) || startedAt.IsZero() ||
-		(trigger == "manual" || trigger == "address-change") != (task != nil) ||
-		(trigger == "address-change") != (triggeringEgressID != nil) {
+		(trigger == "manual" || trigger == "new-address") != (task != nil) {
 		return ProbeRun{}, ErrInvalidProbeState
 	}
 	startedAt = startedAt.UTC().Truncate(time.Second)
@@ -213,19 +210,30 @@ func (s *Store) StartProbeRunAtRevision(
 			return ErrProbeConfigurationChanged
 		}
 		var enabled []Egress
-		for _, egress := range configuration.probeTargets() {
-			if egress.Enabled {
-				enabled = append(enabled, egress)
+		requested := make(map[string]struct{})
+		if task != nil {
+			for _, id := range task.PublicAddressIDs {
+				requested[id] = struct{}{}
 			}
 		}
-		if !configuration.Enabled || len(enabled) == 0 {
+		for _, egress := range configuration.ProbeTargets {
+			if !egress.Enabled {
+				continue
+			}
+			if task != nil {
+				if _, exists := requested[egress.ID]; !exists {
+					continue
+				}
+			}
+			enabled = append(enabled, egress)
+		}
+		if !configuration.Enabled || len(enabled) == 0 || task != nil && len(enabled) != len(requested) {
 			return ErrInvalidProbeState
 		}
 		runID := uuid.NewString()
 		result = ProbeRun{
 			ID: runID, ConfigurationRevision: configuration.Revision,
-			HistoryGeneration: configuration.HistoryGeneration, Trigger: trigger,
-			TriggeringEgressID: cloneString(triggeringEgressID), StartedAt: startedAt,
+			HistoryGeneration: configuration.HistoryGeneration, Trigger: trigger, StartedAt: startedAt,
 			Status: "running", ArtifactRevision: 1,
 			Executions: make([]ProbeExecutionManifest, 0, len(enabled)),
 		}
@@ -1502,14 +1510,19 @@ func readBoundedProbeResult(path string) ([]byte, error) {
 
 func validateProbeTaskDelivery(task ProbeTaskDelivery) error {
 	if _, err := uuid.Parse(task.ID); err != nil || task.CreatedAt.IsZero() || !task.ExpiresAt.After(task.CreatedAt) ||
-		(task.Trigger != "" && task.Trigger != "manual" && task.Trigger != "address-change") ||
-		(task.Trigger == "address-change") != (task.TriggeringPublicAddressID != nil) {
+		(task.Trigger != "manual" && task.Trigger != "new-address") ||
+		len(task.PublicAddressIDs) < 1 || len(task.PublicAddressIDs) > 64 {
 		return ErrInvalidProbeState
 	}
-	if task.TriggeringPublicAddressID != nil {
-		if _, err := uuid.Parse(*task.TriggeringPublicAddressID); err != nil {
+	seen := make(map[string]struct{}, len(task.PublicAddressIDs))
+	for _, id := range task.PublicAddressIDs {
+		if _, err := uuid.Parse(id); err != nil {
 			return ErrInvalidProbeState
 		}
+		if _, exists := seen[id]; exists {
+			return ErrInvalidProbeState
+		}
+		seen[id] = struct{}{}
 	}
 	return nil
 }
@@ -1542,7 +1555,7 @@ func validateProbeExecutionOutcome(outcome ProbeExecutionOutcome) error {
 }
 
 func validProbeTrigger(value string) bool {
-	return value == "manual" || value == "schedule" || value == "address-change"
+	return value == "manual" || value == "schedule" || value == "new-address"
 }
 
 func validProbeSkipReason(value string) bool {

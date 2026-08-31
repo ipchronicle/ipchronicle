@@ -6,7 +6,6 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"math"
 	"net/netip"
 	"net/url"
 	"slices"
@@ -25,15 +24,10 @@ const (
 )
 
 var (
-	ErrNetworkInventoryUnavailable = errors.New("node network inventory is unavailable")
-	ErrInvalidNetworkInventory     = errors.New("node network inventory is invalid")
-	ErrInvalidEgressCandidate      = errors.New("network egress candidate is invalid or unavailable")
-	ErrEgressAlreadyExists         = errors.New("network egress already exists")
-	ErrEgressLimitReached          = errors.New("node network egress limit reached")
-	ErrEgressNotFound              = errors.New("network egress does not exist")
-	ErrEgressDeletionPending       = errors.New("network egress deletion is pending")
-	ErrInvalidObservationSettings  = errors.New("network observation settings are invalid")
-	ErrPublicAddressNotFound       = errors.New("public address does not exist for node")
+	ErrInvalidNetworkInventory    = errors.New("node network inventory is invalid")
+	ErrEgressLimitReached         = errors.New("node network egress limit reached")
+	ErrInvalidObservationSettings = errors.New("network observation settings are invalid")
+	ErrPublicAddressNotFound      = errors.New("public address does not exist for node")
 )
 
 type NetworkInventory struct {
@@ -86,9 +80,6 @@ type NetworkEgress struct {
 	Available                  bool
 	Automatic                  bool
 	LightweightIntervalSeconds int64
-	ProbeOnAddressChange       bool
-	DeletionStatus             *string
-	DeletionError              *string
 }
 
 type PublicAddress struct {
@@ -96,7 +87,6 @@ type PublicAddress struct {
 	Address               string
 	Family                string
 	ProbeEnabled          bool
-	ProbeOnRediscovery    bool
 	Available             bool
 	SelectedPathID        *uuid.UUID
 	SelectedNodeID        *uuid.UUID
@@ -108,11 +98,12 @@ type PublicAddress struct {
 	LastSeenAt            time.Time
 	SelectedLastChecked   *time.Time
 	SelectedLastSucceeded *time.Time
+	LatestSnapshotID      *uuid.UUID
+	LatestSnapshotAt      *time.Time
 }
 
 type PublicAddressUpdate struct {
-	ProbeEnabled       bool
-	ProbeOnRediscovery bool
+	ProbeEnabled bool
 }
 
 type NetworkEgressCandidate struct {
@@ -128,35 +119,16 @@ type NetworkEgressCandidate struct {
 }
 
 type NodeNetworkState struct {
-	Inventory           *NetworkInventory
-	InventoryError      *string
-	InventoryReceivedAt *time.Time
-	Egresses            []NetworkEgress
-	Candidates          []NetworkEgressCandidate
-	AddressStates       []AddressState
-	AddressEvents       []AddressEvent
-	AddressGaps         []AddressGap
-	PublicAddresses     []PublicAddress
+	AddressEvents   []AddressEvent
+	AddressGaps     []AddressGap
+	PublicAddresses []PublicAddress
+	NetworkProxies  []NetworkProxy
 }
 
 type DiscoveryServices struct {
 	IPv4      []string
 	IPv6      []string
 	UpdatedAt time.Time
-}
-
-type NetworkEgressUpdate struct {
-	Enabled                    bool
-	LightweightIntervalSeconds int64
-	ProbeOnAddressChange       bool
-}
-
-type NetworkEgressSelector struct {
-	Kind          string
-	Family        string
-	InterfaceName string
-	SourceAddress *string
-	ProxyID       *uuid.UUID
 }
 
 func validateNetworkReport(inventory *NetworkInventory, reportError *string) error {
@@ -275,7 +247,7 @@ func (s *Service) applyNetworkReport(ctx context.Context, queries *configdb.Quer
 				ID: id.String(), NodeID: nodeID, Name: "default-" + family,
 				Kind: "default", Family: family, Enabled: 1, Available: 1, Automatic: 1,
 				LightweightIntervalSeconds: int64(defaultLightweightInterval / time.Second),
-				ProbeOnAddressChange:       1, CreatedAt: now, UpdatedAt: now,
+				CreatedAt:                  now, UpdatedAt: now,
 			}); err != nil {
 				return false, err
 			}
@@ -315,7 +287,7 @@ func (s *Service) applyNetworkReport(ctx context.Context, queries *configdb.Quer
 			InterfaceName: &candidate.InterfaceName, SourceAddress: candidate.SourceAddress,
 			Enabled: 1, Available: 1, Automatic: 1,
 			LightweightIntervalSeconds: int64(defaultLightweightInterval / time.Second),
-			ProbeOnAddressChange:       0, CreatedAt: now, UpdatedAt: now,
+			CreatedAt:                  now, UpdatedAt: now,
 		}); err != nil {
 			return false, err
 		}
@@ -349,70 +321,29 @@ func (s *Service) Network(ctx context.Context, id uuid.UUID) (NodeNetworkState, 
 		return NodeNetworkState{}, err
 	}
 	state.PublicAddresses = make([]PublicAddress, 0, len(publicAddressRecords))
+	currentSnapshots, err := s.historyQueries.ListCurrentProbeSnapshots(ctx)
+	if err != nil {
+		return NodeNetworkState{}, err
+	}
+	latestSnapshots := make(map[string]historydb.ListCurrentProbeSnapshotsRow, len(currentSnapshots))
+	for _, snapshot := range currentSnapshots {
+		latestSnapshots[snapshot.EgressID] = snapshot
+	}
 	for _, record := range publicAddressRecords {
 		address, err := s.publicAddressFromRecord(ctx, record)
 		if err != nil {
 			return NodeNetworkState{}, err
 		}
+		if snapshot, ok := latestSnapshots[address.ID.String()]; ok {
+			snapshotID, err := uuid.Parse(snapshot.SnapshotID)
+			if err != nil {
+				return NodeNetworkState{}, err
+			}
+			observedAt := time.Unix(snapshot.ObservedAt, 0).UTC()
+			address.LatestSnapshotID = &snapshotID
+			address.LatestSnapshotAt = &observedAt
+		}
 		state.PublicAddresses = append(state.PublicAddresses, address)
-	}
-	record, err := s.queries.GetNodeNetworkInventory(ctx, id.String())
-	if err == nil {
-		state.InventoryError = record.LastError
-		receivedAt := time.Unix(record.ReceivedAt, 0).UTC()
-		state.InventoryReceivedAt = &receivedAt
-		if record.Payload != nil {
-			var inventory NetworkInventory
-			if err := json.Unmarshal([]byte(*record.Payload), &inventory); err != nil {
-				return NodeNetworkState{}, fmt.Errorf("decode stored node network inventory: %w", err)
-			}
-			if err := validateNetworkReport(&inventory, nil); err != nil {
-				return NodeNetworkState{}, fmt.Errorf("validate stored node network inventory: %w", err)
-			}
-			state.Inventory = &inventory
-		}
-	} else if !errors.Is(err, sql.ErrNoRows) {
-		return NodeNetworkState{}, err
-	}
-	egressRecords, err := s.queries.ListNodeEgresses(ctx, id.String())
-	if err != nil {
-		return NodeNetworkState{}, err
-	}
-	deletionRecords, err := s.queries.ListActiveNodeEgressDeletions(ctx, id.String())
-	if err != nil {
-		return NodeNetworkState{}, err
-	}
-	deletions := make(map[string]configdb.EgressDeletionOperation, len(deletionRecords))
-	for _, deletion := range deletionRecords {
-		deletions[deletion.EgressID] = deletion
-	}
-	state.Egresses = make([]NetworkEgress, 0, len(egressRecords))
-	for _, item := range egressRecords {
-		egress, err := egressFromRecord(item)
-		if err != nil {
-			return NodeNetworkState{}, err
-		}
-		if deletion, exists := deletions[item.ID]; exists {
-			status := deletion.Status
-			egress.DeletionStatus = &status
-			egress.DeletionError = deletion.LastError
-		}
-		state.Egresses = append(state.Egresses, egress)
-	}
-	if state.Inventory != nil {
-		state.Candidates = inventoryCandidates(*state.Inventory, state.Egresses)
-	}
-	addressStates, err := s.historyQueries.ListNodeAddressStates(ctx, id.String())
-	if err != nil {
-		return NodeNetworkState{}, err
-	}
-	state.AddressStates = make([]AddressState, 0, len(addressStates))
-	for _, record := range addressStates {
-		item, err := addressStateFromRecord(record)
-		if err != nil {
-			return NodeNetworkState{}, err
-		}
-		state.AddressStates = append(state.AddressStates, item)
 	}
 	addressEvents, err := s.historyQueries.ListNodeAddressEvents(ctx, historydb.ListNodeAddressEventsParams{NodeID: id.String(), Limit: 100})
 	if err != nil {
@@ -438,6 +369,14 @@ func (s *Service) Network(ctx context.Context, id uuid.UUID) (NodeNetworkState, 
 		}
 		state.AddressGaps = append(state.AddressGaps, item)
 	}
+	proxyRecords, err := s.queries.ListNodeNetworkProxies(ctx, id.String())
+	if err != nil {
+		return NodeNetworkState{}, err
+	}
+	state.NetworkProxies, err = s.networkProxiesFromRecords(ctx, id, proxyRecords)
+	if err != nil {
+		return NodeNetworkState{}, err
+	}
 	return state, nil
 }
 
@@ -461,10 +400,8 @@ func (s *Service) UpdatePublicAddress(ctx context.Context, nodeID, addressID uui
 		return PublicAddress{}, err
 	}
 	value := boolInteger(update.ProbeEnabled)
-	rediscovery := boolInteger(update.ProbeOnRediscovery)
 	changed, err := s.queries.SetPublicAddressProbeSettings(ctx, configdb.SetPublicAddressProbeSettingsParams{
-		ProbeEnabled: value, ProbeOnRediscovery: rediscovery, UpdatedAt: s.now().UTC().Unix(), ID: addressID.String(),
-		ProbeEnabled_2: value, ProbeOnRediscovery_2: rediscovery,
+		ProbeEnabled: value, UpdatedAt: s.now().UTC().Unix(), ID: addressID.String(), ProbeEnabled_2: value,
 	})
 	if err != nil {
 		return PublicAddress{}, err
@@ -483,7 +420,6 @@ func (s *Service) UpdatePublicAddress(ctx context.Context, nodeID, addressID uui
 		return PublicAddress{}, err
 	}
 	record.ProbeEnabled = value
-	record.ProbeOnRediscovery = rediscovery
 	return s.publicAddressFromRecord(ctx, record)
 }
 
@@ -494,8 +430,8 @@ func (s *Service) publicAddressFromRecord(ctx context.Context, record configdb.P
 	}
 	result := PublicAddress{
 		ID: id, Address: record.Address, Family: record.Family,
-		ProbeEnabled: record.ProbeEnabled == 1, ProbeOnRediscovery: record.ProbeOnRediscovery == 1,
-		FirstSeenAt: time.Unix(record.FirstSeenAt, 0).UTC(), LastSeenAt: time.Unix(record.LastSeenAt, 0).UTC(),
+		ProbeEnabled: record.ProbeEnabled == 1,
+		FirstSeenAt:  time.Unix(record.FirstSeenAt, 0).UTC(), LastSeenAt: time.Unix(record.LastSeenAt, 0).UTC(),
 	}
 	paths, err := s.queries.ListPublicAddressPaths(ctx, record.ID)
 	if err != nil {
@@ -534,183 +470,6 @@ func (s *Service) publicAddressFromRecord(ctx context.Context, record configdb.P
 		}
 	}
 	return result, nil
-}
-
-func (s *Service) CreateEgress(ctx context.Context, nodeID uuid.UUID, selector NetworkEgressSelector) (NetworkEgress, error) {
-	transaction, err := s.database.BeginTx(ctx, nil)
-	if err != nil {
-		return NetworkEgress{}, err
-	}
-	defer transaction.Rollback()
-	queries := s.queries.WithTx(transaction)
-	if err := requireMutableNode(ctx, queries, nodeID); err != nil {
-		return NetworkEgress{}, err
-	}
-	selector, err = normalizeSelector(selector)
-	if err != nil {
-		return NetworkEgress{}, err
-	}
-	name := ""
-	var interfaceName *string
-	if selector.Kind == "proxy" {
-		proxy, proxyErr := queries.GetNetworkProxy(ctx, selector.ProxyID.String())
-		if errors.Is(proxyErr, sql.ErrNoRows) {
-			return NetworkEgress{}, ErrNetworkProxyNotFound
-		}
-		if proxyErr != nil {
-			return NetworkEgress{}, proxyErr
-		}
-		proxyID := selector.ProxyID.String()
-		_, err = queries.GetNodeEgressByProxy(ctx, configdb.GetNodeEgressByProxyParams{
-			NodeID: nodeID.String(), Family: selector.Family, ProxyID: &proxyID,
-		})
-		name = "proxy:" + proxy.Name + ":" + selector.Family
-	} else {
-		inventoryRecord, inventoryErr := queries.GetNodeNetworkInventory(ctx, nodeID.String())
-		if errors.Is(inventoryErr, sql.ErrNoRows) || inventoryRecord.Payload == nil || inventoryRecord.LastError != nil {
-			return NetworkEgress{}, ErrNetworkInventoryUnavailable
-		}
-		if inventoryErr != nil {
-			return NetworkEgress{}, inventoryErr
-		}
-		var inventory NetworkInventory
-		if err := json.Unmarshal([]byte(*inventoryRecord.Payload), &inventory); err != nil {
-			return NetworkEgress{}, fmt.Errorf("decode stored node network inventory: %w", err)
-		}
-		available := egressAvailability(inventory)
-		if !available[selectorKey(selector.Kind, selector.Family, selector.InterfaceName, selector.SourceAddress)] {
-			return NetworkEgress{}, ErrInvalidEgressCandidate
-		}
-		interfaceName = &selector.InterfaceName
-		_, err = queries.GetNodeEgressBySelector(ctx, configdb.GetNodeEgressBySelectorParams{
-			NodeID: nodeID.String(), Kind: selector.Kind, Family: selector.Family,
-			InterfaceName: interfaceName, SourceAddress: selector.SourceAddress,
-		})
-		name = selector.Kind + ":" + selector.InterfaceName + ":" + selector.Family
-		if selector.SourceAddress != nil {
-			name = selector.Kind + ":" + *selector.SourceAddress
-		}
-	}
-	if err == nil {
-		return NetworkEgress{}, ErrEgressAlreadyExists
-	}
-	if !errors.Is(err, sql.ErrNoRows) {
-		return NetworkEgress{}, err
-	}
-	egresses, err := queries.ListNodeEgresses(ctx, nodeID.String())
-	if err != nil {
-		return NetworkEgress{}, err
-	}
-	if len(egresses) >= maxNodeEgresses {
-		return NetworkEgress{}, ErrEgressLimitReached
-	}
-	now := s.now().UTC().Truncate(time.Second).Unix()
-	id := uuid.New()
-	var proxyID *string
-	if selector.ProxyID != nil {
-		value := selector.ProxyID.String()
-		proxyID = &value
-	}
-	if err := queries.CreateNodeEgress(ctx, configdb.CreateNodeEgressParams{
-		ID: id.String(), NodeID: nodeID.String(), Name: name, Kind: selector.Kind, Family: selector.Family,
-		InterfaceName: interfaceName, SourceAddress: selector.SourceAddress, ProxyID: proxyID,
-		Enabled: 1, Available: 1, Automatic: 0,
-		LightweightIntervalSeconds: int64(defaultLightweightInterval / time.Second), ProbeOnAddressChange: 1,
-		CreatedAt: now, UpdatedAt: now,
-	}); err != nil {
-		return NetworkEgress{}, err
-	}
-	if err := incrementNodeConfiguration(ctx, queries, nodeID.String()); err != nil {
-		return NetworkEgress{}, err
-	}
-	created, err := queries.GetNodeEgress(ctx, configdb.GetNodeEgressParams{NodeID: nodeID.String(), ID: id.String()})
-	if err != nil {
-		return NetworkEgress{}, err
-	}
-	if err := transaction.Commit(); err != nil {
-		return NetworkEgress{}, err
-	}
-	s.sync.Wake(nodeID.String())
-	return egressFromRecord(created)
-}
-
-func (s *Service) CreateProxyDiscoveryPath(ctx context.Context, nodeID, proxyID uuid.UUID, family string) (NetworkEgress, error) {
-	return s.CreateEgress(ctx, nodeID, NetworkEgressSelector{
-		Kind: "proxy", Family: family, ProxyID: &proxyID,
-	})
-}
-
-func (s *Service) UpdateEgress(ctx context.Context, nodeID, egressID uuid.UUID, update NetworkEgressUpdate) (NetworkEgress, error) {
-	if update.LightweightIntervalSeconds < 1 || update.LightweightIntervalSeconds > math.MaxInt64/int64(time.Second) {
-		return NetworkEgress{}, ErrInvalidEgressCandidate
-	}
-	transaction, err := s.database.BeginTx(ctx, nil)
-	if err != nil {
-		return NetworkEgress{}, err
-	}
-	defer transaction.Rollback()
-	queries := s.queries.WithTx(transaction)
-	if err := requireMutableNode(ctx, queries, nodeID); err != nil {
-		return NetworkEgress{}, err
-	}
-	if deletion, deletionErr := queries.GetEgressDeletion(ctx, configdb.GetEgressDeletionParams{
-		EgressID: egressID.String(), NodeID: nodeID.String(),
-	}); deletionErr == nil && deletion.Status != "completed" {
-		return NetworkEgress{}, ErrEgressDeletionPending
-	} else if deletionErr != nil && !errors.Is(deletionErr, sql.ErrNoRows) {
-		return NetworkEgress{}, deletionErr
-	}
-	record, err := queries.GetNodeEgress(ctx, configdb.GetNodeEgressParams{NodeID: nodeID.String(), ID: egressID.String()})
-	if errors.Is(err, sql.ErrNoRows) {
-		return NetworkEgress{}, ErrEgressNotFound
-	}
-	if err != nil {
-		return NetworkEgress{}, err
-	}
-	changed := (record.Enabled == 1) != update.Enabled ||
-		record.LightweightIntervalSeconds != update.LightweightIntervalSeconds ||
-		(record.ProbeOnAddressChange == 1) != update.ProbeOnAddressChange
-	if changed {
-		now := s.now().UTC().Truncate(time.Second).Unix()
-		enabled := boolInteger(update.Enabled)
-		probeOnChange := boolInteger(update.ProbeOnAddressChange)
-		if _, err := queries.UpdateNodeEgressSettings(ctx, configdb.UpdateNodeEgressSettingsParams{
-			Enabled: enabled, LightweightIntervalSeconds: update.LightweightIntervalSeconds,
-			ProbeOnAddressChange: probeOnChange, UpdatedAt: now,
-			ID: egressID.String(), NodeID: nodeID.String(), Enabled_2: enabled,
-			LightweightIntervalSeconds_2: update.LightweightIntervalSeconds,
-			ProbeOnAddressChange_2:       probeOnChange,
-		}); err != nil {
-			return NetworkEgress{}, err
-		}
-		if err := incrementNodeConfiguration(ctx, queries, nodeID.String()); err != nil {
-			return NetworkEgress{}, err
-		}
-		record.Enabled = enabled
-		record.LightweightIntervalSeconds = update.LightweightIntervalSeconds
-		record.ProbeOnAddressChange = probeOnChange
-	}
-	if err := transaction.Commit(); err != nil {
-		return NetworkEgress{}, err
-	}
-	if changed {
-		s.sync.Wake(nodeID.String())
-	}
-	return egressFromRecord(record)
-}
-
-func (s *Service) SetEgressEnabled(ctx context.Context, nodeID, egressID uuid.UUID, enabled bool) (NetworkEgress, error) {
-	record, err := s.queries.GetNodeEgress(ctx, configdb.GetNodeEgressParams{NodeID: nodeID.String(), ID: egressID.String()})
-	if errors.Is(err, sql.ErrNoRows) {
-		return NetworkEgress{}, ErrEgressNotFound
-	}
-	if err != nil {
-		return NetworkEgress{}, err
-	}
-	return s.UpdateEgress(ctx, nodeID, egressID, NetworkEgressUpdate{
-		Enabled: enabled, LightweightIntervalSeconds: record.LightweightIntervalSeconds,
-		ProbeOnAddressChange: record.ProbeOnAddressChange == 1,
-	})
 }
 
 func (s *Service) ObservationSettings(ctx context.Context) (DiscoveryServices, error) {
@@ -825,71 +584,6 @@ func normalizeDiscoveryServiceList(values []string) ([]string, error) {
 		result = append(result, parsed.String())
 	}
 	return result, nil
-}
-
-func (s *Service) DeleteEgress(ctx context.Context, nodeID, egressID uuid.UUID) (EgressDeletion, error) {
-	now := s.now().UTC().Truncate(time.Second).Unix()
-	transaction, err := s.database.BeginTx(ctx, nil)
-	if err != nil {
-		return EgressDeletion{}, err
-	}
-	defer transaction.Rollback()
-	queries := s.queries.WithTx(transaction)
-	if err := requireMutableNode(ctx, queries, nodeID); err != nil {
-		return EgressDeletion{}, err
-	}
-	if _, err := queries.GetNodeEgress(ctx, configdb.GetNodeEgressParams{
-		ID: egressID.String(), NodeID: nodeID.String(),
-	}); errors.Is(err, sql.ErrNoRows) {
-		return EgressDeletion{}, ErrEgressNotFound
-	} else if err != nil {
-		return EgressDeletion{}, err
-	}
-	_, existingErr := queries.GetEgressDeletion(ctx, configdb.GetEgressDeletionParams{
-		EgressID: egressID.String(), NodeID: nodeID.String(),
-	})
-	newOperation := errors.Is(existingErr, sql.ErrNoRows)
-	if existingErr != nil && !newOperation {
-		return EgressDeletion{}, existingErr
-	}
-	if err := queries.CreateEgressDeletion(ctx, configdb.CreateEgressDeletionParams{
-		EgressID: egressID.String(), NodeID: nodeID.String(), RequestedAt: now, UpdatedAt: now,
-	}); err != nil {
-		return EgressDeletion{}, err
-	}
-	if newOperation {
-		if err := incrementNodeConfiguration(ctx, queries, nodeID.String()); err != nil {
-			return EgressDeletion{}, err
-		}
-	}
-	operation, err := queries.GetEgressDeletion(ctx, configdb.GetEgressDeletionParams{
-		EgressID: egressID.String(), NodeID: nodeID.String(),
-	})
-	if err != nil {
-		return EgressDeletion{}, err
-	}
-	if err := transaction.Commit(); err != nil {
-		return EgressDeletion{}, err
-	}
-	s.sync.Wake(nodeID.String())
-	select {
-	case s.deletionWake <- struct{}{}:
-	default:
-	}
-	return egressDeletionFromRecord(operation)
-}
-
-func (s *Service) DeleteProxyDiscoveryPath(ctx context.Context, nodeID, pathID uuid.UUID) (EgressDeletion, error) {
-	record, err := s.queries.GetNodeEgress(ctx, configdb.GetNodeEgressParams{
-		ID: pathID.String(), NodeID: nodeID.String(),
-	})
-	if errors.Is(err, sql.ErrNoRows) || err == nil && record.Kind != "proxy" {
-		return EgressDeletion{}, ErrEgressNotFound
-	}
-	if err != nil {
-		return EgressDeletion{}, err
-	}
-	return s.DeleteEgress(ctx, nodeID, pathID)
 }
 
 func inventoryCandidates(inventory NetworkInventory, egresses []NetworkEgress) []NetworkEgressCandidate {
@@ -1031,32 +725,6 @@ func usableAddress(address NetworkAddress, allowTemporary bool) bool {
 	}
 }
 
-func normalizeSelector(selector NetworkEgressSelector) (NetworkEgressSelector, error) {
-	if (selector.Family != "ipv4" && selector.Family != "ipv6") ||
-		(selector.Kind != "interface" && selector.Kind != "source" && selector.Kind != "proxy") {
-		return NetworkEgressSelector{}, ErrInvalidEgressCandidate
-	}
-	if selector.Kind == "proxy" {
-		if selector.ProxyID == nil || selector.InterfaceName != "" || selector.SourceAddress != nil {
-			return NetworkEgressSelector{}, ErrInvalidEgressCandidate
-		}
-		return selector, nil
-	}
-	if selector.ProxyID != nil || !validInterfaceName(selector.InterfaceName) ||
-		(selector.Kind == "interface" && selector.SourceAddress != nil) || (selector.Kind == "source" && selector.SourceAddress == nil) {
-		return NetworkEgressSelector{}, ErrInvalidEgressCandidate
-	}
-	if selector.SourceAddress != nil {
-		address, err := netip.ParseAddr(*selector.SourceAddress)
-		if err != nil || address != address.Unmap() || familyOf(address) != selector.Family {
-			return NetworkEgressSelector{}, ErrInvalidEgressCandidate
-		}
-		canonical := address.String()
-		selector.SourceAddress = &canonical
-	}
-	return selector, nil
-}
-
 func requireMutableNode(ctx context.Context, queries *configdb.Queries, nodeID uuid.UUID) error {
 	record, err := queries.GetNodeByID(ctx, nodeID.String())
 	if errors.Is(err, sql.ErrNoRows) {
@@ -1109,7 +777,6 @@ func egressFromRecord(record configdb.NetworkEgress) (NetworkEgress, error) {
 		InterfaceName: record.InterfaceName, SourceAddress: record.SourceAddress, ProxyID: proxyID,
 		Enabled: record.Enabled == 1, Available: record.Available == 1, Automatic: record.Automatic == 1,
 		LightweightIntervalSeconds: record.LightweightIntervalSeconds,
-		ProbeOnAddressChange:       record.ProbeOnAddressChange == 1,
 	}, nil
 }
 

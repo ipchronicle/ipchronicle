@@ -123,11 +123,63 @@ func TestManagerRecordsChecksumFailureWithoutStartingSupervisor(t *testing.T) {
 	}
 }
 
+func TestManagerRejectsIncompatibleStateSchemaWithoutStartingSupervisor(t *testing.T) {
+	store, err := state.Open(filepath.Join(t.TempDir(), "agent"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer store.Close()
+	candidate := candidateAgentScriptWithSchema(t, "0.1.1", strings.Repeat("c", 40), state.SchemaVersion()+1)
+	server := newAgentReleaseServer(t, "0.1.1", strings.Repeat("c", 40), candidate, false)
+	triggered := make(chan struct{}, 1)
+	now := time.Now().UTC().Truncate(time.Second)
+	manager, err := NewManager(ManagerOptions{
+		Store: store, CurrentVersion: "0.1.0",
+		Config:             Config{InitSystem: "systemd", AgentPath: "/usr/local/bin/ipchronicle-agent", UpdaterPath: "/usr/local/libexec/ipchronicle-agent-updater"},
+		ReleaseDownloadURL: server.URL + "/download", Now: func() time.Time { return now }, Logger: log.New(io.Discard, "", 0),
+		Trigger: func(context.Context, string) error { triggered <- struct{}{}; return nil },
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	id := uuid.NewString()
+	if err := manager.AcceptTask(state.AgentUpdateDelivery{
+		ID: id, TargetVersion: "0.1.1", CreatedAt: now.Add(-time.Second), ExpiresAt: now.Add(time.Minute),
+	}); err != nil {
+		t.Fatal(err)
+	}
+	ctx, cancel := context.WithCancel(context.Background())
+	done := make(chan error, 1)
+	go func() { done <- manager.Run(ctx) }()
+	updateState := waitForUpdateStatus(t, store, "failed")
+	if updateState.FailureCode == nil || *updateState.FailureCode != "binary-metadata" ||
+		updateState.Diagnostic == nil || !strings.Contains(*updateState.Diagnostic, "incompatible local state schema") {
+		t.Fatalf("state schema failure = %#v", updateState)
+	}
+	if _, err := os.Stat(StagedBinaryPath(store.Directory(), id)); !os.IsNotExist(err) {
+		t.Fatalf("staged incompatible Agent remains: %v", err)
+	}
+	select {
+	case <-triggered:
+		t.Fatal("supervisor was triggered for an incompatible state schema")
+	default:
+	}
+	cancel()
+	if err := <-done; err != nil {
+		t.Fatal(err)
+	}
+}
+
 func candidateAgentScript(t *testing.T, version, revision string) []byte {
+	t.Helper()
+	return candidateAgentScriptWithSchema(t, version, revision, state.SchemaVersion())
+}
+
+func candidateAgentScriptWithSchema(t *testing.T, version, revision string, schemaVersion int) []byte {
 	t.Helper()
 	info := releaseinfo.BinaryInfo{
 		Version: version, Revision: revision, Component: "agent", OS: "linux", Arch: runtime.GOARCH,
-		Capabilities: slices.Clone(releaseinfo.RequiredAgentCapabilities), StateSchemaVersion: state.SchemaVersion(),
+		Capabilities: slices.Clone(releaseinfo.RequiredAgentCapabilities), StateSchemaVersion: schemaVersion,
 	}
 	encoded, err := json.Marshal(info)
 	if err != nil {

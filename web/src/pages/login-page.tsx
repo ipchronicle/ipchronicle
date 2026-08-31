@@ -48,7 +48,7 @@ export function LoginPage() {
     <main className="flex min-h-[calc(100svh-3.5rem)] w-full items-center px-4 py-10 sm:px-6">
       <Card className="mx-auto w-full max-w-sm">
         <CardHeader>
-          <p className="text-xs font-medium text-muted-foreground uppercase">
+          <p className="text-sm font-medium text-muted-foreground uppercase">
             {t("authentication.section")}
           </p>
           <h1 className="mt-1 text-2xl font-semibold">

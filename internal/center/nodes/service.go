@@ -33,12 +33,14 @@ var (
 	ErrEnrollmentKeyMissing   = errors.New("Agent enrollment key has not been initialized")
 	ErrEnrollmentDisabled     = errors.New("Agent enrollment is disabled")
 	ErrEnrollmentKeyInvalid   = errors.New("Agent enrollment key is invalid")
+	ErrEnrollmentTimezone     = errors.New("Agent enrollment timezone is invalid")
 	ErrAgentUnauthenticated   = errors.New("Agent credential is invalid")
 	ErrAgentRevoked           = errors.New("Agent credential is revoked")
 	ErrInvalidMetadata        = errors.New("Agent metadata is invalid")
 	ErrNodeNotFound           = errors.New("node does not exist")
 	ErrNodeRevoked            = errors.New("node Agent credential is revoked")
 	ErrNodeDeletionPending    = errors.New("node deletion is pending")
+	ErrInvalidNodeName        = errors.New("node name is invalid")
 	ErrNodeSyncUnsupported    = errors.New("node Agent does not support temporary sync")
 	ErrSyncSessionUnavailable = errors.New("Agent sync session is unavailable")
 )
@@ -50,25 +52,26 @@ type SyncConnections interface {
 }
 
 type Service struct {
-	database            *sql.DB
-	history             *sql.DB
-	queries             *configdb.Queries
-	historyQueries      *historydb.Queries
-	masterKey           [32]byte
-	now                 func() time.Time
-	deletionWake        chan struct{}
-	deleteHistory       func(context.Context, string) error
-	deleteEgressHistory func(context.Context, string) error
-	sync                SyncConnections
-	historyMu           sync.Mutex
-	retentionMu         sync.Mutex
+	database          *sql.DB
+	history           *sql.DB
+	queries           *configdb.Queries
+	historyQueries    *historydb.Queries
+	masterKey         [32]byte
+	now               func() time.Time
+	deletionWake      chan struct{}
+	deleteHistory     func(context.Context, string) error
+	deletePathHistory func(context.Context, string) error
+	sync              SyncConnections
+	historyMu         sync.Mutex
+	retentionMu       sync.Mutex
 }
 
 type Enrollment struct {
-	Enabled   bool
-	HasKey    bool
-	Key       string
-	RotatedAt time.Time
+	Enabled              bool
+	HasKey               bool
+	Key                  string
+	DefaultProbeTimezone string
+	RotatedAt            time.Time
 }
 
 type Metadata struct {
@@ -107,14 +110,12 @@ type SyncAuthorization struct {
 }
 
 type Configuration struct {
-	SchemaVersion     int
-	Revision          int64
-	Enabled           bool
-	HistoryGeneration string
-	DiscoveryPaths    []NetworkEgress
-	ProbeTargets      []NetworkEgress
-	// Egresses is an internal compatibility view for pre-v6 callers.
-	Egresses               []NetworkEgress
+	SchemaVersion          int
+	Revision               int64
+	Enabled                bool
+	HistoryGeneration      string
+	DiscoveryPaths         []NetworkEgress
+	ProbeTargets           []NetworkEgress
 	Proxies                []AgentProxyConfiguration
 	DiscoveryServices      DiscoveryServices
 	ProbeSchedule          ProbeSchedule
@@ -128,14 +129,6 @@ type ProbeSchedule struct {
 }
 
 type Deletion struct {
-	NodeID      uuid.UUID
-	Status      string
-	RequestedAt time.Time
-	Error       *string
-}
-
-type EgressDeletion struct {
-	EgressID    uuid.UUID
 	NodeID      uuid.UUID
 	Status      string
 	RequestedAt time.Time
@@ -185,7 +178,7 @@ func NewService(database, history *sql.DB, queries *configdb.Queries, masterKey 
 		deletionWake: make(chan struct{}, 1), sync: syncConnections,
 	}
 	service.deleteHistory = service.deleteNodeHistory
-	service.deleteEgressHistory = service.deleteNetworkEgressHistory
+	service.deletePathHistory = service.deleteDiscoveryPathHistory
 	return service
 }
 
@@ -203,11 +196,15 @@ func (s *Service) Enrollment(ctx context.Context) (Enrollment, error) {
 	}
 	return Enrollment{
 		Enabled: record.Enabled == 1, HasKey: true, Key: key,
-		RotatedAt: time.Unix(record.RotatedAt, 0).UTC(),
+		DefaultProbeTimezone: record.DefaultProbeTimezone,
+		RotatedAt:            time.Unix(record.RotatedAt, 0).UTC(),
 	}, nil
 }
 
-func (s *Service) RotateEnrollmentKey(ctx context.Context) (Enrollment, error) {
+func (s *Service) RotateEnrollmentKey(ctx context.Context, defaultProbeTimezone string) (Enrollment, error) {
+	if err := sharedschedule.ValidateTimezone(defaultProbeTimezone); err != nil {
+		return Enrollment{}, ErrEnrollmentTimezone
+	}
 	key, err := randomToken("ipc_reg_")
 	if err != nil {
 		return Enrollment{}, err
@@ -219,12 +216,15 @@ func (s *Service) RotateEnrollmentKey(ctx context.Context) (Enrollment, error) {
 	now := s.now().UTC().Truncate(time.Second)
 	digest := sha256.Sum256([]byte(key))
 	if err := s.queries.UpsertAgentEnrollmentKey(ctx, configdb.UpsertAgentEnrollmentKeyParams{
-		KeyDigest: digest[:], KeyEncrypted: encrypted,
+		KeyDigest: digest[:], KeyEncrypted: encrypted, DefaultProbeTimezone: defaultProbeTimezone,
 		CreatedAt: now.Unix(), RotatedAt: now.Unix(),
 	}); err != nil {
 		return Enrollment{}, err
 	}
-	return Enrollment{Enabled: true, HasKey: true, Key: key, RotatedAt: now}, nil
+	return Enrollment{
+		Enabled: true, HasKey: true, Key: key,
+		DefaultProbeTimezone: defaultProbeTimezone, RotatedAt: now,
+	}, nil
 }
 
 func (s *Service) SetEnrollmentEnabled(ctx context.Context, enabled bool) (Enrollment, error) {
@@ -276,7 +276,8 @@ func (s *Service) Register(ctx context.Context, registrationKey string, metadata
 		Hostname: metadata.Hostname, CredentialDigest: credentialDigest[:],
 		AgentVersion: metadata.AgentVersion, AgentRevision: metadata.AgentRevision,
 		OperatingSystem: metadata.OperatingSystem,
-		Architecture:    metadata.Architecture, RegisteredAt: now.Unix(),
+		Architecture:    metadata.Architecture, ProbeScheduleTimezone: enrollment.DefaultProbeTimezone,
+		RegisteredAt: now.Unix(),
 	}); err != nil {
 		return Registration{}, err
 	}
@@ -403,7 +404,7 @@ func (s *Service) Poll(
 	if err != nil {
 		return Poll{}, err
 	}
-	if err := s.createReadyRediscoveryTask(ctx, node.ID, current.AppliedConfigurationRevision, now); err != nil {
+	if err := s.createReadyNewAddressTask(ctx, node.ID, current.AppliedConfigurationRevision, now); err != nil {
 		return Poll{}, err
 	}
 	task, err := s.deliverAgentTask(ctx, node.ID, now)
@@ -460,7 +461,6 @@ func (s *Service) Configuration(ctx context.Context, credential string) (Configu
 			return Configuration{}, err
 		}
 		egress.Enabled = true
-		egress.ProbeOnAddressChange = false
 		discoveryPaths = append(discoveryPaths, egress)
 	}
 	targetRecords, err := s.queries.ListNodeSelectedPublicAddresses(ctx, node.ID)
@@ -491,10 +491,9 @@ func (s *Service) Configuration(ctx context.Context, credential string) (Configu
 			Kind: record.Kind, Family: record.Family, InterfaceName: record.InterfaceName,
 			SourceAddress: record.SourceAddress, ProxyID: proxyID, Enabled: true, Available: true,
 			LightweightIntervalSeconds: record.LightweightIntervalSeconds,
-			ProbeOnAddressChange:       record.ProbeOnRediscovery == 1,
 		})
 	}
-	proxyRecords, err := s.queries.ListNodeNetworkProxies(ctx, node.ID)
+	proxyRecords, err := s.queries.ListActiveNodeNetworkProxies(ctx, node.ID)
 	if err != nil {
 		return Configuration{}, err
 	}
@@ -522,11 +521,10 @@ func (s *Service) Configuration(ctx context.Context, credential string) (Configu
 		return Configuration{}, fmt.Errorf("read stored probe schedule: %w", err)
 	}
 	return Configuration{
-		SchemaVersion: 6, Revision: node.DesiredConfigurationRevision,
+		SchemaVersion: 7, Revision: node.DesiredConfigurationRevision,
 		Enabled: node.Enabled == 1, HistoryGeneration: state.HistoryGeneration,
 		DiscoveryPaths: discoveryPaths, ProbeTargets: probeTargets,
-		Egresses: discoveryPaths,
-		Proxies:  proxies, DiscoveryServices: discoveryServices,
+		Proxies: proxies, DiscoveryServices: discoveryServices,
 		ProbeSchedule: probeSchedule, ProbeLowMemoryOverride: settings.ProbeLowMemoryOverride == 1,
 	}, nil
 }
@@ -651,6 +649,13 @@ func (s *Service) Get(ctx context.Context, id uuid.UUID) (Node, error) {
 }
 
 func (s *Service) SetEnabled(ctx context.Context, id uuid.UUID, enabled bool) (Node, error) {
+	return s.Update(ctx, id, nil, enabled)
+}
+
+func (s *Service) Update(ctx context.Context, id uuid.UUID, name *string, enabled bool) (Node, error) {
+	if name != nil && !validBoundedText(*name, 128) {
+		return Node{}, ErrInvalidNodeName
+	}
 	transaction, err := s.database.BeginTx(ctx, nil)
 	if err != nil {
 		return Node{}, err
@@ -671,6 +676,17 @@ func (s *Service) SetEnabled(ctx context.Context, id uuid.UUID, enabled bool) (N
 	}
 	if record.RevokedAt != nil {
 		return Node{}, ErrNodeRevoked
+	}
+	if name != nil && record.Name != *name {
+		changed, err := queries.SetNodeName(ctx, configdb.SetNodeNameParams{
+			Name: *name, ID: id.String(), Name_2: *name,
+		})
+		if err != nil {
+			return Node{}, err
+		}
+		if changed != 1 {
+			return Node{}, ErrNodeDeletionPending
+		}
 	}
 	changedConfiguration := (record.Enabled == 1) != enabled
 	if changedConfiguration {
@@ -949,7 +965,7 @@ func (s *Service) processEgressDeletions(ctx context.Context, limit int64) error
 				return err
 			}
 		}
-		if err := s.deleteEgressHistory(ctx, operation.EgressID); err != nil {
+		if err := s.deletePathHistory(ctx, operation.EgressID); err != nil {
 			message := boundedError(err)
 			if recordErr := s.queries.FailEgressDeletion(ctx, configdb.FailEgressDeletionParams{
 				UpdatedAt: now, LastError: &message, EgressID: operation.EgressID, NodeID: operation.NodeID,
@@ -963,9 +979,20 @@ func (s *Service) processEgressDeletions(ctx context.Context, limit int64) error
 			return err
 		}
 		queries := s.queries.WithTx(transaction)
-		_, err = queries.DeleteNodeEgress(ctx, configdb.DeleteNodeEgressParams{
-			ID: operation.EgressID, NodeID: operation.NodeID,
-		})
+		egress, lookupErr := queries.GetNetworkEgressByID(ctx, operation.EgressID)
+		if lookupErr != nil && !errors.Is(lookupErr, sql.ErrNoRows) {
+			err = lookupErr
+		}
+		if err == nil {
+			_, err = queries.DeleteNodeEgress(ctx, configdb.DeleteNodeEgressParams{
+				ID: operation.EgressID, NodeID: operation.NodeID,
+			})
+		}
+		if err == nil && egress.ProxyID != nil {
+			_, err = queries.DeleteMarkedNetworkProxyIfUnreferenced(ctx, configdb.DeleteMarkedNetworkProxyIfUnreferencedParams{
+				NodeID: operation.NodeID, ID: *egress.ProxyID,
+			})
+		}
 		if err == nil {
 			err = queries.CompleteEgressDeletion(ctx, configdb.CompleteEgressDeletionParams{
 				UpdatedAt: now, EgressID: operation.EgressID, NodeID: operation.NodeID,
@@ -1009,7 +1036,7 @@ func (s *Service) deleteNodeHistory(ctx context.Context, nodeID string) error {
 	return transaction.Commit()
 }
 
-func (s *Service) deleteNetworkEgressHistory(ctx context.Context, egressID string) error {
+func (s *Service) deleteDiscoveryPathHistory(ctx context.Context, pathID string) error {
 	s.historyMu.Lock()
 	defer s.historyMu.Unlock()
 	transaction, err := s.history.BeginTx(ctx, nil)
@@ -1018,28 +1045,10 @@ func (s *Service) deleteNetworkEgressHistory(ctx context.Context, egressID strin
 	}
 	defer transaction.Rollback()
 	queries := s.historyQueries.WithTx(transaction)
-	if err := queries.DeleteEgressNotificationHistory(ctx, &egressID); err != nil {
+	if err := queries.DeleteEgressAddressStates(ctx, pathID); err != nil {
 		return err
 	}
-	if err := queries.DeleteEgressProbeSnapshots(ctx, egressID); err != nil {
-		return err
-	}
-	if err := queries.DeleteEgressProbeExecutions(ctx, egressID); err != nil {
-		return err
-	}
-	if err := queries.DeleteEgressProbeGaps(ctx, egressID); err != nil {
-		return err
-	}
-	if err := queries.DeleteEgressProbeComparisonProgress(ctx, egressID); err != nil {
-		return err
-	}
-	if err := queries.DeleteEmptyProbeRuns(ctx); err != nil {
-		return err
-	}
-	if err := queries.DeleteEgressAddressStates(ctx, egressID); err != nil {
-		return err
-	}
-	if err := queries.DeleteEgressAddressGaps(ctx, egressID); err != nil {
+	if err := queries.DeleteEgressAddressGaps(ctx, pathID); err != nil {
 		return err
 	}
 	return transaction.Commit()
@@ -1088,21 +1097,6 @@ func deletionFromRecord(record configdb.NodeDeletionOperation) (Deletion, error)
 	}
 	return Deletion{
 		NodeID: id, Status: record.Status,
-		RequestedAt: time.Unix(record.RequestedAt, 0).UTC(), Error: record.LastError,
-	}, nil
-}
-
-func egressDeletionFromRecord(record configdb.EgressDeletionOperation) (EgressDeletion, error) {
-	egressID, err := uuid.Parse(record.EgressID)
-	if err != nil {
-		return EgressDeletion{}, fmt.Errorf("parse stored egress deletion ID %q: %w", record.EgressID, err)
-	}
-	nodeID, err := uuid.Parse(record.NodeID)
-	if err != nil {
-		return EgressDeletion{}, fmt.Errorf("parse stored egress deletion node ID %q: %w", record.NodeID, err)
-	}
-	return EgressDeletion{
-		EgressID: egressID, NodeID: nodeID, Status: record.Status,
 		RequestedAt: time.Unix(record.RequestedAt, 0).UTC(), Error: record.LastError,
 	}, nil
 }

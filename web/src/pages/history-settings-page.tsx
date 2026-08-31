@@ -152,7 +152,7 @@ export function HistorySettingsPage() {
   return (
     <main className="w-full min-w-0 px-4 py-10 sm:px-6 sm:py-14">
       <div className="max-w-2xl">
-        <p className="text-xs font-medium text-muted-foreground uppercase">
+        <p className="text-sm font-medium text-muted-foreground uppercase">
           {t("settings.section")}
         </p>
         <h1 className="mt-2 text-2xl font-semibold sm:text-3xl">
@@ -260,7 +260,7 @@ export function HistorySettingsPage() {
                     )}
                   />
                 </dl>
-                <div className="mt-4 flex flex-wrap gap-2 text-xs text-muted-foreground">
+                <div className="mt-4 flex flex-wrap gap-2 text-sm text-muted-foreground">
                   <Badge variant="outline">
                     DB{" "}
                     {formatBytes(
@@ -351,7 +351,7 @@ export function HistorySettingsPage() {
                   ) : null}
                 </div>
                 <div className="flex flex-wrap items-center justify-between gap-3 border-t pt-4">
-                  <div className="text-xs text-muted-foreground">
+                  <div className="text-sm text-muted-foreground">
                     {t("historySettings.retention.updated", {
                       value: formatTime(
                         state.history.retention.updatedAt,
@@ -487,10 +487,8 @@ function UsageItem({
 }) {
   return (
     <div className="min-w-0">
-      <dt className="text-xs text-muted-foreground">{label}</dt>
-      <dd
-        className={`mt-1 break-all font-medium ${mono ? "font-mono text-xs" : ""}`}
-      >
+      <dt className="text-sm text-muted-foreground">{label}</dt>
+      <dd className={`mt-1 break-all font-medium ${mono ? "font-mono" : ""}`}>
         {value}
       </dd>
     </div>

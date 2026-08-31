@@ -30,7 +30,7 @@ func newProbeServiceFixture(t *testing.T, physicalMemoryBytes int64) *probeServi
 		now: time.Date(2026, 8, 9, 12, 0, 0, 0, time.UTC),
 		metadata: Metadata{
 			Hostname: "probe.example", AgentVersion: "0.1.0", OperatingSystem: "linux", Architecture: "amd64",
-			Capabilities:        []string{"control-v1", "configuration-v6", "complete-probe-v1"},
+			Capabilities:        []string{"control-v1", "configuration-v7", "complete-probe-v1"},
 			PhysicalMemoryBytes: physicalMemoryBytes,
 		},
 	}
@@ -42,7 +42,7 @@ func newProbeServiceFixture(t *testing.T, physicalMemoryBytes int64) *probeServi
 	fixture.store = store
 	fixture.service = NewService(store.Config, store.History, store.ConfigQueries, store.MasterKey, &testSyncConnections{})
 	fixture.service.now = func() time.Time { return fixture.now }
-	enrollment, err := fixture.service.RotateEnrollmentKey(fixture.ctx)
+	enrollment, err := fixture.service.RotateEnrollmentKey(fixture.ctx, "UTC")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -56,13 +56,13 @@ func newProbeServiceFixture(t *testing.T, physicalMemoryBytes int64) *probeServi
 	); err != nil {
 		t.Fatal(err)
 	}
-	network, err := fixture.service.Network(fixture.ctx, fixture.registration.NodeID)
+	configuration, err := fixture.service.Configuration(fixture.ctx, fixture.registration.Credential)
 	if err != nil {
 		t.Fatal(err)
 	}
 	var ipv4Path, ipv6Path *NetworkEgress
-	for index := range network.Egresses {
-		path := &network.Egresses[index]
+	for index := range configuration.DiscoveryPaths {
+		path := &configuration.DiscoveryPaths[index]
 		if path.Kind != "default" {
 			continue
 		}
@@ -73,7 +73,7 @@ func newProbeServiceFixture(t *testing.T, physicalMemoryBytes int64) *probeServi
 		}
 	}
 	if ipv4Path == nil || ipv6Path == nil {
-		t.Fatalf("probe fixture default paths = %#v", network.Egresses)
+		t.Fatalf("probe fixture default paths = %#v", configuration.DiscoveryPaths)
 	}
 	localInterface := "eth0"
 	localIPv4 := "10.0.0.5"
@@ -93,13 +93,13 @@ func newProbeServiceFixture(t *testing.T, physicalMemoryBytes int64) *probeServi
 	); err != nil {
 		t.Fatal(err)
 	}
-	network, err = fixture.service.Network(fixture.ctx, fixture.registration.NodeID)
+	network, err := fixture.service.Network(fixture.ctx, fixture.registration.NodeID)
 	if err != nil {
 		t.Fatal(err)
 	}
 	for _, address := range network.PublicAddresses {
 		if _, err := fixture.service.UpdatePublicAddress(fixture.ctx, fixture.registration.NodeID, address.ID, PublicAddressUpdate{
-			ProbeEnabled: true, ProbeOnRediscovery: true,
+			ProbeEnabled: true,
 		}); err != nil {
 			t.Fatal(err)
 		}
@@ -113,6 +113,14 @@ func newProbeServiceFixture(t *testing.T, physicalMemoryBytes int64) *probeServi
 		t.Fatalf("probe fixture has %d public-address targets, want at least 2", len(fixture.egresses))
 	}
 	return fixture
+}
+
+func (fixture *probeServiceFixture) probeTargetIDs() []uuid.UUID {
+	ids := make([]uuid.UUID, 0, len(fixture.egresses))
+	for _, egress := range fixture.egresses {
+		ids = append(ids, egress.ID)
+	}
+	return ids
 }
 
 func confirmedAddressState(
@@ -133,7 +141,7 @@ func TestCreateCompleteProbeTaskEligibilityAndSingleSlot(t *testing.T) {
 	t.Run("offline", func(t *testing.T) {
 		fixture := newProbeServiceFixture(t, 512*1024*1024)
 		fixture.now = fixture.now.Add(OnlineWindow + time.Second)
-		if _, err := fixture.service.CreateCompleteProbeTask(fixture.ctx, fixture.registration.NodeID); !errors.Is(err, ErrNodeOffline) {
+		if _, err := fixture.service.CreateCompleteProbeTask(fixture.ctx, fixture.registration.NodeID, fixture.probeTargetIDs()); !errors.Is(err, ErrNodeOffline) {
 			t.Fatalf("offline task error = %v", err)
 		}
 	})
@@ -142,43 +150,36 @@ func TestCreateCompleteProbeTaskEligibilityAndSingleSlot(t *testing.T) {
 		if _, err := fixture.service.SetEnabled(fixture.ctx, fixture.registration.NodeID, false); err != nil {
 			t.Fatal(err)
 		}
-		if _, err := fixture.service.CreateCompleteProbeTask(fixture.ctx, fixture.registration.NodeID); !errors.Is(err, ErrNodeDisabled) {
+		if _, err := fixture.service.CreateCompleteProbeTask(fixture.ctx, fixture.registration.NodeID, fixture.probeTargetIDs()); !errors.Is(err, ErrNodeDisabled) {
 			t.Fatalf("disabled task error = %v", err)
 		}
 	})
 	t.Run("low memory", func(t *testing.T) {
 		fixture := newProbeServiceFixture(t, 64*1024*1024)
-		if _, err := fixture.service.CreateCompleteProbeTask(fixture.ctx, fixture.registration.NodeID); !errors.Is(err, ErrProbePausedLowMemory) {
+		if _, err := fixture.service.CreateCompleteProbeTask(fixture.ctx, fixture.registration.NodeID, fixture.probeTargetIDs()); !errors.Is(err, ErrProbePausedLowMemory) {
 			t.Fatalf("low-memory task error = %v", err)
 		}
 		if _, err := fixture.service.UpdateProbeSettings(fixture.ctx, fixture.registration.NodeID, ProbeSettingsUpdate{
-			Schedule: fixture.configuration.ProbeSchedule, LowMemoryOverride: true,
+			Schedule: fixture.configuration.ProbeSchedule, LowMemoryOverride: true, ProbeOnNewAddress: true,
 		}); err != nil {
 			t.Fatal(err)
 		}
-		if _, err := fixture.service.CreateCompleteProbeTask(fixture.ctx, fixture.registration.NodeID); err != nil {
+		if _, err := fixture.service.CreateCompleteProbeTask(fixture.ctx, fixture.registration.NodeID, fixture.probeTargetIDs()); err != nil {
 			t.Fatalf("task after low-memory override: %v", err)
 		}
 	})
-	t.Run("no enabled egress", func(t *testing.T) {
+	t.Run("empty target selection", func(t *testing.T) {
 		fixture := newProbeServiceFixture(t, 512*1024*1024)
-		for _, egress := range fixture.egresses {
-			if _, err := fixture.service.UpdatePublicAddress(fixture.ctx, fixture.registration.NodeID, egress.ID, PublicAddressUpdate{
-				ProbeEnabled: false, ProbeOnRediscovery: true,
-			}); err != nil {
-				t.Fatal(err)
-			}
-		}
-		if _, err := fixture.service.CreateCompleteProbeTask(fixture.ctx, fixture.registration.NodeID); !errors.Is(err, ErrNoEnabledEgress) {
-			t.Fatalf("no-egress task error = %v", err)
+		if _, err := fixture.service.CreateCompleteProbeTask(fixture.ctx, fixture.registration.NodeID, nil); !errors.Is(err, ErrInvalidProbeTargets) {
+			t.Fatalf("empty-target task error = %v", err)
 		}
 	})
 	t.Run("single slot", func(t *testing.T) {
 		fixture := newProbeServiceFixture(t, 512*1024*1024)
-		if _, err := fixture.service.CreateCompleteProbeTask(fixture.ctx, fixture.registration.NodeID); err != nil {
+		if _, err := fixture.service.CreateCompleteProbeTask(fixture.ctx, fixture.registration.NodeID, fixture.probeTargetIDs()); err != nil {
 			t.Fatal(err)
 		}
-		if _, err := fixture.service.CreateCompleteProbeTask(fixture.ctx, fixture.registration.NodeID); !errors.Is(err, ErrProbeTaskSlotOccupied) {
+		if _, err := fixture.service.CreateCompleteProbeTask(fixture.ctx, fixture.registration.NodeID, fixture.probeTargetIDs()); !errors.Is(err, ErrProbeTaskSlotOccupied) {
 			t.Fatalf("second task error = %v", err)
 		}
 	})
@@ -191,8 +192,113 @@ func TestCreateCompleteProbeTaskEligibilityAndSingleSlot(t *testing.T) {
 		); err != nil {
 			t.Fatal(err)
 		}
-		if _, err := fixture.service.CreateCompleteProbeTask(fixture.ctx, fixture.registration.NodeID); !errors.Is(err, ErrProbeAlreadyRunning) {
+		if _, err := fixture.service.CreateCompleteProbeTask(fixture.ctx, fixture.registration.NodeID, fixture.probeTargetIDs()); !errors.Is(err, ErrProbeAlreadyRunning) {
 			t.Fatalf("active-run task error = %v", err)
+		}
+	})
+}
+
+func TestProbeOnNewAddressSettingUpdatesIndependentlyAndClearsPending(t *testing.T) {
+	fixture := newProbeServiceFixture(t, 512*1024*1024)
+	state, err := fixture.service.Probe(fixture.ctx, fixture.registration.NodeID)
+	if err != nil || !state.ProbeOnNewAddress {
+		t.Fatalf("initial probe settings = %#v, %v", state, err)
+	}
+	if err := fixture.store.ConfigQueries.UpsertPendingPublicAddressProbe(
+		fixture.ctx, configdb.UpsertPendingPublicAddressProbeParams{
+			PublicAddressID:               fixture.egresses[0].ID.String(),
+			NodeID:                        fixture.registration.NodeID.String(),
+			RequiredConfigurationRevision: fixture.configuration.Revision,
+			CreatedAt:                     fixture.now.Unix(),
+		},
+	); err != nil {
+		t.Fatal(err)
+	}
+	state, err = fixture.service.UpdateProbeSettings(
+		fixture.ctx, fixture.registration.NodeID,
+		ProbeSettingsUpdate{
+			Schedule: state.Schedule, LowMemoryOverride: state.LowMemoryOverride,
+			ProbeOnNewAddress: false,
+		},
+	)
+	if err != nil || state.ProbeOnNewAddress {
+		t.Fatalf("disabled new-address setting = %#v, %v", state, err)
+	}
+	var pending int
+	if err := fixture.store.Config.QueryRowContext(
+		fixture.ctx, `SELECT count(*) FROM pending_public_address_probes WHERE node_id = ?`,
+		fixture.registration.NodeID.String(),
+	).Scan(&pending); err != nil || pending != 0 {
+		t.Fatalf("pending probes after disabling setting = %d, %v", pending, err)
+	}
+	state, err = fixture.service.UpdateProbeSettings(
+		fixture.ctx, fixture.registration.NodeID,
+		ProbeSettingsUpdate{
+			Schedule: state.Schedule, LowMemoryOverride: state.LowMemoryOverride,
+			ProbeOnNewAddress: true,
+		},
+	)
+	if err != nil || !state.ProbeOnNewAddress {
+		t.Fatalf("re-enabled new-address setting = %#v, %v", state, err)
+	}
+}
+
+func TestCreateCompleteProbeTaskSavesTargetsAtomically(t *testing.T) {
+	t.Run("selected targets replace the enabled set", func(t *testing.T) {
+		fixture := newProbeServiceFixture(t, 512*1024*1024)
+		before, err := fixture.store.ConfigQueries.GetNodeProbeSettings(fixture.ctx, fixture.registration.NodeID.String())
+		if err != nil {
+			t.Fatal(err)
+		}
+		selected := fixture.egresses[0].ID
+		if _, err := fixture.service.CreateCompleteProbeTask(
+			fixture.ctx, fixture.registration.NodeID, []uuid.UUID{selected},
+		); err != nil {
+			t.Fatal(err)
+		}
+		after, err := fixture.store.ConfigQueries.GetNodeProbeSettings(fixture.ctx, fixture.registration.NodeID.String())
+		if err != nil {
+			t.Fatal(err)
+		}
+		if after.DesiredConfigurationRevision != before.DesiredConfigurationRevision+1 {
+			t.Fatalf("desired revision = %d, want %d", after.DesiredConfigurationRevision, before.DesiredConfigurationRevision+1)
+		}
+		configuration, err := fixture.service.Configuration(fixture.ctx, fixture.registration.Credential)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if len(configuration.ProbeTargets) != 1 || configuration.ProbeTargets[0].ID != selected {
+			t.Fatalf("probe targets = %#v, want only %s", configuration.ProbeTargets, selected)
+		}
+	})
+
+	t.Run("an unavailable target leaves settings and task unchanged", func(t *testing.T) {
+		fixture := newProbeServiceFixture(t, 512*1024*1024)
+		before, err := fixture.store.ConfigQueries.GetNodeProbeSettings(fixture.ctx, fixture.registration.NodeID.String())
+		if err != nil {
+			t.Fatal(err)
+		}
+		if _, err := fixture.service.CreateCompleteProbeTask(
+			fixture.ctx, fixture.registration.NodeID, []uuid.UUID{uuid.New()},
+		); !errors.Is(err, ErrProbeTargetUnavailable) {
+			t.Fatalf("unavailable-target error = %v", err)
+		}
+		after, err := fixture.store.ConfigQueries.GetNodeProbeSettings(fixture.ctx, fixture.registration.NodeID.String())
+		if err != nil {
+			t.Fatal(err)
+		}
+		if after.DesiredConfigurationRevision != before.DesiredConfigurationRevision {
+			t.Fatalf("desired revision changed from %d to %d", before.DesiredConfigurationRevision, after.DesiredConfigurationRevision)
+		}
+		if _, err := fixture.store.ConfigQueries.GetActiveNodeTask(fixture.ctx, fixture.registration.NodeID.String()); !errors.Is(err, sql.ErrNoRows) {
+			t.Fatalf("active task after rejected selection error = %v", err)
+		}
+		configuration, err := fixture.service.Configuration(fixture.ctx, fixture.registration.Credential)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if len(configuration.ProbeTargets) != len(fixture.egresses) {
+			t.Fatalf("probe target count = %d, want %d", len(configuration.ProbeTargets), len(fixture.egresses))
 		}
 	})
 }
@@ -200,7 +306,7 @@ func TestCreateCompleteProbeTaskEligibilityAndSingleSlot(t *testing.T) {
 func TestProbeTaskExpiryAndTerminalAcknowledgement(t *testing.T) {
 	t.Run("pending task expires without delivery", func(t *testing.T) {
 		fixture := newProbeServiceFixture(t, 512*1024*1024)
-		task, err := fixture.service.CreateCompleteProbeTask(fixture.ctx, fixture.registration.NodeID)
+		task, err := fixture.service.CreateCompleteProbeTask(fixture.ctx, fixture.registration.NodeID, fixture.probeTargetIDs())
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -223,7 +329,7 @@ func TestProbeTaskExpiryAndTerminalAcknowledgement(t *testing.T) {
 	})
 	t.Run("terminal report is confirmed idempotently", func(t *testing.T) {
 		fixture := newProbeServiceFixture(t, 512*1024*1024)
-		task, err := fixture.service.CreateCompleteProbeTask(fixture.ctx, fixture.registration.NodeID)
+		task, err := fixture.service.CreateCompleteProbeTask(fixture.ctx, fixture.registration.NodeID, fixture.probeTargetIDs())
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -249,22 +355,63 @@ func TestProbeTaskExpiryAndTerminalAcknowledgement(t *testing.T) {
 			}
 		}
 	})
-	t.Run("acknowledgement cannot predate task", func(t *testing.T) {
+	t.Run("small acknowledgement clock skew is accepted", func(t *testing.T) {
 		fixture := newProbeServiceFixture(t, 512*1024*1024)
-		task, err := fixture.service.CreateCompleteProbeTask(fixture.ctx, fixture.registration.NodeID)
+		task, err := fixture.service.CreateCompleteProbeTask(fixture.ctx, fixture.registration.NodeID, fixture.probeTargetIDs())
 		if err != nil {
 			t.Fatal(err)
 		}
 		tooEarly := task.CreatedAt.Add(-time.Second)
 		reason := "disabled"
-		if _, err := fixture.service.Poll(
+		poll, err := fixture.service.Poll(
 			fixture.ctx, fixture.registration.Credential, fixture.metadata, 0, nil, nil, nil, nil,
 			AddressUpload{TaskReport: &TaskReport{
 				ID: task.ID, Status: "rejected", AcknowledgedAt: tooEarly,
 				CompletedAt: &tooEarly, RejectionReason: &reason,
 			}},
-		); !errors.Is(err, ErrInvalidMetadata) {
-			t.Fatalf("early task acknowledgement error = %v", err)
+		)
+		if err != nil || poll.AcceptedTerminalTaskID == nil || *poll.AcceptedTerminalTaskID != task.ID {
+			t.Fatalf("clock-skewed acknowledgement = %#v, %v", poll.AcceptedTerminalTaskID, err)
+		}
+	})
+	t.Run("acknowledgement outside clock skew tolerance is rejected", func(t *testing.T) {
+		for _, test := range []struct {
+			name           string
+			acknowledgedAt func(Task) time.Time
+		}{
+			{
+				name: "before creation",
+				acknowledgedAt: func(task Task) time.Time {
+					return task.CreatedAt.Add(-taskReportClockSkewTolerance - time.Second)
+				},
+			},
+			{
+				name: "after expiry",
+				acknowledgedAt: func(task Task) time.Time {
+					return task.ExpiresAt.Add(taskReportClockSkewTolerance + time.Second)
+				},
+			},
+		} {
+			t.Run(test.name, func(t *testing.T) {
+				fixture := newProbeServiceFixture(t, 512*1024*1024)
+				task, err := fixture.service.CreateCompleteProbeTask(
+					fixture.ctx, fixture.registration.NodeID, fixture.probeTargetIDs(),
+				)
+				if err != nil {
+					t.Fatal(err)
+				}
+				acknowledgedAt := test.acknowledgedAt(task)
+				reason := "disabled"
+				if _, err := fixture.service.Poll(
+					fixture.ctx, fixture.registration.Credential, fixture.metadata, 0, nil, nil, nil, nil,
+					AddressUpload{TaskReport: &TaskReport{
+						ID: task.ID, Status: "rejected", AcknowledgedAt: acknowledgedAt,
+						CompletedAt: &acknowledgedAt, RejectionReason: &reason,
+					}},
+				); !errors.Is(err, ErrInvalidMetadata) {
+					t.Fatalf("out-of-range task acknowledgement error = %v", err)
+				}
+			})
 		}
 	})
 }
@@ -399,7 +546,7 @@ func TestProbeRunningExecutionRetransmissionKeepsStartTime(t *testing.T) {
 
 func TestProbeArtifactRejectsForeignManifestAndInvalidTimeline(t *testing.T) {
 	fixture := newProbeServiceFixture(t, 512*1024*1024)
-	secondEnrollment, err := fixture.service.RotateEnrollmentKey(fixture.ctx)
+	secondEnrollment, err := fixture.service.RotateEnrollmentKey(fixture.ctx, "UTC")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -411,12 +558,12 @@ func TestProbeArtifactRejectsForeignManifestAndInvalidTimeline(t *testing.T) {
 	if _, err := fixture.service.Poll(fixture.ctx, second.Credential, fixture.metadata, 0, nil, nil, &inventory, nil); err != nil {
 		t.Fatal(err)
 	}
-	secondNetwork, err := fixture.service.Network(fixture.ctx, second.NodeID)
+	secondConfiguration, err := fixture.service.Configuration(fixture.ctx, second.Credential)
 	if err != nil {
 		t.Fatal(err)
 	}
 	running, terminal, executions := probeArtifacts(fixture, []string{"succeeded"})
-	running.Executions[0].EgressID = secondNetwork.Egresses[0].ID
+	running.Executions[0].EgressID = secondConfiguration.DiscoveryPaths[0].ID
 	if _, err := fixture.service.UploadProbeArtifact(fixture.ctx, fixture.registration.Credential, ProbeArtifact{
 		ID: running.ID, Revision: 1, Run: &running,
 	}); !errors.Is(err, ErrInvalidProbeArtifact) {
@@ -489,39 +636,7 @@ func TestProbeUploadWaitsForPendingHistoryReset(t *testing.T) {
 	}
 }
 
-func TestDeletingDiscoveryPathDoesNotDiscardPublicAddressArtifacts(t *testing.T) {
-	fixture := newProbeServiceFixture(t, 512*1024*1024)
-	egress := fixture.egresses[0]
-	if egress.PathID == nil {
-		t.Fatalf("public address target has no selected path: %#v", egress)
-	}
-	if _, err := fixture.service.DeleteEgress(fixture.ctx, fixture.registration.NodeID, *egress.PathID); err != nil {
-		t.Fatal(err)
-	}
-	running, _, _ := probeArtifacts(fixture, []string{"succeeded"})
-	receipt, err := fixture.service.UploadProbeArtifact(fixture.ctx, fixture.registration.Credential, ProbeArtifact{
-		ID: running.ID, Revision: 1, Run: &running,
-	})
-	if err != nil || receipt.Disposition != "accepted" {
-		t.Fatalf("run after path deletion = %#v, %v", receipt, err)
-	}
-	if _, err := fixture.service.ProbeRun(fixture.ctx, running.ID); err != nil {
-		t.Fatalf("public-address run after path deletion: %v", err)
-	}
-	gap := ProbeGapArtifact{
-		ID: uuid.New(), EgressID: egress.ID, HistoryGeneration: fixture.configuration.HistoryGeneration,
-		DroppedCount: 1, FirstSequence: 1, LastSequence: 1,
-		FirstObservedAt: fixture.now.Add(-time.Minute), LastObservedAt: fixture.now.Add(-time.Minute),
-	}
-	receipt, err = fixture.service.UploadProbeArtifact(fixture.ctx, fixture.registration.Credential, ProbeArtifact{
-		ID: gap.ID, Revision: 1, Gap: &gap,
-	})
-	if err != nil || receipt.Disposition != "accepted" {
-		t.Fatalf("gap after path deletion = %#v, %v", receipt, err)
-	}
-}
-
-func TestProbeHistorySurvivesPathAndNodeDeletion(t *testing.T) {
+func TestProbeHistorySurvivesNodeDeletion(t *testing.T) {
 	fixture := newProbeServiceFixture(t, 512*1024*1024)
 	running, terminal, executions := probeArtifacts(fixture, []string{"succeeded", "succeeded"})
 	uploadProbeRun(t, fixture, running)
@@ -529,10 +644,7 @@ func TestProbeHistorySurvivesPathAndNodeDeletion(t *testing.T) {
 		uploadProbeExecution(t, fixture, running, executions[index])
 	}
 	uploadProbeRun(t, fixture, terminal)
-	if fixture.egresses[0].PathID == nil {
-		t.Fatalf("public address target has no selected path: %#v", fixture.egresses[0])
-	}
-	if _, err := fixture.service.DeleteEgress(fixture.ctx, fixture.registration.NodeID, *fixture.egresses[0].PathID); err != nil {
+	if _, err := fixture.service.Delete(fixture.ctx, fixture.registration.NodeID); err != nil {
 		t.Fatal(err)
 	}
 	if err := fixture.service.processDeletions(fixture.ctx, 16); err != nil {
@@ -540,23 +652,13 @@ func TestProbeHistorySurvivesPathAndNodeDeletion(t *testing.T) {
 	}
 	remaining, err := fixture.service.ProbeRun(fixture.ctx, running.ID)
 	if err != nil || len(remaining.Executions) != 2 {
-		t.Fatalf("run after path deletion = %#v, %v", remaining, err)
-	}
-	if _, err := fixture.service.Delete(fixture.ctx, fixture.registration.NodeID); err != nil {
-		t.Fatal(err)
-	}
-	if err := fixture.service.processDeletions(fixture.ctx, 16); err != nil {
-		t.Fatal(err)
-	}
-	remaining, err = fixture.service.ProbeRun(fixture.ctx, running.ID)
-	if err != nil || len(remaining.Executions) != 2 {
 		t.Fatalf("run after node deletion = %#v, %v", remaining, err)
 	}
 }
 
 func TestTerminalProbeTasksAreCleanedAfterThirtyDays(t *testing.T) {
 	fixture := newProbeServiceFixture(t, 512*1024*1024)
-	task, err := fixture.service.CreateCompleteProbeTask(fixture.ctx, fixture.registration.NodeID)
+	task, err := fixture.service.CreateCompleteProbeTask(fixture.ctx, fixture.registration.NodeID, fixture.probeTargetIDs())
 	if err != nil {
 		t.Fatal(err)
 	}

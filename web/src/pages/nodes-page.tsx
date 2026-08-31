@@ -29,7 +29,6 @@ import {
   type AgentEnrollmentSettings,
   type Node,
 } from "@/api/nodes";
-import { createCompleteProbeTask } from "@/api/probes";
 import { getSystemSettings } from "@/api/system";
 import {
   createAgentUpdateTasks,
@@ -39,6 +38,7 @@ import {
   type AgentUpdateTask,
 } from "@/api/updates";
 import { useAuth } from "@/auth-context";
+import { CompleteProbeDialog } from "@/components/complete-probe-dialog";
 import { NodeStatusBadge } from "@/components/node-status-badge";
 import {
   AlertDialog,
@@ -87,6 +87,7 @@ import {
   nodeHasAvailableUpdate,
 } from "@/lib/agent-update";
 import { agentInstallationCommand } from "@/lib/agent-installer";
+import { browserTimeZone } from "@/lib/time-zone";
 
 const nodeRefreshIntervalMilliseconds = 3_000;
 
@@ -229,7 +230,7 @@ export function NodesPage() {
     <div className="w-full min-w-0 px-4 py-10 sm:px-6 sm:py-14">
       <div className="flex flex-wrap items-end justify-between gap-4">
         <div className="max-w-2xl">
-          <p className="text-xs font-medium text-muted-foreground uppercase">
+          <p className="text-sm font-medium text-muted-foreground uppercase">
             {t("nodes.section")}
           </p>
           <h1 className="mt-2 text-2xl font-semibold sm:text-3xl">
@@ -362,6 +363,7 @@ function EnrollmentCard({
   const [feedback, setFeedback] = useState<
     { kind: "success" | "error"; message: string } | undefined
   >();
+  const defaultProbeTimezone = useMemo(browserTimeZone, []);
   const installationCommand = useMemo(
     () =>
       enrollment.registrationKey === undefined || releaseChannel === undefined
@@ -399,7 +401,7 @@ function EnrollmentCard({
     setWorking(true);
     setFeedback(undefined);
     try {
-      onChange(await rotateAgentEnrollmentKey(csrfToken));
+      onChange(await rotateAgentEnrollmentKey(defaultProbeTimezone, csrfToken));
       setFeedback({
         kind: "success",
         message: enrollment.hasKey
@@ -490,7 +492,7 @@ function EnrollmentCard({
                   <p className="text-sm font-medium">
                     {t("nodes.enrollment.command")}
                   </p>
-                  <p className="mt-1 text-xs text-muted-foreground">
+                  <p className="mt-1 text-sm text-muted-foreground">
                     {t("nodes.enrollment.commandDetail")}
                   </p>
                 </div>
@@ -511,7 +513,7 @@ function EnrollmentCard({
                   </TooltipContent>
                 </Tooltip>
               </div>
-              <pre className="overflow-x-auto rounded-md bg-muted p-4 text-xs leading-5">
+              <pre className="overflow-x-auto rounded-md bg-muted p-4 text-sm leading-5">
                 <code>
                   {installationCommand ??
                     t("nodes.enrollment.commandUnavailable")}
@@ -520,7 +522,7 @@ function EnrollmentCard({
             </div>
 
             <div className="flex flex-wrap items-center justify-between gap-3 border-t pt-4">
-              <p className="text-xs text-muted-foreground">
+              <p className="text-sm text-muted-foreground">
                 {t("nodes.enrollment.rotatedAt", {
                   value:
                     enrollment.rotatedAt === undefined
@@ -772,7 +774,7 @@ function NodeListCard({
               </div>
               {showUpdateControls ? (
                 <>
-                  <label className="flex min-h-8 items-center gap-2 text-sm">
+                  <div className="flex min-h-8 items-center gap-2 text-sm">
                     <Switch
                       size="sm"
                       checked={updatesOnly}
@@ -780,7 +782,7 @@ function NodeListCard({
                       aria-label={t("nodes.updates.filter")}
                     />
                     {t("nodes.updates.filter")}
-                  </label>
+                  </div>
                   <Button
                     onClick={() => void requestUpdates([...selectedNodeIds])}
                     disabled={updating || selectedNodeIds.size === 0}
@@ -893,7 +895,13 @@ function NodeListCard({
                           selectedNodeIds.has(node.id) ? "selected" : undefined
                         }
                         onClick={(event) => {
-                          if (!isNodeRowNavigationTarget(event.target)) return;
+                          if (
+                            !isNodeRowNavigationTarget(
+                              event.currentTarget,
+                              event.target,
+                            )
+                          )
+                            return;
                           void navigate(`/nodes/${node.id}`);
                         }}
                       >
@@ -919,11 +927,11 @@ function NodeListCard({
                         <TableCell>
                           <Link
                             to={`/nodes/${node.id}`}
-                            className="inline-block max-w-72 truncate font-medium underline-offset-4 hover:underline"
+                            className="inline-block max-w-72 truncate text-base font-medium underline-offset-4 hover:underline"
                           >
                             {node.name}
                           </Link>
-                          <p className="mt-1 max-w-72 truncate text-xs text-muted-foreground">
+                          <p className="mt-1 max-w-72 truncate text-sm text-muted-foreground">
                             {node.hostname}
                           </p>
                         </TableCell>
@@ -938,7 +946,7 @@ function NodeListCard({
                         <TableCell>
                           <p>{node.agentVersion}</p>
                           <AgentSourceRevision value={node.sourceRevision} />
-                          <p className="mt-1 text-xs text-muted-foreground">
+                          <p className="mt-1 text-sm text-muted-foreground">
                             {node.operatingSystem}/{node.architecture}
                           </p>
                           <AgentUpdateStatus
@@ -982,7 +990,13 @@ function NodeListCard({
                     className="cursor-pointer space-y-4 p-4 transition-colors hover:bg-muted/50"
                     key={node.id}
                     onClick={(event) => {
-                      if (!isNodeRowNavigationTarget(event.target)) return;
+                      if (
+                        !isNodeRowNavigationTarget(
+                          event.currentTarget,
+                          event.target,
+                        )
+                      )
+                        return;
                       void navigate(`/nodes/${node.id}`);
                     }}
                   >
@@ -1009,18 +1023,18 @@ function NodeListCard({
                         <div className="min-w-0">
                           <Link
                             to={`/nodes/${node.id}`}
-                            className="block truncate font-medium underline-offset-4 hover:underline"
+                            className="block truncate text-base font-medium underline-offset-4 hover:underline"
                           >
                             {node.name}
                           </Link>
-                          <p className="mt-1 truncate text-xs text-muted-foreground">
+                          <p className="mt-1 truncate text-sm text-muted-foreground">
                             {node.hostname}
                           </p>
                         </div>
                       </div>
                       <NodeStatusBadge node={node} />
                     </div>
-                    <dl className="grid grid-cols-2 gap-3 text-xs">
+                    <dl className="grid grid-cols-2 gap-3 text-sm">
                       <div className="col-span-2">
                         <dt className="text-muted-foreground">
                           {t("nodes.inventory.publicAddresses")}
@@ -1091,7 +1105,7 @@ function NodePublicAddresses({
   const { t } = useTranslation();
   if (addresses.length === 0) {
     return (
-      <span className="text-xs text-muted-foreground">
+      <span className="text-sm text-muted-foreground">
         {t("nodes.inventory.noPublicAddresses")}
       </span>
     );
@@ -1104,7 +1118,9 @@ function NodePublicAddresses({
             aria-hidden="true"
             className="size-3.5 text-muted-foreground"
           />
-          <span className="break-all font-mono text-xs">{address.address}</span>
+          <span className="break-all font-mono text-base">
+            {address.address}
+          </span>
           <Badge variant="secondary">{address.family.toUpperCase()}</Badge>
           <Badge
             variant={address.probeEnabled ? "outline" : "secondary"}
@@ -1129,10 +1145,11 @@ function NodePublicAddresses({
   );
 }
 
-function isNodeRowNavigationTarget(target: EventTarget | null) {
-  return !(
+function isNodeRowNavigationTarget(row: Element, target: EventTarget | null) {
+  return (
     target instanceof Element &&
-    target.closest("a, button, input, [role='checkbox'], [role='group']")
+    row.contains(target) &&
+    !target.closest("a, button, input, [role='checkbox'], [role='group']")
   );
 }
 
@@ -1187,7 +1204,7 @@ function AgentSourceRevision({ value }: { value?: string }) {
   if (value === undefined) return null;
   return (
     <p
-      className="mt-1 truncate font-mono text-xs text-muted-foreground"
+      className="mt-1 truncate font-mono text-sm text-muted-foreground"
       title={value}
     >
       {t("nodes.inventory.sourceRevision", { value: value.slice(0, 12) })}
@@ -1242,19 +1259,19 @@ function AgentUpdateStatus({
             })
           : t(`nodes.updates.status.${task.status}`)}
       </Badge>
-      <p className="text-xs text-muted-foreground">
+      <p className="text-sm text-muted-foreground">
         {t("nodes.updates.target", { version: task.targetVersion })}
         {task.resultVersion === undefined
           ? null
           : ` · ${t("nodes.updates.result", { version: task.resultVersion })}`}
       </p>
       {task.failureCode !== undefined ? (
-        <p className="break-words font-mono text-xs text-destructive">
+        <p className="break-words font-mono text-sm text-destructive">
           {t("nodes.updates.failureCode", { code: task.failureCode })}
         </p>
       ) : null}
       {task.diagnostic !== undefined ? (
-        <p className="break-words text-xs text-destructive">
+        <p className="break-words text-sm text-destructive">
           {task.diagnostic}
         </p>
       ) : null}
@@ -1282,7 +1299,7 @@ function NodeQuickActions({
   stacked?: boolean;
 }) {
   const { t } = useTranslation();
-  const [working, setWorking] = useState<"toggle" | "probe">();
+  const [working, setWorking] = useState<"toggle">();
   const [feedback, setFeedback] = useState<
     { kind: "success" | "error"; message: string } | undefined
   >();
@@ -1306,20 +1323,9 @@ function NodeQuickActions({
     setWorking("toggle");
     setFeedback(undefined);
     try {
-      onNodeChange(await updateNode(node.id, !node.enabled, csrfToken));
-    } catch (cause) {
-      setFeedback({ kind: "error", message: formatAPIError(cause, t) });
-    } finally {
-      setWorking(undefined);
-    }
-  }
-
-  async function runProbe() {
-    setWorking("probe");
-    setFeedback(undefined);
-    try {
-      await createCompleteProbeTask(node.id, csrfToken);
-      setFeedback({ kind: "success", message: t("probe.task.created") });
+      onNodeChange(
+        await updateNode(node.id, { enabled: !node.enabled }, csrfToken),
+      );
     } catch (cause) {
       setFeedback({ kind: "error", message: formatAPIError(cause, t) });
     } finally {
@@ -1337,20 +1343,23 @@ function NodeQuickActions({
       role="group"
       aria-label={t("nodes.actions.group", { name: node.name })}
     >
-      <Button
-        variant="outline"
-        size="sm"
-        className={buttonClassName}
-        disabled={working !== undefined || probeUnavailable}
-        onClick={() => void runProbe()}
+      <CompleteProbeDialog
+        nodeId={node.id}
+        csrfToken={csrfToken}
+        onCreated={() =>
+          setFeedback({ kind: "success", message: t("probe.task.created") })
+        }
       >
-        {working === "probe" ? (
-          <LoaderCircle className="animate-spin" aria-hidden="true" />
-        ) : (
+        <Button
+          variant="outline"
+          size="sm"
+          className={buttonClassName}
+          disabled={working !== undefined || probeUnavailable}
+        >
           <ScanSearch aria-hidden="true" />
-        )}
-        {t("nodes.quickActions.runProbe")}
-      </Button>
+          {t("nodes.quickActions.runProbe")}
+        </Button>
+      </CompleteProbeDialog>
 
       {updateAvailable && !activeUpdate ? (
         <Button
@@ -1393,7 +1402,7 @@ function NodeQuickActions({
 
       {feedback ? (
         <p
-          className={`text-xs ${stacked ? "sm:col-span-2" : "w-full text-right"} ${
+          className={`text-sm ${stacked ? "sm:col-span-2" : "w-full text-right"} ${
             feedback.kind === "error"
               ? "text-destructive"
               : "text-muted-foreground"
@@ -1443,7 +1452,7 @@ function SyncStatus({ node }: { node: Node }) {
         )}
         {labels[node.syncStatus]}
       </Badge>
-      <span className="text-xs text-muted-foreground">
+      <span className="text-sm text-muted-foreground">
         {t("nodes.sync.until")} <NodeTime value={node.syncExpiresAt} />
       </span>
     </div>

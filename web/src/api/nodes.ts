@@ -37,8 +37,12 @@ export async function updateAgentEnrollment(
   return result.data;
 }
 
-export async function rotateAgentEnrollmentKey(csrfToken: string) {
+export async function rotateAgentEnrollmentKey(
+  defaultProbeTimezone: string,
+  csrfToken: string,
+) {
   const result = await apiClient.POST("/api/v1/agent-enrollment/key", {
+    body: { defaultProbeTimezone },
     headers: { "X-CSRF-Token": csrfToken },
   });
   if (!result.response.ok || result.data === undefined) {
@@ -49,12 +53,12 @@ export async function rotateAgentEnrollmentKey(csrfToken: string) {
 
 export async function updateNode(
   nodeId: string,
-  enabled: boolean,
+  update: { enabled: boolean; name?: string },
   csrfToken: string,
 ) {
   const result = await apiClient.PATCH("/api/v1/nodes/{nodeId}", {
     params: { path: { nodeId } },
-    body: { enabled },
+    body: update,
     headers: { "X-CSRF-Token": csrfToken },
   });
   if (!result.response.ok || result.data === undefined) {

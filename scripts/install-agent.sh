@@ -9,6 +9,7 @@ agent_version=""
 agent_channel="stable"
 agent_channel_set=0
 agent_binary=""
+purge_state=0
 state_directory="/var/lib/ipchronicle-agent"
 install_path="/usr/local/bin/ipchronicle-agent"
 updater_path="/usr/local/libexec/ipchronicle-agent-updater"
@@ -23,7 +24,7 @@ fail() {
 
 usage() {
   printf 'usage: %s --center-url URL --registration-key KEY [--channel stable|rc] [--version VERSION]\n' "$program_name" >&2
-  printf '       %s --uninstall\n' "$program_name" >&2
+  printf '       %s --uninstall [--purge]\n' "$program_name" >&2
   exit 2
 }
 
@@ -57,6 +58,10 @@ while [ "$#" -gt 0 ]; do
       ;;
     --uninstall)
       mode="uninstall"
+      shift
+      ;;
+    --purge)
+      purge_state=1
       shift
       ;;
     *) usage ;;
@@ -144,7 +149,12 @@ uninstall_agent() {
       "$root_prefix/etc/init.d/ipchronicle-agent-updater"
   fi
   rm -f "$root_prefix$install_path" "$root_prefix$updater_path"
-  printf 'IPChronicle Agent uninstalled. State was preserved at %s.\n' "$state_directory"
+  if [ "$purge_state" = "1" ]; then
+    rm -rf "$root_prefix$state_directory"
+    printf 'IPChronicle Agent and local state removed.\n'
+  else
+    printf 'IPChronicle Agent uninstalled. State was preserved at %s.\n' "$state_directory"
+  fi
 }
 
 if [ "$mode" = "uninstall" ]; then
@@ -155,6 +165,7 @@ if [ "$mode" = "uninstall" ]; then
   exit 0
 fi
 
+[ "$purge_state" = "0" ] || usage
 [ -n "$center_url" ] || usage
 [ -n "$registration_key" ] || usage
 case "$agent_channel" in stable|rc) ;; *) fail "--channel must be stable or rc" ;; esac

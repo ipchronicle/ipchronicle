@@ -179,16 +179,17 @@ func TestInitLifecycleCommandsAreDistinctForSystemdAndOpenRC(t *testing.T) {
 }
 
 type supervisorFixture struct {
-	stateDirectory string
-	agentPath      string
-	updaterPath    string
-	taskID         string
-	nodeID         string
-	egressID       string
-	resultFile     string
-	oldBinary      []byte
-	newBinary      []byte
-	oldUpdater     []byte
+	stateDirectory  string
+	agentPath       string
+	updaterPath     string
+	taskID          string
+	nodeID          string
+	pathID          string
+	publicAddressID string
+	resultFile      string
+	oldBinary       []byte
+	newBinary       []byte
+	oldUpdater      []byte
 }
 
 func prepareSupervisorFixture(t *testing.T) supervisorFixture {
@@ -197,7 +198,7 @@ func prepareSupervisorFixture(t *testing.T) supervisorFixture {
 	fixture := supervisorFixture{
 		stateDirectory: filepath.Join(root, "state"), agentPath: filepath.Join(root, "bin", "ipchronicle-agent"),
 		updaterPath: filepath.Join(root, "libexec", "ipchronicle-agent-updater"), taskID: uuid.NewString(),
-		nodeID: uuid.NewString(), egressID: uuid.NewString(), oldBinary: []byte("old Agent\n"),
+		nodeID: uuid.NewString(), pathID: uuid.NewString(), publicAddressID: uuid.NewString(), oldBinary: []byte("old Agent\n"),
 		newBinary: []byte("new Agent\n"), oldUpdater: []byte("old updater\n"),
 	}
 	if err := os.MkdirAll(filepath.Dir(fixture.agentPath), 0o755); err != nil {
@@ -221,23 +222,28 @@ func prepareSupervisorFixture(t *testing.T) supervisorFixture {
 	}); err != nil {
 		t.Fatal(err)
 	}
+	publicAddress := "203.0.113.20"
 	if err := store.ApplyConfiguration(state.Configuration{
-		SchemaVersion: 5, Revision: 1, Enabled: true,
+		SchemaVersion: 7, Revision: 1, Enabled: true,
 		HistoryGeneration: "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef",
 		DiscoveryServices: state.DiscoveryServices{
 			IPv4: []string{"https://one.example/ip", "https://two.example/ip"},
 			IPv6: []string{"https://six-one.example/ip", "https://six-two.example/ip"},
 		},
-		ProbeSchedule: state.ProbeSchedule{Enabled: true, Cron: "0 0 0 * * *", Timezone: "agent-local"},
-		Egresses: []state.Egress{{
-			ID: fixture.egressID, Kind: "default", Family: "ipv4", Enabled: true,
-			LightweightIntervalSeconds: 600, ProbeOnAddressChange: true,
+		ProbeSchedule: state.ProbeSchedule{Enabled: true, Cron: "0 0 0 * * *", Timezone: "UTC"},
+		DiscoveryPaths: []state.Egress{{
+			ID: fixture.pathID, Kind: "default", Family: "ipv4", Enabled: true,
+			LightweightIntervalSeconds: 600,
+		}},
+		ProbeTargets: []state.Egress{{
+			ID: fixture.publicAddressID, PathID: &fixture.pathID, PublicAddress: &publicAddress,
+			Kind: "default", Family: "ipv4", Enabled: true,
 		}},
 	}); err != nil {
 		t.Fatal(err)
 	}
 	now := time.Now().UTC().Truncate(time.Second)
-	run, err := store.StartProbeRun("schedule", nil, nil, now.Add(-time.Minute))
+	run, err := store.StartProbeRun("schedule", nil, now.Add(-time.Minute))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -291,7 +297,9 @@ func assertPreservedAgentState(t *testing.T, fixture supervisorFixture, wantStat
 		t.Fatalf("preserved identity = %#v, %v", identity, err)
 	}
 	configuration, err := store.Configuration()
-	if err != nil || configuration.Revision != 1 || len(configuration.Egresses) != 1 || configuration.Egresses[0].ID != fixture.egressID {
+	if err != nil || configuration.Revision != 1 || len(configuration.DiscoveryPaths) != 1 ||
+		configuration.DiscoveryPaths[0].ID != fixture.pathID || len(configuration.ProbeTargets) != 1 ||
+		configuration.ProbeTargets[0].ID != fixture.publicAddressID {
 		t.Fatalf("preserved configuration = %#v, %v", configuration, err)
 	}
 	updateState, found, err := store.PendingAgentUpdate()

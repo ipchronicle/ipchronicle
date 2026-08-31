@@ -200,11 +200,11 @@ func newUpdateHTTPFixture(t *testing.T) updateHTTPFixture {
 		OperatingSystem: "linux", Architecture: "amd64",
 		Capabilities: []string{
 			"address-observation-v1", centerupdates.AgentUpdateCapability, "complete-probe-v1",
-			"configuration-v6", "control-v1", "network-inventory-v1", "sync-wakeup-v1",
+			"configuration-v7", "control-v1", "network-inventory-v1", "sync-wakeup-v1",
 		},
 		PhysicalMemoryBytes: 512 * 1024 * 1024,
 	}
-	enrollment, err := nodeService.RotateEnrollmentKey(ctx)
+	enrollment, err := nodeService.RotateEnrollmentKey(ctx, "UTC")
 	if err != nil {
 		t.Fatal(err)
 	}

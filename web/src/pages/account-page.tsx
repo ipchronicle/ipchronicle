@@ -50,7 +50,7 @@ export function AccountPage() {
   return (
     <div className="w-full min-w-0 px-4 py-10 sm:px-6 sm:py-14">
       <div className="max-w-2xl">
-        <p className="text-xs font-medium text-muted-foreground uppercase">
+        <p className="text-sm font-medium text-muted-foreground uppercase">
           {t("settings.section")}
         </p>
         <h1 className="mt-2 text-2xl font-semibold sm:text-3xl">
@@ -91,7 +91,7 @@ function SectionHeading({
         {icon}
       </span>
       <div>
-        <h2 className="text-sm font-semibold">{title}</h2>
+        <h2 className="text-base font-semibold">{title}</h2>
         <p className="mt-1 text-sm text-muted-foreground">{detail}</p>
       </div>
     </div>
@@ -237,7 +237,7 @@ function LocaleSection({
       <CardHeader>
         <SectionHeading
           icon={
-            <span aria-hidden="true" className="text-xs font-semibold">
+            <span aria-hidden="true" className="text-sm font-semibold">
               A
             </span>
           }

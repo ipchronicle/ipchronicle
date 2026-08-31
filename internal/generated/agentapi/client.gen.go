@@ -20,22 +20,25 @@ import (
 
 // Defines values for AddressEventKind.
 const (
-	AddressEventKindAddressChange    AddressEventKind = "address-change"
-	AddressEventKindCheckFailure     AddressEventKind = "check-failure"
-	AddressEventKindFirstObservation AddressEventKind = "first-observation"
-	AddressEventKindRecovery         AddressEventKind = "recovery"
+	AddressAdded     AddressEventKind = "address-added"
+	AddressRemoved   AddressEventKind = "address-removed"
+	CheckFailure     AddressEventKind = "check-failure"
+	FirstObservation AddressEventKind = "first-observation"
+	Recovery         AddressEventKind = "recovery"
 )
 
 // Valid indicates whether the value is a known member of the AddressEventKind enum.
 func (e AddressEventKind) Valid() bool {
 	switch e {
-	case AddressEventKindAddressChange:
+	case AddressAdded:
 		return true
-	case AddressEventKindCheckFailure:
+	case AddressRemoved:
 		return true
-	case AddressEventKindFirstObservation:
+	case CheckFailure:
 		return true
-	case AddressEventKindRecovery:
+	case FirstObservation:
+		return true
+	case Recovery:
 		return true
 	default:
 		return false
@@ -122,13 +125,13 @@ func (e AgentArchitecture) Valid() bool {
 
 // Defines values for AgentConfigurationSnapshotSchemaVersion.
 const (
-	N6 AgentConfigurationSnapshotSchemaVersion = 6
+	N7 AgentConfigurationSnapshotSchemaVersion = 7
 )
 
 // Valid indicates whether the value is a known member of the AgentConfigurationSnapshotSchemaVersion enum.
 func (e AgentConfigurationSnapshotSchemaVersion) Valid() bool {
 	switch e {
-	case N6:
+	case N7:
 		return true
 	default:
 		return false
@@ -153,7 +156,6 @@ func (e AgentPlatform) Valid() bool {
 // Defines values for AgentProbeArtifactDisposition.
 const (
 	Accepted           AgentProbeArtifactDisposition = "accepted"
-	EgressDeleted      AgentProbeArtifactDisposition = "egress-deleted"
 	ObsoleteGeneration AgentProbeArtifactDisposition = "obsolete-generation"
 )
 
@@ -161,8 +163,6 @@ const (
 func (e AgentProbeArtifactDisposition) Valid() bool {
 	switch e {
 	case Accepted:
-		return true
-	case EgressDeleted:
 		return true
 	case ObsoleteGeneration:
 		return true
@@ -236,19 +236,19 @@ func (e AgentTaskKind) Valid() bool {
 
 // Defines values for AgentTaskTrigger.
 const (
-	AgentTaskTriggerAddressChange AgentTaskTrigger = "address-change"
-	AgentTaskTriggerAgentUpdate   AgentTaskTrigger = "agent-update"
-	AgentTaskTriggerManual        AgentTaskTrigger = "manual"
+	AgentTaskTriggerAgentUpdate AgentTaskTrigger = "agent-update"
+	AgentTaskTriggerManual      AgentTaskTrigger = "manual"
+	AgentTaskTriggerNewAddress  AgentTaskTrigger = "new-address"
 )
 
 // Valid indicates whether the value is a known member of the AgentTaskTrigger enum.
 func (e AgentTaskTrigger) Valid() bool {
 	switch e {
-	case AgentTaskTriggerAddressChange:
-		return true
 	case AgentTaskTriggerAgentUpdate:
 		return true
 	case AgentTaskTriggerManual:
+		return true
+	case AgentTaskTriggerNewAddress:
 		return true
 	default:
 		return false
@@ -417,7 +417,7 @@ const (
 	InvalidTotp                      ErrorCode = "invalid_totp"
 	NetworkInventoryUnavailable      ErrorCode = "network_inventory_unavailable"
 	NetworkProxyAlreadyExists        ErrorCode = "network_proxy_already_exists"
-	NetworkProxyInUse                ErrorCode = "network_proxy_in_use"
+	NetworkProxyDeletionPending      ErrorCode = "network_proxy_deletion_pending"
 	NetworkProxyLimitReached         ErrorCode = "network_proxy_limit_reached"
 	NetworkProxyNotFound             ErrorCode = "network_proxy_not_found"
 	NoAccountChange                  ErrorCode = "no_account_change"
@@ -439,6 +439,7 @@ const (
 	ProbePausedLowMemory             ErrorCode = "probe_paused_low_memory"
 	ProbeRunNotFound                 ErrorCode = "probe_run_not_found"
 	ProbeSnapshotNotFound            ErrorCode = "probe_snapshot_not_found"
+	ProbeTargetUnavailable           ErrorCode = "probe_target_unavailable"
 	ProbeTaskSlotOccupied            ErrorCode = "probe_task_slot_occupied"
 	RateLimited                      ErrorCode = "rate_limited"
 	RegistrationDisabled             ErrorCode = "registration_disabled"
@@ -500,7 +501,7 @@ func (e ErrorCode) Valid() bool {
 		return true
 	case NetworkProxyAlreadyExists:
 		return true
-	case NetworkProxyInUse:
+	case NetworkProxyDeletionPending:
 		return true
 	case NetworkProxyLimitReached:
 		return true
@@ -543,6 +544,8 @@ func (e ErrorCode) Valid() bool {
 	case ProbeRunNotFound:
 		return true
 	case ProbeSnapshotNotFound:
+		return true
+	case ProbeTargetUnavailable:
 		return true
 	case ProbeTaskSlotOccupied:
 		return true
@@ -681,6 +684,45 @@ func (e NetworkEgressKind) Valid() bool {
 	}
 }
 
+// Defines values for NetworkProxyDeletionStatus.
+const (
+	NetworkProxyDeletionStatusFailed  NetworkProxyDeletionStatus = "failed"
+	NetworkProxyDeletionStatusPending NetworkProxyDeletionStatus = "pending"
+)
+
+// Valid indicates whether the value is a known member of the NetworkProxyDeletionStatus enum.
+func (e NetworkProxyDeletionStatus) Valid() bool {
+	switch e {
+	case NetworkProxyDeletionStatusFailed:
+		return true
+	case NetworkProxyDeletionStatusPending:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for NetworkProxyFamilyStatus.
+const (
+	NetworkProxyFamilyStatusAvailable   NetworkProxyFamilyStatus = "available"
+	NetworkProxyFamilyStatusChecking    NetworkProxyFamilyStatus = "checking"
+	NetworkProxyFamilyStatusUnavailable NetworkProxyFamilyStatus = "unavailable"
+)
+
+// Valid indicates whether the value is a known member of the NetworkProxyFamilyStatus enum.
+func (e NetworkProxyFamilyStatus) Valid() bool {
+	switch e {
+	case NetworkProxyFamilyStatusAvailable:
+		return true
+	case NetworkProxyFamilyStatusChecking:
+		return true
+	case NetworkProxyFamilyStatusUnavailable:
+		return true
+	default:
+		return false
+	}
+}
+
 // Defines values for NetworkProxyPasswordAction.
 const (
 	Clear   NetworkProxyPasswordAction = "clear"
@@ -717,6 +759,33 @@ func (e NetworkProxyScheme) Valid() bool {
 	case NetworkProxySchemeHttps:
 		return true
 	case NetworkProxySchemeSocks5:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for NetworkProxyStatus.
+const (
+	NetworkProxyStatusChecking    NetworkProxyStatus = "checking"
+	NetworkProxyStatusDualStack   NetworkProxyStatus = "dual-stack"
+	NetworkProxyStatusIpv4Only    NetworkProxyStatus = "ipv4-only"
+	NetworkProxyStatusIpv6Only    NetworkProxyStatus = "ipv6-only"
+	NetworkProxyStatusUnavailable NetworkProxyStatus = "unavailable"
+)
+
+// Valid indicates whether the value is a known member of the NetworkProxyStatus enum.
+func (e NetworkProxyStatus) Valid() bool {
+	switch e {
+	case NetworkProxyStatusChecking:
+		return true
+	case NetworkProxyStatusDualStack:
+		return true
+	case NetworkProxyStatusIpv4Only:
+		return true
+	case NetworkProxyStatusIpv6Only:
+		return true
+	case NetworkProxyStatusUnavailable:
 		return true
 	default:
 		return false
@@ -1115,37 +1184,19 @@ func (e ProbeTaskStatus) Valid() bool {
 
 // Defines values for ProbeTrigger.
 const (
-	ProbeTriggerAddressChange ProbeTrigger = "address-change"
-	ProbeTriggerManual        ProbeTrigger = "manual"
-	ProbeTriggerSchedule      ProbeTrigger = "schedule"
+	ProbeTriggerManual     ProbeTrigger = "manual"
+	ProbeTriggerNewAddress ProbeTrigger = "new-address"
+	ProbeTriggerSchedule   ProbeTrigger = "schedule"
 )
 
 // Valid indicates whether the value is a known member of the ProbeTrigger enum.
 func (e ProbeTrigger) Valid() bool {
 	switch e {
-	case ProbeTriggerAddressChange:
-		return true
 	case ProbeTriggerManual:
 		return true
+	case ProbeTriggerNewAddress:
+		return true
 	case ProbeTriggerSchedule:
-		return true
-	default:
-		return false
-	}
-}
-
-// Defines values for ProxyDiscoveryPathDeletionStatus.
-const (
-	ProxyDiscoveryPathDeletionStatusFailed  ProxyDiscoveryPathDeletionStatus = "failed"
-	ProxyDiscoveryPathDeletionStatusPending ProxyDiscoveryPathDeletionStatus = "pending"
-)
-
-// Valid indicates whether the value is a known member of the ProxyDiscoveryPathDeletionStatus enum.
-func (e ProxyDiscoveryPathDeletionStatus) Valid() bool {
-	switch e {
-	case ProxyDiscoveryPathDeletionStatusFailed:
-		return true
-	case ProxyDiscoveryPathDeletionStatusPending:
 		return true
 	default:
 		return false
@@ -1307,7 +1358,6 @@ type AgentAddressEvent struct {
 	LocalAddress      *string               `json:"localAddress,omitempty"`
 	LocalInterface    *string               `json:"localInterface,omitempty"`
 	ObservedAt        time.Time             `json:"observedAt"`
-	PreviousAddress   *string               `json:"previousAddress,omitempty"`
 	ProxyPath         bool                  `json:"proxyPath"`
 	PublicAddress     *string               `json:"publicAddress,omitempty"`
 	Sequence          int64                 `json:"sequence"`
@@ -1390,12 +1440,18 @@ type AgentDiscoveryPath struct {
 	SourceAddress              *string             `json:"sourceAddress,omitempty"`
 }
 
+// AgentEnrollmentKeyRotation defines model for AgentEnrollmentKeyRotation.
+type AgentEnrollmentKeyRotation struct {
+	DefaultProbeTimezone string `json:"defaultProbeTimezone"`
+}
+
 // AgentEnrollmentSettings defines model for AgentEnrollmentSettings.
 type AgentEnrollmentSettings struct {
-	Enabled         bool       `json:"enabled"`
-	HasKey          bool       `json:"hasKey"`
-	RegistrationKey *string    `json:"registrationKey,omitempty"`
-	RotatedAt       *time.Time `json:"rotatedAt,omitempty"`
+	DefaultProbeTimezone *string    `json:"defaultProbeTimezone,omitempty"`
+	Enabled              bool       `json:"enabled"`
+	HasKey               bool       `json:"hasKey"`
+	RegistrationKey      *string    `json:"registrationKey,omitempty"`
+	RotatedAt            *time.Time `json:"rotatedAt,omitempty"`
 }
 
 // AgentEnrollmentUpdate defines model for AgentEnrollmentUpdate.
@@ -1511,7 +1567,6 @@ type AgentProbeRunArtifact struct {
 	Status                    ProbeRunStatus                `json:"status"`
 	TaskId                    *openapi_types.UUID           `json:"taskId,omitempty"`
 	Trigger                   ProbeTrigger                  `json:"trigger"`
-	TriggeringEgressId        *openapi_types.UUID           `json:"triggeringEgressId,omitempty"`
 }
 
 // AgentProbeSkipReason defines model for AgentProbeSkipReason.
@@ -1533,15 +1588,14 @@ type AgentProbeStatus struct {
 
 // AgentProbeTarget defines model for AgentProbeTarget.
 type AgentProbeTarget struct {
-	Family             AddressFamily       `json:"family"`
-	Id                 openapi_types.UUID  `json:"id"`
-	InterfaceName      *string             `json:"interfaceName,omitempty"`
-	Kind               NetworkEgressKind   `json:"kind"`
-	PathId             openapi_types.UUID  `json:"pathId"`
-	ProbeOnRediscovery bool                `json:"probeOnRediscovery"`
-	ProxyId            *openapi_types.UUID `json:"proxyId,omitempty"`
-	PublicAddress      string              `json:"publicAddress"`
-	SourceAddress      *string             `json:"sourceAddress,omitempty"`
+	Family        AddressFamily       `json:"family"`
+	Id            openapi_types.UUID  `json:"id"`
+	InterfaceName *string             `json:"interfaceName,omitempty"`
+	Kind          NetworkEgressKind   `json:"kind"`
+	PathId        openapi_types.UUID  `json:"pathId"`
+	ProxyId       *openapi_types.UUID `json:"proxyId,omitempty"`
+	PublicAddress string              `json:"publicAddress"`
+	SourceAddress *string             `json:"sourceAddress,omitempty"`
 }
 
 // AgentProxyConfiguration defines model for AgentProxyConfiguration.
@@ -1576,13 +1630,13 @@ type AgentSyncSession struct {
 
 // AgentTask defines model for AgentTask.
 type AgentTask struct {
-	CreatedAt                 time.Time           `json:"createdAt"`
-	ExpiresAt                 time.Time           `json:"expiresAt"`
-	Id                        openapi_types.UUID  `json:"id"`
-	Kind                      AgentTaskKind       `json:"kind"`
-	TargetVersion             *string             `json:"targetVersion,omitempty"`
-	Trigger                   AgentTaskTrigger    `json:"trigger"`
-	TriggeringPublicAddressId *openapi_types.UUID `json:"triggeringPublicAddressId,omitempty"`
+	CreatedAt        time.Time             `json:"createdAt"`
+	ExpiresAt        time.Time             `json:"expiresAt"`
+	Id               openapi_types.UUID    `json:"id"`
+	Kind             AgentTaskKind         `json:"kind"`
+	PublicAddressIds *[]openapi_types.UUID `json:"publicAddressIds,omitempty"`
+	TargetVersion    *string               `json:"targetVersion,omitempty"`
+	Trigger          AgentTaskTrigger      `json:"trigger"`
 }
 
 // AgentTaskKind defines model for AgentTask.Kind.
@@ -1693,6 +1747,11 @@ type ComparedProbeField struct {
 	Group         string          `json:"group"`
 	Id            string          `json:"id"`
 	Path          string          `json:"path"`
+}
+
+// CompleteProbeTaskCreate defines model for CompleteProbeTaskCreate.
+type CompleteProbeTaskCreate struct {
+	PublicAddressIds []openapi_types.UUID `json:"publicAddressIds"`
 }
 
 // CurrentPasswordRequest defines model for CurrentPasswordRequest.
@@ -1869,15 +1928,21 @@ type NetworkObservationSettingsUpdate struct {
 
 // NetworkProxy defines model for NetworkProxy.
 type NetworkProxy struct {
-	CreatedAt          time.Time          `json:"createdAt"`
-	Host               string             `json:"host"`
-	Id                 openapi_types.UUID `json:"id"`
-	Name               string             `json:"name"`
-	PasswordConfigured bool               `json:"passwordConfigured"`
-	Port               int64              `json:"port"`
-	Scheme             NetworkProxyScheme `json:"scheme"`
-	UpdatedAt          time.Time          `json:"updatedAt"`
-	Username           *string            `json:"username,omitempty"`
+	CreatedAt          time.Time                   `json:"createdAt"`
+	DeletionError      *string                     `json:"deletionError,omitempty"`
+	DeletionStatus     *NetworkProxyDeletionStatus `json:"deletionStatus,omitempty"`
+	Host               string                      `json:"host"`
+	Id                 openapi_types.UUID          `json:"id"`
+	Ipv4               NetworkProxyFamilyResult    `json:"ipv4"`
+	Ipv6               NetworkProxyFamilyResult    `json:"ipv6"`
+	Name               string                      `json:"name"`
+	NodeId             openapi_types.UUID          `json:"nodeId"`
+	PasswordConfigured bool                        `json:"passwordConfigured"`
+	Port               int64                       `json:"port"`
+	Scheme             NetworkProxyScheme          `json:"scheme"`
+	Status             NetworkProxyStatus          `json:"status"`
+	UpdatedAt          time.Time                   `json:"updatedAt"`
+	Username           *string                     `json:"username,omitempty"`
 }
 
 // NetworkProxyCreate defines model for NetworkProxyCreate.
@@ -1890,6 +1955,20 @@ type NetworkProxyCreate struct {
 	Username *string            `json:"username,omitempty"`
 }
 
+// NetworkProxyDeletionStatus defines model for NetworkProxyDeletionStatus.
+type NetworkProxyDeletionStatus string
+
+// NetworkProxyFamilyResult defines model for NetworkProxyFamilyResult.
+type NetworkProxyFamilyResult struct {
+	FailureReason *AddressFailureReason    `json:"failureReason,omitempty"`
+	LastCheckedAt *time.Time               `json:"lastCheckedAt,omitempty"`
+	PublicAddress *string                  `json:"publicAddress,omitempty"`
+	Status        NetworkProxyFamilyStatus `json:"status"`
+}
+
+// NetworkProxyFamilyStatus defines model for NetworkProxyFamilyStatus.
+type NetworkProxyFamilyStatus string
+
 // NetworkProxyList defines model for NetworkProxyList.
 type NetworkProxyList struct {
 	Items []NetworkProxy `json:"items"`
@@ -1900,6 +1979,9 @@ type NetworkProxyPasswordAction string
 
 // NetworkProxyScheme defines model for NetworkProxyScheme.
 type NetworkProxyScheme string
+
+// NetworkProxyStatus defines model for NetworkProxyStatus.
+type NetworkProxyStatus string
 
 // NetworkProxyUpdate defines model for NetworkProxyUpdate.
 type NetworkProxyUpdate struct {
@@ -1968,15 +2050,16 @@ type NodeList struct {
 
 // NodeNetworkState defines model for NodeNetworkState.
 type NodeNetworkState struct {
-	AddressEvents       []PublicAddressEvent `json:"addressEvents"`
-	AddressGaps         []PublicAddressGap   `json:"addressGaps"`
-	ProxyDiscoveryPaths []ProxyDiscoveryPath `json:"proxyDiscoveryPaths"`
-	PublicAddresses     []PublicAddress      `json:"publicAddresses"`
+	AddressEvents   []PublicAddressEvent `json:"addressEvents"`
+	AddressGaps     []PublicAddressGap   `json:"addressGaps"`
+	NetworkProxies  []NetworkProxy       `json:"networkProxies"`
+	PublicAddresses []PublicAddress      `json:"publicAddresses"`
 }
 
 // NodeProbeSettingsUpdate defines model for NodeProbeSettingsUpdate.
 type NodeProbeSettingsUpdate struct {
 	LowMemoryOverride bool          `json:"lowMemoryOverride"`
+	ProbeOnNewAddress bool          `json:"probeOnNewAddress"`
 	Schedule          ProbeSchedule `json:"schedule"`
 }
 
@@ -1987,6 +2070,7 @@ type NodeProbeState struct {
 	NodeId              openapi_types.UUID `json:"nodeId"`
 	PausedLowMemory     bool               `json:"pausedLowMemory"`
 	PhysicalMemoryBytes *int64             `json:"physicalMemoryBytes,omitempty"`
+	ProbeOnNewAddress   bool               `json:"probeOnNewAddress"`
 	RecentRuns          []ProbeRunSummary  `json:"recentRuns"`
 	Schedule            ProbeSchedule      `json:"schedule"`
 	Task                *ProbeTask         `json:"task,omitempty"`
@@ -2009,7 +2093,8 @@ type NodeSyncStatus string
 
 // NodeUpdate defines model for NodeUpdate.
 type NodeUpdate struct {
-	Enabled bool `json:"enabled"`
+	Enabled bool    `json:"enabled"`
+	Name    *string `json:"name,omitempty"`
 }
 
 // NotificationDelivery defines model for NotificationDelivery.
@@ -2227,7 +2312,6 @@ type ProbeRun struct {
 	Status                ProbeRunStatus      `json:"status"`
 	TaskId                *openapi_types.UUID `json:"taskId,omitempty"`
 	Trigger               ProbeTrigger        `json:"trigger"`
-	TriggeringEgressId    *openapi_types.UUID `json:"triggeringEgressId,omitempty"`
 }
 
 // ProbeRunStatus defines model for ProbeRunStatus.
@@ -2250,7 +2334,7 @@ type ProbeSchedule struct {
 	Cron    string `json:"cron"`
 	Enabled bool   `json:"enabled"`
 
-	// Timezone Use agent-local or an IANA time zone name.
+	// Timezone An explicit IANA time zone name.
 	Timezone string `json:"timezone"`
 }
 
@@ -2329,65 +2413,35 @@ type ProbeTaskStatus string
 // ProbeTrigger defines model for ProbeTrigger.
 type ProbeTrigger string
 
-// ProxyDiscoveryPath defines model for ProxyDiscoveryPath.
-type ProxyDiscoveryPath struct {
-	Available      bool                              `json:"available"`
-	DeletionError  *string                           `json:"deletionError,omitempty"`
-	DeletionStatus *ProxyDiscoveryPathDeletionStatus `json:"deletionStatus,omitempty"`
-	Family         AddressFamily                     `json:"family"`
-	Id             openapi_types.UUID                `json:"id"`
-	Name           string                            `json:"name"`
-	NodeId         openapi_types.UUID                `json:"nodeId"`
-	ProxyId        openapi_types.UUID                `json:"proxyId"`
-}
-
-// ProxyDiscoveryPathCreate defines model for ProxyDiscoveryPathCreate.
-type ProxyDiscoveryPathCreate struct {
-	Family  AddressFamily      `json:"family"`
-	ProxyId openapi_types.UUID `json:"proxyId"`
-}
-
-// ProxyDiscoveryPathDeletion defines model for ProxyDiscoveryPathDeletion.
-type ProxyDiscoveryPathDeletion struct {
-	Error       *string                          `json:"error,omitempty"`
-	NodeId      openapi_types.UUID               `json:"nodeId"`
-	PathId      openapi_types.UUID               `json:"pathId"`
-	RequestedAt time.Time                        `json:"requestedAt"`
-	Status      ProxyDiscoveryPathDeletionStatus `json:"status"`
-}
-
-// ProxyDiscoveryPathDeletionStatus defines model for ProxyDiscoveryPathDeletionStatus.
-type ProxyDiscoveryPathDeletionStatus string
-
 // PublicAddress defines model for PublicAddress.
 type PublicAddress struct {
-	Address            string              `json:"address"`
-	Available          bool                `json:"available"`
-	Family             AddressFamily       `json:"family"`
-	FirstSeenAt        time.Time           `json:"firstSeenAt"`
-	Id                 openapi_types.UUID  `json:"id"`
-	LastCheckedAt      *time.Time          `json:"lastCheckedAt,omitempty"`
-	LastSeenAt         time.Time           `json:"lastSeenAt"`
-	LastSucceededAt    *time.Time          `json:"lastSucceededAt,omitempty"`
-	LikelyNat          bool                `json:"likelyNat"`
-	PathCount          int                 `json:"pathCount"`
-	ProbeEnabled       bool                `json:"probeEnabled"`
-	ProbeOnRediscovery bool                `json:"probeOnRediscovery"`
-	ProxyPath          bool                `json:"proxyPath"`
-	SelectedNodeId     *openapi_types.UUID `json:"selectedNodeId,omitempty"`
-	SelectedNodeName   *string             `json:"selectedNodeName,omitempty"`
+	Address          string              `json:"address"`
+	Available        bool                `json:"available"`
+	Family           AddressFamily       `json:"family"`
+	FirstSeenAt      time.Time           `json:"firstSeenAt"`
+	Id               openapi_types.UUID  `json:"id"`
+	LastCheckedAt    *time.Time          `json:"lastCheckedAt,omitempty"`
+	LastSeenAt       time.Time           `json:"lastSeenAt"`
+	LastSucceededAt  *time.Time          `json:"lastSucceededAt,omitempty"`
+	LatestSnapshotAt *time.Time          `json:"latestSnapshotAt,omitempty"`
+	LatestSnapshotId *openapi_types.UUID `json:"latestSnapshotId,omitempty"`
+	LikelyNat        bool                `json:"likelyNat"`
+	PathCount        int                 `json:"pathCount"`
+	ProbeEnabled     bool                `json:"probeEnabled"`
+	ProxyPath        bool                `json:"proxyPath"`
+	SelectedNodeId   *openapi_types.UUID `json:"selectedNodeId,omitempty"`
+	SelectedNodeName *string             `json:"selectedNodeName,omitempty"`
 }
 
 // PublicAddressEvent defines model for PublicAddressEvent.
 type PublicAddressEvent struct {
-	FailureReason   *AddressFailureReason `json:"failureReason,omitempty"`
-	Family          AddressFamily         `json:"family"`
-	Id              openapi_types.UUID    `json:"id"`
-	Kind            AddressEventKind      `json:"kind"`
-	ObservedAt      time.Time             `json:"observedAt"`
-	PreviousAddress *string               `json:"previousAddress,omitempty"`
-	PublicAddress   *string               `json:"publicAddress,omitempty"`
-	Sequence        int64                 `json:"sequence"`
+	FailureReason *AddressFailureReason `json:"failureReason,omitempty"`
+	Family        AddressFamily         `json:"family"`
+	Id            openapi_types.UUID    `json:"id"`
+	Kind          AddressEventKind      `json:"kind"`
+	ObservedAt    time.Time             `json:"observedAt"`
+	PublicAddress *string               `json:"publicAddress,omitempty"`
+	Sequence      int64                 `json:"sequence"`
 }
 
 // PublicAddressGap defines model for PublicAddressGap.
@@ -2402,8 +2456,7 @@ type PublicAddressGap struct {
 
 // PublicAddressUpdate defines model for PublicAddressUpdate.
 type PublicAddressUpdate struct {
-	ProbeEnabled       bool `json:"probeEnabled"`
-	ProbeOnRediscovery bool `json:"probeOnRediscovery"`
+	ProbeEnabled bool `json:"probeEnabled"`
 }
 
 // ReleaseChannel defines model for ReleaseChannel.
@@ -2717,21 +2770,6 @@ type UpdateNetworkObservationSettingsParams struct {
 	XCSRFToken *CSRFToken `json:"X-CSRF-Token,omitempty"`
 }
 
-// CreateNetworkProxyParams defines parameters for CreateNetworkProxy.
-type CreateNetworkProxyParams struct {
-	XCSRFToken *CSRFToken `json:"X-CSRF-Token,omitempty"`
-}
-
-// DeleteNetworkProxyParams defines parameters for DeleteNetworkProxy.
-type DeleteNetworkProxyParams struct {
-	XCSRFToken *CSRFToken `json:"X-CSRF-Token,omitempty"`
-}
-
-// UpdateNetworkProxyParams defines parameters for UpdateNetworkProxy.
-type UpdateNetworkProxyParams struct {
-	XCSRFToken *CSRFToken `json:"X-CSRF-Token,omitempty"`
-}
-
 // DeleteNodeParams defines parameters for DeleteNode.
 type DeleteNodeParams struct {
 	XCSRFToken *CSRFToken `json:"X-CSRF-Token,omitempty"`
@@ -2742,6 +2780,21 @@ type UpdateNodeParams struct {
 	XCSRFToken *CSRFToken `json:"X-CSRF-Token,omitempty"`
 }
 
+// CreateNodeNetworkProxyParams defines parameters for CreateNodeNetworkProxy.
+type CreateNodeNetworkProxyParams struct {
+	XCSRFToken *CSRFToken `json:"X-CSRF-Token,omitempty"`
+}
+
+// DeleteNodeNetworkProxyParams defines parameters for DeleteNodeNetworkProxy.
+type DeleteNodeNetworkProxyParams struct {
+	XCSRFToken *CSRFToken `json:"X-CSRF-Token,omitempty"`
+}
+
+// UpdateNodeNetworkProxyParams defines parameters for UpdateNodeNetworkProxy.
+type UpdateNodeNetworkProxyParams struct {
+	XCSRFToken *CSRFToken `json:"X-CSRF-Token,omitempty"`
+}
+
 // UpdateNodeProbeSettingsParams defines parameters for UpdateNodeProbeSettings.
 type UpdateNodeProbeSettingsParams struct {
 	XCSRFToken *CSRFToken `json:"X-CSRF-Token,omitempty"`
@@ -2749,16 +2802,6 @@ type UpdateNodeProbeSettingsParams struct {
 
 // CreateCompleteProbeTaskParams defines parameters for CreateCompleteProbeTask.
 type CreateCompleteProbeTaskParams struct {
-	XCSRFToken *CSRFToken `json:"X-CSRF-Token,omitempty"`
-}
-
-// CreateNodeProxyDiscoveryPathParams defines parameters for CreateNodeProxyDiscoveryPath.
-type CreateNodeProxyDiscoveryPathParams struct {
-	XCSRFToken *CSRFToken `json:"X-CSRF-Token,omitempty"`
-}
-
-// DeleteNodeProxyDiscoveryPathParams defines parameters for DeleteNodeProxyDiscoveryPath.
-type DeleteNodeProxyDiscoveryPathParams struct {
 	XCSRFToken *CSRFToken `json:"X-CSRF-Token,omitempty"`
 }
 
@@ -2858,6 +2901,9 @@ type StartTOTPEnrollmentJSONRequestBody = CurrentPasswordRequest
 // UpdateAgentEnrollmentJSONRequestBody defines body for UpdateAgentEnrollment for application/json ContentType.
 type UpdateAgentEnrollmentJSONRequestBody = AgentEnrollmentUpdate
 
+// RotateAgentEnrollmentKeyJSONRequestBody defines body for RotateAgentEnrollmentKey for application/json ContentType.
+type RotateAgentEnrollmentKeyJSONRequestBody = AgentEnrollmentKeyRotation
+
 // CreateAgentUpdateTasksJSONRequestBody defines body for CreateAgentUpdateTasks for application/json ContentType.
 type CreateAgentUpdateTasksJSONRequestBody = AgentUpdateBatchRequest
 
@@ -2882,20 +2928,20 @@ type UpdateHistoryRetentionJSONRequestBody = HistoryRetentionUpdate
 // UpdateNetworkObservationSettingsJSONRequestBody defines body for UpdateNetworkObservationSettings for application/json ContentType.
 type UpdateNetworkObservationSettingsJSONRequestBody = NetworkObservationSettingsUpdate
 
-// CreateNetworkProxyJSONRequestBody defines body for CreateNetworkProxy for application/json ContentType.
-type CreateNetworkProxyJSONRequestBody = NetworkProxyCreate
-
-// UpdateNetworkProxyJSONRequestBody defines body for UpdateNetworkProxy for application/json ContentType.
-type UpdateNetworkProxyJSONRequestBody = NetworkProxyUpdate
-
 // UpdateNodeJSONRequestBody defines body for UpdateNode for application/json ContentType.
 type UpdateNodeJSONRequestBody = NodeUpdate
+
+// CreateNodeNetworkProxyJSONRequestBody defines body for CreateNodeNetworkProxy for application/json ContentType.
+type CreateNodeNetworkProxyJSONRequestBody = NetworkProxyCreate
+
+// UpdateNodeNetworkProxyJSONRequestBody defines body for UpdateNodeNetworkProxy for application/json ContentType.
+type UpdateNodeNetworkProxyJSONRequestBody = NetworkProxyUpdate
 
 // UpdateNodeProbeSettingsJSONRequestBody defines body for UpdateNodeProbeSettings for application/json ContentType.
 type UpdateNodeProbeSettingsJSONRequestBody = NodeProbeSettingsUpdate
 
-// CreateNodeProxyDiscoveryPathJSONRequestBody defines body for CreateNodeProxyDiscoveryPath for application/json ContentType.
-type CreateNodeProxyDiscoveryPathJSONRequestBody = ProxyDiscoveryPathCreate
+// CreateCompleteProbeTaskJSONRequestBody defines body for CreateCompleteProbeTask for application/json ContentType.
+type CreateCompleteProbeTaskJSONRequestBody = CompleteProbeTaskCreate
 
 // UpdatePublicAddressJSONRequestBody defines body for UpdatePublicAddress for application/json ContentType.
 type UpdatePublicAddressJSONRequestBody = PublicAddressUpdate
@@ -3088,10 +3134,19 @@ type ClientInterface interface {
 	// Corresponds with PUT /api/v1/agent-enrollment (the `UpdateAgentEnrollment` operationId).
 	UpdateAgentEnrollment(ctx context.Context, params *UpdateAgentEnrollmentParams, body UpdateAgentEnrollmentJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
 
-	// RotateAgentEnrollmentKey Generate or rotate the automatic Agent enrollment key
+	// RotateAgentEnrollmentKeyWithBody Generate or rotate the automatic Agent enrollment key
+	//
+	// Takes any type of body and a specified content type.
 	//
 	// Corresponds with POST /api/v1/agent-enrollment/key (the `RotateAgentEnrollmentKey` operationId).
-	RotateAgentEnrollmentKey(ctx context.Context, params *RotateAgentEnrollmentKeyParams, reqEditors ...RequestEditorFn) (*http.Response, error)
+	RotateAgentEnrollmentKeyWithBody(ctx context.Context, params *RotateAgentEnrollmentKeyParams, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// RotateAgentEnrollmentKey Generate or rotate the automatic Agent enrollment key
+	//
+	// Takes a body of the `application/json` content type.
+	//
+	// Corresponds with POST /api/v1/agent-enrollment/key (the `RotateAgentEnrollmentKey` operationId).
+	RotateAgentEnrollmentKey(ctx context.Context, params *RotateAgentEnrollmentKeyParams, body RotateAgentEnrollmentKeyJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
 
 	// GetAgentUpdateState Discover the current channel release and recent Agent update tasks
 	//
@@ -3270,44 +3325,6 @@ type ClientInterface interface {
 	// Corresponds with PUT /api/v1/network-observation-settings (the `UpdateNetworkObservationSettings` operationId).
 	UpdateNetworkObservationSettings(ctx context.Context, params *UpdateNetworkObservationSettingsParams, body UpdateNetworkObservationSettingsJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
 
-	// ListNetworkProxies List centrally managed network proxies without revealing passwords
-	//
-	// Corresponds with GET /api/v1/network-proxies (the `ListNetworkProxies` operationId).
-	ListNetworkProxies(ctx context.Context, reqEditors ...RequestEditorFn) (*http.Response, error)
-
-	// CreateNetworkProxyWithBody Create a centrally managed network proxy
-	//
-	// Takes any type of body and a specified content type.
-	//
-	// Corresponds with POST /api/v1/network-proxies (the `CreateNetworkProxy` operationId).
-	CreateNetworkProxyWithBody(ctx context.Context, params *CreateNetworkProxyParams, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
-
-	// CreateNetworkProxy Create a centrally managed network proxy
-	//
-	// Takes a body of the `application/json` content type.
-	//
-	// Corresponds with POST /api/v1/network-proxies (the `CreateNetworkProxy` operationId).
-	CreateNetworkProxy(ctx context.Context, params *CreateNetworkProxyParams, body CreateNetworkProxyJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
-
-	// DeleteNetworkProxy Delete an unreferenced network proxy
-	//
-	// Corresponds with DELETE /api/v1/network-proxies/{proxyId} (the `DeleteNetworkProxy` operationId).
-	DeleteNetworkProxy(ctx context.Context, proxyId ProxyId, params *DeleteNetworkProxyParams, reqEditors ...RequestEditorFn) (*http.Response, error)
-
-	// UpdateNetworkProxyWithBody Replace network proxy settings and explicitly keep, replace, or clear its password
-	//
-	// Takes any type of body and a specified content type.
-	//
-	// Corresponds with PUT /api/v1/network-proxies/{proxyId} (the `UpdateNetworkProxy` operationId).
-	UpdateNetworkProxyWithBody(ctx context.Context, proxyId ProxyId, params *UpdateNetworkProxyParams, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
-
-	// UpdateNetworkProxy Replace network proxy settings and explicitly keep, replace, or clear its password
-	//
-	// Takes a body of the `application/json` content type.
-	//
-	// Corresponds with PUT /api/v1/network-proxies/{proxyId} (the `UpdateNetworkProxy` operationId).
-	UpdateNetworkProxy(ctx context.Context, proxyId ProxyId, params *UpdateNetworkProxyParams, body UpdateNetworkProxyJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
-
 	// ListNodes List registered nodes
 	//
 	// Corresponds with GET /api/v1/nodes (the `ListNodes` operationId).
@@ -3332,10 +3349,48 @@ type ClientInterface interface {
 	// Corresponds with PATCH /api/v1/nodes/{nodeId} (the `UpdateNode` operationId).
 	UpdateNode(ctx context.Context, nodeId NodeId, params *UpdateNodeParams, body UpdateNodeJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
 
-	// GetNodeNetwork Read discovered public addresses and explicit proxy discovery paths
+	// GetNodeNetwork Read discovered public addresses and node-owned network proxies
 	//
 	// Corresponds with GET /api/v1/nodes/{nodeId}/network (the `GetNodeNetwork` operationId).
 	GetNodeNetwork(ctx context.Context, nodeId NodeId, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// ListNodeNetworkProxies List the network proxies owned by a node without revealing passwords
+	//
+	// Corresponds with GET /api/v1/nodes/{nodeId}/network-proxies (the `ListNodeNetworkProxies` operationId).
+	ListNodeNetworkProxies(ctx context.Context, nodeId NodeId, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// CreateNodeNetworkProxyWithBody Create a node-owned proxy and start IPv4 and IPv6 discovery
+	//
+	// Takes any type of body and a specified content type.
+	//
+	// Corresponds with POST /api/v1/nodes/{nodeId}/network-proxies (the `CreateNodeNetworkProxy` operationId).
+	CreateNodeNetworkProxyWithBody(ctx context.Context, nodeId NodeId, params *CreateNodeNetworkProxyParams, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// CreateNodeNetworkProxy Create a node-owned proxy and start IPv4 and IPv6 discovery
+	//
+	// Takes a body of the `application/json` content type.
+	//
+	// Corresponds with POST /api/v1/nodes/{nodeId}/network-proxies (the `CreateNodeNetworkProxy` operationId).
+	CreateNodeNetworkProxy(ctx context.Context, nodeId NodeId, params *CreateNodeNetworkProxyParams, body CreateNodeNetworkProxyJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// DeleteNodeNetworkProxy Queue durable removal of a node proxy and both internal discovery paths
+	//
+	// Corresponds with DELETE /api/v1/nodes/{nodeId}/network-proxies/{proxyId} (the `DeleteNodeNetworkProxy` operationId).
+	DeleteNodeNetworkProxy(ctx context.Context, nodeId NodeId, proxyId ProxyId, params *DeleteNodeNetworkProxyParams, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// UpdateNodeNetworkProxyWithBody Replace a node proxy and restart discovery for both address families
+	//
+	// Takes any type of body and a specified content type.
+	//
+	// Corresponds with PUT /api/v1/nodes/{nodeId}/network-proxies/{proxyId} (the `UpdateNodeNetworkProxy` operationId).
+	UpdateNodeNetworkProxyWithBody(ctx context.Context, nodeId NodeId, proxyId ProxyId, params *UpdateNodeNetworkProxyParams, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// UpdateNodeNetworkProxy Replace a node proxy and restart discovery for both address families
+	//
+	// Takes a body of the `application/json` content type.
+	//
+	// Corresponds with PUT /api/v1/nodes/{nodeId}/network-proxies/{proxyId} (the `UpdateNodeNetworkProxy` operationId).
+	UpdateNodeNetworkProxy(ctx context.Context, nodeId NodeId, proxyId ProxyId, params *UpdateNodeNetworkProxyParams, body UpdateNodeNetworkProxyJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
 
 	// GetNodeProbe Read complete-probe settings, current task, and recent runs
 	//
@@ -3356,29 +3411,19 @@ type ClientInterface interface {
 	// Corresponds with PUT /api/v1/nodes/{nodeId}/probe (the `UpdateNodeProbeSettings` operationId).
 	UpdateNodeProbeSettings(ctx context.Context, nodeId NodeId, params *UpdateNodeProbeSettingsParams, body UpdateNodeProbeSettingsJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
 
-	// CreateCompleteProbeTask Create the node's single immediate complete-probe task
-	//
-	// Corresponds with POST /api/v1/nodes/{nodeId}/probe/tasks (the `CreateCompleteProbeTask` operationId).
-	CreateCompleteProbeTask(ctx context.Context, nodeId NodeId, params *CreateCompleteProbeTaskParams, reqEditors ...RequestEditorFn) (*http.Response, error)
-
-	// CreateNodeProxyDiscoveryPathWithBody Add an explicit proxy path for public-address discovery
+	// CreateCompleteProbeTaskWithBody Save the selected public-IP targets and create the node's single immediate complete-probe task
 	//
 	// Takes any type of body and a specified content type.
 	//
-	// Corresponds with POST /api/v1/nodes/{nodeId}/proxy-discovery-paths (the `CreateNodeProxyDiscoveryPath` operationId).
-	CreateNodeProxyDiscoveryPathWithBody(ctx context.Context, nodeId NodeId, params *CreateNodeProxyDiscoveryPathParams, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
+	// Corresponds with POST /api/v1/nodes/{nodeId}/probe/tasks (the `CreateCompleteProbeTask` operationId).
+	CreateCompleteProbeTaskWithBody(ctx context.Context, nodeId NodeId, params *CreateCompleteProbeTaskParams, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
 
-	// CreateNodeProxyDiscoveryPath Add an explicit proxy path for public-address discovery
+	// CreateCompleteProbeTask Save the selected public-IP targets and create the node's single immediate complete-probe task
 	//
 	// Takes a body of the `application/json` content type.
 	//
-	// Corresponds with POST /api/v1/nodes/{nodeId}/proxy-discovery-paths (the `CreateNodeProxyDiscoveryPath` operationId).
-	CreateNodeProxyDiscoveryPath(ctx context.Context, nodeId NodeId, params *CreateNodeProxyDiscoveryPathParams, body CreateNodeProxyDiscoveryPathJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
-
-	// DeleteNodeProxyDiscoveryPath Remove an explicit proxy discovery path
-	//
-	// Corresponds with DELETE /api/v1/nodes/{nodeId}/proxy-discovery-paths/{pathId} (the `DeleteNodeProxyDiscoveryPath` operationId).
-	DeleteNodeProxyDiscoveryPath(ctx context.Context, nodeId NodeId, pathId openapi_types.UUID, params *DeleteNodeProxyDiscoveryPathParams, reqEditors ...RequestEditorFn) (*http.Response, error)
+	// Corresponds with POST /api/v1/nodes/{nodeId}/probe/tasks (the `CreateCompleteProbeTask` operationId).
+	CreateCompleteProbeTask(ctx context.Context, nodeId NodeId, params *CreateCompleteProbeTaskParams, body CreateCompleteProbeTaskJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
 
 	// UpdatePublicAddressWithBody Update complete-probe settings for a discovered public address
 	//
@@ -3789,11 +3834,30 @@ func (c *Client) UpdateAgentEnrollment(ctx context.Context, params *UpdateAgentE
 	return c.Client.Do(req)
 }
 
-// RotateAgentEnrollmentKey Generate or rotate the automatic Agent enrollment key
+// RotateAgentEnrollmentKeyWithBody Generate or rotate the automatic Agent enrollment key
+//
+// Takes any type of body and a specified content type.
 //
 // Corresponds with POST /api/v1/agent-enrollment/key (the `RotateAgentEnrollmentKey` operationId).
-func (c *Client) RotateAgentEnrollmentKey(ctx context.Context, params *RotateAgentEnrollmentKeyParams, reqEditors ...RequestEditorFn) (*http.Response, error) {
-	req, err := NewRotateAgentEnrollmentKeyRequest(c.Server, params)
+func (c *Client) RotateAgentEnrollmentKeyWithBody(ctx context.Context, params *RotateAgentEnrollmentKeyParams, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewRotateAgentEnrollmentKeyRequestWithBody(c.Server, params, contentType, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+// RotateAgentEnrollmentKey Generate or rotate the automatic Agent enrollment key
+//
+// Takes a body of the `application/json` content type.
+//
+// Corresponds with POST /api/v1/agent-enrollment/key (the `RotateAgentEnrollmentKey` operationId).
+func (c *Client) RotateAgentEnrollmentKey(ctx context.Context, params *RotateAgentEnrollmentKeyParams, body RotateAgentEnrollmentKeyJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewRotateAgentEnrollmentKeyRequest(c.Server, params, body)
 	if err != nil {
 		return nil, err
 	}
@@ -4271,104 +4335,6 @@ func (c *Client) UpdateNetworkObservationSettings(ctx context.Context, params *U
 	return c.Client.Do(req)
 }
 
-// ListNetworkProxies List centrally managed network proxies without revealing passwords
-//
-// Corresponds with GET /api/v1/network-proxies (the `ListNetworkProxies` operationId).
-func (c *Client) ListNetworkProxies(ctx context.Context, reqEditors ...RequestEditorFn) (*http.Response, error) {
-	req, err := NewListNetworkProxiesRequest(c.Server)
-	if err != nil {
-		return nil, err
-	}
-	req = req.WithContext(ctx)
-	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
-		return nil, err
-	}
-	return c.Client.Do(req)
-}
-
-// CreateNetworkProxyWithBody Create a centrally managed network proxy
-//
-// Takes any type of body and a specified content type.
-//
-// Corresponds with POST /api/v1/network-proxies (the `CreateNetworkProxy` operationId).
-func (c *Client) CreateNetworkProxyWithBody(ctx context.Context, params *CreateNetworkProxyParams, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error) {
-	req, err := NewCreateNetworkProxyRequestWithBody(c.Server, params, contentType, body)
-	if err != nil {
-		return nil, err
-	}
-	req = req.WithContext(ctx)
-	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
-		return nil, err
-	}
-	return c.Client.Do(req)
-}
-
-// CreateNetworkProxy Create a centrally managed network proxy
-//
-// Takes a body of the `application/json` content type.
-//
-// Corresponds with POST /api/v1/network-proxies (the `CreateNetworkProxy` operationId).
-func (c *Client) CreateNetworkProxy(ctx context.Context, params *CreateNetworkProxyParams, body CreateNetworkProxyJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error) {
-	req, err := NewCreateNetworkProxyRequest(c.Server, params, body)
-	if err != nil {
-		return nil, err
-	}
-	req = req.WithContext(ctx)
-	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
-		return nil, err
-	}
-	return c.Client.Do(req)
-}
-
-// DeleteNetworkProxy Delete an unreferenced network proxy
-//
-// Corresponds with DELETE /api/v1/network-proxies/{proxyId} (the `DeleteNetworkProxy` operationId).
-func (c *Client) DeleteNetworkProxy(ctx context.Context, proxyId ProxyId, params *DeleteNetworkProxyParams, reqEditors ...RequestEditorFn) (*http.Response, error) {
-	req, err := NewDeleteNetworkProxyRequest(c.Server, proxyId, params)
-	if err != nil {
-		return nil, err
-	}
-	req = req.WithContext(ctx)
-	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
-		return nil, err
-	}
-	return c.Client.Do(req)
-}
-
-// UpdateNetworkProxyWithBody Replace network proxy settings and explicitly keep, replace, or clear its password
-//
-// Takes any type of body and a specified content type.
-//
-// Corresponds with PUT /api/v1/network-proxies/{proxyId} (the `UpdateNetworkProxy` operationId).
-func (c *Client) UpdateNetworkProxyWithBody(ctx context.Context, proxyId ProxyId, params *UpdateNetworkProxyParams, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error) {
-	req, err := NewUpdateNetworkProxyRequestWithBody(c.Server, proxyId, params, contentType, body)
-	if err != nil {
-		return nil, err
-	}
-	req = req.WithContext(ctx)
-	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
-		return nil, err
-	}
-	return c.Client.Do(req)
-}
-
-// UpdateNetworkProxy Replace network proxy settings and explicitly keep, replace, or clear its password
-//
-// Takes a body of the `application/json` content type.
-//
-// Corresponds with PUT /api/v1/network-proxies/{proxyId} (the `UpdateNetworkProxy` operationId).
-func (c *Client) UpdateNetworkProxy(ctx context.Context, proxyId ProxyId, params *UpdateNetworkProxyParams, body UpdateNetworkProxyJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error) {
-	req, err := NewUpdateNetworkProxyRequest(c.Server, proxyId, params, body)
-	if err != nil {
-		return nil, err
-	}
-	req = req.WithContext(ctx)
-	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
-		return nil, err
-	}
-	return c.Client.Do(req)
-}
-
 // ListNodes List registered nodes
 //
 // Corresponds with GET /api/v1/nodes (the `ListNodes` operationId).
@@ -4433,11 +4399,109 @@ func (c *Client) UpdateNode(ctx context.Context, nodeId NodeId, params *UpdateNo
 	return c.Client.Do(req)
 }
 
-// GetNodeNetwork Read discovered public addresses and explicit proxy discovery paths
+// GetNodeNetwork Read discovered public addresses and node-owned network proxies
 //
 // Corresponds with GET /api/v1/nodes/{nodeId}/network (the `GetNodeNetwork` operationId).
 func (c *Client) GetNodeNetwork(ctx context.Context, nodeId NodeId, reqEditors ...RequestEditorFn) (*http.Response, error) {
 	req, err := NewGetNodeNetworkRequest(c.Server, nodeId)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+// ListNodeNetworkProxies List the network proxies owned by a node without revealing passwords
+//
+// Corresponds with GET /api/v1/nodes/{nodeId}/network-proxies (the `ListNodeNetworkProxies` operationId).
+func (c *Client) ListNodeNetworkProxies(ctx context.Context, nodeId NodeId, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewListNodeNetworkProxiesRequest(c.Server, nodeId)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+// CreateNodeNetworkProxyWithBody Create a node-owned proxy and start IPv4 and IPv6 discovery
+//
+// Takes any type of body and a specified content type.
+//
+// Corresponds with POST /api/v1/nodes/{nodeId}/network-proxies (the `CreateNodeNetworkProxy` operationId).
+func (c *Client) CreateNodeNetworkProxyWithBody(ctx context.Context, nodeId NodeId, params *CreateNodeNetworkProxyParams, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewCreateNodeNetworkProxyRequestWithBody(c.Server, nodeId, params, contentType, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+// CreateNodeNetworkProxy Create a node-owned proxy and start IPv4 and IPv6 discovery
+//
+// Takes a body of the `application/json` content type.
+//
+// Corresponds with POST /api/v1/nodes/{nodeId}/network-proxies (the `CreateNodeNetworkProxy` operationId).
+func (c *Client) CreateNodeNetworkProxy(ctx context.Context, nodeId NodeId, params *CreateNodeNetworkProxyParams, body CreateNodeNetworkProxyJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewCreateNodeNetworkProxyRequest(c.Server, nodeId, params, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+// DeleteNodeNetworkProxy Queue durable removal of a node proxy and both internal discovery paths
+//
+// Corresponds with DELETE /api/v1/nodes/{nodeId}/network-proxies/{proxyId} (the `DeleteNodeNetworkProxy` operationId).
+func (c *Client) DeleteNodeNetworkProxy(ctx context.Context, nodeId NodeId, proxyId ProxyId, params *DeleteNodeNetworkProxyParams, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewDeleteNodeNetworkProxyRequest(c.Server, nodeId, proxyId, params)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+// UpdateNodeNetworkProxyWithBody Replace a node proxy and restart discovery for both address families
+//
+// Takes any type of body and a specified content type.
+//
+// Corresponds with PUT /api/v1/nodes/{nodeId}/network-proxies/{proxyId} (the `UpdateNodeNetworkProxy` operationId).
+func (c *Client) UpdateNodeNetworkProxyWithBody(ctx context.Context, nodeId NodeId, proxyId ProxyId, params *UpdateNodeNetworkProxyParams, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewUpdateNodeNetworkProxyRequestWithBody(c.Server, nodeId, proxyId, params, contentType, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+// UpdateNodeNetworkProxy Replace a node proxy and restart discovery for both address families
+//
+// Takes a body of the `application/json` content type.
+//
+// Corresponds with PUT /api/v1/nodes/{nodeId}/network-proxies/{proxyId} (the `UpdateNodeNetworkProxy` operationId).
+func (c *Client) UpdateNodeNetworkProxy(ctx context.Context, nodeId NodeId, proxyId ProxyId, params *UpdateNodeNetworkProxyParams, body UpdateNodeNetworkProxyJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewUpdateNodeNetworkProxyRequest(c.Server, nodeId, proxyId, params, body)
 	if err != nil {
 		return nil, err
 	}
@@ -4497,28 +4561,13 @@ func (c *Client) UpdateNodeProbeSettings(ctx context.Context, nodeId NodeId, par
 	return c.Client.Do(req)
 }
 
-// CreateCompleteProbeTask Create the node's single immediate complete-probe task
-//
-// Corresponds with POST /api/v1/nodes/{nodeId}/probe/tasks (the `CreateCompleteProbeTask` operationId).
-func (c *Client) CreateCompleteProbeTask(ctx context.Context, nodeId NodeId, params *CreateCompleteProbeTaskParams, reqEditors ...RequestEditorFn) (*http.Response, error) {
-	req, err := NewCreateCompleteProbeTaskRequest(c.Server, nodeId, params)
-	if err != nil {
-		return nil, err
-	}
-	req = req.WithContext(ctx)
-	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
-		return nil, err
-	}
-	return c.Client.Do(req)
-}
-
-// CreateNodeProxyDiscoveryPathWithBody Add an explicit proxy path for public-address discovery
+// CreateCompleteProbeTaskWithBody Save the selected public-IP targets and create the node's single immediate complete-probe task
 //
 // Takes any type of body and a specified content type.
 //
-// Corresponds with POST /api/v1/nodes/{nodeId}/proxy-discovery-paths (the `CreateNodeProxyDiscoveryPath` operationId).
-func (c *Client) CreateNodeProxyDiscoveryPathWithBody(ctx context.Context, nodeId NodeId, params *CreateNodeProxyDiscoveryPathParams, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error) {
-	req, err := NewCreateNodeProxyDiscoveryPathRequestWithBody(c.Server, nodeId, params, contentType, body)
+// Corresponds with POST /api/v1/nodes/{nodeId}/probe/tasks (the `CreateCompleteProbeTask` operationId).
+func (c *Client) CreateCompleteProbeTaskWithBody(ctx context.Context, nodeId NodeId, params *CreateCompleteProbeTaskParams, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewCreateCompleteProbeTaskRequestWithBody(c.Server, nodeId, params, contentType, body)
 	if err != nil {
 		return nil, err
 	}
@@ -4529,28 +4578,13 @@ func (c *Client) CreateNodeProxyDiscoveryPathWithBody(ctx context.Context, nodeI
 	return c.Client.Do(req)
 }
 
-// CreateNodeProxyDiscoveryPath Add an explicit proxy path for public-address discovery
+// CreateCompleteProbeTask Save the selected public-IP targets and create the node's single immediate complete-probe task
 //
 // Takes a body of the `application/json` content type.
 //
-// Corresponds with POST /api/v1/nodes/{nodeId}/proxy-discovery-paths (the `CreateNodeProxyDiscoveryPath` operationId).
-func (c *Client) CreateNodeProxyDiscoveryPath(ctx context.Context, nodeId NodeId, params *CreateNodeProxyDiscoveryPathParams, body CreateNodeProxyDiscoveryPathJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error) {
-	req, err := NewCreateNodeProxyDiscoveryPathRequest(c.Server, nodeId, params, body)
-	if err != nil {
-		return nil, err
-	}
-	req = req.WithContext(ctx)
-	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
-		return nil, err
-	}
-	return c.Client.Do(req)
-}
-
-// DeleteNodeProxyDiscoveryPath Remove an explicit proxy discovery path
-//
-// Corresponds with DELETE /api/v1/nodes/{nodeId}/proxy-discovery-paths/{pathId} (the `DeleteNodeProxyDiscoveryPath` operationId).
-func (c *Client) DeleteNodeProxyDiscoveryPath(ctx context.Context, nodeId NodeId, pathId openapi_types.UUID, params *DeleteNodeProxyDiscoveryPathParams, reqEditors ...RequestEditorFn) (*http.Response, error) {
-	req, err := NewDeleteNodeProxyDiscoveryPathRequest(c.Server, nodeId, pathId, params)
+// Corresponds with POST /api/v1/nodes/{nodeId}/probe/tasks (the `CreateCompleteProbeTask` operationId).
+func (c *Client) CreateCompleteProbeTask(ctx context.Context, nodeId NodeId, params *CreateCompleteProbeTaskParams, body CreateCompleteProbeTaskJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewCreateCompleteProbeTaskRequest(c.Server, nodeId, params, body)
 	if err != nil {
 		return nil, err
 	}
@@ -5416,8 +5450,19 @@ func NewUpdateAgentEnrollmentRequestWithBody(server string, params *UpdateAgentE
 	return req, nil
 }
 
-// NewRotateAgentEnrollmentKeyRequest constructs an http.Request for the RotateAgentEnrollmentKey method
-func NewRotateAgentEnrollmentKeyRequest(server string, params *RotateAgentEnrollmentKeyParams) (*http.Request, error) {
+// NewRotateAgentEnrollmentKeyRequest calls the generic RotateAgentEnrollmentKey builder with application/json body
+func NewRotateAgentEnrollmentKeyRequest(server string, params *RotateAgentEnrollmentKeyParams, body RotateAgentEnrollmentKeyJSONRequestBody) (*http.Request, error) {
+	var bodyReader io.Reader
+	buf, err := json.Marshal(body)
+	if err != nil {
+		return nil, err
+	}
+	bodyReader = bytes.NewReader(buf)
+	return NewRotateAgentEnrollmentKeyRequestWithBody(server, params, "application/json", bodyReader)
+}
+
+// NewRotateAgentEnrollmentKeyRequestWithBody constructs an http.Request for the RotateAgentEnrollmentKey method, with any body, and a specified content type
+func NewRotateAgentEnrollmentKeyRequestWithBody(server string, params *RotateAgentEnrollmentKeyParams, contentType string, body io.Reader) (*http.Request, error) {
 	var err error
 
 	serverURL, err := url.Parse(server)
@@ -5435,10 +5480,12 @@ func NewRotateAgentEnrollmentKeyRequest(server string, params *RotateAgentEnroll
 		return nil, err
 	}
 
-	req, err := http.NewRequest(http.MethodPost, queryURL.String(), nil)
+	req, err := http.NewRequest(http.MethodPost, queryURL.String(), body)
 	if err != nil {
 		return nil, err
 	}
+
+	req.Header.Add("Content-Type", contentType)
 
 	if params != nil {
 
@@ -6697,199 +6744,6 @@ func NewUpdateNetworkObservationSettingsRequestWithBody(server string, params *U
 	return req, nil
 }
 
-// NewListNetworkProxiesRequest constructs an http.Request for the ListNetworkProxies method
-func NewListNetworkProxiesRequest(server string) (*http.Request, error) {
-	var err error
-
-	serverURL, err := url.Parse(server)
-	if err != nil {
-		return nil, err
-	}
-
-	operationPath := fmt.Sprintf("/api/v1/network-proxies")
-	if operationPath[0] == '/' {
-		operationPath = "." + operationPath
-	}
-
-	queryURL, err := serverURL.Parse(operationPath)
-	if err != nil {
-		return nil, err
-	}
-
-	req, err := http.NewRequest(http.MethodGet, queryURL.String(), nil)
-	if err != nil {
-		return nil, err
-	}
-
-	return req, nil
-}
-
-// NewCreateNetworkProxyRequest calls the generic CreateNetworkProxy builder with application/json body
-func NewCreateNetworkProxyRequest(server string, params *CreateNetworkProxyParams, body CreateNetworkProxyJSONRequestBody) (*http.Request, error) {
-	var bodyReader io.Reader
-	buf, err := json.Marshal(body)
-	if err != nil {
-		return nil, err
-	}
-	bodyReader = bytes.NewReader(buf)
-	return NewCreateNetworkProxyRequestWithBody(server, params, "application/json", bodyReader)
-}
-
-// NewCreateNetworkProxyRequestWithBody constructs an http.Request for the CreateNetworkProxy method, with any body, and a specified content type
-func NewCreateNetworkProxyRequestWithBody(server string, params *CreateNetworkProxyParams, contentType string, body io.Reader) (*http.Request, error) {
-	var err error
-
-	serverURL, err := url.Parse(server)
-	if err != nil {
-		return nil, err
-	}
-
-	operationPath := fmt.Sprintf("/api/v1/network-proxies")
-	if operationPath[0] == '/' {
-		operationPath = "." + operationPath
-	}
-
-	queryURL, err := serverURL.Parse(operationPath)
-	if err != nil {
-		return nil, err
-	}
-
-	req, err := http.NewRequest(http.MethodPost, queryURL.String(), body)
-	if err != nil {
-		return nil, err
-	}
-
-	req.Header.Add("Content-Type", contentType)
-
-	if params != nil {
-
-		if params.XCSRFToken != nil {
-			var headerParam0 string
-
-			headerParam0, err = runtime.StyleParamWithOptions("simple", false, "X-CSRF-Token", *params.XCSRFToken, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationHeader, Type: "string", Format: ""})
-			if err != nil {
-				return nil, err
-			}
-
-			req.Header.Set("X-CSRF-Token", headerParam0)
-		}
-
-	}
-
-	return req, nil
-}
-
-// NewDeleteNetworkProxyRequest constructs an http.Request for the DeleteNetworkProxy method
-func NewDeleteNetworkProxyRequest(server string, proxyId ProxyId, params *DeleteNetworkProxyParams) (*http.Request, error) {
-	var err error
-
-	var pathParam0 string
-
-	pathParam0, err = runtime.StyleParamWithOptions("simple", false, "proxyId", proxyId, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationPath, Type: "string", Format: "uuid"})
-	if err != nil {
-		return nil, err
-	}
-
-	serverURL, err := url.Parse(server)
-	if err != nil {
-		return nil, err
-	}
-
-	operationPath := fmt.Sprintf("/api/v1/network-proxies/%s", pathParam0)
-	if operationPath[0] == '/' {
-		operationPath = "." + operationPath
-	}
-
-	queryURL, err := serverURL.Parse(operationPath)
-	if err != nil {
-		return nil, err
-	}
-
-	req, err := http.NewRequest(http.MethodDelete, queryURL.String(), nil)
-	if err != nil {
-		return nil, err
-	}
-
-	if params != nil {
-
-		if params.XCSRFToken != nil {
-			var headerParam0 string
-
-			headerParam0, err = runtime.StyleParamWithOptions("simple", false, "X-CSRF-Token", *params.XCSRFToken, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationHeader, Type: "string", Format: ""})
-			if err != nil {
-				return nil, err
-			}
-
-			req.Header.Set("X-CSRF-Token", headerParam0)
-		}
-
-	}
-
-	return req, nil
-}
-
-// NewUpdateNetworkProxyRequest calls the generic UpdateNetworkProxy builder with application/json body
-func NewUpdateNetworkProxyRequest(server string, proxyId ProxyId, params *UpdateNetworkProxyParams, body UpdateNetworkProxyJSONRequestBody) (*http.Request, error) {
-	var bodyReader io.Reader
-	buf, err := json.Marshal(body)
-	if err != nil {
-		return nil, err
-	}
-	bodyReader = bytes.NewReader(buf)
-	return NewUpdateNetworkProxyRequestWithBody(server, proxyId, params, "application/json", bodyReader)
-}
-
-// NewUpdateNetworkProxyRequestWithBody constructs an http.Request for the UpdateNetworkProxy method, with any body, and a specified content type
-func NewUpdateNetworkProxyRequestWithBody(server string, proxyId ProxyId, params *UpdateNetworkProxyParams, contentType string, body io.Reader) (*http.Request, error) {
-	var err error
-
-	var pathParam0 string
-
-	pathParam0, err = runtime.StyleParamWithOptions("simple", false, "proxyId", proxyId, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationPath, Type: "string", Format: "uuid"})
-	if err != nil {
-		return nil, err
-	}
-
-	serverURL, err := url.Parse(server)
-	if err != nil {
-		return nil, err
-	}
-
-	operationPath := fmt.Sprintf("/api/v1/network-proxies/%s", pathParam0)
-	if operationPath[0] == '/' {
-		operationPath = "." + operationPath
-	}
-
-	queryURL, err := serverURL.Parse(operationPath)
-	if err != nil {
-		return nil, err
-	}
-
-	req, err := http.NewRequest(http.MethodPut, queryURL.String(), body)
-	if err != nil {
-		return nil, err
-	}
-
-	req.Header.Add("Content-Type", contentType)
-
-	if params != nil {
-
-		if params.XCSRFToken != nil {
-			var headerParam0 string
-
-			headerParam0, err = runtime.StyleParamWithOptions("simple", false, "X-CSRF-Token", *params.XCSRFToken, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationHeader, Type: "string", Format: ""})
-			if err != nil {
-				return nil, err
-			}
-
-			req.Header.Set("X-CSRF-Token", headerParam0)
-		}
-
-	}
-
-	return req, nil
-}
-
 // NewListNodesRequest constructs an http.Request for the ListNodes method
 func NewListNodesRequest(server string) (*http.Request, error) {
 	var err error
@@ -7062,6 +6916,227 @@ func NewGetNodeNetworkRequest(server string, nodeId NodeId) (*http.Request, erro
 	return req, nil
 }
 
+// NewListNodeNetworkProxiesRequest constructs an http.Request for the ListNodeNetworkProxies method
+func NewListNodeNetworkProxiesRequest(server string, nodeId NodeId) (*http.Request, error) {
+	var err error
+
+	var pathParam0 string
+
+	pathParam0, err = runtime.StyleParamWithOptions("simple", false, "nodeId", nodeId, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationPath, Type: "string", Format: "uuid"})
+	if err != nil {
+		return nil, err
+	}
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/api/v1/nodes/%s/network-proxies", pathParam0)
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest(http.MethodGet, queryURL.String(), nil)
+	if err != nil {
+		return nil, err
+	}
+
+	return req, nil
+}
+
+// NewCreateNodeNetworkProxyRequest calls the generic CreateNodeNetworkProxy builder with application/json body
+func NewCreateNodeNetworkProxyRequest(server string, nodeId NodeId, params *CreateNodeNetworkProxyParams, body CreateNodeNetworkProxyJSONRequestBody) (*http.Request, error) {
+	var bodyReader io.Reader
+	buf, err := json.Marshal(body)
+	if err != nil {
+		return nil, err
+	}
+	bodyReader = bytes.NewReader(buf)
+	return NewCreateNodeNetworkProxyRequestWithBody(server, nodeId, params, "application/json", bodyReader)
+}
+
+// NewCreateNodeNetworkProxyRequestWithBody constructs an http.Request for the CreateNodeNetworkProxy method, with any body, and a specified content type
+func NewCreateNodeNetworkProxyRequestWithBody(server string, nodeId NodeId, params *CreateNodeNetworkProxyParams, contentType string, body io.Reader) (*http.Request, error) {
+	var err error
+
+	var pathParam0 string
+
+	pathParam0, err = runtime.StyleParamWithOptions("simple", false, "nodeId", nodeId, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationPath, Type: "string", Format: "uuid"})
+	if err != nil {
+		return nil, err
+	}
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/api/v1/nodes/%s/network-proxies", pathParam0)
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest(http.MethodPost, queryURL.String(), body)
+	if err != nil {
+		return nil, err
+	}
+
+	req.Header.Add("Content-Type", contentType)
+
+	if params != nil {
+
+		if params.XCSRFToken != nil {
+			var headerParam0 string
+
+			headerParam0, err = runtime.StyleParamWithOptions("simple", false, "X-CSRF-Token", *params.XCSRFToken, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationHeader, Type: "string", Format: ""})
+			if err != nil {
+				return nil, err
+			}
+
+			req.Header.Set("X-CSRF-Token", headerParam0)
+		}
+
+	}
+
+	return req, nil
+}
+
+// NewDeleteNodeNetworkProxyRequest constructs an http.Request for the DeleteNodeNetworkProxy method
+func NewDeleteNodeNetworkProxyRequest(server string, nodeId NodeId, proxyId ProxyId, params *DeleteNodeNetworkProxyParams) (*http.Request, error) {
+	var err error
+
+	var pathParam0 string
+
+	pathParam0, err = runtime.StyleParamWithOptions("simple", false, "nodeId", nodeId, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationPath, Type: "string", Format: "uuid"})
+	if err != nil {
+		return nil, err
+	}
+
+	var pathParam1 string
+
+	pathParam1, err = runtime.StyleParamWithOptions("simple", false, "proxyId", proxyId, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationPath, Type: "string", Format: "uuid"})
+	if err != nil {
+		return nil, err
+	}
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/api/v1/nodes/%s/network-proxies/%s", pathParam0, pathParam1)
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest(http.MethodDelete, queryURL.String(), nil)
+	if err != nil {
+		return nil, err
+	}
+
+	if params != nil {
+
+		if params.XCSRFToken != nil {
+			var headerParam0 string
+
+			headerParam0, err = runtime.StyleParamWithOptions("simple", false, "X-CSRF-Token", *params.XCSRFToken, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationHeader, Type: "string", Format: ""})
+			if err != nil {
+				return nil, err
+			}
+
+			req.Header.Set("X-CSRF-Token", headerParam0)
+		}
+
+	}
+
+	return req, nil
+}
+
+// NewUpdateNodeNetworkProxyRequest calls the generic UpdateNodeNetworkProxy builder with application/json body
+func NewUpdateNodeNetworkProxyRequest(server string, nodeId NodeId, proxyId ProxyId, params *UpdateNodeNetworkProxyParams, body UpdateNodeNetworkProxyJSONRequestBody) (*http.Request, error) {
+	var bodyReader io.Reader
+	buf, err := json.Marshal(body)
+	if err != nil {
+		return nil, err
+	}
+	bodyReader = bytes.NewReader(buf)
+	return NewUpdateNodeNetworkProxyRequestWithBody(server, nodeId, proxyId, params, "application/json", bodyReader)
+}
+
+// NewUpdateNodeNetworkProxyRequestWithBody constructs an http.Request for the UpdateNodeNetworkProxy method, with any body, and a specified content type
+func NewUpdateNodeNetworkProxyRequestWithBody(server string, nodeId NodeId, proxyId ProxyId, params *UpdateNodeNetworkProxyParams, contentType string, body io.Reader) (*http.Request, error) {
+	var err error
+
+	var pathParam0 string
+
+	pathParam0, err = runtime.StyleParamWithOptions("simple", false, "nodeId", nodeId, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationPath, Type: "string", Format: "uuid"})
+	if err != nil {
+		return nil, err
+	}
+
+	var pathParam1 string
+
+	pathParam1, err = runtime.StyleParamWithOptions("simple", false, "proxyId", proxyId, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationPath, Type: "string", Format: "uuid"})
+	if err != nil {
+		return nil, err
+	}
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/api/v1/nodes/%s/network-proxies/%s", pathParam0, pathParam1)
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest(http.MethodPut, queryURL.String(), body)
+	if err != nil {
+		return nil, err
+	}
+
+	req.Header.Add("Content-Type", contentType)
+
+	if params != nil {
+
+		if params.XCSRFToken != nil {
+			var headerParam0 string
+
+			headerParam0, err = runtime.StyleParamWithOptions("simple", false, "X-CSRF-Token", *params.XCSRFToken, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationHeader, Type: "string", Format: ""})
+			if err != nil {
+				return nil, err
+			}
+
+			req.Header.Set("X-CSRF-Token", headerParam0)
+		}
+
+	}
+
+	return req, nil
+}
+
 // NewGetNodeProbeRequest constructs an http.Request for the GetNodeProbe method
 func NewGetNodeProbeRequest(server string, nodeId NodeId) (*http.Request, error) {
 	var err error
@@ -7158,8 +7233,19 @@ func NewUpdateNodeProbeSettingsRequestWithBody(server string, nodeId NodeId, par
 	return req, nil
 }
 
-// NewCreateCompleteProbeTaskRequest constructs an http.Request for the CreateCompleteProbeTask method
-func NewCreateCompleteProbeTaskRequest(server string, nodeId NodeId, params *CreateCompleteProbeTaskParams) (*http.Request, error) {
+// NewCreateCompleteProbeTaskRequest calls the generic CreateCompleteProbeTask builder with application/json body
+func NewCreateCompleteProbeTaskRequest(server string, nodeId NodeId, params *CreateCompleteProbeTaskParams, body CreateCompleteProbeTaskJSONRequestBody) (*http.Request, error) {
+	var bodyReader io.Reader
+	buf, err := json.Marshal(body)
+	if err != nil {
+		return nil, err
+	}
+	bodyReader = bytes.NewReader(buf)
+	return NewCreateCompleteProbeTaskRequestWithBody(server, nodeId, params, "application/json", bodyReader)
+}
+
+// NewCreateCompleteProbeTaskRequestWithBody constructs an http.Request for the CreateCompleteProbeTask method, with any body, and a specified content type
+func NewCreateCompleteProbeTaskRequestWithBody(server string, nodeId NodeId, params *CreateCompleteProbeTaskParams, contentType string, body io.Reader) (*http.Request, error) {
 	var err error
 
 	var pathParam0 string
@@ -7184,128 +7270,12 @@ func NewCreateCompleteProbeTaskRequest(server string, nodeId NodeId, params *Cre
 		return nil, err
 	}
 
-	req, err := http.NewRequest(http.MethodPost, queryURL.String(), nil)
-	if err != nil {
-		return nil, err
-	}
-
-	if params != nil {
-
-		if params.XCSRFToken != nil {
-			var headerParam0 string
-
-			headerParam0, err = runtime.StyleParamWithOptions("simple", false, "X-CSRF-Token", *params.XCSRFToken, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationHeader, Type: "string", Format: ""})
-			if err != nil {
-				return nil, err
-			}
-
-			req.Header.Set("X-CSRF-Token", headerParam0)
-		}
-
-	}
-
-	return req, nil
-}
-
-// NewCreateNodeProxyDiscoveryPathRequest calls the generic CreateNodeProxyDiscoveryPath builder with application/json body
-func NewCreateNodeProxyDiscoveryPathRequest(server string, nodeId NodeId, params *CreateNodeProxyDiscoveryPathParams, body CreateNodeProxyDiscoveryPathJSONRequestBody) (*http.Request, error) {
-	var bodyReader io.Reader
-	buf, err := json.Marshal(body)
-	if err != nil {
-		return nil, err
-	}
-	bodyReader = bytes.NewReader(buf)
-	return NewCreateNodeProxyDiscoveryPathRequestWithBody(server, nodeId, params, "application/json", bodyReader)
-}
-
-// NewCreateNodeProxyDiscoveryPathRequestWithBody constructs an http.Request for the CreateNodeProxyDiscoveryPath method, with any body, and a specified content type
-func NewCreateNodeProxyDiscoveryPathRequestWithBody(server string, nodeId NodeId, params *CreateNodeProxyDiscoveryPathParams, contentType string, body io.Reader) (*http.Request, error) {
-	var err error
-
-	var pathParam0 string
-
-	pathParam0, err = runtime.StyleParamWithOptions("simple", false, "nodeId", nodeId, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationPath, Type: "string", Format: "uuid"})
-	if err != nil {
-		return nil, err
-	}
-
-	serverURL, err := url.Parse(server)
-	if err != nil {
-		return nil, err
-	}
-
-	operationPath := fmt.Sprintf("/api/v1/nodes/%s/proxy-discovery-paths", pathParam0)
-	if operationPath[0] == '/' {
-		operationPath = "." + operationPath
-	}
-
-	queryURL, err := serverURL.Parse(operationPath)
-	if err != nil {
-		return nil, err
-	}
-
 	req, err := http.NewRequest(http.MethodPost, queryURL.String(), body)
 	if err != nil {
 		return nil, err
 	}
 
 	req.Header.Add("Content-Type", contentType)
-
-	if params != nil {
-
-		if params.XCSRFToken != nil {
-			var headerParam0 string
-
-			headerParam0, err = runtime.StyleParamWithOptions("simple", false, "X-CSRF-Token", *params.XCSRFToken, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationHeader, Type: "string", Format: ""})
-			if err != nil {
-				return nil, err
-			}
-
-			req.Header.Set("X-CSRF-Token", headerParam0)
-		}
-
-	}
-
-	return req, nil
-}
-
-// NewDeleteNodeProxyDiscoveryPathRequest constructs an http.Request for the DeleteNodeProxyDiscoveryPath method
-func NewDeleteNodeProxyDiscoveryPathRequest(server string, nodeId NodeId, pathId openapi_types.UUID, params *DeleteNodeProxyDiscoveryPathParams) (*http.Request, error) {
-	var err error
-
-	var pathParam0 string
-
-	pathParam0, err = runtime.StyleParamWithOptions("simple", false, "nodeId", nodeId, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationPath, Type: "string", Format: "uuid"})
-	if err != nil {
-		return nil, err
-	}
-
-	var pathParam1 string
-
-	pathParam1, err = runtime.StyleParamWithOptions("simple", false, "pathId", pathId, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationPath, Type: "string", Format: "uuid"})
-	if err != nil {
-		return nil, err
-	}
-
-	serverURL, err := url.Parse(server)
-	if err != nil {
-		return nil, err
-	}
-
-	operationPath := fmt.Sprintf("/api/v1/nodes/%s/proxy-discovery-paths/%s", pathParam0, pathParam1)
-	if operationPath[0] == '/' {
-		operationPath = "." + operationPath
-	}
-
-	queryURL, err := serverURL.Parse(operationPath)
-	if err != nil {
-		return nil, err
-	}
-
-	req, err := http.NewRequest(http.MethodDelete, queryURL.String(), nil)
-	if err != nil {
-		return nil, err
-	}
 
 	if params != nil {
 
@@ -8490,12 +8460,19 @@ type ClientWithResponsesInterface interface {
 	// Corresponds with PUT /api/v1/agent-enrollment (the `UpdateAgentEnrollment` operationId).
 	UpdateAgentEnrollmentWithResponse(ctx context.Context, params *UpdateAgentEnrollmentParams, body UpdateAgentEnrollmentJSONRequestBody, reqEditors ...RequestEditorFn) (*UpdateAgentEnrollmentResponse, error)
 
-	// RotateAgentEnrollmentKeyWithResponse Generate or rotate the automatic Agent enrollment key
+	// RotateAgentEnrollmentKeyWithBodyWithResponse Generate or rotate the automatic Agent enrollment key
 	//
-	// Returns a wrapper object for the known response body format(s).
+	// Takes any type of body and a specified content type, and returns a wrapper object for the known response body format(s).
 	//
 	// Corresponds with POST /api/v1/agent-enrollment/key (the `RotateAgentEnrollmentKey` operationId).
-	RotateAgentEnrollmentKeyWithResponse(ctx context.Context, params *RotateAgentEnrollmentKeyParams, reqEditors ...RequestEditorFn) (*RotateAgentEnrollmentKeyResponse, error)
+	RotateAgentEnrollmentKeyWithBodyWithResponse(ctx context.Context, params *RotateAgentEnrollmentKeyParams, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*RotateAgentEnrollmentKeyResponse, error)
+
+	// RotateAgentEnrollmentKeyWithResponse Generate or rotate the automatic Agent enrollment key
+	//
+	// Takes a body of the `application/json` content type, and returns a wrapper object for the known response body format(s).
+	//
+	// Corresponds with POST /api/v1/agent-enrollment/key (the `RotateAgentEnrollmentKey` operationId).
+	RotateAgentEnrollmentKeyWithResponse(ctx context.Context, params *RotateAgentEnrollmentKeyParams, body RotateAgentEnrollmentKeyJSONRequestBody, reqEditors ...RequestEditorFn) (*RotateAgentEnrollmentKeyResponse, error)
 
 	// GetAgentUpdateStateWithResponse Discover the current channel release and recent Agent update tasks
 	//
@@ -8700,48 +8677,6 @@ type ClientWithResponsesInterface interface {
 	// Corresponds with PUT /api/v1/network-observation-settings (the `UpdateNetworkObservationSettings` operationId).
 	UpdateNetworkObservationSettingsWithResponse(ctx context.Context, params *UpdateNetworkObservationSettingsParams, body UpdateNetworkObservationSettingsJSONRequestBody, reqEditors ...RequestEditorFn) (*UpdateNetworkObservationSettingsResponse, error)
 
-	// ListNetworkProxiesWithResponse List centrally managed network proxies without revealing passwords
-	//
-	// Returns a wrapper object for the known response body format(s).
-	//
-	// Corresponds with GET /api/v1/network-proxies (the `ListNetworkProxies` operationId).
-	ListNetworkProxiesWithResponse(ctx context.Context, reqEditors ...RequestEditorFn) (*ListNetworkProxiesResponse, error)
-
-	// CreateNetworkProxyWithBodyWithResponse Create a centrally managed network proxy
-	//
-	// Takes any type of body and a specified content type, and returns a wrapper object for the known response body format(s).
-	//
-	// Corresponds with POST /api/v1/network-proxies (the `CreateNetworkProxy` operationId).
-	CreateNetworkProxyWithBodyWithResponse(ctx context.Context, params *CreateNetworkProxyParams, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*CreateNetworkProxyResponse, error)
-
-	// CreateNetworkProxyWithResponse Create a centrally managed network proxy
-	//
-	// Takes a body of the `application/json` content type, and returns a wrapper object for the known response body format(s).
-	//
-	// Corresponds with POST /api/v1/network-proxies (the `CreateNetworkProxy` operationId).
-	CreateNetworkProxyWithResponse(ctx context.Context, params *CreateNetworkProxyParams, body CreateNetworkProxyJSONRequestBody, reqEditors ...RequestEditorFn) (*CreateNetworkProxyResponse, error)
-
-	// DeleteNetworkProxyWithResponse Delete an unreferenced network proxy
-	//
-	// Returns a wrapper object for the known response body format(s).
-	//
-	// Corresponds with DELETE /api/v1/network-proxies/{proxyId} (the `DeleteNetworkProxy` operationId).
-	DeleteNetworkProxyWithResponse(ctx context.Context, proxyId ProxyId, params *DeleteNetworkProxyParams, reqEditors ...RequestEditorFn) (*DeleteNetworkProxyResponse, error)
-
-	// UpdateNetworkProxyWithBodyWithResponse Replace network proxy settings and explicitly keep, replace, or clear its password
-	//
-	// Takes any type of body and a specified content type, and returns a wrapper object for the known response body format(s).
-	//
-	// Corresponds with PUT /api/v1/network-proxies/{proxyId} (the `UpdateNetworkProxy` operationId).
-	UpdateNetworkProxyWithBodyWithResponse(ctx context.Context, proxyId ProxyId, params *UpdateNetworkProxyParams, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*UpdateNetworkProxyResponse, error)
-
-	// UpdateNetworkProxyWithResponse Replace network proxy settings and explicitly keep, replace, or clear its password
-	//
-	// Takes a body of the `application/json` content type, and returns a wrapper object for the known response body format(s).
-	//
-	// Corresponds with PUT /api/v1/network-proxies/{proxyId} (the `UpdateNetworkProxy` operationId).
-	UpdateNetworkProxyWithResponse(ctx context.Context, proxyId ProxyId, params *UpdateNetworkProxyParams, body UpdateNetworkProxyJSONRequestBody, reqEditors ...RequestEditorFn) (*UpdateNetworkProxyResponse, error)
-
 	// ListNodesWithResponse List registered nodes
 	//
 	// Returns a wrapper object for the known response body format(s).
@@ -8770,12 +8705,54 @@ type ClientWithResponsesInterface interface {
 	// Corresponds with PATCH /api/v1/nodes/{nodeId} (the `UpdateNode` operationId).
 	UpdateNodeWithResponse(ctx context.Context, nodeId NodeId, params *UpdateNodeParams, body UpdateNodeJSONRequestBody, reqEditors ...RequestEditorFn) (*UpdateNodeResponse, error)
 
-	// GetNodeNetworkWithResponse Read discovered public addresses and explicit proxy discovery paths
+	// GetNodeNetworkWithResponse Read discovered public addresses and node-owned network proxies
 	//
 	// Returns a wrapper object for the known response body format(s).
 	//
 	// Corresponds with GET /api/v1/nodes/{nodeId}/network (the `GetNodeNetwork` operationId).
 	GetNodeNetworkWithResponse(ctx context.Context, nodeId NodeId, reqEditors ...RequestEditorFn) (*GetNodeNetworkResponse, error)
+
+	// ListNodeNetworkProxiesWithResponse List the network proxies owned by a node without revealing passwords
+	//
+	// Returns a wrapper object for the known response body format(s).
+	//
+	// Corresponds with GET /api/v1/nodes/{nodeId}/network-proxies (the `ListNodeNetworkProxies` operationId).
+	ListNodeNetworkProxiesWithResponse(ctx context.Context, nodeId NodeId, reqEditors ...RequestEditorFn) (*ListNodeNetworkProxiesResponse, error)
+
+	// CreateNodeNetworkProxyWithBodyWithResponse Create a node-owned proxy and start IPv4 and IPv6 discovery
+	//
+	// Takes any type of body and a specified content type, and returns a wrapper object for the known response body format(s).
+	//
+	// Corresponds with POST /api/v1/nodes/{nodeId}/network-proxies (the `CreateNodeNetworkProxy` operationId).
+	CreateNodeNetworkProxyWithBodyWithResponse(ctx context.Context, nodeId NodeId, params *CreateNodeNetworkProxyParams, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*CreateNodeNetworkProxyResponse, error)
+
+	// CreateNodeNetworkProxyWithResponse Create a node-owned proxy and start IPv4 and IPv6 discovery
+	//
+	// Takes a body of the `application/json` content type, and returns a wrapper object for the known response body format(s).
+	//
+	// Corresponds with POST /api/v1/nodes/{nodeId}/network-proxies (the `CreateNodeNetworkProxy` operationId).
+	CreateNodeNetworkProxyWithResponse(ctx context.Context, nodeId NodeId, params *CreateNodeNetworkProxyParams, body CreateNodeNetworkProxyJSONRequestBody, reqEditors ...RequestEditorFn) (*CreateNodeNetworkProxyResponse, error)
+
+	// DeleteNodeNetworkProxyWithResponse Queue durable removal of a node proxy and both internal discovery paths
+	//
+	// Returns a wrapper object for the known response body format(s).
+	//
+	// Corresponds with DELETE /api/v1/nodes/{nodeId}/network-proxies/{proxyId} (the `DeleteNodeNetworkProxy` operationId).
+	DeleteNodeNetworkProxyWithResponse(ctx context.Context, nodeId NodeId, proxyId ProxyId, params *DeleteNodeNetworkProxyParams, reqEditors ...RequestEditorFn) (*DeleteNodeNetworkProxyResponse, error)
+
+	// UpdateNodeNetworkProxyWithBodyWithResponse Replace a node proxy and restart discovery for both address families
+	//
+	// Takes any type of body and a specified content type, and returns a wrapper object for the known response body format(s).
+	//
+	// Corresponds with PUT /api/v1/nodes/{nodeId}/network-proxies/{proxyId} (the `UpdateNodeNetworkProxy` operationId).
+	UpdateNodeNetworkProxyWithBodyWithResponse(ctx context.Context, nodeId NodeId, proxyId ProxyId, params *UpdateNodeNetworkProxyParams, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*UpdateNodeNetworkProxyResponse, error)
+
+	// UpdateNodeNetworkProxyWithResponse Replace a node proxy and restart discovery for both address families
+	//
+	// Takes a body of the `application/json` content type, and returns a wrapper object for the known response body format(s).
+	//
+	// Corresponds with PUT /api/v1/nodes/{nodeId}/network-proxies/{proxyId} (the `UpdateNodeNetworkProxy` operationId).
+	UpdateNodeNetworkProxyWithResponse(ctx context.Context, nodeId NodeId, proxyId ProxyId, params *UpdateNodeNetworkProxyParams, body UpdateNodeNetworkProxyJSONRequestBody, reqEditors ...RequestEditorFn) (*UpdateNodeNetworkProxyResponse, error)
 
 	// GetNodeProbeWithResponse Read complete-probe settings, current task, and recent runs
 	//
@@ -8798,33 +8775,19 @@ type ClientWithResponsesInterface interface {
 	// Corresponds with PUT /api/v1/nodes/{nodeId}/probe (the `UpdateNodeProbeSettings` operationId).
 	UpdateNodeProbeSettingsWithResponse(ctx context.Context, nodeId NodeId, params *UpdateNodeProbeSettingsParams, body UpdateNodeProbeSettingsJSONRequestBody, reqEditors ...RequestEditorFn) (*UpdateNodeProbeSettingsResponse, error)
 
-	// CreateCompleteProbeTaskWithResponse Create the node's single immediate complete-probe task
-	//
-	// Returns a wrapper object for the known response body format(s).
-	//
-	// Corresponds with POST /api/v1/nodes/{nodeId}/probe/tasks (the `CreateCompleteProbeTask` operationId).
-	CreateCompleteProbeTaskWithResponse(ctx context.Context, nodeId NodeId, params *CreateCompleteProbeTaskParams, reqEditors ...RequestEditorFn) (*CreateCompleteProbeTaskResponse, error)
-
-	// CreateNodeProxyDiscoveryPathWithBodyWithResponse Add an explicit proxy path for public-address discovery
+	// CreateCompleteProbeTaskWithBodyWithResponse Save the selected public-IP targets and create the node's single immediate complete-probe task
 	//
 	// Takes any type of body and a specified content type, and returns a wrapper object for the known response body format(s).
 	//
-	// Corresponds with POST /api/v1/nodes/{nodeId}/proxy-discovery-paths (the `CreateNodeProxyDiscoveryPath` operationId).
-	CreateNodeProxyDiscoveryPathWithBodyWithResponse(ctx context.Context, nodeId NodeId, params *CreateNodeProxyDiscoveryPathParams, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*CreateNodeProxyDiscoveryPathResponse, error)
+	// Corresponds with POST /api/v1/nodes/{nodeId}/probe/tasks (the `CreateCompleteProbeTask` operationId).
+	CreateCompleteProbeTaskWithBodyWithResponse(ctx context.Context, nodeId NodeId, params *CreateCompleteProbeTaskParams, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*CreateCompleteProbeTaskResponse, error)
 
-	// CreateNodeProxyDiscoveryPathWithResponse Add an explicit proxy path for public-address discovery
+	// CreateCompleteProbeTaskWithResponse Save the selected public-IP targets and create the node's single immediate complete-probe task
 	//
 	// Takes a body of the `application/json` content type, and returns a wrapper object for the known response body format(s).
 	//
-	// Corresponds with POST /api/v1/nodes/{nodeId}/proxy-discovery-paths (the `CreateNodeProxyDiscoveryPath` operationId).
-	CreateNodeProxyDiscoveryPathWithResponse(ctx context.Context, nodeId NodeId, params *CreateNodeProxyDiscoveryPathParams, body CreateNodeProxyDiscoveryPathJSONRequestBody, reqEditors ...RequestEditorFn) (*CreateNodeProxyDiscoveryPathResponse, error)
-
-	// DeleteNodeProxyDiscoveryPathWithResponse Remove an explicit proxy discovery path
-	//
-	// Returns a wrapper object for the known response body format(s).
-	//
-	// Corresponds with DELETE /api/v1/nodes/{nodeId}/proxy-discovery-paths/{pathId} (the `DeleteNodeProxyDiscoveryPath` operationId).
-	DeleteNodeProxyDiscoveryPathWithResponse(ctx context.Context, nodeId NodeId, pathId openapi_types.UUID, params *DeleteNodeProxyDiscoveryPathParams, reqEditors ...RequestEditorFn) (*DeleteNodeProxyDiscoveryPathResponse, error)
+	// Corresponds with POST /api/v1/nodes/{nodeId}/probe/tasks (the `CreateCompleteProbeTask` operationId).
+	CreateCompleteProbeTaskWithResponse(ctx context.Context, nodeId NodeId, params *CreateCompleteProbeTaskParams, body CreateCompleteProbeTaskJSONRequestBody, reqEditors ...RequestEditorFn) (*CreateCompleteProbeTaskResponse, error)
 
 	// UpdatePublicAddressWithBodyWithResponse Update complete-probe settings for a discovered public address
 	//
@@ -9579,6 +9542,8 @@ type RotateAgentEnrollmentKeyResponse struct {
 	HTTPResponse *http.Response
 	// JSON200 the response for an HTTP 200 `application/json` response
 	JSON200 *AgentEnrollmentSettings
+	// JSON400 the response for an HTTP 400 `application/json` response
+	JSON400 *BadRequest
 	// JSON401 the response for an HTTP 401 `application/json` response
 	JSON401 *Unauthorized
 	// JSON403 the response for an HTTP 403 `application/json` response
@@ -9588,6 +9553,11 @@ type RotateAgentEnrollmentKeyResponse struct {
 // GetJSON200 returns the response for an HTTP 200 `application/json` response
 func (r RotateAgentEnrollmentKeyResponse) GetJSON200() *AgentEnrollmentSettings {
 	return r.JSON200
+}
+
+// GetJSON400 returns the response for an HTTP 400 `application/json` response
+func (r RotateAgentEnrollmentKeyResponse) GetJSON400() *BadRequest {
+	return r.JSON400
 }
 
 // GetJSON401 returns the response for an HTTP 401 `application/json` response
@@ -10812,261 +10782,6 @@ func (r UpdateNetworkObservationSettingsResponse) ContentType() string {
 	return ""
 }
 
-type ListNetworkProxiesResponse struct {
-	Body         []byte
-	HTTPResponse *http.Response
-	// JSON200 the response for an HTTP 200 `application/json` response
-	JSON200 *NetworkProxyList
-	// JSON401 the response for an HTTP 401 `application/json` response
-	JSON401 *Unauthorized
-}
-
-// GetJSON200 returns the response for an HTTP 200 `application/json` response
-func (r ListNetworkProxiesResponse) GetJSON200() *NetworkProxyList {
-	return r.JSON200
-}
-
-// GetJSON401 returns the response for an HTTP 401 `application/json` response
-func (r ListNetworkProxiesResponse) GetJSON401() *Unauthorized {
-	return r.JSON401
-}
-
-// GetBody returns the raw response body bytes
-func (r ListNetworkProxiesResponse) GetBody() []byte {
-	return r.Body
-}
-
-// Status returns HTTPResponse.Status
-func (r ListNetworkProxiesResponse) Status() string {
-	if r.HTTPResponse != nil {
-		return r.HTTPResponse.Status
-	}
-	return http.StatusText(0)
-}
-
-// StatusCode returns HTTPResponse.StatusCode
-func (r ListNetworkProxiesResponse) StatusCode() int {
-	if r.HTTPResponse != nil {
-		return r.HTTPResponse.StatusCode
-	}
-	return 0
-}
-
-// ContentType is a convenience method to retrieve the Content-Type value from the HTTP response headers
-func (r ListNetworkProxiesResponse) ContentType() string {
-	if r.HTTPResponse != nil {
-		return r.HTTPResponse.Header.Get("Content-Type")
-	}
-	return ""
-}
-
-type CreateNetworkProxyResponse struct {
-	Body         []byte
-	HTTPResponse *http.Response
-	// JSON201 the response for an HTTP 201 `application/json` response
-	JSON201 *NetworkProxy
-	// JSON400 the response for an HTTP 400 `application/json` response
-	JSON400 *BadRequest
-	// JSON401 the response for an HTTP 401 `application/json` response
-	JSON401 *Unauthorized
-	// JSON403 the response for an HTTP 403 `application/json` response
-	JSON403 *Forbidden
-	// JSON409 the response for an HTTP 409 `application/json` response
-	JSON409 *Conflict
-}
-
-// GetJSON201 returns the response for an HTTP 201 `application/json` response
-func (r CreateNetworkProxyResponse) GetJSON201() *NetworkProxy {
-	return r.JSON201
-}
-
-// GetJSON400 returns the response for an HTTP 400 `application/json` response
-func (r CreateNetworkProxyResponse) GetJSON400() *BadRequest {
-	return r.JSON400
-}
-
-// GetJSON401 returns the response for an HTTP 401 `application/json` response
-func (r CreateNetworkProxyResponse) GetJSON401() *Unauthorized {
-	return r.JSON401
-}
-
-// GetJSON403 returns the response for an HTTP 403 `application/json` response
-func (r CreateNetworkProxyResponse) GetJSON403() *Forbidden {
-	return r.JSON403
-}
-
-// GetJSON409 returns the response for an HTTP 409 `application/json` response
-func (r CreateNetworkProxyResponse) GetJSON409() *Conflict {
-	return r.JSON409
-}
-
-// GetBody returns the raw response body bytes
-func (r CreateNetworkProxyResponse) GetBody() []byte {
-	return r.Body
-}
-
-// Status returns HTTPResponse.Status
-func (r CreateNetworkProxyResponse) Status() string {
-	if r.HTTPResponse != nil {
-		return r.HTTPResponse.Status
-	}
-	return http.StatusText(0)
-}
-
-// StatusCode returns HTTPResponse.StatusCode
-func (r CreateNetworkProxyResponse) StatusCode() int {
-	if r.HTTPResponse != nil {
-		return r.HTTPResponse.StatusCode
-	}
-	return 0
-}
-
-// ContentType is a convenience method to retrieve the Content-Type value from the HTTP response headers
-func (r CreateNetworkProxyResponse) ContentType() string {
-	if r.HTTPResponse != nil {
-		return r.HTTPResponse.Header.Get("Content-Type")
-	}
-	return ""
-}
-
-type DeleteNetworkProxyResponse struct {
-	Body         []byte
-	HTTPResponse *http.Response
-	// JSON401 the response for an HTTP 401 `application/json` response
-	JSON401 *Unauthorized
-	// JSON403 the response for an HTTP 403 `application/json` response
-	JSON403 *Forbidden
-	// JSON404 the response for an HTTP 404 `application/json` response
-	JSON404 *NotFound
-	// JSON409 the response for an HTTP 409 `application/json` response
-	JSON409 *Conflict
-}
-
-// GetJSON401 returns the response for an HTTP 401 `application/json` response
-func (r DeleteNetworkProxyResponse) GetJSON401() *Unauthorized {
-	return r.JSON401
-}
-
-// GetJSON403 returns the response for an HTTP 403 `application/json` response
-func (r DeleteNetworkProxyResponse) GetJSON403() *Forbidden {
-	return r.JSON403
-}
-
-// GetJSON404 returns the response for an HTTP 404 `application/json` response
-func (r DeleteNetworkProxyResponse) GetJSON404() *NotFound {
-	return r.JSON404
-}
-
-// GetJSON409 returns the response for an HTTP 409 `application/json` response
-func (r DeleteNetworkProxyResponse) GetJSON409() *Conflict {
-	return r.JSON409
-}
-
-// GetBody returns the raw response body bytes
-func (r DeleteNetworkProxyResponse) GetBody() []byte {
-	return r.Body
-}
-
-// Status returns HTTPResponse.Status
-func (r DeleteNetworkProxyResponse) Status() string {
-	if r.HTTPResponse != nil {
-		return r.HTTPResponse.Status
-	}
-	return http.StatusText(0)
-}
-
-// StatusCode returns HTTPResponse.StatusCode
-func (r DeleteNetworkProxyResponse) StatusCode() int {
-	if r.HTTPResponse != nil {
-		return r.HTTPResponse.StatusCode
-	}
-	return 0
-}
-
-// ContentType is a convenience method to retrieve the Content-Type value from the HTTP response headers
-func (r DeleteNetworkProxyResponse) ContentType() string {
-	if r.HTTPResponse != nil {
-		return r.HTTPResponse.Header.Get("Content-Type")
-	}
-	return ""
-}
-
-type UpdateNetworkProxyResponse struct {
-	Body         []byte
-	HTTPResponse *http.Response
-	// JSON200 the response for an HTTP 200 `application/json` response
-	JSON200 *NetworkProxy
-	// JSON400 the response for an HTTP 400 `application/json` response
-	JSON400 *BadRequest
-	// JSON401 the response for an HTTP 401 `application/json` response
-	JSON401 *Unauthorized
-	// JSON403 the response for an HTTP 403 `application/json` response
-	JSON403 *Forbidden
-	// JSON404 the response for an HTTP 404 `application/json` response
-	JSON404 *NotFound
-	// JSON409 the response for an HTTP 409 `application/json` response
-	JSON409 *Conflict
-}
-
-// GetJSON200 returns the response for an HTTP 200 `application/json` response
-func (r UpdateNetworkProxyResponse) GetJSON200() *NetworkProxy {
-	return r.JSON200
-}
-
-// GetJSON400 returns the response for an HTTP 400 `application/json` response
-func (r UpdateNetworkProxyResponse) GetJSON400() *BadRequest {
-	return r.JSON400
-}
-
-// GetJSON401 returns the response for an HTTP 401 `application/json` response
-func (r UpdateNetworkProxyResponse) GetJSON401() *Unauthorized {
-	return r.JSON401
-}
-
-// GetJSON403 returns the response for an HTTP 403 `application/json` response
-func (r UpdateNetworkProxyResponse) GetJSON403() *Forbidden {
-	return r.JSON403
-}
-
-// GetJSON404 returns the response for an HTTP 404 `application/json` response
-func (r UpdateNetworkProxyResponse) GetJSON404() *NotFound {
-	return r.JSON404
-}
-
-// GetJSON409 returns the response for an HTTP 409 `application/json` response
-func (r UpdateNetworkProxyResponse) GetJSON409() *Conflict {
-	return r.JSON409
-}
-
-// GetBody returns the raw response body bytes
-func (r UpdateNetworkProxyResponse) GetBody() []byte {
-	return r.Body
-}
-
-// Status returns HTTPResponse.Status
-func (r UpdateNetworkProxyResponse) Status() string {
-	if r.HTTPResponse != nil {
-		return r.HTTPResponse.Status
-	}
-	return http.StatusText(0)
-}
-
-// StatusCode returns HTTPResponse.StatusCode
-func (r UpdateNetworkProxyResponse) StatusCode() int {
-	if r.HTTPResponse != nil {
-		return r.HTTPResponse.StatusCode
-	}
-	return 0
-}
-
-// ContentType is a convenience method to retrieve the Content-Type value from the HTTP response headers
-func (r UpdateNetworkProxyResponse) ContentType() string {
-	if r.HTTPResponse != nil {
-		return r.HTTPResponse.Header.Get("Content-Type")
-	}
-	return ""
-}
-
 type ListNodesResponse struct {
 	Body         []byte
 	HTTPResponse *http.Response
@@ -11308,6 +11023,282 @@ func (r GetNodeNetworkResponse) ContentType() string {
 	return ""
 }
 
+type ListNodeNetworkProxiesResponse struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	// JSON200 the response for an HTTP 200 `application/json` response
+	JSON200 *NetworkProxyList
+	// JSON401 the response for an HTTP 401 `application/json` response
+	JSON401 *Unauthorized
+	// JSON404 the response for an HTTP 404 `application/json` response
+	JSON404 *NotFound
+}
+
+// GetJSON200 returns the response for an HTTP 200 `application/json` response
+func (r ListNodeNetworkProxiesResponse) GetJSON200() *NetworkProxyList {
+	return r.JSON200
+}
+
+// GetJSON401 returns the response for an HTTP 401 `application/json` response
+func (r ListNodeNetworkProxiesResponse) GetJSON401() *Unauthorized {
+	return r.JSON401
+}
+
+// GetJSON404 returns the response for an HTTP 404 `application/json` response
+func (r ListNodeNetworkProxiesResponse) GetJSON404() *NotFound {
+	return r.JSON404
+}
+
+// GetBody returns the raw response body bytes
+func (r ListNodeNetworkProxiesResponse) GetBody() []byte {
+	return r.Body
+}
+
+// Status returns HTTPResponse.Status
+func (r ListNodeNetworkProxiesResponse) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r ListNodeNetworkProxiesResponse) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+// ContentType is a convenience method to retrieve the Content-Type value from the HTTP response headers
+func (r ListNodeNetworkProxiesResponse) ContentType() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Header.Get("Content-Type")
+	}
+	return ""
+}
+
+type CreateNodeNetworkProxyResponse struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	// JSON201 the response for an HTTP 201 `application/json` response
+	JSON201 *NetworkProxy
+	// JSON400 the response for an HTTP 400 `application/json` response
+	JSON400 *BadRequest
+	// JSON401 the response for an HTTP 401 `application/json` response
+	JSON401 *Unauthorized
+	// JSON403 the response for an HTTP 403 `application/json` response
+	JSON403 *Forbidden
+	// JSON404 the response for an HTTP 404 `application/json` response
+	JSON404 *NotFound
+	// JSON409 the response for an HTTP 409 `application/json` response
+	JSON409 *Conflict
+}
+
+// GetJSON201 returns the response for an HTTP 201 `application/json` response
+func (r CreateNodeNetworkProxyResponse) GetJSON201() *NetworkProxy {
+	return r.JSON201
+}
+
+// GetJSON400 returns the response for an HTTP 400 `application/json` response
+func (r CreateNodeNetworkProxyResponse) GetJSON400() *BadRequest {
+	return r.JSON400
+}
+
+// GetJSON401 returns the response for an HTTP 401 `application/json` response
+func (r CreateNodeNetworkProxyResponse) GetJSON401() *Unauthorized {
+	return r.JSON401
+}
+
+// GetJSON403 returns the response for an HTTP 403 `application/json` response
+func (r CreateNodeNetworkProxyResponse) GetJSON403() *Forbidden {
+	return r.JSON403
+}
+
+// GetJSON404 returns the response for an HTTP 404 `application/json` response
+func (r CreateNodeNetworkProxyResponse) GetJSON404() *NotFound {
+	return r.JSON404
+}
+
+// GetJSON409 returns the response for an HTTP 409 `application/json` response
+func (r CreateNodeNetworkProxyResponse) GetJSON409() *Conflict {
+	return r.JSON409
+}
+
+// GetBody returns the raw response body bytes
+func (r CreateNodeNetworkProxyResponse) GetBody() []byte {
+	return r.Body
+}
+
+// Status returns HTTPResponse.Status
+func (r CreateNodeNetworkProxyResponse) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r CreateNodeNetworkProxyResponse) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+// ContentType is a convenience method to retrieve the Content-Type value from the HTTP response headers
+func (r CreateNodeNetworkProxyResponse) ContentType() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Header.Get("Content-Type")
+	}
+	return ""
+}
+
+type DeleteNodeNetworkProxyResponse struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	// JSON202 the response for an HTTP 202 `application/json` response
+	JSON202 *NetworkProxy
+	// JSON401 the response for an HTTP 401 `application/json` response
+	JSON401 *Unauthorized
+	// JSON403 the response for an HTTP 403 `application/json` response
+	JSON403 *Forbidden
+	// JSON404 the response for an HTTP 404 `application/json` response
+	JSON404 *NotFound
+	// JSON409 the response for an HTTP 409 `application/json` response
+	JSON409 *Conflict
+}
+
+// GetJSON202 returns the response for an HTTP 202 `application/json` response
+func (r DeleteNodeNetworkProxyResponse) GetJSON202() *NetworkProxy {
+	return r.JSON202
+}
+
+// GetJSON401 returns the response for an HTTP 401 `application/json` response
+func (r DeleteNodeNetworkProxyResponse) GetJSON401() *Unauthorized {
+	return r.JSON401
+}
+
+// GetJSON403 returns the response for an HTTP 403 `application/json` response
+func (r DeleteNodeNetworkProxyResponse) GetJSON403() *Forbidden {
+	return r.JSON403
+}
+
+// GetJSON404 returns the response for an HTTP 404 `application/json` response
+func (r DeleteNodeNetworkProxyResponse) GetJSON404() *NotFound {
+	return r.JSON404
+}
+
+// GetJSON409 returns the response for an HTTP 409 `application/json` response
+func (r DeleteNodeNetworkProxyResponse) GetJSON409() *Conflict {
+	return r.JSON409
+}
+
+// GetBody returns the raw response body bytes
+func (r DeleteNodeNetworkProxyResponse) GetBody() []byte {
+	return r.Body
+}
+
+// Status returns HTTPResponse.Status
+func (r DeleteNodeNetworkProxyResponse) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r DeleteNodeNetworkProxyResponse) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+// ContentType is a convenience method to retrieve the Content-Type value from the HTTP response headers
+func (r DeleteNodeNetworkProxyResponse) ContentType() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Header.Get("Content-Type")
+	}
+	return ""
+}
+
+type UpdateNodeNetworkProxyResponse struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	// JSON200 the response for an HTTP 200 `application/json` response
+	JSON200 *NetworkProxy
+	// JSON400 the response for an HTTP 400 `application/json` response
+	JSON400 *BadRequest
+	// JSON401 the response for an HTTP 401 `application/json` response
+	JSON401 *Unauthorized
+	// JSON403 the response for an HTTP 403 `application/json` response
+	JSON403 *Forbidden
+	// JSON404 the response for an HTTP 404 `application/json` response
+	JSON404 *NotFound
+	// JSON409 the response for an HTTP 409 `application/json` response
+	JSON409 *Conflict
+}
+
+// GetJSON200 returns the response for an HTTP 200 `application/json` response
+func (r UpdateNodeNetworkProxyResponse) GetJSON200() *NetworkProxy {
+	return r.JSON200
+}
+
+// GetJSON400 returns the response for an HTTP 400 `application/json` response
+func (r UpdateNodeNetworkProxyResponse) GetJSON400() *BadRequest {
+	return r.JSON400
+}
+
+// GetJSON401 returns the response for an HTTP 401 `application/json` response
+func (r UpdateNodeNetworkProxyResponse) GetJSON401() *Unauthorized {
+	return r.JSON401
+}
+
+// GetJSON403 returns the response for an HTTP 403 `application/json` response
+func (r UpdateNodeNetworkProxyResponse) GetJSON403() *Forbidden {
+	return r.JSON403
+}
+
+// GetJSON404 returns the response for an HTTP 404 `application/json` response
+func (r UpdateNodeNetworkProxyResponse) GetJSON404() *NotFound {
+	return r.JSON404
+}
+
+// GetJSON409 returns the response for an HTTP 409 `application/json` response
+func (r UpdateNodeNetworkProxyResponse) GetJSON409() *Conflict {
+	return r.JSON409
+}
+
+// GetBody returns the raw response body bytes
+func (r UpdateNodeNetworkProxyResponse) GetBody() []byte {
+	return r.Body
+}
+
+// Status returns HTTPResponse.Status
+func (r UpdateNodeNetworkProxyResponse) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r UpdateNodeNetworkProxyResponse) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+// ContentType is a convenience method to retrieve the Content-Type value from the HTTP response headers
+func (r UpdateNodeNetworkProxyResponse) ContentType() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Header.Get("Content-Type")
+	}
+	return ""
+}
+
 type GetNodeProbeResponse struct {
 	Body         []byte
 	HTTPResponse *http.Response
@@ -11444,6 +11435,8 @@ type CreateCompleteProbeTaskResponse struct {
 	HTTPResponse *http.Response
 	// JSON202 the response for an HTTP 202 `application/json` response
 	JSON202 *ProbeTask
+	// JSON400 the response for an HTTP 400 `application/json` response
+	JSON400 *BadRequest
 	// JSON401 the response for an HTTP 401 `application/json` response
 	JSON401 *Unauthorized
 	// JSON403 the response for an HTTP 403 `application/json` response
@@ -11457,6 +11450,11 @@ type CreateCompleteProbeTaskResponse struct {
 // GetJSON202 returns the response for an HTTP 202 `application/json` response
 func (r CreateCompleteProbeTaskResponse) GetJSON202() *ProbeTask {
 	return r.JSON202
+}
+
+// GetJSON400 returns the response for an HTTP 400 `application/json` response
+func (r CreateCompleteProbeTaskResponse) GetJSON400() *BadRequest {
+	return r.JSON400
 }
 
 // GetJSON401 returns the response for an HTTP 401 `application/json` response
@@ -11502,151 +11500,6 @@ func (r CreateCompleteProbeTaskResponse) StatusCode() int {
 
 // ContentType is a convenience method to retrieve the Content-Type value from the HTTP response headers
 func (r CreateCompleteProbeTaskResponse) ContentType() string {
-	if r.HTTPResponse != nil {
-		return r.HTTPResponse.Header.Get("Content-Type")
-	}
-	return ""
-}
-
-type CreateNodeProxyDiscoveryPathResponse struct {
-	Body         []byte
-	HTTPResponse *http.Response
-	// JSON201 the response for an HTTP 201 `application/json` response
-	JSON201 *ProxyDiscoveryPath
-	// JSON400 the response for an HTTP 400 `application/json` response
-	JSON400 *BadRequest
-	// JSON401 the response for an HTTP 401 `application/json` response
-	JSON401 *Unauthorized
-	// JSON403 the response for an HTTP 403 `application/json` response
-	JSON403 *Forbidden
-	// JSON404 the response for an HTTP 404 `application/json` response
-	JSON404 *NotFound
-	// JSON409 the response for an HTTP 409 `application/json` response
-	JSON409 *Conflict
-}
-
-// GetJSON201 returns the response for an HTTP 201 `application/json` response
-func (r CreateNodeProxyDiscoveryPathResponse) GetJSON201() *ProxyDiscoveryPath {
-	return r.JSON201
-}
-
-// GetJSON400 returns the response for an HTTP 400 `application/json` response
-func (r CreateNodeProxyDiscoveryPathResponse) GetJSON400() *BadRequest {
-	return r.JSON400
-}
-
-// GetJSON401 returns the response for an HTTP 401 `application/json` response
-func (r CreateNodeProxyDiscoveryPathResponse) GetJSON401() *Unauthorized {
-	return r.JSON401
-}
-
-// GetJSON403 returns the response for an HTTP 403 `application/json` response
-func (r CreateNodeProxyDiscoveryPathResponse) GetJSON403() *Forbidden {
-	return r.JSON403
-}
-
-// GetJSON404 returns the response for an HTTP 404 `application/json` response
-func (r CreateNodeProxyDiscoveryPathResponse) GetJSON404() *NotFound {
-	return r.JSON404
-}
-
-// GetJSON409 returns the response for an HTTP 409 `application/json` response
-func (r CreateNodeProxyDiscoveryPathResponse) GetJSON409() *Conflict {
-	return r.JSON409
-}
-
-// GetBody returns the raw response body bytes
-func (r CreateNodeProxyDiscoveryPathResponse) GetBody() []byte {
-	return r.Body
-}
-
-// Status returns HTTPResponse.Status
-func (r CreateNodeProxyDiscoveryPathResponse) Status() string {
-	if r.HTTPResponse != nil {
-		return r.HTTPResponse.Status
-	}
-	return http.StatusText(0)
-}
-
-// StatusCode returns HTTPResponse.StatusCode
-func (r CreateNodeProxyDiscoveryPathResponse) StatusCode() int {
-	if r.HTTPResponse != nil {
-		return r.HTTPResponse.StatusCode
-	}
-	return 0
-}
-
-// ContentType is a convenience method to retrieve the Content-Type value from the HTTP response headers
-func (r CreateNodeProxyDiscoveryPathResponse) ContentType() string {
-	if r.HTTPResponse != nil {
-		return r.HTTPResponse.Header.Get("Content-Type")
-	}
-	return ""
-}
-
-type DeleteNodeProxyDiscoveryPathResponse struct {
-	Body         []byte
-	HTTPResponse *http.Response
-	// JSON202 the response for an HTTP 202 `application/json` response
-	JSON202 *ProxyDiscoveryPathDeletion
-	// JSON401 the response for an HTTP 401 `application/json` response
-	JSON401 *Unauthorized
-	// JSON403 the response for an HTTP 403 `application/json` response
-	JSON403 *Forbidden
-	// JSON404 the response for an HTTP 404 `application/json` response
-	JSON404 *NotFound
-	// JSON409 the response for an HTTP 409 `application/json` response
-	JSON409 *Conflict
-}
-
-// GetJSON202 returns the response for an HTTP 202 `application/json` response
-func (r DeleteNodeProxyDiscoveryPathResponse) GetJSON202() *ProxyDiscoveryPathDeletion {
-	return r.JSON202
-}
-
-// GetJSON401 returns the response for an HTTP 401 `application/json` response
-func (r DeleteNodeProxyDiscoveryPathResponse) GetJSON401() *Unauthorized {
-	return r.JSON401
-}
-
-// GetJSON403 returns the response for an HTTP 403 `application/json` response
-func (r DeleteNodeProxyDiscoveryPathResponse) GetJSON403() *Forbidden {
-	return r.JSON403
-}
-
-// GetJSON404 returns the response for an HTTP 404 `application/json` response
-func (r DeleteNodeProxyDiscoveryPathResponse) GetJSON404() *NotFound {
-	return r.JSON404
-}
-
-// GetJSON409 returns the response for an HTTP 409 `application/json` response
-func (r DeleteNodeProxyDiscoveryPathResponse) GetJSON409() *Conflict {
-	return r.JSON409
-}
-
-// GetBody returns the raw response body bytes
-func (r DeleteNodeProxyDiscoveryPathResponse) GetBody() []byte {
-	return r.Body
-}
-
-// Status returns HTTPResponse.Status
-func (r DeleteNodeProxyDiscoveryPathResponse) Status() string {
-	if r.HTTPResponse != nil {
-		return r.HTTPResponse.Status
-	}
-	return http.StatusText(0)
-}
-
-// StatusCode returns HTTPResponse.StatusCode
-func (r DeleteNodeProxyDiscoveryPathResponse) StatusCode() int {
-	if r.HTTPResponse != nil {
-		return r.HTTPResponse.StatusCode
-	}
-	return 0
-}
-
-// ContentType is a convenience method to retrieve the Content-Type value from the HTTP response headers
-func (r DeleteNodeProxyDiscoveryPathResponse) ContentType() string {
 	if r.HTTPResponse != nil {
 		return r.HTTPResponse.Header.Get("Content-Type")
 	}
@@ -13129,13 +12982,26 @@ func (c *ClientWithResponses) UpdateAgentEnrollmentWithResponse(ctx context.Cont
 	return ParseUpdateAgentEnrollmentResponse(rsp)
 }
 
-// RotateAgentEnrollmentKeyWithResponse Generate or rotate the automatic Agent enrollment key
+// RotateAgentEnrollmentKeyWithBodyWithResponse Generate or rotate the automatic Agent enrollment key
 //
-// Returns a wrapper object for the known response body format(s).
+// Takes any type of body and a specified content type, and returns a wrapper object for the known response body format(s).
 //
 // Corresponds with POST /api/v1/agent-enrollment/key (the `RotateAgentEnrollmentKey` operationId).
-func (c *ClientWithResponses) RotateAgentEnrollmentKeyWithResponse(ctx context.Context, params *RotateAgentEnrollmentKeyParams, reqEditors ...RequestEditorFn) (*RotateAgentEnrollmentKeyResponse, error) {
-	rsp, err := c.RotateAgentEnrollmentKey(ctx, params, reqEditors...)
+func (c *ClientWithResponses) RotateAgentEnrollmentKeyWithBodyWithResponse(ctx context.Context, params *RotateAgentEnrollmentKeyParams, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*RotateAgentEnrollmentKeyResponse, error) {
+	rsp, err := c.RotateAgentEnrollmentKeyWithBody(ctx, params, contentType, body, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseRotateAgentEnrollmentKeyResponse(rsp)
+}
+
+// RotateAgentEnrollmentKeyWithResponse Generate or rotate the automatic Agent enrollment key
+//
+// Takes a body of the `application/json` content type, and returns a wrapper object for the known response body format(s).
+//
+// Corresponds with POST /api/v1/agent-enrollment/key (the `RotateAgentEnrollmentKey` operationId).
+func (c *ClientWithResponses) RotateAgentEnrollmentKeyWithResponse(ctx context.Context, params *RotateAgentEnrollmentKeyParams, body RotateAgentEnrollmentKeyJSONRequestBody, reqEditors ...RequestEditorFn) (*RotateAgentEnrollmentKeyResponse, error) {
+	rsp, err := c.RotateAgentEnrollmentKey(ctx, params, body, reqEditors...)
 	if err != nil {
 		return nil, err
 	}
@@ -13519,84 +13385,6 @@ func (c *ClientWithResponses) UpdateNetworkObservationSettingsWithResponse(ctx c
 	return ParseUpdateNetworkObservationSettingsResponse(rsp)
 }
 
-// ListNetworkProxiesWithResponse List centrally managed network proxies without revealing passwords
-//
-// Returns a wrapper object for the known response body format(s).
-//
-// Corresponds with GET /api/v1/network-proxies (the `ListNetworkProxies` operationId).
-func (c *ClientWithResponses) ListNetworkProxiesWithResponse(ctx context.Context, reqEditors ...RequestEditorFn) (*ListNetworkProxiesResponse, error) {
-	rsp, err := c.ListNetworkProxies(ctx, reqEditors...)
-	if err != nil {
-		return nil, err
-	}
-	return ParseListNetworkProxiesResponse(rsp)
-}
-
-// CreateNetworkProxyWithBodyWithResponse Create a centrally managed network proxy
-//
-// Takes any type of body and a specified content type, and returns a wrapper object for the known response body format(s).
-//
-// Corresponds with POST /api/v1/network-proxies (the `CreateNetworkProxy` operationId).
-func (c *ClientWithResponses) CreateNetworkProxyWithBodyWithResponse(ctx context.Context, params *CreateNetworkProxyParams, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*CreateNetworkProxyResponse, error) {
-	rsp, err := c.CreateNetworkProxyWithBody(ctx, params, contentType, body, reqEditors...)
-	if err != nil {
-		return nil, err
-	}
-	return ParseCreateNetworkProxyResponse(rsp)
-}
-
-// CreateNetworkProxyWithResponse Create a centrally managed network proxy
-//
-// Takes a body of the `application/json` content type, and returns a wrapper object for the known response body format(s).
-//
-// Corresponds with POST /api/v1/network-proxies (the `CreateNetworkProxy` operationId).
-func (c *ClientWithResponses) CreateNetworkProxyWithResponse(ctx context.Context, params *CreateNetworkProxyParams, body CreateNetworkProxyJSONRequestBody, reqEditors ...RequestEditorFn) (*CreateNetworkProxyResponse, error) {
-	rsp, err := c.CreateNetworkProxy(ctx, params, body, reqEditors...)
-	if err != nil {
-		return nil, err
-	}
-	return ParseCreateNetworkProxyResponse(rsp)
-}
-
-// DeleteNetworkProxyWithResponse Delete an unreferenced network proxy
-//
-// Returns a wrapper object for the known response body format(s).
-//
-// Corresponds with DELETE /api/v1/network-proxies/{proxyId} (the `DeleteNetworkProxy` operationId).
-func (c *ClientWithResponses) DeleteNetworkProxyWithResponse(ctx context.Context, proxyId ProxyId, params *DeleteNetworkProxyParams, reqEditors ...RequestEditorFn) (*DeleteNetworkProxyResponse, error) {
-	rsp, err := c.DeleteNetworkProxy(ctx, proxyId, params, reqEditors...)
-	if err != nil {
-		return nil, err
-	}
-	return ParseDeleteNetworkProxyResponse(rsp)
-}
-
-// UpdateNetworkProxyWithBodyWithResponse Replace network proxy settings and explicitly keep, replace, or clear its password
-//
-// Takes any type of body and a specified content type, and returns a wrapper object for the known response body format(s).
-//
-// Corresponds with PUT /api/v1/network-proxies/{proxyId} (the `UpdateNetworkProxy` operationId).
-func (c *ClientWithResponses) UpdateNetworkProxyWithBodyWithResponse(ctx context.Context, proxyId ProxyId, params *UpdateNetworkProxyParams, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*UpdateNetworkProxyResponse, error) {
-	rsp, err := c.UpdateNetworkProxyWithBody(ctx, proxyId, params, contentType, body, reqEditors...)
-	if err != nil {
-		return nil, err
-	}
-	return ParseUpdateNetworkProxyResponse(rsp)
-}
-
-// UpdateNetworkProxyWithResponse Replace network proxy settings and explicitly keep, replace, or clear its password
-//
-// Takes a body of the `application/json` content type, and returns a wrapper object for the known response body format(s).
-//
-// Corresponds with PUT /api/v1/network-proxies/{proxyId} (the `UpdateNetworkProxy` operationId).
-func (c *ClientWithResponses) UpdateNetworkProxyWithResponse(ctx context.Context, proxyId ProxyId, params *UpdateNetworkProxyParams, body UpdateNetworkProxyJSONRequestBody, reqEditors ...RequestEditorFn) (*UpdateNetworkProxyResponse, error) {
-	rsp, err := c.UpdateNetworkProxy(ctx, proxyId, params, body, reqEditors...)
-	if err != nil {
-		return nil, err
-	}
-	return ParseUpdateNetworkProxyResponse(rsp)
-}
-
 // ListNodesWithResponse List registered nodes
 //
 // Returns a wrapper object for the known response body format(s).
@@ -13649,7 +13437,7 @@ func (c *ClientWithResponses) UpdateNodeWithResponse(ctx context.Context, nodeId
 	return ParseUpdateNodeResponse(rsp)
 }
 
-// GetNodeNetworkWithResponse Read discovered public addresses and explicit proxy discovery paths
+// GetNodeNetworkWithResponse Read discovered public addresses and node-owned network proxies
 //
 // Returns a wrapper object for the known response body format(s).
 //
@@ -13660,6 +13448,84 @@ func (c *ClientWithResponses) GetNodeNetworkWithResponse(ctx context.Context, no
 		return nil, err
 	}
 	return ParseGetNodeNetworkResponse(rsp)
+}
+
+// ListNodeNetworkProxiesWithResponse List the network proxies owned by a node without revealing passwords
+//
+// Returns a wrapper object for the known response body format(s).
+//
+// Corresponds with GET /api/v1/nodes/{nodeId}/network-proxies (the `ListNodeNetworkProxies` operationId).
+func (c *ClientWithResponses) ListNodeNetworkProxiesWithResponse(ctx context.Context, nodeId NodeId, reqEditors ...RequestEditorFn) (*ListNodeNetworkProxiesResponse, error) {
+	rsp, err := c.ListNodeNetworkProxies(ctx, nodeId, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseListNodeNetworkProxiesResponse(rsp)
+}
+
+// CreateNodeNetworkProxyWithBodyWithResponse Create a node-owned proxy and start IPv4 and IPv6 discovery
+//
+// Takes any type of body and a specified content type, and returns a wrapper object for the known response body format(s).
+//
+// Corresponds with POST /api/v1/nodes/{nodeId}/network-proxies (the `CreateNodeNetworkProxy` operationId).
+func (c *ClientWithResponses) CreateNodeNetworkProxyWithBodyWithResponse(ctx context.Context, nodeId NodeId, params *CreateNodeNetworkProxyParams, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*CreateNodeNetworkProxyResponse, error) {
+	rsp, err := c.CreateNodeNetworkProxyWithBody(ctx, nodeId, params, contentType, body, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseCreateNodeNetworkProxyResponse(rsp)
+}
+
+// CreateNodeNetworkProxyWithResponse Create a node-owned proxy and start IPv4 and IPv6 discovery
+//
+// Takes a body of the `application/json` content type, and returns a wrapper object for the known response body format(s).
+//
+// Corresponds with POST /api/v1/nodes/{nodeId}/network-proxies (the `CreateNodeNetworkProxy` operationId).
+func (c *ClientWithResponses) CreateNodeNetworkProxyWithResponse(ctx context.Context, nodeId NodeId, params *CreateNodeNetworkProxyParams, body CreateNodeNetworkProxyJSONRequestBody, reqEditors ...RequestEditorFn) (*CreateNodeNetworkProxyResponse, error) {
+	rsp, err := c.CreateNodeNetworkProxy(ctx, nodeId, params, body, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseCreateNodeNetworkProxyResponse(rsp)
+}
+
+// DeleteNodeNetworkProxyWithResponse Queue durable removal of a node proxy and both internal discovery paths
+//
+// Returns a wrapper object for the known response body format(s).
+//
+// Corresponds with DELETE /api/v1/nodes/{nodeId}/network-proxies/{proxyId} (the `DeleteNodeNetworkProxy` operationId).
+func (c *ClientWithResponses) DeleteNodeNetworkProxyWithResponse(ctx context.Context, nodeId NodeId, proxyId ProxyId, params *DeleteNodeNetworkProxyParams, reqEditors ...RequestEditorFn) (*DeleteNodeNetworkProxyResponse, error) {
+	rsp, err := c.DeleteNodeNetworkProxy(ctx, nodeId, proxyId, params, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseDeleteNodeNetworkProxyResponse(rsp)
+}
+
+// UpdateNodeNetworkProxyWithBodyWithResponse Replace a node proxy and restart discovery for both address families
+//
+// Takes any type of body and a specified content type, and returns a wrapper object for the known response body format(s).
+//
+// Corresponds with PUT /api/v1/nodes/{nodeId}/network-proxies/{proxyId} (the `UpdateNodeNetworkProxy` operationId).
+func (c *ClientWithResponses) UpdateNodeNetworkProxyWithBodyWithResponse(ctx context.Context, nodeId NodeId, proxyId ProxyId, params *UpdateNodeNetworkProxyParams, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*UpdateNodeNetworkProxyResponse, error) {
+	rsp, err := c.UpdateNodeNetworkProxyWithBody(ctx, nodeId, proxyId, params, contentType, body, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseUpdateNodeNetworkProxyResponse(rsp)
+}
+
+// UpdateNodeNetworkProxyWithResponse Replace a node proxy and restart discovery for both address families
+//
+// Takes a body of the `application/json` content type, and returns a wrapper object for the known response body format(s).
+//
+// Corresponds with PUT /api/v1/nodes/{nodeId}/network-proxies/{proxyId} (the `UpdateNodeNetworkProxy` operationId).
+func (c *ClientWithResponses) UpdateNodeNetworkProxyWithResponse(ctx context.Context, nodeId NodeId, proxyId ProxyId, params *UpdateNodeNetworkProxyParams, body UpdateNodeNetworkProxyJSONRequestBody, reqEditors ...RequestEditorFn) (*UpdateNodeNetworkProxyResponse, error) {
+	rsp, err := c.UpdateNodeNetworkProxy(ctx, nodeId, proxyId, params, body, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseUpdateNodeNetworkProxyResponse(rsp)
 }
 
 // GetNodeProbeWithResponse Read complete-probe settings, current task, and recent runs
@@ -13701,56 +13567,30 @@ func (c *ClientWithResponses) UpdateNodeProbeSettingsWithResponse(ctx context.Co
 	return ParseUpdateNodeProbeSettingsResponse(rsp)
 }
 
-// CreateCompleteProbeTaskWithResponse Create the node's single immediate complete-probe task
+// CreateCompleteProbeTaskWithBodyWithResponse Save the selected public-IP targets and create the node's single immediate complete-probe task
 //
-// Returns a wrapper object for the known response body format(s).
+// Takes any type of body and a specified content type, and returns a wrapper object for the known response body format(s).
 //
 // Corresponds with POST /api/v1/nodes/{nodeId}/probe/tasks (the `CreateCompleteProbeTask` operationId).
-func (c *ClientWithResponses) CreateCompleteProbeTaskWithResponse(ctx context.Context, nodeId NodeId, params *CreateCompleteProbeTaskParams, reqEditors ...RequestEditorFn) (*CreateCompleteProbeTaskResponse, error) {
-	rsp, err := c.CreateCompleteProbeTask(ctx, nodeId, params, reqEditors...)
+func (c *ClientWithResponses) CreateCompleteProbeTaskWithBodyWithResponse(ctx context.Context, nodeId NodeId, params *CreateCompleteProbeTaskParams, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*CreateCompleteProbeTaskResponse, error) {
+	rsp, err := c.CreateCompleteProbeTaskWithBody(ctx, nodeId, params, contentType, body, reqEditors...)
 	if err != nil {
 		return nil, err
 	}
 	return ParseCreateCompleteProbeTaskResponse(rsp)
 }
 
-// CreateNodeProxyDiscoveryPathWithBodyWithResponse Add an explicit proxy path for public-address discovery
-//
-// Takes any type of body and a specified content type, and returns a wrapper object for the known response body format(s).
-//
-// Corresponds with POST /api/v1/nodes/{nodeId}/proxy-discovery-paths (the `CreateNodeProxyDiscoveryPath` operationId).
-func (c *ClientWithResponses) CreateNodeProxyDiscoveryPathWithBodyWithResponse(ctx context.Context, nodeId NodeId, params *CreateNodeProxyDiscoveryPathParams, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*CreateNodeProxyDiscoveryPathResponse, error) {
-	rsp, err := c.CreateNodeProxyDiscoveryPathWithBody(ctx, nodeId, params, contentType, body, reqEditors...)
-	if err != nil {
-		return nil, err
-	}
-	return ParseCreateNodeProxyDiscoveryPathResponse(rsp)
-}
-
-// CreateNodeProxyDiscoveryPathWithResponse Add an explicit proxy path for public-address discovery
+// CreateCompleteProbeTaskWithResponse Save the selected public-IP targets and create the node's single immediate complete-probe task
 //
 // Takes a body of the `application/json` content type, and returns a wrapper object for the known response body format(s).
 //
-// Corresponds with POST /api/v1/nodes/{nodeId}/proxy-discovery-paths (the `CreateNodeProxyDiscoveryPath` operationId).
-func (c *ClientWithResponses) CreateNodeProxyDiscoveryPathWithResponse(ctx context.Context, nodeId NodeId, params *CreateNodeProxyDiscoveryPathParams, body CreateNodeProxyDiscoveryPathJSONRequestBody, reqEditors ...RequestEditorFn) (*CreateNodeProxyDiscoveryPathResponse, error) {
-	rsp, err := c.CreateNodeProxyDiscoveryPath(ctx, nodeId, params, body, reqEditors...)
+// Corresponds with POST /api/v1/nodes/{nodeId}/probe/tasks (the `CreateCompleteProbeTask` operationId).
+func (c *ClientWithResponses) CreateCompleteProbeTaskWithResponse(ctx context.Context, nodeId NodeId, params *CreateCompleteProbeTaskParams, body CreateCompleteProbeTaskJSONRequestBody, reqEditors ...RequestEditorFn) (*CreateCompleteProbeTaskResponse, error) {
+	rsp, err := c.CreateCompleteProbeTask(ctx, nodeId, params, body, reqEditors...)
 	if err != nil {
 		return nil, err
 	}
-	return ParseCreateNodeProxyDiscoveryPathResponse(rsp)
-}
-
-// DeleteNodeProxyDiscoveryPathWithResponse Remove an explicit proxy discovery path
-//
-// Returns a wrapper object for the known response body format(s).
-//
-// Corresponds with DELETE /api/v1/nodes/{nodeId}/proxy-discovery-paths/{pathId} (the `DeleteNodeProxyDiscoveryPath` operationId).
-func (c *ClientWithResponses) DeleteNodeProxyDiscoveryPathWithResponse(ctx context.Context, nodeId NodeId, pathId openapi_types.UUID, params *DeleteNodeProxyDiscoveryPathParams, reqEditors ...RequestEditorFn) (*DeleteNodeProxyDiscoveryPathResponse, error) {
-	rsp, err := c.DeleteNodeProxyDiscoveryPath(ctx, nodeId, pathId, params, reqEditors...)
-	if err != nil {
-		return nil, err
-	}
-	return ParseDeleteNodeProxyDiscoveryPathResponse(rsp)
+	return ParseCreateCompleteProbeTaskResponse(rsp)
 }
 
 // UpdatePublicAddressWithBodyWithResponse Update complete-probe settings for a discovered public address
@@ -14571,6 +14411,13 @@ func ParseRotateAgentEnrollmentKeyResponse(rsp *http.Response) (*RotateAgentEnro
 			return nil, err
 		}
 		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 400:
+		var dest BadRequest
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON400 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 401:
 		var dest Unauthorized
@@ -15474,204 +15321,6 @@ func ParseUpdateNetworkObservationSettingsResponse(rsp *http.Response) (*UpdateN
 	return response, nil
 }
 
-// ParseListNetworkProxiesResponse parses an HTTP response from a ListNetworkProxiesWithResponse call
-func ParseListNetworkProxiesResponse(rsp *http.Response) (*ListNetworkProxiesResponse, error) {
-	bodyBytes, err := io.ReadAll(rsp.Body)
-	defer func() { _ = rsp.Body.Close() }()
-	if err != nil {
-		return nil, err
-	}
-
-	response := &ListNetworkProxiesResponse{
-		Body:         bodyBytes,
-		HTTPResponse: rsp,
-	}
-
-	switch {
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
-		var dest NetworkProxyList
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON200 = &dest
-
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 401:
-		var dest Unauthorized
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON401 = &dest
-
-	}
-
-	return response, nil
-}
-
-// ParseCreateNetworkProxyResponse parses an HTTP response from a CreateNetworkProxyWithResponse call
-func ParseCreateNetworkProxyResponse(rsp *http.Response) (*CreateNetworkProxyResponse, error) {
-	bodyBytes, err := io.ReadAll(rsp.Body)
-	defer func() { _ = rsp.Body.Close() }()
-	if err != nil {
-		return nil, err
-	}
-
-	response := &CreateNetworkProxyResponse{
-		Body:         bodyBytes,
-		HTTPResponse: rsp,
-	}
-
-	switch {
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 201:
-		var dest NetworkProxy
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON201 = &dest
-
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 400:
-		var dest BadRequest
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON400 = &dest
-
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 401:
-		var dest Unauthorized
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON401 = &dest
-
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 403:
-		var dest Forbidden
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON403 = &dest
-
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 409:
-		var dest Conflict
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON409 = &dest
-
-	}
-
-	return response, nil
-}
-
-// ParseDeleteNetworkProxyResponse parses an HTTP response from a DeleteNetworkProxyWithResponse call
-func ParseDeleteNetworkProxyResponse(rsp *http.Response) (*DeleteNetworkProxyResponse, error) {
-	bodyBytes, err := io.ReadAll(rsp.Body)
-	defer func() { _ = rsp.Body.Close() }()
-	if err != nil {
-		return nil, err
-	}
-
-	response := &DeleteNetworkProxyResponse{
-		Body:         bodyBytes,
-		HTTPResponse: rsp,
-	}
-
-	switch {
-	case rsp.StatusCode == 204:
-		break // No content-type
-
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 401:
-		var dest Unauthorized
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON401 = &dest
-
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 403:
-		var dest Forbidden
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON403 = &dest
-
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 404:
-		var dest NotFound
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON404 = &dest
-
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 409:
-		var dest Conflict
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON409 = &dest
-
-	}
-
-	return response, nil
-}
-
-// ParseUpdateNetworkProxyResponse parses an HTTP response from a UpdateNetworkProxyWithResponse call
-func ParseUpdateNetworkProxyResponse(rsp *http.Response) (*UpdateNetworkProxyResponse, error) {
-	bodyBytes, err := io.ReadAll(rsp.Body)
-	defer func() { _ = rsp.Body.Close() }()
-	if err != nil {
-		return nil, err
-	}
-
-	response := &UpdateNetworkProxyResponse{
-		Body:         bodyBytes,
-		HTTPResponse: rsp,
-	}
-
-	switch {
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
-		var dest NetworkProxy
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON200 = &dest
-
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 400:
-		var dest BadRequest
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON400 = &dest
-
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 401:
-		var dest Unauthorized
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON401 = &dest
-
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 403:
-		var dest Forbidden
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON403 = &dest
-
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 404:
-		var dest NotFound
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON404 = &dest
-
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 409:
-		var dest Conflict
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON409 = &dest
-
-	}
-
-	return response, nil
-}
-
 // ParseListNodesResponse parses an HTTP response from a ListNodesWithResponse call
 func ParseListNodesResponse(rsp *http.Response) (*ListNodesResponse, error) {
 	bodyBytes, err := io.ReadAll(rsp.Body)
@@ -15853,6 +15502,222 @@ func ParseGetNodeNetworkResponse(rsp *http.Response) (*GetNodeNetworkResponse, e
 	return response, nil
 }
 
+// ParseListNodeNetworkProxiesResponse parses an HTTP response from a ListNodeNetworkProxiesWithResponse call
+func ParseListNodeNetworkProxiesResponse(rsp *http.Response) (*ListNodeNetworkProxiesResponse, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &ListNodeNetworkProxiesResponse{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest NetworkProxyList
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 401:
+		var dest Unauthorized
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON401 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 404:
+		var dest NotFound
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON404 = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseCreateNodeNetworkProxyResponse parses an HTTP response from a CreateNodeNetworkProxyWithResponse call
+func ParseCreateNodeNetworkProxyResponse(rsp *http.Response) (*CreateNodeNetworkProxyResponse, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &CreateNodeNetworkProxyResponse{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 201:
+		var dest NetworkProxy
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON201 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 400:
+		var dest BadRequest
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON400 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 401:
+		var dest Unauthorized
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON401 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 403:
+		var dest Forbidden
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON403 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 404:
+		var dest NotFound
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON404 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 409:
+		var dest Conflict
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON409 = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseDeleteNodeNetworkProxyResponse parses an HTTP response from a DeleteNodeNetworkProxyWithResponse call
+func ParseDeleteNodeNetworkProxyResponse(rsp *http.Response) (*DeleteNodeNetworkProxyResponse, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &DeleteNodeNetworkProxyResponse{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 202:
+		var dest NetworkProxy
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON202 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 401:
+		var dest Unauthorized
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON401 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 403:
+		var dest Forbidden
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON403 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 404:
+		var dest NotFound
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON404 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 409:
+		var dest Conflict
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON409 = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseUpdateNodeNetworkProxyResponse parses an HTTP response from a UpdateNodeNetworkProxyWithResponse call
+func ParseUpdateNodeNetworkProxyResponse(rsp *http.Response) (*UpdateNodeNetworkProxyResponse, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &UpdateNodeNetworkProxyResponse{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest NetworkProxy
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 400:
+		var dest BadRequest
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON400 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 401:
+		var dest Unauthorized
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON401 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 403:
+		var dest Forbidden
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON403 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 404:
+		var dest NotFound
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON404 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 409:
+		var dest Conflict
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON409 = &dest
+
+	}
+
+	return response, nil
+}
+
 // ParseGetNodeProbeResponse parses an HTTP response from a GetNodeProbeWithResponse call
 func ParseGetNodeProbeResponse(rsp *http.Response) (*GetNodeProbeResponse, error) {
 	bodyBytes, err := io.ReadAll(rsp.Body)
@@ -15975,120 +15840,12 @@ func ParseCreateCompleteProbeTaskResponse(rsp *http.Response) (*CreateCompletePr
 		}
 		response.JSON202 = &dest
 
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 401:
-		var dest Unauthorized
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON401 = &dest
-
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 403:
-		var dest Forbidden
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON403 = &dest
-
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 404:
-		var dest NotFound
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON404 = &dest
-
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 409:
-		var dest Conflict
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON409 = &dest
-
-	}
-
-	return response, nil
-}
-
-// ParseCreateNodeProxyDiscoveryPathResponse parses an HTTP response from a CreateNodeProxyDiscoveryPathWithResponse call
-func ParseCreateNodeProxyDiscoveryPathResponse(rsp *http.Response) (*CreateNodeProxyDiscoveryPathResponse, error) {
-	bodyBytes, err := io.ReadAll(rsp.Body)
-	defer func() { _ = rsp.Body.Close() }()
-	if err != nil {
-		return nil, err
-	}
-
-	response := &CreateNodeProxyDiscoveryPathResponse{
-		Body:         bodyBytes,
-		HTTPResponse: rsp,
-	}
-
-	switch {
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 201:
-		var dest ProxyDiscoveryPath
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON201 = &dest
-
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 400:
 		var dest BadRequest
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
 		response.JSON400 = &dest
-
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 401:
-		var dest Unauthorized
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON401 = &dest
-
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 403:
-		var dest Forbidden
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON403 = &dest
-
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 404:
-		var dest NotFound
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON404 = &dest
-
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 409:
-		var dest Conflict
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON409 = &dest
-
-	}
-
-	return response, nil
-}
-
-// ParseDeleteNodeProxyDiscoveryPathResponse parses an HTTP response from a DeleteNodeProxyDiscoveryPathWithResponse call
-func ParseDeleteNodeProxyDiscoveryPathResponse(rsp *http.Response) (*DeleteNodeProxyDiscoveryPathResponse, error) {
-	bodyBytes, err := io.ReadAll(rsp.Body)
-	defer func() { _ = rsp.Body.Close() }()
-	if err != nil {
-		return nil, err
-	}
-
-	response := &DeleteNodeProxyDiscoveryPathResponse{
-		Body:         bodyBytes,
-		HTTPResponse: rsp,
-	}
-
-	switch {
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 202:
-		var dest ProxyDiscoveryPathDeletion
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON202 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 401:
 		var dest Unauthorized

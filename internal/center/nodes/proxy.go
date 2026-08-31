@@ -12,28 +12,42 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/ipchronicle/ipchronicle/internal/center/database/configdb"
+	"github.com/ipchronicle/ipchronicle/internal/center/database/historydb"
 )
 
 const maxNetworkProxies = 64
 
 var (
-	ErrInvalidNetworkProxy       = errors.New("network proxy is invalid")
-	ErrNetworkProxyNotFound      = errors.New("network proxy does not exist")
-	ErrNetworkProxyAlreadyExists = errors.New("network proxy name already exists")
-	ErrNetworkProxyLimitReached  = errors.New("network proxy limit reached")
-	ErrNetworkProxyInUse         = errors.New("network proxy is referenced by a network egress")
+	ErrInvalidNetworkProxy         = errors.New("network proxy is invalid")
+	ErrNetworkProxyNotFound        = errors.New("network proxy does not exist")
+	ErrNetworkProxyAlreadyExists   = errors.New("network proxy name already exists")
+	ErrNetworkProxyLimitReached    = errors.New("network proxy limit reached")
+	ErrNetworkProxyDeletionPending = errors.New("network proxy deletion is pending")
 )
 
 type NetworkProxy struct {
 	ID                 uuid.UUID
+	NodeID             uuid.UUID
 	Name               string
 	Scheme             string
 	Host               string
 	Port               int64
 	Username           *string
 	PasswordConfigured bool
+	Status             string
+	IPv4               NetworkProxyFamilyResult
+	IPv6               NetworkProxyFamilyResult
+	DeletionStatus     *string
+	DeletionError      *string
 	CreatedAt          time.Time
 	UpdatedAt          time.Time
+}
+
+type NetworkProxyFamilyResult struct {
+	Status        string
+	PublicAddress *string
+	FailureReason *string
+	LastCheckedAt *time.Time
 }
 
 type NetworkProxyCreate struct {
@@ -64,23 +78,20 @@ type AgentProxyConfiguration struct {
 	Password *string
 }
 
-func (s *Service) ListNetworkProxies(ctx context.Context) ([]NetworkProxy, error) {
-	records, err := s.queries.ListNetworkProxies(ctx)
+func (s *Service) ListNetworkProxies(ctx context.Context, nodeID uuid.UUID) ([]NetworkProxy, error) {
+	if _, err := s.queries.GetNodeByID(ctx, nodeID.String()); errors.Is(err, sql.ErrNoRows) {
+		return nil, ErrNodeNotFound
+	} else if err != nil {
+		return nil, err
+	}
+	records, err := s.queries.ListNodeNetworkProxies(ctx, nodeID.String())
 	if err != nil {
 		return nil, err
 	}
-	result := make([]NetworkProxy, 0, len(records))
-	for _, record := range records {
-		proxy, err := networkProxyFromRecord(record)
-		if err != nil {
-			return nil, err
-		}
-		result = append(result, proxy)
-	}
-	return result, nil
+	return s.networkProxiesFromRecords(ctx, nodeID, records)
 }
 
-func (s *Service) CreateNetworkProxy(ctx context.Context, input NetworkProxyCreate) (NetworkProxy, error) {
+func (s *Service) CreateNetworkProxy(ctx context.Context, nodeID uuid.UUID, input NetworkProxyCreate) (NetworkProxy, error) {
 	normalized, err := normalizeNetworkProxy(input.Name, input.Scheme, input.Host, input.Port, input.Username)
 	if err != nil || !validProxyPassword(input.Password) {
 		return NetworkProxy{}, ErrInvalidNetworkProxy
@@ -91,17 +102,29 @@ func (s *Service) CreateNetworkProxy(ctx context.Context, input NetworkProxyCrea
 	}
 	defer transaction.Rollback()
 	queries := s.queries.WithTx(transaction)
-	if _, err := queries.GetNetworkProxyByName(ctx, normalized.Name); err == nil {
+	if err := requireMutableNode(ctx, queries, nodeID); err != nil {
+		return NetworkProxy{}, err
+	}
+	if _, err := queries.GetNodeNetworkProxyByName(ctx, configdb.GetNodeNetworkProxyByNameParams{
+		NodeID: nodeID.String(), Name: normalized.Name,
+	}); err == nil {
 		return NetworkProxy{}, ErrNetworkProxyAlreadyExists
 	} else if !errors.Is(err, sql.ErrNoRows) {
 		return NetworkProxy{}, err
 	}
-	count, err := queries.CountNetworkProxies(ctx)
+	count, err := queries.CountNodeNetworkProxies(ctx, nodeID.String())
 	if err != nil {
 		return NetworkProxy{}, err
 	}
 	if count >= maxNetworkProxies {
 		return NetworkProxy{}, ErrNetworkProxyLimitReached
+	}
+	egresses, err := queries.ListNodeEgresses(ctx, nodeID.String())
+	if err != nil {
+		return NetworkProxy{}, err
+	}
+	if len(egresses)+2 > maxNodeEgresses {
+		return NetworkProxy{}, ErrEgressLimitReached
 	}
 	id := uuid.New()
 	var encrypted []byte
@@ -113,23 +136,42 @@ func (s *Service) CreateNetworkProxy(ctx context.Context, input NetworkProxyCrea
 	}
 	now := s.now().UTC().Truncate(time.Second).Unix()
 	if err := queries.CreateNetworkProxy(ctx, configdb.CreateNetworkProxyParams{
-		ID: id.String(), Name: normalized.Name, Scheme: normalized.Scheme,
+		ID: id.String(), NodeID: nodeID.String(), Name: normalized.Name, Scheme: normalized.Scheme,
 		Host: normalized.Host, Port: normalized.Port, Username: normalized.Username,
 		PasswordEncrypted: encrypted, CreatedAt: now, UpdatedAt: now,
 	}); err != nil {
 		return NetworkProxy{}, err
 	}
-	record, err := queries.GetNetworkProxy(ctx, id.String())
+	proxyID := id.String()
+	for _, family := range []string{"ipv4", "ipv6"} {
+		pathID := uuid.NewString()
+		if err := queries.CreateNodeEgress(ctx, configdb.CreateNodeEgressParams{
+			ID: pathID, NodeID: nodeID.String(), Name: "proxy:" + family + ":" + id.String(),
+			Kind: "proxy", Family: family, ProxyID: &proxyID,
+			Enabled: 1, Available: 1, Automatic: 0,
+			LightweightIntervalSeconds: int64(defaultLightweightInterval / time.Second),
+			CreatedAt:                  now, UpdatedAt: now,
+		}); err != nil {
+			return NetworkProxy{}, err
+		}
+	}
+	if err := incrementNodeConfiguration(ctx, queries, nodeID.String()); err != nil {
+		return NetworkProxy{}, err
+	}
+	record, err := queries.GetNodeNetworkProxy(ctx, configdb.GetNodeNetworkProxyParams{
+		NodeID: nodeID.String(), ID: id.String(),
+	})
 	if err != nil {
 		return NetworkProxy{}, err
 	}
 	if err := transaction.Commit(); err != nil {
 		return NetworkProxy{}, err
 	}
+	s.sync.Wake(nodeID.String())
 	return networkProxyFromRecord(record)
 }
 
-func (s *Service) UpdateNetworkProxy(ctx context.Context, id uuid.UUID, input NetworkProxyUpdate) (NetworkProxy, error) {
+func (s *Service) UpdateNetworkProxy(ctx context.Context, nodeID, id uuid.UUID, input NetworkProxyUpdate) (NetworkProxy, error) {
 	normalized, err := normalizeNetworkProxy(input.Name, input.Scheme, input.Host, input.Port, input.Username)
 	if err != nil || (input.PasswordAction != "keep" && input.PasswordAction != "replace" && input.PasswordAction != "clear") ||
 		(input.PasswordAction == "replace") != (input.Password != nil) || !validProxyPassword(input.Password) {
@@ -141,14 +183,24 @@ func (s *Service) UpdateNetworkProxy(ctx context.Context, id uuid.UUID, input Ne
 	}
 	defer transaction.Rollback()
 	queries := s.queries.WithTx(transaction)
-	record, err := queries.GetNetworkProxy(ctx, id.String())
+	if err := requireMutableNode(ctx, queries, nodeID); err != nil {
+		return NetworkProxy{}, err
+	}
+	record, err := queries.GetNodeNetworkProxy(ctx, configdb.GetNodeNetworkProxyParams{
+		NodeID: nodeID.String(), ID: id.String(),
+	})
 	if errors.Is(err, sql.ErrNoRows) {
 		return NetworkProxy{}, ErrNetworkProxyNotFound
 	}
 	if err != nil {
 		return NetworkProxy{}, err
 	}
-	if sameName, lookupErr := queries.GetNetworkProxyByName(ctx, normalized.Name); lookupErr == nil && sameName.ID != id.String() {
+	if record.DeletionRequestedAt != nil {
+		return NetworkProxy{}, ErrNetworkProxyDeletionPending
+	}
+	if sameName, lookupErr := queries.GetNodeNetworkProxyByName(ctx, configdb.GetNodeNetworkProxyByNameParams{
+		NodeID: nodeID.String(), Name: normalized.Name,
+	}); lookupErr == nil && sameName.ID != id.String() {
 		return NetworkProxy{}, ErrNetworkProxyAlreadyExists
 	} else if lookupErr != nil && !errors.Is(lookupErr, sql.ErrNoRows) {
 		return NetworkProxy{}, lookupErr
@@ -167,13 +219,12 @@ func (s *Service) UpdateNetworkProxy(ctx context.Context, id uuid.UUID, input Ne
 	changed := record.Name != normalized.Name || record.Scheme != normalized.Scheme ||
 		record.Host != normalized.Host || record.Port != normalized.Port ||
 		!equalOptionalString(record.Username, normalized.Username) || passwordChanged
-	var affectedNodeIDs []string
 	if changed {
 		now := s.now().UTC().Truncate(time.Second).Unix()
 		updatedRows, err := queries.UpdateNetworkProxy(ctx, configdb.UpdateNetworkProxyParams{
 			Name: normalized.Name, Scheme: normalized.Scheme, Host: normalized.Host,
 			Port: normalized.Port, Username: normalized.Username, PasswordEncrypted: encrypted,
-			UpdatedAt: now, ID: id.String(),
+			UpdatedAt: now, NodeID: nodeID.String(), ID: id.String(),
 		})
 		if err != nil {
 			return NetworkProxy{}, err
@@ -181,56 +232,193 @@ func (s *Service) UpdateNetworkProxy(ctx context.Context, id uuid.UUID, input Ne
 		if updatedRows != 1 {
 			return NetworkProxy{}, ErrNetworkProxyNotFound
 		}
-		affectedNodeIDs, err = queries.ListNodeIDsReferencingNetworkProxy(ctx, &record.ID)
-		if err != nil {
+		if err := incrementNodeConfiguration(ctx, queries, nodeID.String()); err != nil {
 			return NetworkProxy{}, err
 		}
-		for _, nodeID := range affectedNodeIDs {
-			if err := incrementNodeConfiguration(ctx, queries, nodeID); err != nil {
-				return NetworkProxy{}, err
-			}
-		}
 	}
-	updated, err := queries.GetNetworkProxy(ctx, id.String())
+	updated, err := queries.GetNodeNetworkProxy(ctx, configdb.GetNodeNetworkProxyParams{
+		NodeID: nodeID.String(), ID: id.String(),
+	})
 	if err != nil {
 		return NetworkProxy{}, err
 	}
 	if err := transaction.Commit(); err != nil {
 		return NetworkProxy{}, err
 	}
-	for _, nodeID := range affectedNodeIDs {
-		s.sync.Wake(nodeID)
+	if changed {
+		s.sync.Wake(nodeID.String())
 	}
-	return networkProxyFromRecord(updated)
+	if changed {
+		return networkProxyFromRecord(updated)
+	}
+	proxies, err := s.networkProxiesFromRecords(ctx, nodeID, []configdb.NetworkProxy{updated})
+	if err != nil {
+		return NetworkProxy{}, err
+	}
+	return proxies[0], nil
 }
 
-func (s *Service) DeleteNetworkProxy(ctx context.Context, id uuid.UUID) error {
+func (s *Service) DeleteNetworkProxy(ctx context.Context, nodeID, id uuid.UUID) (NetworkProxy, error) {
+	now := s.now().UTC().Truncate(time.Second).Unix()
 	transaction, err := s.database.BeginTx(ctx, nil)
 	if err != nil {
-		return err
+		return NetworkProxy{}, err
 	}
 	defer transaction.Rollback()
 	queries := s.queries.WithTx(transaction)
-	if _, err := queries.GetNetworkProxy(ctx, id.String()); errors.Is(err, sql.ErrNoRows) {
-		return ErrNetworkProxyNotFound
+	if err := requireMutableNode(ctx, queries, nodeID); err != nil {
+		return NetworkProxy{}, err
+	}
+	record, err := queries.GetNodeNetworkProxy(ctx, configdb.GetNodeNetworkProxyParams{
+		NodeID: nodeID.String(), ID: id.String(),
+	})
+	if errors.Is(err, sql.ErrNoRows) {
+		return NetworkProxy{}, ErrNetworkProxyNotFound
 	} else if err != nil {
-		return err
+		return NetworkProxy{}, err
 	}
-	count, err := queries.CountNetworkProxyReferences(ctx, stringPointer(id.String()))
+	proxyID := id.String()
+	paths, err := queries.ListNodeEgressesByProxy(ctx, configdb.ListNodeEgressesByProxyParams{
+		NodeID: nodeID.String(), ProxyID: &proxyID,
+	})
 	if err != nil {
-		return err
+		return NetworkProxy{}, err
 	}
-	if count != 0 {
-		return ErrNetworkProxyInUse
+	newOperation := record.DeletionRequestedAt == nil
+	if _, err := queries.MarkNetworkProxyDeletion(ctx, configdb.MarkNetworkProxyDeletionParams{
+		DeletionRequestedAt: &now, NodeID: nodeID.String(), ID: id.String(),
+	}); err != nil {
+		return NetworkProxy{}, err
 	}
-	changed, err := queries.DeleteNetworkProxy(ctx, id.String())
+	for _, path := range paths {
+		if err := queries.CreateEgressDeletion(ctx, configdb.CreateEgressDeletionParams{
+			EgressID: path.ID, NodeID: nodeID.String(), RequestedAt: now, UpdatedAt: now,
+		}); err != nil {
+			return NetworkProxy{}, err
+		}
+	}
+	if newOperation {
+		if err := incrementNodeConfiguration(ctx, queries, nodeID.String()); err != nil {
+			return NetworkProxy{}, err
+		}
+	}
+	if len(paths) == 0 {
+		if _, err := queries.DeleteMarkedNetworkProxyIfUnreferenced(ctx, configdb.DeleteMarkedNetworkProxyIfUnreferencedParams{
+			NodeID: nodeID.String(), ID: id.String(),
+		}); err != nil {
+			return NetworkProxy{}, err
+		}
+	}
+	if err := transaction.Commit(); err != nil {
+		return NetworkProxy{}, err
+	}
+	if newOperation {
+		s.sync.Wake(nodeID.String())
+	}
+	select {
+	case s.deletionWake <- struct{}{}:
+	default:
+	}
+	proxy, err := networkProxyFromRecord(record)
 	if err != nil {
-		return err
+		return NetworkProxy{}, err
 	}
-	if changed != 1 {
-		return ErrNetworkProxyNotFound
+	status := "pending"
+	proxy.DeletionStatus = &status
+	return proxy, nil
+}
+
+func (s *Service) networkProxiesFromRecords(ctx context.Context, nodeID uuid.UUID, records []configdb.NetworkProxy) ([]NetworkProxy, error) {
+	egresses, err := s.queries.ListNodeEgresses(ctx, nodeID.String())
+	if err != nil {
+		return nil, err
 	}
-	return transaction.Commit()
+	states, err := s.historyQueries.ListNodeAddressStates(ctx, nodeID.String())
+	if err != nil {
+		return nil, err
+	}
+	deletions, err := s.queries.ListActiveNodeEgressDeletions(ctx, nodeID.String())
+	if err != nil {
+		return nil, err
+	}
+	stateByEgress := make(map[string]historydb.AddressState, len(states))
+	for _, state := range states {
+		stateByEgress[state.EgressID] = state
+	}
+	deletionByEgress := make(map[string]configdb.EgressDeletionOperation, len(deletions))
+	for _, deletion := range deletions {
+		deletionByEgress[deletion.EgressID] = deletion
+	}
+	pathsByProxy := make(map[string]map[string]configdb.NetworkEgress)
+	for _, egress := range egresses {
+		if egress.Kind == "proxy" && egress.ProxyID != nil {
+			if pathsByProxy[*egress.ProxyID] == nil {
+				pathsByProxy[*egress.ProxyID] = make(map[string]configdb.NetworkEgress)
+			}
+			pathsByProxy[*egress.ProxyID][egress.Family] = egress
+		}
+	}
+	result := make([]NetworkProxy, 0, len(records))
+	for _, record := range records {
+		proxy, err := networkProxyFromRecord(record)
+		if err != nil {
+			return nil, err
+		}
+		paths := pathsByProxy[record.ID]
+		proxy.IPv4 = networkProxyFamilyResult(paths["ipv4"], stateByEgress, record.UpdatedAt)
+		proxy.IPv6 = networkProxyFamilyResult(paths["ipv6"], stateByEgress, record.UpdatedAt)
+		proxy.Status = networkProxyStatus(proxy.IPv4.Status, proxy.IPv6.Status)
+		if record.DeletionRequestedAt != nil {
+			status := "pending"
+			for _, path := range paths {
+				if deletion, ok := deletionByEgress[path.ID]; ok && deletion.Status == "failed" {
+					status = "failed"
+					proxy.DeletionError = deletion.LastError
+					break
+				}
+			}
+			proxy.DeletionStatus = &status
+		}
+		result = append(result, proxy)
+	}
+	return result, nil
+}
+
+func networkProxyFamilyResult(path configdb.NetworkEgress, states map[string]historydb.AddressState, proxyUpdatedAt int64) NetworkProxyFamilyResult {
+	result := NetworkProxyFamilyResult{Status: "checking"}
+	if path.ID == "" {
+		return result
+	}
+	state, exists := states[path.ID]
+	if !exists || state.ReceivedAt <= proxyUpdatedAt {
+		return result
+	}
+	checkedAt := time.Unix(state.LastCheckedAt, 0).UTC()
+	result.LastCheckedAt = &checkedAt
+	if state.Status == "confirmed" && state.PublicAddress != nil {
+		result.Status = "available"
+		result.PublicAddress = state.PublicAddress
+		return result
+	}
+	result.Status = "unavailable"
+	result.FailureReason = state.FailureReason
+	return result
+}
+
+func networkProxyStatus(ipv4, ipv6 string) string {
+	if ipv4 == "checking" || ipv6 == "checking" {
+		return "checking"
+	}
+	if ipv4 == "available" && ipv6 == "available" {
+		return "dual-stack"
+	}
+	if ipv4 == "available" {
+		return "ipv4-only"
+	}
+	if ipv6 == "available" {
+		return "ipv6-only"
+	}
+	return "unavailable"
 }
 
 func agentProxyFromRecord(masterKey [32]byte, record configdb.NetworkProxy) (AgentProxyConfiguration, error) {
@@ -256,9 +444,15 @@ func networkProxyFromRecord(record configdb.NetworkProxy) (NetworkProxy, error) 
 	if err != nil {
 		return NetworkProxy{}, fmt.Errorf("parse stored network proxy ID %q: %w", record.ID, err)
 	}
+	nodeID, err := uuid.Parse(record.NodeID)
+	if err != nil {
+		return NetworkProxy{}, fmt.Errorf("parse stored network proxy node ID %q: %w", record.NodeID, err)
+	}
 	return NetworkProxy{
-		ID: id, Name: record.Name, Scheme: record.Scheme, Host: record.Host, Port: record.Port,
+		ID: id, NodeID: nodeID, Name: record.Name, Scheme: record.Scheme, Host: record.Host, Port: record.Port,
 		Username: record.Username, PasswordConfigured: len(record.PasswordEncrypted) != 0,
+		Status: "checking",
+		IPv4:   NetworkProxyFamilyResult{Status: "checking"}, IPv6: NetworkProxyFamilyResult{Status: "checking"},
 		CreatedAt: time.Unix(record.CreatedAt, 0).UTC(), UpdatedAt: time.Unix(record.UpdatedAt, 0).UTC(),
 	}, nil
 }

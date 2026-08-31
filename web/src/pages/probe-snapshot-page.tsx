@@ -173,7 +173,7 @@ export function ProbeSnapshotPage() {
               {t("snapshot.back")}
             </Link>
           </Button>
-          <p className="text-xs font-medium text-muted-foreground uppercase">
+          <p className="text-sm font-medium text-muted-foreground uppercase">
             {t("snapshot.section")}
           </p>
           <h1 className="mt-2 text-2xl font-semibold sm:text-3xl">
@@ -445,7 +445,7 @@ function SnapshotResult({
                 {t("snapshot.title")}
               </div>
             </div>
-            <div className="max-w-xl break-all text-right font-mono text-xs text-muted-foreground">
+            <div className="max-w-xl break-all text-right font-mono text-sm text-muted-foreground">
               {snapshot.id}
             </div>
           </div>
@@ -885,7 +885,7 @@ function RiskScoresCard({
               </div>
             );
           })}
-          <p className="text-xs text-muted-foreground">
+          <p className="text-sm text-muted-foreground">
             {t("snapshot.report.scores.disclaimer")}
           </p>
         </div>
@@ -938,7 +938,7 @@ function RiskFactorsCard({
                 {t("snapshot.report.factors.item")}
               </TableHead>
               {factorProviders.map((provider) => (
-                <TableHead key={provider} className="text-center text-xs">
+                <TableHead key={provider} className="text-center text-sm">
                   {provider}
                 </TableHead>
               ))}
@@ -1066,7 +1066,7 @@ function MediaServicesCard({
               {services.map((service) => (
                 <TableHead
                   key={service.service}
-                  className="text-center text-xs"
+                  className="text-center text-sm"
                 >
                   {service.service}
                 </TableHead>
@@ -1338,10 +1338,10 @@ function ReportFact({
 }) {
   return (
     <div data-report-path={path} className="min-w-0">
-      <div className="text-xs text-muted-foreground">{label}</div>
+      <div className="text-sm text-muted-foreground">{label}</div>
       <div
         className={cn(
-          "mt-1 break-words text-sm font-medium",
+          "mt-1 break-words text-base font-medium",
           reportToneTextClass(tone),
         )}
       >
@@ -1504,7 +1504,7 @@ function RawJSONCard({
       </CardHeader>
       <CardContent>
         <pre
-          className={`max-h-[70svh] rounded-md bg-muted p-4 font-mono text-xs leading-5 ${wrap ? "overflow-y-auto whitespace-pre-wrap break-words" : "overflow-auto whitespace-pre"}`}
+          className={`max-h-[70svh] rounded-md bg-muted p-4 font-mono text-sm leading-5 ${wrap ? "overflow-y-auto whitespace-pre-wrap break-words" : "overflow-auto whitespace-pre"}`}
         >
           {display}
         </pre>
@@ -1532,11 +1532,11 @@ function FormatIssueView({
         {presentation ? (
           <div className="font-medium">{presentation.name}</div>
         ) : null}
-        <code className="mt-1 block break-all text-xs text-muted-foreground">
+        <code className="mt-1 block break-all text-sm text-muted-foreground">
           {issue.path}
         </code>
         {issue.expectedTypes.length > 0 ? (
-          <div className="mt-1 text-xs text-muted-foreground">
+          <div className="mt-1 text-sm text-muted-foreground">
             {t("snapshot.format.expected", {
               expected: issue.expectedTypes.join(", "),
             })}

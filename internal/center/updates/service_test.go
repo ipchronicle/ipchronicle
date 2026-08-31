@@ -98,7 +98,7 @@ func TestCreateTasksEnforcesNodeAndSharedSlotBoundaries(t *testing.T) {
 	store := openTestStore(t)
 	connections := &testConnections{}
 	nodeService := nodes.NewService(store.Config, store.History, store.ConfigQueries, store.MasterKey, connections)
-	enrollment, err := nodeService.RotateEnrollmentKey(ctx)
+	enrollment, err := nodeService.RotateEnrollmentKey(ctx, "UTC")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -165,7 +165,7 @@ func TestCreateTasksEnforcesNodeAndSharedSlotBoundaries(t *testing.T) {
 
 func registerTestNode(t *testing.T, service *nodes.Service, key, hostname, version string, updateCapable, online bool) uuid.UUID {
 	t.Helper()
-	capabilities := []string{"control-v1", "configuration-v6"}
+	capabilities := []string{"control-v1", "configuration-v7"}
 	if updateCapable {
 		capabilities = append(capabilities, AgentUpdateCapability)
 	}

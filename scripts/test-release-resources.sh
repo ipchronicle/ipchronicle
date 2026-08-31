@@ -151,7 +151,9 @@ curl --fail --silent --show-error --cookie-jar "$cookie_file" \
 csrf_token=$(jq -er '.csrfToken' "$response_file")
 curl --fail --silent --show-error --cookie "$cookie_file" \
   --header "Origin: $base_url" --header "X-CSRF-Token: $csrf_token" \
-  --request POST "$base_url/api/v1/agent-enrollment/key" >"$response_file"
+  --header 'Content-Type: application/json' \
+  --data '{"defaultProbeTimezone":"UTC"}' \
+  "$base_url/api/v1/agent-enrollment/key" >"$response_file"
 registration_key=$(jq -er '.registrationKey' "$response_file")
 if [[ -z $registration_key ]]; then
   echo "enrollment response did not contain a registration key" >&2
@@ -207,7 +209,7 @@ fi
 curl --fail --silent --show-error --cookie "$cookie_file" \
   --header "Origin: $base_url" --header "X-CSRF-Token: $csrf_token" \
   --header 'Content-Type: application/json' --request PATCH \
-  --data '{"probeEnabled":true,"probeOnRediscovery":true}' \
+  --data '{"probeEnabled":true}' \
   "$base_url/api/v1/nodes/$node_id/public-addresses/$public_address_id" >"$response_file"
 curl --fail --silent --show-error --cookie "$cookie_file" \
   --header "Origin: $base_url" --header "X-CSRF-Token: $csrf_token" \
@@ -238,7 +240,9 @@ fi
 
 curl --fail --silent --show-error --cookie "$cookie_file" \
   --header "Origin: $base_url" --header "X-CSRF-Token: $csrf_token" \
-  --request POST "$base_url/api/v1/nodes/$node_id/probe/tasks" >"$response_file"
+  --header 'Content-Type: application/json' --request POST \
+  --data "{\"publicAddressIds\":[\"$public_address_id\"]}" \
+  "$base_url/api/v1/nodes/$node_id/probe/tasks" >"$response_file"
 task_id=$(jq -er '.id' "$response_file")
 
 probe_succeeded=false

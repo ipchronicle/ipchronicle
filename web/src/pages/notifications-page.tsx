@@ -297,7 +297,7 @@ export function NotificationsPage() {
     <main className="w-full min-w-0 px-4 py-10 sm:px-6 sm:py-14">
       <div className="flex flex-wrap items-end justify-between gap-4">
         <div className="max-w-2xl">
-          <p className="text-xs font-medium text-muted-foreground uppercase">
+          <p className="text-sm font-medium text-muted-foreground uppercase">
             {t("notifications.section")}
           </p>
           <h1 className="mt-2 text-2xl font-semibold sm:text-3xl">
@@ -681,7 +681,7 @@ function SenderForm({
                   autoComplete="off"
                 />
                 {sender ? (
-                  <p className="text-xs text-muted-foreground">
+                  <p className="text-sm text-muted-foreground">
                     {t("notifications.senders.keepToken")}
                   </p>
                 ) : null}
@@ -705,10 +705,13 @@ function SenderForm({
               {sender ? (
                 <div className="flex items-center justify-between gap-4 rounded-md border p-3">
                   <div>
-                    <Label htmlFor="replace-headers">
+                    <p
+                      id="replace-headers-label"
+                      className="text-sm leading-none font-medium"
+                    >
                       {t("notifications.senders.replaceHeaders")}
-                    </Label>
-                    <p className="mt-1 text-xs text-muted-foreground">
+                    </p>
+                    <p className="mt-1 text-sm text-muted-foreground">
                       {t("notifications.senders.configuredHeaders", {
                         value:
                           sender.webhook?.headerNames.join(", ") ||
@@ -718,6 +721,7 @@ function SenderForm({
                   </div>
                   <Switch
                     id="replace-headers"
+                    aria-labelledby="replace-headers-label"
                     checked={replaceHeaders}
                     onCheckedChange={setReplaceHeaders}
                   />
@@ -746,21 +750,27 @@ function SenderForm({
               </Label>
               <Textarea
                 id="sender-source"
-                className="min-h-64 font-mono text-xs"
+                className="min-h-64 font-mono text-sm"
                 value={source}
                 onChange={(event) => setSource(event.target.value)}
                 required
                 spellCheck={false}
               />
-              <p className="text-xs text-muted-foreground">
+              <p className="text-sm text-muted-foreground">
                 {t("notifications.senders.sourceDetail")}
               </p>
             </div>
           ) : null}
           <div className="flex items-center justify-between gap-4 rounded-md border p-3">
-            <Label htmlFor="sender-enabled">{t("notifications.enabled")}</Label>
+            <span
+              id="sender-enabled-label"
+              className="text-sm leading-none font-medium"
+            >
+              {t("notifications.enabled")}
+            </span>
             <Switch
               id="sender-enabled"
+              aria-labelledby="sender-enabled-label"
               checked={enabled}
               onCheckedChange={setEnabled}
             />
@@ -1041,9 +1051,15 @@ function RuleForm({
             </Alert>
           ) : null}
           <div className="flex items-center justify-between gap-4 rounded-md border p-3">
-            <Label htmlFor="rule-enabled">{t("notifications.enabled")}</Label>
+            <span
+              id="rule-enabled-label"
+              className="text-sm leading-none font-medium"
+            >
+              {t("notifications.enabled")}
+            </span>
             <Switch
               id="rule-enabled"
+              aria-labelledby="rule-enabled-label"
               checked={enabled}
               onCheckedChange={setEnabled}
             />

@@ -26,7 +26,7 @@ for the manifest revision, and the final run links must be recorded here.
 | Single-administrator authentication, sessions, TOTP, and local recovery | `internal/center/admin`, `cmd/ipchronicle-center` | package tests, Compose smoke, browser tests, migration and recovery failure gate |
 | Agent enrollment, persistent identity, 30-second polling, configuration convergence, and temporary sync | `internal/agent`, `internal/center/nodes`, `internal/center/syncws` | package and race tests, Compose smoke, browser tests, distribution lifecycle tests |
 | Linux interface, address, route, egress, proxy, NAT, and temporary-IPv6 handling | `internal/agent/network`, `internal/agent/observation`, `internal/center/nodes` | inventory, selector, proxy, observation, outage, restart, and queue tests |
-| Manual, scheduled, and address-change complete probes with one immediate slot | `internal/agent/probe`, `internal/schedule`, `internal/center/nodes` | scheduler, process-tree, result publication, retry, resource, and live IPQuality tests |
+| Manual, scheduled, and newly-current-address complete probes with one immediate slot | `internal/agent/probe`, `internal/schedule`, `internal/center/nodes` | scheduler, process-tree, result publication, retry, resource, and live IPQuality tests |
 | Known-field interpretation, raw results, format drift, comparison, starring, and retention | `internal/center/history`, `internal/center/nodes` | interpretation, comparison, retention, reset, capacity, API, and browser tests |
 | Telegram, Webhook, and isolated JavaScript notifications | `internal/center/notifications`, `cmd/ipchronicle-center` | sender, queue, retry, isolation, redaction, overflow, API, and browser tests |
 | Agent update discovery, validation, atomic replacement, health commitment, and rollback | `internal/agent/update`, `internal/center/updates` | update manager, supervisor, rollback, distribution lifecycle, and browser tests |
@@ -103,8 +103,10 @@ isolation, and redaction behavior.
   distribution matrix with systemd or OpenRC.
 - The first release has no built-in backup or restore command. The operator is
   responsible for consistent volume and Agent-state backups.
-- Development and RC `history.db` data is not promised to remain compatible
-  before the first stable release. This exception never applies to `config.db`.
+- Development and RC `config.db`, `history.db`, and Agent-state data are not
+  promised to remain compatible before the first stable release is published
+  and put into use. Incompatible development data fails explicitly and is
+  rebuilt or purged by the operator.
 - Every complete-probe attempt downloads the current official IPQuality script.
   IPChronicle trusts that source, validates bounded JSON output, and exposes
   format drift; it does not pin, cache, vendor, or rewrite the script.

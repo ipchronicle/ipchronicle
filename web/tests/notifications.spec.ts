@@ -41,6 +41,7 @@ async function createNodeWithPublicAddress(
 ) {
   const keyResponse = await page.request.post("/api/v1/agent-enrollment/key", {
     headers: administratorWriteHeaders(page, csrfToken),
+    data: { defaultProbeTimezone: "UTC" },
   });
   expect(keyResponse.status()).toBe(200);
   const enrollment = (await keyResponse.json()) as {
@@ -57,7 +58,7 @@ async function createNodeWithPublicAddress(
     physicalMemoryBytes: 536870912,
     capabilities: [
       "control-v1",
-      "configuration-v6",
+      "configuration-v7",
       "network-inventory-v1",
       "complete-probe-v1",
     ],

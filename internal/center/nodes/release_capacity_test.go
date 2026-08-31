@@ -32,7 +32,7 @@ func TestReleaseCapacity70Nodes420Egresses(t *testing.T) {
 	defer store.Close()
 	service := NewService(store.Config, store.History, store.ConfigQueries, store.MasterKey, &testSyncConnections{})
 	service.now = func() time.Time { return now }
-	enrollment, err := service.RotateEnrollmentKey(ctx)
+	enrollment, err := service.RotateEnrollmentKey(ctx, "UTC")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -47,44 +47,55 @@ func TestReleaseCapacity70Nodes420Egresses(t *testing.T) {
 		metadata := Metadata{
 			Hostname: fmt.Sprintf("capacity-node-%02d", index+1), AgentVersion: "0.1.0-rc.1",
 			OperatingSystem: "linux", Architecture: "amd64", PhysicalMemoryBytes: 256 * 1024 * 1024,
-			Capabilities: []string{"control-v1", "configuration-v6", "complete-probe-v1", "agent-update-v1"},
+			Capabilities: []string{"control-v1", "configuration-v7", "complete-probe-v1", "agent-update-v1"},
 		}
 		registration, err := service.Register(ctx, enrollment.Key, metadata)
 		if err != nil {
 			t.Fatalf("register node %d: %v", index, err)
 		}
-		inventory, sourceAddresses := releaseCapacityInventory(index, now)
+		inventory := releaseCapacityInventory(index, now)
 		if _, err := service.Poll(ctx, registration.Credential, metadata, 0, nil, nil, &inventory, nil); err != nil {
 			t.Fatalf("poll inventory for node %d: %v", index, err)
-		}
-		for _, sourceAddress := range sourceAddresses {
-			family := "ipv4"
-			if sourceAddress[0] == 'f' {
-				family = "ipv6"
-			}
-			if _, err := service.CreateEgress(ctx, registration.NodeID, NetworkEgressSelector{
-				Kind: "source", Family: family, InterfaceName: "eth0", SourceAddress: &sourceAddress,
-			}); err != nil {
-				t.Fatalf("create source egress %s for node %d: %v", sourceAddress, index, err)
-			}
 		}
 		configuration, err := service.Configuration(ctx, registration.Credential)
 		if err != nil {
 			t.Fatalf("read configuration for node %d: %v", index, err)
 		}
-		network, err := service.Network(ctx, registration.NodeID)
-		if err != nil {
-			t.Fatalf("read network state for node %d: %v", index, err)
+		if len(configuration.DiscoveryPaths) != releaseCapacityEgressesPerNode {
+			t.Fatalf("node %d discovery paths = %d, want %d", index, len(configuration.DiscoveryPaths), releaseCapacityEgressesPerNode)
 		}
-		if len(network.Egresses) != releaseCapacityEgressesPerNode || len(configuration.Egresses) != releaseCapacityEgressesPerNode {
-			t.Fatalf("node %d egresses = %d/%d, want %d", index, len(network.Egresses), len(configuration.Egresses), releaseCapacityEgressesPerNode)
+		states := make([]AddressState, 0, len(configuration.DiscoveryPaths))
+		for pathIndex, path := range configuration.DiscoveryPaths {
+			publicAddress := fmt.Sprintf("198.51.%d.%d", index+1, pathIndex+1)
+			localAddress := fmt.Sprintf("10.0.%d.%d", index+1, pathIndex+10)
+			if path.Family == "ipv6" {
+				publicAddress = fmt.Sprintf("2606:4700:%x::%x", index+1, pathIndex+1)
+				localAddress = fmt.Sprintf("fd00:%x::%x", index+1, pathIndex+10)
+			}
+			states = append(states, confirmedAddressState(
+				path.ID, configuration.HistoryGeneration, path.Family,
+				publicAddress, "eth0", localAddress, now,
+			))
+		}
+		if _, err := service.Poll(
+			ctx, registration.Credential, metadata, 0, nil, nil, nil, nil,
+			AddressUpload{States: states},
+		); err != nil {
+			t.Fatalf("upload public addresses for node %d: %v", index, err)
+		}
+		configuration, err = service.Configuration(ctx, registration.Credential)
+		if err != nil {
+			t.Fatalf("read probe configuration for node %d: %v", index, err)
+		}
+		if len(configuration.ProbeTargets) != releaseCapacityEgressesPerNode {
+			t.Fatalf("node %d probe targets = %d, want %d", index, len(configuration.ProbeTargets), releaseCapacityEgressesPerNode)
 		}
 		if _, err := service.Poll(
 			ctx, registration.Credential, metadata, configuration.Revision, nil, nil, nil, nil,
 		); err != nil {
 			t.Fatalf("poll converged configuration for node %d: %v", index, err)
 		}
-		nodes = append(nodes, capacityNode{registration: registration, configuration: configuration, egresses: network.Egresses})
+		nodes = append(nodes, capacityNode{registration: registration, configuration: configuration, egresses: configuration.ProbeTargets})
 	}
 	listed, err := service.List(ctx)
 	if err != nil {
@@ -117,14 +128,13 @@ func TestReleaseCapacity70Nodes420Egresses(t *testing.T) {
 	)
 }
 
-func releaseCapacityInventory(index int, capturedAt time.Time) (NetworkInventory, []string) {
+func releaseCapacityInventory(index int, capturedAt time.Time) NetworkInventory {
 	thirdOctet := index + 1
 	addresses := []NetworkAddress{
 		{InterfaceName: "eth0", Address: fmt.Sprintf("10.0.%d.10", thirdOctet), PrefixLength: 24, Family: "ipv4", Scope: "private"},
 		{InterfaceName: "eth0", Address: fmt.Sprintf("10.0.%d.11", thirdOctet), PrefixLength: 24, Family: "ipv4", Scope: "private"},
 		{InterfaceName: "eth0", Address: fmt.Sprintf("10.0.%d.12", thirdOctet), PrefixLength: 24, Family: "ipv4", Scope: "private"},
 		{InterfaceName: "eth0", Address: fmt.Sprintf("fd00:%x::10", thirdOctet), PrefixLength: 64, Family: "ipv6", Scope: "unique-local"},
-		{InterfaceName: "eth0", Address: fmt.Sprintf("2001:4860:%x::10", thirdOctet), PrefixLength: 64, Family: "ipv6", Scope: "global"},
 	}
 	gateway4 := "10.0.0.1"
 	gateway6 := "fe80::1"
@@ -137,7 +147,7 @@ func releaseCapacityInventory(index int, capturedAt time.Time) (NetworkInventory
 			{InterfaceName: "eth0", Family: "ipv6", Destination: "::/0", Gateway: &gateway6, Metric: 100, Default: true},
 		},
 	}
-	return inventory, []string{addresses[0].Address, addresses[1].Address, addresses[2].Address, addresses[3].Address}
+	return inventory
 }
 
 func releaseCapacityUploadRun(

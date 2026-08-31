@@ -31,7 +31,7 @@ func TestCheckerConfirmsFirstAndChangedAddressesButNotUnchanged(t *testing.T) {
 	checker := NewChecker()
 	checker.discover = func() (agentnetwork.Inventory, error) { return testIPv4Inventory(), nil }
 	configuration := testConfiguration([]string{first.server.URL, second.server.URL})
-	egress := configuration.Egresses[0]
+	egress := configuration.DiscoveryPaths[0]
 	checkedAt := time.Date(2026, 8, 9, 12, 0, 0, 0, time.UTC)
 
 	initial := checker.Check(context.Background(), configuration, egress, nil, checkedAt)
@@ -91,7 +91,7 @@ func TestCheckerClassifiesProviderFailures(t *testing.T) {
 			checker := NewChecker()
 			checker.discover = func() (agentnetwork.Inventory, error) { return testIPv4Inventory(), nil }
 			configuration := testConfiguration([]string{first.server.URL, second.server.URL})
-			observation := checker.Check(context.Background(), configuration, configuration.Egresses[0], nil, time.Now())
+			observation := checker.Check(context.Background(), configuration, configuration.DiscoveryPaths[0], nil, time.Now())
 			if observation.Confirmed || observation.FailureReason != test.want {
 				t.Fatalf("observation = %#v, want failure %q", observation, test.want)
 			}
@@ -107,7 +107,7 @@ func TestCheckerRejectsUnavailableSelector(t *testing.T) {
 		return inventory, nil
 	}
 	configuration := testConfiguration([]string{"http://one.invalid", "http://two.invalid"})
-	observation := checker.Check(context.Background(), configuration, configuration.Egresses[0], nil, time.Now())
+	observation := checker.Check(context.Background(), configuration, configuration.DiscoveryPaths[0], nil, time.Now())
 	if observation.Confirmed || observation.FailureReason != "selector-unavailable" {
 		t.Fatalf("observation = %#v", observation)
 	}
@@ -122,7 +122,7 @@ func TestCheckerPreservesSelectedSourceAndLocalMapping(t *testing.T) {
 	egress := state.Egress{
 		ID: "d099bad9-e7c4-42a9-bd19-ad85408321c5", Kind: "source", Family: "ipv4",
 		InterfaceName: &interfaceName, SourceAddress: &sourceAddress, Enabled: true,
-		LightweightIntervalSeconds: 600, ProbeOnAddressChange: true,
+		LightweightIntervalSeconds: 600,
 	}
 	path, err := checker.selectPath(state.Configuration{}, egress)
 	if err != nil {
@@ -343,13 +343,13 @@ func (s *mutableEchoService) Count() int {
 
 func testConfiguration(services []string) state.Configuration {
 	return state.Configuration{
-		SchemaVersion: 5, Revision: 1, Enabled: true,
-		ProbeSchedule:     state.ProbeSchedule{Enabled: true, Cron: "0 0 0 * * *", Timezone: "agent-local"},
+		SchemaVersion: 7, Revision: 1, Enabled: true,
+		ProbeSchedule:     state.ProbeSchedule{Enabled: true, Cron: "0 0 0 * * *", Timezone: "UTC"},
 		HistoryGeneration: "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef",
 		DiscoveryServices: state.DiscoveryServices{IPv4: services, IPv6: []string{"https://six-one.invalid", "https://six-two.invalid"}},
-		Egresses: []state.Egress{{
+		DiscoveryPaths: []state.Egress{{
 			ID: "d099bad9-e7c4-42a9-bd19-ad85408321c5", Kind: "default", Family: "ipv4", Enabled: true,
-			LightweightIntervalSeconds: 600, ProbeOnAddressChange: true,
+			LightweightIntervalSeconds: 600,
 		}},
 	}
 }

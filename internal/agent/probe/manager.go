@@ -121,7 +121,7 @@ func (manager *Manager) AcceptTask(ctx context.Context, task state.ProbeTaskDeli
 	if task.Trigger == "" {
 		task.Trigger = "manual"
 	}
-	return manager.tryStart(ctx, task.Trigger, &task, task.TriggeringPublicAddressID, manager.now())
+	return manager.tryStart(ctx, task.Trigger, &task, manager.now())
 }
 
 func (manager *Manager) reconcileSchedule(ctx context.Context, fingerprint *string, next **time.Time, initialized *bool) error {
@@ -167,7 +167,7 @@ func (manager *Manager) reconcileSchedule(ctx context.Context, fingerprint *stri
 				}
 			}
 			value, err := sharedschedule.NextProbe(
-				configuration.ProbeSchedule.Cron, configuration.ProbeSchedule.Timezone, now, time.Local,
+				configuration.ProbeSchedule.Cron, configuration.ProbeSchedule.Timezone, now,
 			)
 			if err != nil {
 				return err
@@ -180,11 +180,11 @@ func (manager *Manager) reconcileSchedule(ctx context.Context, fingerprint *stri
 		return nil
 	}
 	occurrence := **next
-	if err := manager.tryStart(ctx, "schedule", nil, nil, occurrence); err != nil {
+	if err := manager.tryStart(ctx, "schedule", nil, occurrence); err != nil {
 		return err
 	}
 	value, err := sharedschedule.NextProbe(
-		configuration.ProbeSchedule.Cron, configuration.ProbeSchedule.Timezone, now, time.Local,
+		configuration.ProbeSchedule.Cron, configuration.ProbeSchedule.Timezone, now,
 	)
 	if err != nil {
 		return err
@@ -197,7 +197,6 @@ func (manager *Manager) tryStart(
 	ctx context.Context,
 	trigger string,
 	task *state.ProbeTaskDelivery,
-	triggeringEgressID *string,
 	at time.Time,
 ) error {
 	manager.mu.Lock()
@@ -213,11 +212,11 @@ func (manager *Manager) tryStart(
 		if err != nil {
 			return err
 		}
-		if reason := manager.ineligibleReason(configuration, trigger, task, triggeringEgressID, at); reason != "" {
+		if reason := manager.ineligibleReason(configuration, task, at); reason != "" {
 			return manager.rejectOccurrence(trigger, task, reason, at)
 		}
 		run, err := manager.store.StartProbeRunAtRevision(
-			configuration.Revision, trigger, task, triggeringEgressID, at,
+			configuration.Revision, trigger, task, at,
 		)
 		if errors.Is(err, state.ErrProbeConfigurationChanged) {
 			continue
@@ -242,9 +241,7 @@ func (manager *Manager) tryStart(
 
 func (manager *Manager) ineligibleReason(
 	configuration state.Configuration,
-	trigger string,
 	task *state.ProbeTaskDelivery,
-	triggeringEgressID *string,
 	at time.Time,
 ) string {
 	if task != nil && !task.ExpiresAt.After(at) {
@@ -257,20 +254,27 @@ func (manager *Manager) ineligibleReason(
 		return "low-memory"
 	}
 	enabled := 0
-	triggerAllowed := triggeringEgressID == nil
+	requested := make(map[string]struct{})
+	if task != nil {
+		for _, id := range task.PublicAddressIDs {
+			requested[id] = struct{}{}
+		}
+	}
 	for _, egress := range configuration.ProbeTargetList() {
 		if !egress.Enabled {
 			continue
 		}
-		enabled++
-		if triggeringEgressID != nil && egress.ID == *triggeringEgressID && egress.ProbeOnAddressChange {
-			triggerAllowed = true
+		if task != nil {
+			if _, exists := requested[egress.ID]; !exists {
+				continue
+			}
 		}
+		enabled++
 	}
 	if enabled == 0 {
 		return "no-egress"
 	}
-	if trigger == "address-change" && !triggerAllowed {
+	if task != nil && enabled != len(requested) {
 		return "disabled"
 	}
 	return ""

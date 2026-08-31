@@ -139,6 +139,13 @@ run_installer "$systemd_root" "$systemd_os_release" --uninstall
 [ ! -e "$systemd_root/usr/local/libexec/ipchronicle-agent-updater" ]
 [ ! -e "$systemd_root/etc/systemd/system/ipchronicle-agent.service" ]
 [ -d "$systemd_root/var/lib/ipchronicle-agent" ]
+run_installer "$systemd_root" "$systemd_os_release" \
+  --center-url https://center.example --registration-key test-key --agent-binary "$fake_agent"
+printf 'pending-result\n' > "$systemd_root/var/lib/ipchronicle-agent/pending-result"
+run_installer "$systemd_root" "$systemd_os_release" --uninstall --purge
+[ ! -e "$systemd_root/usr/local/bin/ipchronicle-agent" ]
+[ ! -e "$systemd_root/etc/systemd/system/ipchronicle-agent.service" ]
+[ ! -e "$systemd_root/var/lib/ipchronicle-agent" ]
 
 openrc_root="$test_root/openrc-root"
 mkdir -p "$openrc_root"
@@ -158,6 +165,8 @@ run_installer "$openrc_root" "$openrc_os_release" --uninstall
 [ ! -e "$openrc_root/etc/init.d/ipchronicle-agent" ]
 [ ! -e "$openrc_root/etc/init.d/ipchronicle-agent-updater" ]
 [ -d "$openrc_root/var/lib/ipchronicle-agent" ]
+run_installer "$openrc_root" "$openrc_os_release" --uninstall --purge
+[ ! -e "$openrc_root/var/lib/ipchronicle-agent" ]
 
 remote_root="$test_root/remote-root"
 mkdir -p "$remote_root"
@@ -219,5 +228,15 @@ if run_installer "$unsupported_root" "$unsupported_os_release" \
 fi
 grep -F 'unsupported Debian release' "$test_root/unsupported.err" >/dev/null
 [ ! -e "$unsupported_root/usr/local/bin/ipchronicle-agent" ]
+
+invalid_purge_root="$test_root/invalid-purge-root"
+mkdir -p "$invalid_purge_root"
+if run_installer "$invalid_purge_root" "$systemd_os_release" --purge \
+  >"$test_root/invalid-purge.out" 2>"$test_root/invalid-purge.err"; then
+  printf 'purge without uninstall unexpectedly succeeded\n' >&2
+  exit 1
+fi
+grep -F -- '--uninstall [--purge]' "$test_root/invalid-purge.err" >/dev/null
+[ ! -e "$invalid_purge_root/var/lib/ipchronicle-agent" ]
 
 printf 'Agent installer lifecycle tests passed.\n'

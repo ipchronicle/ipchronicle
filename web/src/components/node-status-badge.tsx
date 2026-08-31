@@ -26,9 +26,9 @@ export function NodeStatusBadge({ node }: { node: Node }) {
     <Badge
       variant={
         node.status === "online"
-          ? "outline"
+          ? "success"
           : node.status === "offline"
-            ? "secondary"
+            ? "warning"
             : "destructive"
       }
     >

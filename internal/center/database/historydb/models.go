@@ -13,7 +13,6 @@ type AddressEvent struct {
 	Sequence          int64
 	Kind              string
 	Family            string
-	PreviousAddress   *string
 	PublicAddress     *string
 	LocalInterface    *string
 	LocalAddress      *string
@@ -217,7 +216,6 @@ type ProbeRun struct {
 	ConfigurationRevision int64
 	Trigger               string
 	TaskID                *string
-	TriggeringEgressID    *string
 	Status                string
 	ExpectedExecutions    int64
 	StartedAt             int64

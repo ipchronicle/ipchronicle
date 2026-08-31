@@ -15,9 +15,9 @@ import (
 func TestReconcileScheduleRunsChangedEgressesImmediately(t *testing.T) {
 	now := time.Date(2026, 8, 9, 15, 0, 0, 0, time.UTC)
 	configuration := observerTestConfiguration()
-	configuration.Egresses = append(configuration.Egresses, state.Egress{
+	configuration.DiscoveryPaths = append(configuration.DiscoveryPaths, state.Egress{
 		ID: "11111111-1111-4111-8111-111111111111", Kind: "default", Family: "ipv6",
-		Enabled: true, LightweightIntervalSeconds: 900, ProbeOnAddressChange: true,
+		Enabled: true, LightweightIntervalSeconds: 900,
 	})
 	schedule := make(map[string]scheduleEntry)
 	reconcileSchedule(schedule, configuration, now)
@@ -69,7 +69,7 @@ func TestObserverCancellationDoesNotRecordFailure(t *testing.T) {
 	if err := <-done; err != nil {
 		t.Fatal(err)
 	}
-	if _, err := store.AddressState(observerTestConfiguration().Egresses[0].ID); !errors.Is(err, state.ErrNoAddressState) {
+	if _, err := store.AddressState(observerTestConfiguration().DiscoveryPaths[0].ID); !errors.Is(err, state.ErrNoAddressState) {
 		t.Fatalf("shutdown recorded an address state: %v", err)
 	}
 }
@@ -91,25 +91,21 @@ func TestObserverSurfacesInvalidCheckerOutputForCurrentConfiguration(t *testing.
 	}
 }
 
-func TestObserverTriggersOnlyConfirmedAddressTransition(t *testing.T) {
+func TestObserverRecordsConfirmedAddressSetEvents(t *testing.T) {
 	store := openObserverTestStore(t)
 	configuration := observerTestConfiguration()
-	egress := configuration.Egresses[0]
+	egress := configuration.DiscoveryPaths[0]
 	checkedAt := time.Date(2026, 8, 9, 15, 0, 0, 0, time.UTC)
-	if _, err := store.RecordAddressObservation(state.AddressObservation{
+	if err := store.RecordAddressObservation(state.AddressObservation{
 		EgressID: egress.ID, ConfigurationRevision: configuration.Revision,
 		HistoryGeneration: configuration.HistoryGeneration, Family: egress.Family,
 		Confirmed: true, PublicAddress: "203.0.113.10", CheckedAt: checkedAt,
 	}); err != nil {
 		t.Fatal(err)
 	}
-	triggered := make(chan string, 1)
-	ctx, cancel := context.WithCancel(context.Background())
-	observer := NewObserverWithChangeHandler(store, log.New(io.Discard, "", 0), func(_ context.Context, egressID string, _ time.Time) error {
-		triggered <- egressID
-		cancel()
-		return nil
-	})
+	ctx, cancel := context.WithTimeout(context.Background(), 50*time.Millisecond)
+	defer cancel()
+	observer := NewObserver(store, log.New(io.Discard, "", 0))
 	observer.checker = checkerFunc(func(_ context.Context, configuration state.Configuration, egress state.Egress, _ *state.AddressState, checkedAt time.Time) state.AddressObservation {
 		return state.AddressObservation{
 			EgressID: egress.ID, ConfigurationRevision: configuration.Revision,
@@ -120,13 +116,12 @@ func TestObserverTriggersOnlyConfirmedAddressTransition(t *testing.T) {
 	if err := observer.Run(ctx); err != nil {
 		t.Fatal(err)
 	}
-	select {
-	case id := <-triggered:
-		if id != egress.ID {
-			t.Fatalf("triggered egress = %s", id)
-		}
-	default:
-		t.Fatal("confirmed address transition did not trigger a complete probe")
+	upload, err := store.AddressUpload(64)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(upload.Events) != 3 || upload.Events[1].Kind != "address-removed" || upload.Events[2].Kind != "address-added" {
+		t.Fatalf("address transition events = %#v", upload.Events)
 	}
 }
 
@@ -157,16 +152,16 @@ func openObserverTestStore(t *testing.T) *state.Store {
 
 func observerTestConfiguration() state.Configuration {
 	return state.Configuration{
-		SchemaVersion: 5, Revision: 1, Enabled: true,
-		ProbeSchedule:     state.ProbeSchedule{Enabled: true, Cron: "0 0 0 * * *", Timezone: "agent-local"},
+		SchemaVersion: 7, Revision: 1, Enabled: true,
+		ProbeSchedule:     state.ProbeSchedule{Enabled: true, Cron: "0 0 0 * * *", Timezone: "UTC"},
 		HistoryGeneration: "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef",
 		DiscoveryServices: state.DiscoveryServices{
 			IPv4: []string{"https://one.example/ip", "https://two.example/ip"},
 			IPv6: []string{"https://six-one.example/ip", "https://six-two.example/ip"},
 		},
-		Egresses: []state.Egress{{
+		DiscoveryPaths: []state.Egress{{
 			ID: "d099bad9-e7c4-42a9-bd19-ad85408321c5", Kind: "default", Family: "ipv4",
-			Enabled: true, LightweightIntervalSeconds: 600, ProbeOnAddressChange: true,
+			Enabled: true, LightweightIntervalSeconds: 600,
 		}},
 	}
 }

@@ -46,7 +46,7 @@ func TestAgentEnrollsOnceAndBecomesOnline(t *testing.T) {
 		Queries: centerStore.ConfigQueries, Waker: syncHub,
 		CurrentVersion: "0.1.0-rc.1", CurrentRevision: "test-revision",
 	})
-	enrollment, err := nodeService.RotateEnrollmentKey(ctx)
+	enrollment, err := nodeService.RotateEnrollmentKey(ctx, "UTC")
 	if err != nil {
 		t.Fatal(err)
 	}

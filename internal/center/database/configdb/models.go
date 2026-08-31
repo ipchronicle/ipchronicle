@@ -26,12 +26,13 @@ type AdministratorSession struct {
 }
 
 type AgentEnrollment struct {
-	ID           int64
-	Enabled      int64
-	KeyDigest    []byte
-	KeyEncrypted []byte
-	CreatedAt    int64
-	RotatedAt    int64
+	ID                   int64
+	Enabled              int64
+	KeyDigest            []byte
+	KeyEncrypted         []byte
+	DefaultProbeTimezone string
+	CreatedAt            int64
+	RotatedAt            int64
 }
 
 type EgressDeletionOperation struct {
@@ -67,7 +68,6 @@ type NetworkEgress struct {
 	Available                  int64
 	Automatic                  int64
 	LightweightIntervalSeconds int64
-	ProbeOnAddressChange       int64
 	CreatedAt                  int64
 	UpdatedAt                  int64
 }
@@ -80,15 +80,17 @@ type NetworkObservationSetting struct {
 }
 
 type NetworkProxy struct {
-	ID                string
-	Name              string
-	Scheme            string
-	Host              string
-	Port              int64
-	Username          *string
-	PasswordEncrypted []byte
-	CreatedAt         int64
-	UpdatedAt         int64
+	ID                  string
+	NodeID              string
+	Name                string
+	Scheme              string
+	Host                string
+	Port                int64
+	Username            *string
+	PasswordEncrypted   []byte
+	DeletionRequestedAt *int64
+	CreatedAt           int64
+	UpdatedAt           int64
 }
 
 type Node struct {
@@ -112,6 +114,7 @@ type Node struct {
 	ProbeScheduleCron            string
 	ProbeScheduleTimezone        string
 	ProbeLowMemoryOverride       int64
+	ProbeOnNewAddress            int64
 	AgentRevision                *string
 }
 
@@ -191,37 +194,41 @@ type PendingPublicAddressProbe struct {
 }
 
 type ProbeTask struct {
-	ID                        string
-	NodeID                    string
-	Kind                      string
-	Status                    string
-	CreatedAt                 int64
-	ExpiresAt                 int64
-	AcknowledgedAt            *int64
-	StartedAt                 *int64
-	CompletedAt               *int64
-	RunID                     *string
-	RejectionReason           *string
-	TargetVersion             *string
-	PreviousVersion           *string
-	ResultVersion             *string
-	FailureCode               *string
-	Diagnostic                *string
-	TerminalConfirmedAt       *int64
-	Trigger                   string
-	TriggeringPublicAddressID *string
+	ID                  string
+	NodeID              string
+	Kind                string
+	Status              string
+	CreatedAt           int64
+	ExpiresAt           int64
+	AcknowledgedAt      *int64
+	StartedAt           *int64
+	CompletedAt         *int64
+	RunID               *string
+	RejectionReason     *string
+	TargetVersion       *string
+	PreviousVersion     *string
+	ResultVersion       *string
+	FailureCode         *string
+	Diagnostic          *string
+	TerminalConfirmedAt *int64
+	Trigger             string
+}
+
+type ProbeTaskPublicAddress struct {
+	TaskID          string
+	PublicAddressID string
+	Ordinal         int64
 }
 
 type PublicAddress struct {
-	ID                 string
-	Address            string
-	Family             string
-	ProbeEnabled       int64
-	ProbeOnRediscovery int64
-	SelectedPathID     *string
-	FirstSeenAt        int64
-	LastSeenAt         int64
-	UpdatedAt          int64
+	ID             string
+	Address        string
+	Family         string
+	ProbeEnabled   int64
+	SelectedPathID *string
+	FirstSeenAt    int64
+	LastSeenAt     int64
+	UpdatedAt      int64
 }
 
 type PublicAddressNode struct {

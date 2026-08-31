@@ -137,18 +137,21 @@ SET history_generation = pending_history_generation,
 WHERE id = 1 AND pending_history_generation = ?;
 
 -- name: GetAgentEnrollment :one
-SELECT id, enabled, key_digest, key_encrypted, created_at, rotated_at
+SELECT id, enabled, key_digest, key_encrypted, default_probe_timezone,
+       created_at, rotated_at
 FROM agent_enrollment
 WHERE id = 1;
 
 -- name: UpsertAgentEnrollmentKey :exec
 INSERT INTO agent_enrollment (
-    id, enabled, key_digest, key_encrypted, created_at, rotated_at
-) VALUES (1, 1, ?, ?, ?, ?)
+    id, enabled, key_digest, key_encrypted, default_probe_timezone,
+    created_at, rotated_at
+) VALUES (1, 1, ?, ?, ?, ?, ?)
 ON CONFLICT (id) DO UPDATE SET
     enabled = 1,
     key_digest = excluded.key_digest,
     key_encrypted = excluded.key_encrypted,
+    default_probe_timezone = excluded.default_probe_timezone,
     rotated_at = excluded.rotated_at;
 
 -- name: SetAgentEnrollmentEnabled :execrows
@@ -159,8 +162,9 @@ WHERE id = 1;
 -- name: CreateNode :exec
 INSERT INTO nodes (
     id, name, hostname, credential_digest, agent_version, agent_revision,
-    operating_system, architecture, desired_configuration_revision, registered_at
-) VALUES (?, ?, ?, ?, ?, ?, ?, ?, 1, ?);
+    operating_system, architecture, desired_configuration_revision,
+    probe_schedule_timezone, registered_at
+) VALUES (?, ?, ?, ?, ?, ?, ?, ?, 1, ?, ?);
 
 -- name: GetNodeByCredentialDigest :one
 SELECT id, name, hostname, credential_digest, enabled, revoked_at,
@@ -169,7 +173,7 @@ SELECT id, name, hostname, credential_digest, enabled, revoked_at,
        configuration_error, registered_at, last_seen_at,
        configuration_error_revision, physical_memory_bytes,
        probe_schedule_enabled, probe_schedule_cron, probe_schedule_timezone,
-       probe_low_memory_override
+       probe_low_memory_override, probe_on_new_address
 FROM nodes
 WHERE credential_digest = ?;
 
@@ -180,7 +184,7 @@ SELECT id, name, hostname, credential_digest, enabled, revoked_at,
        configuration_error, registered_at, last_seen_at,
        configuration_error_revision, physical_memory_bytes,
        probe_schedule_enabled, probe_schedule_cron, probe_schedule_timezone,
-       probe_low_memory_override
+       probe_low_memory_override, probe_on_new_address
 FROM nodes
 WHERE id = ?;
 
@@ -198,7 +202,7 @@ SELECT id, name, hostname, credential_digest, enabled, revoked_at,
        configuration_error, registered_at, last_seen_at,
        configuration_error_revision, physical_memory_bytes,
        probe_schedule_enabled, probe_schedule_cron, probe_schedule_timezone,
-       probe_low_memory_override
+       probe_low_memory_override, probe_on_new_address
 FROM nodes
 ORDER BY name COLLATE NOCASE, id;
 
@@ -213,6 +217,13 @@ SELECT n.node_id, a.id, a.address, a.family, a.probe_enabled,
        ) AS available
 FROM public_address_nodes n
 JOIN public_addresses a ON a.id = n.public_address_id
+WHERE EXISTS (
+    SELECT 1
+    FROM public_address_paths p
+    WHERE p.public_address_id = a.id
+      AND p.node_id = n.node_id
+      AND p.available = 1
+)
 ORDER BY n.node_id, a.family, a.address;
 
 -- name: SetNodeEnabled :execrows
@@ -222,6 +233,15 @@ SET enabled = ?,
     configuration_error = NULL,
     configuration_error_revision = NULL
 WHERE id = ? AND enabled != ? AND revoked_at IS NULL
+  AND NOT EXISTS (
+      SELECT 1 FROM node_deletion_operations
+      WHERE node_id = nodes.id AND status != 'completed'
+  );
+
+-- name: SetNodeName :execrows
+UPDATE nodes
+SET name = ?
+WHERE id = ? AND name != ? AND revoked_at IS NULL
   AND NOT EXISTS (
       SELECT 1 FROM node_deletion_operations
       WHERE node_id = nodes.id AND status != 'completed'
@@ -302,11 +322,6 @@ ON CONFLICT (egress_id) DO UPDATE SET
     END,
     updated_at = excluded.updated_at,
     last_error = NULL;
-
--- name: GetEgressDeletion :one
-SELECT egress_id, node_id, status, requested_at, updated_at, last_error
-FROM egress_deletion_operations
-WHERE egress_id = ? AND node_id = ?;
 
 -- name: ListActiveEgressDeletions :many
 SELECT egress_id, node_id, status, requested_at, updated_at, last_error
@@ -423,7 +438,7 @@ ON CONFLICT (node_id) DO UPDATE SET
 -- name: ListNodeEgresses :many
 SELECT id, node_id, name, kind, family, interface_name, source_address, proxy_id,
        enabled, available, automatic, lightweight_interval_seconds,
-       probe_on_address_change, created_at, updated_at
+       created_at, updated_at
 FROM network_egresses
 WHERE node_id = ?
 ORDER BY family, kind, created_at, id;
@@ -431,8 +446,7 @@ ORDER BY family, kind, created_at, id;
 -- name: ListActiveNodeEgresses :many
 SELECT e.id, e.node_id, e.name, e.kind, e.family, e.interface_name,
        e.source_address, e.proxy_id, e.enabled, e.available, e.automatic,
-       e.lightweight_interval_seconds, e.probe_on_address_change,
-       e.created_at, e.updated_at
+       e.lightweight_interval_seconds, e.created_at, e.updated_at
 FROM network_egresses e
 WHERE e.node_id = ?
   AND NOT EXISTS (
@@ -445,45 +459,29 @@ ORDER BY e.family, e.kind, e.created_at, e.id;
 -- name: GetNodeEgress :one
 SELECT id, node_id, name, kind, family, interface_name, source_address, proxy_id,
        enabled, available, automatic, lightweight_interval_seconds,
-       probe_on_address_change, created_at, updated_at
+       created_at, updated_at
 FROM network_egresses
 WHERE node_id = ? AND id = ?;
 
 -- name: GetNetworkEgressByID :one
 SELECT id, node_id, name, kind, family, interface_name, source_address, proxy_id,
        enabled, available, automatic, lightweight_interval_seconds,
-       probe_on_address_change, created_at, updated_at
+       created_at, updated_at
 FROM network_egresses
 WHERE id = ?;
 
 -- name: GetDefaultNodeEgress :one
 SELECT id, node_id, name, kind, family, interface_name, source_address, proxy_id,
        enabled, available, automatic, lightweight_interval_seconds,
-       probe_on_address_change, created_at, updated_at
+       created_at, updated_at
 FROM network_egresses
 WHERE node_id = ? AND kind = 'default' AND family = ?;
-
--- name: GetNodeEgressBySelector :one
-SELECT id, node_id, name, kind, family, interface_name, source_address, proxy_id,
-       enabled, available, automatic, lightweight_interval_seconds,
-       probe_on_address_change, created_at, updated_at
-FROM network_egresses
-WHERE node_id = ? AND kind = ? AND family = ? AND interface_name = ?
-  AND COALESCE(source_address, '') = COALESCE(?, '');
-
--- name: GetNodeEgressByProxy :one
-SELECT id, node_id, name, kind, family, interface_name, source_address, proxy_id,
-       enabled, available, automatic, lightweight_interval_seconds,
-       probe_on_address_change, created_at, updated_at
-FROM network_egresses
-WHERE node_id = ? AND kind = 'proxy' AND family = ? AND proxy_id = ?;
 
 -- name: CreateNodeEgress :exec
 INSERT INTO network_egresses (
     id, node_id, name, kind, family, interface_name, source_address, proxy_id,
-    enabled, available, automatic, lightweight_interval_seconds,
-    probe_on_address_change, created_at, updated_at
-) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);
+    enabled, available, automatic, lightweight_interval_seconds, created_at, updated_at
+) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);
 
 -- name: SetNodeEgressAvailability :execrows
 UPDATE network_egresses
@@ -506,59 +504,67 @@ SET desired_configuration_revision = desired_configuration_revision + 1,
     configuration_error_revision = NULL
 WHERE id = ? AND revoked_at IS NULL;
 
--- name: ListNetworkProxies :many
-SELECT id, name, scheme, host, port, username, password_encrypted, created_at, updated_at
+-- name: ListNodeNetworkProxies :many
+SELECT id, node_id, name, scheme, host, port, username, password_encrypted,
+       deletion_requested_at, created_at, updated_at
 FROM network_proxies
+WHERE node_id = ?
 ORDER BY name COLLATE NOCASE, id;
 
--- name: GetNetworkProxy :one
-SELECT id, name, scheme, host, port, username, password_encrypted, created_at, updated_at
+-- name: ListActiveNodeNetworkProxies :many
+SELECT id, node_id, name, scheme, host, port, username, password_encrypted,
+       deletion_requested_at, created_at, updated_at
 FROM network_proxies
-WHERE id = ?;
+WHERE node_id = ? AND deletion_requested_at IS NULL
+ORDER BY name COLLATE NOCASE, id;
 
--- name: GetNetworkProxyByName :one
-SELECT id, name, scheme, host, port, username, password_encrypted, created_at, updated_at
+-- name: GetNodeNetworkProxy :one
+SELECT id, node_id, name, scheme, host, port, username, password_encrypted,
+       deletion_requested_at, created_at, updated_at
 FROM network_proxies
-WHERE name = ? COLLATE NOCASE;
+WHERE node_id = ? AND id = ?;
 
--- name: ListNodeNetworkProxies :many
-SELECT DISTINCT p.id, p.name, p.scheme, p.host, p.port, p.username,
-       p.password_encrypted, p.created_at, p.updated_at
-FROM network_proxies p
-JOIN network_egresses e ON e.proxy_id = p.id
-WHERE e.node_id = ?
-  AND NOT EXISTS (
-      SELECT 1
-      FROM egress_deletion_operations d
-      WHERE d.egress_id = e.id AND d.status IN ('pending', 'failed')
-  )
-ORDER BY p.name COLLATE NOCASE, p.id;
+-- name: GetNodeNetworkProxyByName :one
+SELECT id, node_id, name, scheme, host, port, username, password_encrypted,
+       deletion_requested_at, created_at, updated_at
+FROM network_proxies
+WHERE node_id = ? AND name = ? COLLATE NOCASE;
 
 -- name: CreateNetworkProxy :exec
 INSERT INTO network_proxies (
-    id, name, scheme, host, port, username, password_encrypted, created_at, updated_at
-) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?);
+    id, node_id, name, scheme, host, port, username, password_encrypted,
+    created_at, updated_at
+) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?);
 
 -- name: UpdateNetworkProxy :execrows
 UPDATE network_proxies
 SET name = ?, scheme = ?, host = ?, port = ?, username = ?,
     password_encrypted = ?, updated_at = ?
-WHERE id = ?;
+WHERE node_id = ? AND id = ? AND deletion_requested_at IS NULL;
 
--- name: CountNetworkProxies :one
-SELECT count(*) FROM network_proxies;
+-- name: CountNodeNetworkProxies :one
+SELECT count(*) FROM network_proxies WHERE node_id = ?;
 
--- name: ListNodeIDsReferencingNetworkProxy :many
-SELECT DISTINCT node_id
+-- name: ListNodeEgressesByProxy :many
+SELECT id, node_id, name, kind, family, interface_name, source_address, proxy_id,
+       enabled, available, automatic, lightweight_interval_seconds,
+       created_at, updated_at
 FROM network_egresses
-WHERE proxy_id = ?
-ORDER BY node_id;
+WHERE node_id = ? AND proxy_id = ?
+ORDER BY family, id;
 
--- name: CountNetworkProxyReferences :one
-SELECT count(*) FROM network_egresses WHERE proxy_id = ?;
+-- name: MarkNetworkProxyDeletion :execrows
+UPDATE network_proxies
+SET deletion_requested_at = COALESCE(deletion_requested_at, ?)
+WHERE node_id = ? AND id = ?;
 
--- name: DeleteNetworkProxy :execrows
-DELETE FROM network_proxies WHERE id = ?;
+-- name: DeleteMarkedNetworkProxyIfUnreferenced :execrows
+DELETE FROM network_proxies
+WHERE network_proxies.node_id = ? AND network_proxies.id = ?
+  AND network_proxies.deletion_requested_at IS NOT NULL
+  AND NOT EXISTS (
+      SELECT 1 FROM network_egresses WHERE proxy_id = network_proxies.id
+  );
 
 -- name: GetNetworkObservationSettings :one
 SELECT id, ipv4_services, ipv6_services, updated_at
@@ -570,51 +576,39 @@ UPDATE network_observation_settings
 SET ipv4_services = ?, ipv6_services = ?, updated_at = ?
 WHERE id = 1;
 
--- name: UpdateNodeEgressSettings :execrows
-UPDATE network_egresses
-SET enabled = ?, lightweight_interval_seconds = ?,
-    probe_on_address_change = ?, updated_at = ?
-WHERE id = ? AND node_id = ?
-  AND (
-      enabled != ? OR lightweight_interval_seconds != ? OR
-      probe_on_address_change != ?
-  );
-
 -- name: UpsertPublicAddress :exec
 INSERT INTO public_addresses (
-    id, address, family, probe_enabled, probe_on_rediscovery,
-    first_seen_at, last_seen_at, updated_at
-) VALUES (?, ?, ?, 0, 1, ?, ?, ?)
+    id, address, family, probe_enabled, first_seen_at, last_seen_at, updated_at
+) VALUES (?, ?, ?, 1, ?, ?, ?)
 ON CONFLICT (address) DO UPDATE SET
     family = excluded.family,
     last_seen_at = MAX(public_addresses.last_seen_at, excluded.last_seen_at),
     updated_at = MAX(public_addresses.updated_at, excluded.updated_at);
 
 -- name: GetPublicAddressByAddress :one
-SELECT id, address, family, probe_enabled, probe_on_rediscovery,
+SELECT id, address, family, probe_enabled,
        selected_path_id, first_seen_at, last_seen_at, updated_at
 FROM public_addresses
 WHERE address = ?;
 
 -- name: GetPublicAddressByID :one
-SELECT id, address, family, probe_enabled, probe_on_rediscovery,
+SELECT id, address, family, probe_enabled,
        selected_path_id, first_seen_at, last_seen_at, updated_at
 FROM public_addresses
 WHERE id = ?;
 
 -- name: ListPublicAddresses :many
-SELECT id, address, family, probe_enabled, probe_on_rediscovery,
+SELECT id, address, family, probe_enabled,
        selected_path_id, first_seen_at, last_seen_at, updated_at
 FROM public_addresses
 ORDER BY family, address;
 
 -- name: ListNodePublicAddresses :many
 SELECT DISTINCT a.id, a.address, a.family, a.probe_enabled,
-       a.probe_on_rediscovery, a.selected_path_id,
-       a.first_seen_at, a.last_seen_at, a.updated_at
+       a.selected_path_id, a.first_seen_at, a.last_seen_at, a.updated_at
 FROM public_addresses a
-JOIN public_address_nodes n ON n.public_address_id = a.id
-WHERE n.node_id = ?
+JOIN public_address_paths p ON p.public_address_id = a.id
+WHERE p.node_id = ? AND p.available = 1
 ORDER BY a.family, a.address;
 
 -- name: UpsertPublicAddressNode :exec
@@ -626,10 +620,8 @@ ON CONFLICT (public_address_id, node_id) DO UPDATE SET
 
 -- name: SetPublicAddressProbeSettings :execrows
 UPDATE public_addresses
-SET probe_enabled = ?, probe_on_rediscovery = ?, updated_at = ?
-WHERE id = ? AND (
-    probe_enabled != ? OR probe_on_rediscovery != ?
-);
+SET probe_enabled = ?, updated_at = ?
+WHERE id = ? AND probe_enabled != ?;
 
 -- name: UpsertPublicAddressPath :exec
 INSERT INTO public_address_paths (
@@ -678,6 +670,14 @@ FROM public_address_paths
 WHERE public_address_id = ?
 ORDER BY available DESC, last_succeeded_at DESC, path_id;
 
+-- name: ListNodePublicAddressPaths :many
+SELECT public_address_id, path_id, node_id, local_interface, local_address,
+       proxy_path, likely_nat, temporary, available, last_checked_at,
+       last_succeeded_at
+FROM public_address_paths
+WHERE node_id = ?
+ORDER BY path_id;
+
 -- name: SelectPublicAddressPath :execrows
 UPDATE public_addresses
 SET selected_path_id = ?, updated_at = MAX(updated_at, last_seen_at)
@@ -694,7 +694,7 @@ WHERE selected_path_id IS NOT NULL
   );
 
 -- name: ListPublicAddressesWithoutSelectedPath :many
-SELECT id, address, family, probe_enabled, probe_on_rediscovery,
+SELECT id, address, family, probe_enabled,
        selected_path_id, first_seen_at, last_seen_at, updated_at
 FROM public_addresses
 WHERE selected_path_id IS NULL
@@ -714,7 +714,7 @@ ORDER BY last_succeeded_at DESC, last_checked_at DESC, path_id
 LIMIT 1;
 
 -- name: ListNodeSelectedPublicAddresses :many
-SELECT a.id, a.address, a.family, a.probe_enabled, a.probe_on_rediscovery,
+SELECT a.id, a.address, a.family, a.probe_enabled,
        a.selected_path_id, a.first_seen_at, a.last_seen_at, a.updated_at,
        e.node_id, e.name, e.kind, e.interface_name, e.source_address,
        e.proxy_id, e.lightweight_interval_seconds
@@ -722,6 +722,13 @@ FROM public_addresses a
 JOIN network_egresses e ON e.id = a.selected_path_id
 JOIN public_address_paths p ON p.path_id = e.id AND p.public_address_id = a.id
 WHERE e.node_id = ? AND a.probe_enabled = 1 AND p.available = 1
+ORDER BY a.family, a.address;
+
+-- name: ListNodeAvailablePublicAddressProbeSettings :many
+SELECT a.id, a.probe_enabled
+FROM public_addresses a
+JOIN public_address_paths p ON p.path_id = a.selected_path_id
+WHERE p.node_id = ? AND p.public_address_id = a.id AND p.available = 1
 ORDER BY a.family, a.address;
 
 -- name: PublicAddressBelongsToNode :one
@@ -733,12 +740,11 @@ WHERE public_address_id = ? AND node_id = ?;
 INSERT INTO pending_public_address_probes (
     public_address_id, node_id, required_configuration_revision, created_at
 ) VALUES (?, ?, ?, ?)
-ON CONFLICT (node_id) DO UPDATE SET
-    public_address_id = excluded.public_address_id,
+ON CONFLICT (node_id, public_address_id) DO UPDATE SET
     required_configuration_revision = excluded.required_configuration_revision,
     created_at = excluded.created_at;
 
--- name: GetReadyPublicAddressProbe :one
+-- name: ListReadyPublicAddressProbes :many
 SELECT pending.public_address_id, pending.node_id,
        pending.required_configuration_revision, pending.created_at
 FROM pending_public_address_probes AS pending
@@ -747,19 +753,33 @@ JOIN public_address_paths AS path ON path.path_id = address.selected_path_id
 WHERE pending.node_id = ?
   AND pending.required_configuration_revision <= ?
   AND address.probe_enabled = 1
-  AND address.probe_on_rediscovery = 1
   AND path.node_id = pending.node_id
   AND path.public_address_id = address.id
   AND path.available = 1
-LIMIT 1;
+ORDER BY pending.created_at, pending.public_address_id
+LIMIT 64;
 
--- name: DeletePendingPublicAddressProbe :exec
+-- name: DeletePendingPublicAddressProbes :exec
 DELETE FROM pending_public_address_probes
 WHERE node_id = ?;
 
 -- name: DeletePendingPublicAddressProbeByAddress :exec
 DELETE FROM pending_public_address_probes
 WHERE public_address_id = ?;
+
+-- name: DeleteUnavailablePendingPublicAddressProbes :exec
+DELETE FROM pending_public_address_probes
+WHERE pending_public_address_probes.node_id = ?
+  AND NOT EXISTS (
+      SELECT 1
+      FROM public_addresses AS address
+      JOIN public_address_paths AS path ON path.path_id = address.selected_path_id
+      WHERE address.id = pending_public_address_probes.public_address_id
+        AND address.probe_enabled = 1
+        AND path.node_id = pending_public_address_probes.node_id
+        AND path.public_address_id = address.id
+        AND path.available = 1
+  );
 
 -- name: UpdateNodePhysicalMemory :execrows
 UPDATE nodes
@@ -770,7 +790,7 @@ WHERE id = ? AND revoked_at IS NULL;
 SELECT id, enabled, revoked_at, last_seen_at, applied_configuration_revision,
        desired_configuration_revision, physical_memory_bytes,
        probe_schedule_enabled, probe_schedule_cron, probe_schedule_timezone,
-       probe_low_memory_override
+       probe_low_memory_override, probe_on_new_address
 FROM nodes
 WHERE id = ?;
 
@@ -778,6 +798,7 @@ WHERE id = ?;
 UPDATE nodes
 SET probe_schedule_enabled = ?, probe_schedule_cron = ?,
     probe_schedule_timezone = ?, probe_low_memory_override = ?,
+    probe_on_new_address = ?,
     desired_configuration_revision = desired_configuration_revision + 1,
     configuration_error = NULL, configuration_error_revision = NULL
 WHERE id = ? AND revoked_at IS NULL
@@ -821,11 +842,21 @@ INSERT INTO probe_tasks (
     id, node_id, kind, status, trigger, created_at, expires_at
 ) VALUES (?, ?, 'complete-probe', 'pending', 'manual', ?, ?);
 
--- name: CreateRediscoveryProbeTask :exec
+-- name: CreateNewAddressProbeTask :exec
 INSERT INTO probe_tasks (
-    id, node_id, kind, status, trigger, triggering_public_address_id,
-    created_at, expires_at
-) VALUES (?, ?, 'complete-probe', 'pending', 'address-change', ?, ?, ?);
+    id, node_id, kind, status, trigger, created_at, expires_at
+) VALUES (?, ?, 'complete-probe', 'pending', 'new-address', ?, ?);
+
+-- name: CreateProbeTaskPublicAddress :exec
+INSERT INTO probe_task_public_addresses (
+    task_id, public_address_id, ordinal
+) VALUES (?, ?, ?);
+
+-- name: ListProbeTaskPublicAddresses :many
+SELECT public_address_id
+FROM probe_task_public_addresses
+WHERE task_id = ?
+ORDER BY ordinal;
 
 -- name: CreateAgentUpdateTask :exec
 INSERT INTO probe_tasks (

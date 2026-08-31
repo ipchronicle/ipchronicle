@@ -195,8 +195,8 @@ the node can reach:
   automatically as hidden paths;
 - one public IP found through several interfaces, sources, NAT mappings,
   proxies, or nodes appears once across the Center;
-- a newly discovered public IP is visible but complete probing is disabled
-  until the administrator enables it; and
+- a newly discovered public IP is enabled for complete probing by default and
+  can be disabled by the administrator; and
 - explicit proxy discovery paths bind one reusable proxy and address family to
   one node because they cannot be inferred from network inventory.
 
@@ -206,21 +206,23 @@ IPv6 privacy sources do not create their own durable path. When discovery
 indicates NAT, the Center marks the public IP accordingly. Some upstream DNS or
 raw-mail checks may still use the default route or fail to bind.
 
-Each public IP has a complete-probe switch and a **probe after rediscovery**
-switch. The latter defaults on but only applies after complete probing has been
-enabled for that IP. The default discovery interval is ten minutes. First
-observation does not trigger a complete probe. Address transitions, failure
-boundaries, recoveries, and node-level queue gaps are retained; unchanged checks
-are not historical records.
+Each public IP has a complete-probe switch that defaults on. The node has one
+setting, also enabled by default, that runs a complete probe for a public IP
+when an established discovery path adds it to the node's current confirmed set.
+The first observation on a new path only establishes a baseline. The default
+discovery interval is ten minutes. Set-entry, set-exit, failure, recovery, and
+node-level queue-gap events are retained; unchanged checks are not historical
+records.
 
 ## Complete Probes
 
 Open a node's **Complete probes** page to run a probe or edit its schedule. A
-schedule uses a six-field Cron expression including seconds and either
-`agent-local` or an IANA timezone such as `Asia/Shanghai`. Missed occurrences
-are not caught up after downtime, and an occurrence is skipped while another
-node probe is active. IPChronicle does not impose an additional frequency
-limit.
+schedule uses a six-field Cron expression including seconds and an explicit
+IANA timezone such as `Asia/Shanghai`. The registration key captures the
+administrator browser's timezone as the default for nodes registered with that
+key. Missed occurrences are not caught up after downtime, and an occurrence is
+skipped while another node probe is active. IPChronicle does not impose an
+additional frequency limit.
 
 An immediate task exists only for an online node, expires after two minutes,
 and occupies the node's single task slot. There is no task backlog. The page
@@ -266,9 +268,12 @@ proxies, schedules, notification configuration, and pending task state. It also
 advances the history generation so Agents discard queued data from the old
 generation. No complete probe starts automatically after a reset.
 
-Before the first stable release, development and RC versions do not promise
-`history.db` compatibility. This exception does not apply to `config.db`,
-silent corruption recovery, or any future published stable history schema.
+Before the first stable release is published and put into use, development and
+RC builds do not promise compatibility for `config.db`, `history.db`, or Agent
+local state. When an unreleased schema changes, recreate the affected local
+test data explicitly; if `config.db` is recreated, recreate `history.db` with
+it. Never treat this development boundary as permission to silently replace a
+corrupt or unreadable database.
 
 ## Notifications
 
@@ -305,7 +310,9 @@ version and request an Agent update. The Agent validates platform, version,
 capabilities, manifest, size, and checksum before atomic replacement. An
 independent root supervisor restores the previous binary and state checkpoint
 if the new Agent fails to start or report healthy. Update and probe work share
-the single immediate-task slot.
+the single immediate-task slot. An in-place Agent update is rejected before
+replacement when the target uses a different local-state schema. For
+unreleased builds, purge and reinstall that Agent so it enrolls as a new node.
 
 ## Uninstall An Agent
 
@@ -318,9 +325,22 @@ curl --proto '=https' --tlsv1.2 -fsSL \
 ```
 
 This removes the service definitions and installed binaries but deliberately
-preserves `/var/lib/ipchronicle-agent`. Remove the node from the Center
-separately. Delete the preserved state directory only after deciding that its
-identity and pending data are no longer needed.
+preserves `/var/lib/ipchronicle-agent`, including the node identity and pending
+data. A later installation reuses that identity.
+
+To remove the Agent and all of its local state in one operation, run:
+
+```sh
+curl --proto '=https' --tlsv1.2 -fsSL \
+  "https://raw.githubusercontent.com/ipchronicle/ipchronicle/main/scripts/install-agent.sh" |
+  sh -s -- --uninstall --purge
+```
+
+Purge irreversibly discards the node credential, retained configuration,
+encrypted referenced proxy credentials, update recovery state, task identity,
+and results waiting for upload. A later installation creates a new node.
+Remove or revoke the old node from the Center separately; neither uninstall
+mode deletes center configuration or history.
 
 ## Local Administrator Recovery
 

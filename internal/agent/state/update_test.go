@@ -86,7 +86,7 @@ func TestAgentUpdateAndCompleteProbeAreMutuallyExclusive(t *testing.T) {
 	store, _ := openProbeTestStore(t, filepath.Join(t.TempDir(), "agent"), 1)
 	defer store.Close()
 	now := time.Now().UTC().Truncate(time.Second)
-	run, err := store.StartProbeRun("schedule", nil, nil, now.Add(-time.Minute))
+	run, err := store.StartProbeRun("schedule", nil, now.Add(-time.Minute))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -109,7 +109,7 @@ func TestAgentUpdateAndCompleteProbeAreMutuallyExclusive(t *testing.T) {
 	}, "0.1.0", now); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := store.StartProbeRun("schedule", nil, nil, now.Add(time.Second)); !errors.Is(err, ErrProbeBusy) {
+	if _, err := store.StartProbeRun("schedule", nil, now.Add(time.Second)); !errors.Is(err, ErrProbeBusy) {
 		t.Fatalf("probe during update error = %v", err)
 	}
 	_ = run

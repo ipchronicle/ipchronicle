@@ -2,11 +2,15 @@ package state
 
 import (
 	"bytes"
+	"encoding/binary"
 	"errors"
 	"os"
 	"path/filepath"
 	"reflect"
+	"strings"
 	"testing"
+
+	bolt "go.etcd.io/bbolt"
 )
 
 func TestIdentityPersistsEncryptedAcrossRestart(t *testing.T) {
@@ -94,12 +98,12 @@ func TestProxyCredentialsPersistEncryptedAcrossRestart(t *testing.T) {
 	proxyID := "6fc6d7e8-bc63-49e2-91fc-d4c58b43ac16"
 	password := "retained-proxy-password"
 	configuration := Configuration{
-		SchemaVersion: 5, Revision: 1, Enabled: true, DiscoveryServices: testDiscoveryServices(),
-		ProbeSchedule:     ProbeSchedule{Enabled: true, Cron: "0 0 0 * * *", Timezone: "agent-local"},
+		SchemaVersion: 7, Revision: 1, Enabled: true, DiscoveryServices: testDiscoveryServices(),
+		ProbeSchedule:     ProbeSchedule{Enabled: true, Cron: "0 0 0 * * *", Timezone: "UTC"},
 		HistoryGeneration: "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef",
-		Egresses: []Egress{{
+		DiscoveryPaths: []Egress{{
 			ID: "c7b5eeac-903d-4b99-961d-190a8a4e5d2e", Kind: "proxy", Family: "ipv4",
-			ProxyID: &proxyID, Enabled: true, LightweightIntervalSeconds: 600, ProbeOnAddressChange: true,
+			ProxyID: &proxyID, Enabled: true, LightweightIntervalSeconds: 600,
 		}},
 		Proxies: []Proxy{{
 			ID: proxyID, Scheme: "socks5", Host: "proxy.example.test", Port: 1080, Password: &password,
@@ -139,6 +143,61 @@ func TestBroadStateDirectoryPermissionsFail(t *testing.T) {
 	}
 }
 
+func TestUnsupportedConfigurationAndStateSchemasFailExplicitly(t *testing.T) {
+	directory := filepath.Join(t.TempDir(), "agent")
+	store, err := Open(directory)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := store.SaveIdentity(Identity{
+		CenterURL: "https://center.example", NodeID: "7289cfa3-a75d-4a3f-ac06-8f1074446a85",
+		Credential: "ipc_agent_secret-credential",
+	}); err != nil {
+		t.Fatal(err)
+	}
+	configuration := Configuration{
+		SchemaVersion: 5, Revision: 1, Enabled: true,
+		HistoryGeneration: "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef",
+		DiscoveryServices: testDiscoveryServices(),
+		ProbeSchedule:     ProbeSchedule{Enabled: true, Cron: "0 0 0 * * *", Timezone: "UTC"},
+	}
+	if err := store.ApplyConfiguration(configuration); err == nil || !strings.Contains(err.Error(), "unsupported Agent configuration snapshot") {
+		t.Fatalf("schema 5 configuration error = %v", err)
+	}
+	if err := store.database.Update(func(transaction *bolt.Tx) error {
+		encoded := make([]byte, 8)
+		binary.BigEndian.PutUint64(encoded, 5)
+		return transaction.Bucket(metaBucket).Put(schemaVersionKey, encoded)
+	}); err != nil {
+		t.Fatal(err)
+	}
+	if err := store.Close(); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := Open(directory); err == nil || !strings.Contains(err.Error(), "purge the Agent state and enroll again") {
+		t.Fatalf("schema 5 state error = %v", err)
+	}
+}
+
+func TestLegacyConfigurationFieldFailsExplicitly(t *testing.T) {
+	encoded := []byte(`{
+		"schemaVersion":6,
+		"revision":1,
+		"enabled":true,
+		"historyGeneration":"0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef",
+		"discoveryPaths":[],
+		"probeTargets":[],
+		"egresses":[],
+		"proxies":[],
+		"discoveryServices":{"ipv4Services":[],"ipv6Services":[]},
+		"probeSchedule":{"enabled":true,"cron":"0 0 0 * * *","timezone":"UTC"},
+		"probeLowMemoryOverride":false
+	}`)
+	if _, err := decodeStoredConfiguration([masterKeySize]byte{}, encoded); err == nil || !strings.Contains(err.Error(), `unknown field "egresses"`) {
+		t.Fatalf("legacy configuration error = %v", err)
+	}
+}
+
 func TestConfigurationReplacementFailureAndRevocationPersist(t *testing.T) {
 	directory := filepath.Join(t.TempDir(), "agent")
 	store, err := Open(directory)
@@ -153,8 +212,8 @@ func TestConfigurationReplacementFailureAndRevocationPersist(t *testing.T) {
 		t.Fatal(err)
 	}
 	first := Configuration{
-		SchemaVersion: 5, Revision: 1, Enabled: true, DiscoveryServices: testDiscoveryServices(),
-		ProbeSchedule:     ProbeSchedule{Enabled: true, Cron: "0 0 0 * * *", Timezone: "agent-local"},
+		SchemaVersion: 7, Revision: 1, Enabled: true, DiscoveryServices: testDiscoveryServices(),
+		ProbeSchedule:     ProbeSchedule{Enabled: true, Cron: "0 0 0 * * *", Timezone: "UTC"},
 		HistoryGeneration: "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef",
 	}
 	if err := store.ApplyConfiguration(first); err != nil {

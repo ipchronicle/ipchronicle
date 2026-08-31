@@ -35,7 +35,7 @@ curl --fail --silent --show-error \
 csrf_token="$(jq -er '.csrfToken' "$login_file")"
 curl --fail --silent --show-error --cookie "$cookie_file" \
   "$base_url/api/v1/system/status" >"$status_file"
-if ! jq -e '.service == "ipchronicle-center" and .status == "ok" and .configSchemaVersion == 18 and .historySchemaVersion == 5 and (.version | length > 0)' "$status_file" >/dev/null; then
+if ! jq -e '.service == "ipchronicle-center" and .status == "ok" and .configSchemaVersion == 1 and .historySchemaVersion == 1 and (.version | length > 0)' "$status_file" >/dev/null; then
   echo "system status did not report the expected service and schema versions" >&2
   jq . "$status_file" >&2
   exit 1
@@ -46,20 +46,21 @@ curl --fail --silent --show-error \
   --cookie "$cookie_file" \
   --header "Origin: $base_url" \
   --header "X-CSRF-Token: $csrf_token" \
-  --request POST \
+  --header 'Content-Type: application/json' \
+  --data '{"defaultProbeTimezone":"UTC"}' \
   "$base_url/api/v1/agent-enrollment/key" >"$enrollment_file"
 registration_key="$(jq -er '.registrationKey' "$enrollment_file")"
 if [[ -z "$registration_key" ]]; then
   echo "enrollment response did not contain a registration key" >&2
   exit 1
 fi
-jq -n --arg key "$registration_key" '{registrationKey:$key,metadata:{hostname:"smoke-node",agentVersion:"dev",operatingSystem:"linux",architecture:"amd64",physicalMemoryBytes:536870912,capabilities:["control-v1","configuration-v6","complete-probe-v1"]}}' | \
+jq -n --arg key "$registration_key" '{registrationKey:$key,metadata:{hostname:"smoke-node",agentVersion:"dev",operatingSystem:"linux",architecture:"amd64",physicalMemoryBytes:536870912,capabilities:["control-v1","configuration-v7","complete-probe-v1"]}}' | \
   curl --fail --silent --show-error \
     --header 'Content-Type: application/json' \
     --data-binary @- \
     "$base_url/api/v1/agent/enroll" >"$registration_file"
 agent_credential="$(jq -er '.credential' "$registration_file")"
-jq -n '{appliedConfigurationRevision:0,metadata:{hostname:"smoke-node",agentVersion:"dev",operatingSystem:"linux",architecture:"amd64",physicalMemoryBytes:536870912,capabilities:["control-v1","configuration-v6","complete-probe-v1"]}}' | \
+jq -n '{appliedConfigurationRevision:0,metadata:{hostname:"smoke-node",agentVersion:"dev",operatingSystem:"linux",architecture:"amd64",physicalMemoryBytes:536870912,capabilities:["control-v1","configuration-v7","complete-probe-v1"]}}' | \
   curl --fail --silent --show-error \
     --header 'Content-Type: application/json' \
     --header "Authorization: Bearer $agent_credential" \
@@ -70,14 +71,14 @@ configuration_file="$(mktemp)"
 curl --fail --silent --show-error \
   --header "Authorization: Bearer $agent_credential" \
   "$base_url/api/v1/agent/configuration" >"$configuration_file"
-if ! jq -e '.schemaVersion == 6 and .revision == 1 and .enabled == true and (.historyGeneration | length == 64) and .discoveryPaths == [] and .probeTargets == [] and .proxies == [] and .probeSchedule.enabled == true and .probeSchedule.cron == "0 0 0 * * *" and .probeSchedule.timezone == "agent-local" and .probeLowMemoryOverride == false' "$configuration_file" >/dev/null; then
-  echo "Agent configuration did not match the expected initial configuration-v6 contract" >&2
+if ! jq -e '.schemaVersion == 7 and .revision == 1 and .enabled == true and (.historyGeneration | length == 64) and .discoveryPaths == [] and .probeTargets == [] and .proxies == [] and .probeSchedule.enabled == true and .probeSchedule.cron == "0 0 0 * * *" and .probeSchedule.timezone == "UTC" and .probeLowMemoryOverride == false' "$configuration_file" >/dev/null; then
+  echo "Agent configuration did not match the expected initial configuration-v7 contract" >&2
   jq . "$configuration_file" >&2
   rm -f "$configuration_file"
   exit 1
 fi
 rm -f "$configuration_file"
-jq -n '{appliedConfigurationRevision:1,metadata:{hostname:"smoke-node",agentVersion:"dev",operatingSystem:"linux",architecture:"amd64",physicalMemoryBytes:536870912,capabilities:["control-v1","configuration-v6","complete-probe-v1"]}}' | \
+jq -n '{appliedConfigurationRevision:1,metadata:{hostname:"smoke-node",agentVersion:"dev",operatingSystem:"linux",architecture:"amd64",physicalMemoryBytes:536870912,capabilities:["control-v1","configuration-v7","complete-probe-v1"]}}' | \
   curl --fail --silent --show-error \
     --header 'Content-Type: application/json' \
     --header "Authorization: Bearer $agent_credential" \

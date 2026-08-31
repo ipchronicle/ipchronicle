@@ -71,7 +71,7 @@ func TestAdministratorLoginStatusAndLogout(t *testing.T) {
 		t.Fatal(err)
 	}
 	if status.Service != api.IpchronicleCenter || status.Status != api.Ok || status.SourceRevision != "test-revision" ||
-		!status.TransportWarning || status.ConfigSchemaVersion != 18 || status.HistorySchemaVersion != 5 {
+		!status.TransportWarning || status.ConfigSchemaVersion != 1 || status.HistorySchemaVersion != 1 {
 		t.Fatalf("unexpected status response: %#v", status)
 	}
 
@@ -95,7 +95,7 @@ func TestMalformedJSONUsesStructuredError(t *testing.T) {
 
 func TestExternalOriginSystemSettingDoesNotAuthorizeBrowserRequests(t *testing.T) {
 	handler, nodeService, _ := newTestHTTPHandlerWithNodes(t, nil)
-	if _, err := nodeService.RotateEnrollmentKey(context.Background()); err != nil {
+	if _, err := nodeService.RotateEnrollmentKey(context.Background(), "UTC"); err != nil {
 		t.Fatal(err)
 	}
 	cookie, session := loginTestAdministrator(t, handler)
@@ -558,7 +558,7 @@ func TestHistoryAPIFiltersOrderingAndComparison(t *testing.T) {
 }
 
 func TestNetworkProxyAPINeverRevealsStoredPassword(t *testing.T) {
-	handler := newTestHTTPHandler(t, nil)
+	handler, nodeService, _ := newTestHTTPHandlerWithNodes(t, nil)
 	login := performRequest(handler, http.MethodPost, "/api/v1/auth/login", loginBody(), "http://example.test", nil)
 	if login.Code != http.StatusOK {
 		t.Fatalf("login status = %d, body = %s", login.Code, login.Body.String())
@@ -568,6 +568,18 @@ func TestNetworkProxyAPINeverRevealsStoredPassword(t *testing.T) {
 		t.Fatal(err)
 	}
 	cookie := login.Result().Cookies()[0]
+	ctx := context.Background()
+	enrollment, err := nodeService.RotateEnrollmentKey(ctx, "UTC")
+	if err != nil {
+		t.Fatal(err)
+	}
+	registration, err := nodeService.Register(ctx, enrollment.Key, nodes.Metadata{
+		Hostname: "proxy-api.example", AgentVersion: "0.1.0", OperatingSystem: "linux",
+		Architecture: "amd64", Capabilities: []string{"control-v1"}, PhysicalMemoryBytes: 512 * 1024 * 1024,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
 	secret := "proxy-password-must-not-be-returned"
 	body, err := json.Marshal(api.NetworkProxyCreate{
 		Name: "Primary proxy", Scheme: api.NetworkProxySchemeSocks5,
@@ -577,7 +589,7 @@ func TestNetworkProxyAPINeverRevealsStoredPassword(t *testing.T) {
 		t.Fatal(err)
 	}
 	created := performRequestWithCSRF(
-		handler, http.MethodPost, "/api/v1/network-proxies", body,
+		handler, http.MethodPost, "/api/v1/nodes/"+registration.NodeID.String()+"/network-proxies", body,
 		"http://example.test", cookie, session.CsrfToken,
 	)
 	if created.Code != http.StatusCreated || bytes.Contains(created.Body.Bytes(), []byte(secret)) || bytes.Contains(created.Body.Bytes(), []byte(`"password"`)) {
@@ -590,7 +602,7 @@ func TestNetworkProxyAPINeverRevealsStoredPassword(t *testing.T) {
 	if !proxy.PasswordConfigured {
 		t.Fatalf("create proxy response did not report configured password: %#v", proxy)
 	}
-	listed := performRequest(handler, http.MethodGet, "/api/v1/network-proxies", nil, "", cookie)
+	listed := performRequest(handler, http.MethodGet, "/api/v1/nodes/"+registration.NodeID.String()+"/network-proxies", nil, "", cookie)
 	if listed.Code != http.StatusOK || bytes.Contains(listed.Body.Bytes(), []byte(secret)) || bytes.Contains(listed.Body.Bytes(), []byte(`"password"`)) {
 		t.Fatalf("list proxy response = %d %s", listed.Code, listed.Body.String())
 	}
@@ -628,7 +640,7 @@ func TestNetworkObservationAndPublicAddressAPIWorkflow(t *testing.T) {
 	}
 
 	ctx := context.Background()
-	enrollment, err := nodeService.RotateEnrollmentKey(ctx)
+	enrollment, err := nodeService.RotateEnrollmentKey(ctx, "UTC")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -666,7 +678,7 @@ func TestNetworkObservationAndPublicAddressAPIWorkflow(t *testing.T) {
 	if err := json.NewDecoder(networkResponse.Body).Decode(&network); err != nil {
 		t.Fatal(err)
 	}
-	if len(network.PublicAddresses) != 0 || len(network.ProxyDiscoveryPaths) != 0 {
+	if len(network.PublicAddresses) != 0 || len(network.NetworkProxies) != 0 {
 		t.Fatalf("initial public network state = %#v", network)
 	}
 	if bytes.Contains(networkResponse.Body.Bytes(), []byte(`"inventory"`)) ||
@@ -676,45 +688,48 @@ func TestNetworkObservationAndPublicAddressAPIWorkflow(t *testing.T) {
 		t.Fatalf("network response exposed discovery internals: %s", networkResponse.Body.String())
 	}
 
-	proxy, err := nodeService.CreateNetworkProxy(ctx, nodes.NetworkProxyCreate{
-		Name: "API proxy", Scheme: "socks5", Host: "proxy.example.test", Port: 1080,
+	createBody, err := json.Marshal(api.NetworkProxyCreate{
+		Name: "API proxy", Scheme: api.NetworkProxySchemeSocks5, Host: "proxy.example.test", Port: 1080,
 	})
-	if err != nil {
-		t.Fatal(err)
-	}
-	createBody, err := json.Marshal(api.ProxyDiscoveryPathCreate{ProxyId: proxy.ID, Family: api.Ipv4})
 	if err != nil {
 		t.Fatal(err)
 	}
 	created := performRequestWithCSRF(
 		handler, http.MethodPost,
-		"/api/v1/nodes/"+registration.NodeID.String()+"/proxy-discovery-paths", createBody,
+		"/api/v1/nodes/"+registration.NodeID.String()+"/network-proxies", createBody,
 		"http://example.test", cookie, session.CsrfToken,
 	)
 	if created.Code != http.StatusCreated {
-		t.Fatalf("proxy discovery path creation = %d %s", created.Code, created.Body.String())
+		t.Fatalf("node proxy creation = %d %s", created.Code, created.Body.String())
 	}
-	var path api.ProxyDiscoveryPath
-	if err := json.NewDecoder(created.Body).Decode(&path); err != nil {
+	var proxy api.NetworkProxy
+	if err := json.NewDecoder(created.Body).Decode(&proxy); err != nil {
 		t.Fatal(err)
 	}
-	if path.ProxyId != proxy.ID || path.Family != api.Ipv4 {
-		t.Fatalf("proxy discovery path = %#v", path)
+	if proxy.NodeId != registration.NodeID || proxy.Status != api.NetworkProxyStatusChecking ||
+		proxy.Ipv4.Status != api.NetworkProxyFamilyStatusChecking || proxy.Ipv6.Status != api.NetworkProxyFamilyStatusChecking {
+		t.Fatalf("created node proxy = %#v", proxy)
+	}
+	listed := performRequest(
+		handler, http.MethodGet, "/api/v1/nodes/"+registration.NodeID.String()+"/network-proxies", nil, "", cookie,
+	)
+	if listed.Code != http.StatusOK || !bytes.Contains(listed.Body.Bytes(), []byte(`"API proxy"`)) {
+		t.Fatalf("node proxy list = %d %s", listed.Code, listed.Body.String())
 	}
 	queued := performRequestWithCSRF(
 		handler, http.MethodDelete,
-		"/api/v1/nodes/"+registration.NodeID.String()+"/proxy-discovery-paths/"+path.Id.String(), nil,
+		"/api/v1/nodes/"+registration.NodeID.String()+"/network-proxies/"+proxy.Id.String(), nil,
 		"http://example.test", cookie, session.CsrfToken,
 	)
 	if queued.Code != http.StatusAccepted {
-		t.Fatalf("proxy discovery path deletion = %d %s", queued.Code, queued.Body.String())
+		t.Fatalf("node proxy deletion = %d %s", queued.Code, queued.Body.String())
 	}
-	var deletion api.ProxyDiscoveryPathDeletion
+	var deletion api.NetworkProxy
 	if err := json.NewDecoder(queued.Body).Decode(&deletion); err != nil {
 		t.Fatal(err)
 	}
-	if deletion.PathId != path.Id || deletion.Status != api.ProxyDiscoveryPathDeletionStatusPending {
-		t.Fatalf("proxy discovery path deletion response = %#v", deletion)
+	if deletion.Id != proxy.Id || deletion.DeletionStatus == nil || *deletion.DeletionStatus != api.NetworkProxyDeletionStatusPending {
+		t.Fatalf("node proxy deletion response = %#v", deletion)
 	}
 	pendingResponse := performRequest(
 		handler, http.MethodGet, "/api/v1/nodes/"+registration.NodeID.String()+"/network", nil, "", cookie,
@@ -725,9 +740,9 @@ func TestNetworkObservationAndPublicAddressAPIWorkflow(t *testing.T) {
 	if err := json.NewDecoder(pendingResponse.Body).Decode(&network); err != nil {
 		t.Fatal(err)
 	}
-	if len(network.ProxyDiscoveryPaths) != 1 || network.ProxyDiscoveryPaths[0].DeletionStatus == nil ||
-		*network.ProxyDiscoveryPaths[0].DeletionStatus != api.ProxyDiscoveryPathDeletionStatusPending {
-		t.Fatalf("pending proxy discovery path = %#v", network.ProxyDiscoveryPaths)
+	if len(network.NetworkProxies) != 1 || network.NetworkProxies[0].DeletionStatus == nil ||
+		*network.NetworkProxies[0].DeletionStatus != api.NetworkProxyDeletionStatusPending {
+		t.Fatalf("pending node proxy = %#v", network.NetworkProxies)
 	}
 }
 
@@ -774,8 +789,27 @@ func TestAdministratorEnrollmentAndAgentCredentialBoundaries(t *testing.T) {
 	if initial.Code != http.StatusOK || !bytes.Contains(initial.Body.Bytes(), []byte(`"hasKey":false`)) {
 		t.Fatalf("initial enrollment response = %d %s", initial.Code, initial.Body.String())
 	}
-	rotated := performRequestWithCSRF(handler, http.MethodPost, "/api/v1/agent-enrollment/key", nil, "http://example.test", cookie, session.CsrfToken)
+	missingTimezone := performRequestWithCSRF(
+		handler, http.MethodPost, "/api/v1/agent-enrollment/key", nil,
+		"http://example.test", cookie, session.CsrfToken,
+	)
+	assertErrorCode(t, missingTimezone, http.StatusBadRequest, api.InvalidRequest)
+	invalidRotationBody, err := json.Marshal(api.AgentEnrollmentKeyRotation{DefaultProbeTimezone: "agent-local"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	invalidTimezone := performRequestWithCSRF(
+		handler, http.MethodPost, "/api/v1/agent-enrollment/key", invalidRotationBody,
+		"http://example.test", cookie, session.CsrfToken,
+	)
+	assertErrorCode(t, invalidTimezone, http.StatusBadRequest, api.InvalidRequest)
+	rotationBody, err := json.Marshal(api.AgentEnrollmentKeyRotation{DefaultProbeTimezone: "Asia/Shanghai"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	rotated := performRequestWithCSRF(handler, http.MethodPost, "/api/v1/agent-enrollment/key", rotationBody, "http://example.test", cookie, session.CsrfToken)
 	if rotated.Code != http.StatusOK || !bytes.Contains(rotated.Body.Bytes(), []byte(`"registrationKey"`)) ||
+		!bytes.Contains(rotated.Body.Bytes(), []byte(`"defaultProbeTimezone":"Asia/Shanghai"`)) ||
 		bytes.Contains(rotated.Body.Bytes(), []byte("install-agent.sh")) ||
 		bytes.Contains(rotated.Body.Bytes(), []byte("--version")) {
 		t.Fatalf("rotated enrollment response = %d %s", rotated.Code, rotated.Body.String())
@@ -895,7 +929,7 @@ func TestAdministratorEnrollmentAndAgentCredentialBoundaries(t *testing.T) {
 func TestTemporarySyncWebSocketAuthenticationWakeAndStop(t *testing.T) {
 	ctx := context.Background()
 	handler, nodeService, syncHub := newTestHTTPHandlerWithNodes(t, nil)
-	enrollment, err := nodeService.RotateEnrollmentKey(ctx)
+	enrollment, err := nodeService.RotateEnrollmentKey(ctx, "UTC")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -1070,10 +1104,10 @@ func seedHTTPHistory(t *testing.T, service *nodes.Service) httpHistoryFixture {
 	now := time.Now().UTC().Truncate(time.Second)
 	metadata := nodes.Metadata{
 		Hostname: "history-edge", AgentVersion: "0.1.0", OperatingSystem: "linux", Architecture: "amd64",
-		Capabilities:        []string{"control-v1", "configuration-v6", "complete-probe-v1"},
+		Capabilities:        []string{"control-v1", "configuration-v7", "complete-probe-v1"},
 		PhysicalMemoryBytes: 512 * 1024 * 1024,
 	}
-	enrollment, err := service.RotateEnrollmentKey(ctx)
+	enrollment, err := service.RotateEnrollmentKey(ctx, "UTC")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -1098,15 +1132,15 @@ func seedHTTPHistory(t *testing.T, service *nodes.Service) httpHistoryFixture {
 	if _, err := service.Poll(ctx, registration.Credential, metadata, 0, nil, nil, &inventory, nil); err != nil {
 		t.Fatal(err)
 	}
-	network, err := service.Network(ctx, registration.NodeID)
+	configuration, err := service.Configuration(ctx, registration.Credential)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if len(network.Egresses) < 2 {
-		t.Fatalf("history fixture egresses = %d, want at least 2", len(network.Egresses))
+	if len(configuration.DiscoveryPaths) < 2 {
+		t.Fatalf("history fixture discovery paths = %d, want at least 2", len(configuration.DiscoveryPaths))
 	}
 	var primary, other nodes.NetworkEgress
-	for _, egress := range network.Egresses {
+	for _, egress := range configuration.DiscoveryPaths {
 		switch egress.Family {
 		case "ipv4":
 			primary = egress
@@ -1115,7 +1149,7 @@ func seedHTTPHistory(t *testing.T, service *nodes.Service) httpHistoryFixture {
 		}
 	}
 	if primary.ID == uuid.Nil || other.ID == uuid.Nil {
-		t.Fatalf("history fixture egress families = %#v", network.Egresses)
+		t.Fatalf("history fixture discovery path families = %#v", configuration.DiscoveryPaths)
 	}
 	systemState, err := service.History(ctx)
 	if err != nil {
@@ -1135,7 +1169,7 @@ func seedHTTPHistory(t *testing.T, service *nodes.Service) httpHistoryFixture {
 	); err != nil {
 		t.Fatal(err)
 	}
-	network, err = service.Network(ctx, registration.NodeID)
+	network, err := service.Network(ctx, registration.NodeID)
 	if err != nil || len(network.PublicAddresses) != 2 {
 		t.Fatalf("history fixture public addresses = %#v, %v", network.PublicAddresses, err)
 	}
@@ -1151,7 +1185,7 @@ func seedHTTPHistory(t *testing.T, service *nodes.Service) httpHistoryFixture {
 	if primaryAddress.ID == uuid.Nil || otherAddress.ID == uuid.Nil {
 		t.Fatalf("history fixture public address families = %#v", network.PublicAddresses)
 	}
-	configuration, err := service.Configuration(ctx, registration.Credential)
+	configuration, err = service.Configuration(ctx, registration.Credential)
 	if err != nil {
 		t.Fatal(err)
 	}

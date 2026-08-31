@@ -1,6 +1,7 @@
 package agent
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"io"
@@ -53,7 +54,7 @@ func TestConfigurationMapsV6TransportSemantics(t *testing.T) {
 		}
 		response.Header().Set("Content-Type", "application/json")
 		_ = json.NewEncoder(response).Encode(agentapi.AgentConfigurationSnapshot{
-			SchemaVersion: 6, Revision: 7, Enabled: true, HistoryGeneration: generation,
+			SchemaVersion: 7, Revision: 7, Enabled: true, HistoryGeneration: generation,
 			DiscoveryPaths: []agentapi.AgentDiscoveryPath{{
 				Id: discoveryID, Kind: agentapi.Source, Family: agentapi.Ipv4,
 				InterfaceName: pointer("eth0"), SourceAddress: pointer("10.0.0.2"),
@@ -62,7 +63,7 @@ func TestConfigurationMapsV6TransportSemantics(t *testing.T) {
 			ProbeTargets: []agentapi.AgentProbeTarget{{
 				Id: targetID, PathId: pathID, PublicAddress: "203.0.113.10",
 				Kind: agentapi.Proxy, Family: agentapi.Ipv4,
-				ProxyId: &proxyID, ProbeOnRediscovery: true,
+				ProxyId: &proxyID,
 			}},
 			Proxies: []agentapi.AgentProxyConfiguration{{
 				Id: proxyID, Scheme: agentapi.NetworkProxySchemeSocks5, Host: "proxy.example", Port: 1080,
@@ -71,7 +72,7 @@ func TestConfigurationMapsV6TransportSemantics(t *testing.T) {
 				Ipv4Services: []string{"https://v4-one.example", "https://v4-two.example"},
 				Ipv6Services: []string{"https://v6-one.example", "https://v6-two.example"},
 			},
-			ProbeSchedule: agentapi.ProbeSchedule{Enabled: true, Cron: "0 0 0 * * *", Timezone: "agent-local"},
+			ProbeSchedule: agentapi.ProbeSchedule{Enabled: true, Cron: "0 0 0 * * *", Timezone: "UTC"},
 		})
 	}))
 	defer server.Close()
@@ -90,7 +91,7 @@ func TestConfigurationMapsV6TransportSemantics(t *testing.T) {
 	}
 	if len(configuration.ProbeTargets) != 1 || !configuration.ProbeTargets[0].Enabled ||
 		configuration.ProbeTargets[0].ID != targetID.String() || configuration.ProbeTargets[0].PathID == nil ||
-		*configuration.ProbeTargets[0].PathID != pathID.String() || !configuration.ProbeTargets[0].ProbeOnAddressChange {
+		*configuration.ProbeTargets[0].PathID != pathID.String() {
 		t.Fatalf("probe targets = %#v", configuration.ProbeTargets)
 	}
 	if len(configuration.Proxies) != 1 || configuration.Proxies[0].ID != proxyID.String() {
@@ -152,6 +153,75 @@ func TestParsePhysicalMemory(t *testing.T) {
 		if _, err := parsePhysicalMemory(strings.NewReader(input)); err == nil {
 			t.Fatalf("invalid meminfo %q unexpectedly succeeded", input)
 		}
+	}
+}
+
+func TestDevelopmentAgentRunsWithoutUpdateCapability(t *testing.T) {
+	pollReceived := make(chan agentapi.AgentPollRequest, 1)
+	server := httptest.NewServer(http.HandlerFunc(func(response http.ResponseWriter, request *http.Request) {
+		if request.URL.Path != "/api/v1/agent/control" || request.Header.Get("Authorization") != "Bearer ipc_agent_dev-test" {
+			http.Error(response, "unauthorized", http.StatusUnauthorized)
+			return
+		}
+		var poll agentapi.AgentPollRequest
+		if err := json.NewDecoder(request.Body).Decode(&poll); err != nil {
+			t.Error(err)
+			http.Error(response, "invalid", http.StatusBadRequest)
+			return
+		}
+		pollReceived <- poll
+		response.Header().Set("Content-Type", "application/json")
+		_ = json.NewEncoder(response).Encode(agentapi.AgentPollResult{
+			AddressUploadReceipt: agentapi.AgentAddressUploadReceipt{
+				AcceptedEventIds: []uuid.UUID{}, DiscardedEventIds: []uuid.UUID{},
+				AcceptedGaps: []agentapi.AgentAddressGapReceipt{}, DiscardedGaps: []agentapi.AgentAddressGapReceipt{},
+			},
+			CenterVersion: "dev", DesiredConfigurationRevision: 0, Enabled: true, PollIntervalSeconds: 30,
+		})
+	}))
+	defer server.Close()
+
+	store, err := state.Open(filepath.Join(t.TempDir(), "state"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer store.Close()
+	if err := store.SaveIdentity(state.Identity{
+		CenterURL: server.URL, NodeID: uuid.NewString(), Credential: "ipc_agent_dev-test",
+	}); err != nil {
+		t.Fatal(err)
+	}
+
+	var logs bytes.Buffer
+	ctx, cancel := context.WithCancel(context.Background())
+	done := make(chan error, 1)
+	go func() {
+		done <- RunWithOptions(ctx, store, "dev", log.New(&logs, "", 0), RunOptions{
+			UpdateConfig: &agentupdate.Config{
+				InitSystem: "systemd", AgentPath: "/usr/local/bin/ipchronicle-agent", UpdaterPath: "/usr/local/libexec/ipchronicle-agent-updater",
+			},
+		})
+	}()
+
+	select {
+	case poll := <-pollReceived:
+		if poll.Metadata.AgentVersion != "dev" || slices.Contains(poll.Metadata.Capabilities, "agent-update-v1") {
+			t.Fatalf("development Agent metadata = %#v", poll.Metadata)
+		}
+	case <-time.After(3 * time.Second):
+		t.Fatal("development Agent did not poll the center")
+	}
+	cancel()
+	select {
+	case err := <-done:
+		if err != nil {
+			t.Fatal(err)
+		}
+	case <-time.After(3 * time.Second):
+		t.Fatal("development Agent did not stop after cancellation")
+	}
+	if !strings.Contains(logs.String(), `Agent updates disabled for non-release version "dev"`) {
+		t.Fatalf("development Agent log = %q", logs.String())
 	}
 }
 

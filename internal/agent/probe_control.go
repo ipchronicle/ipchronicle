@@ -255,13 +255,6 @@ func probeRunArtifactToAPI(run state.ProbeRun) (agentapi.AgentProbeRunArtifact, 
 		}
 		result.TaskId = &id
 	}
-	if run.TriggeringEgressID != nil {
-		id, err := uuid.Parse(*run.TriggeringEgressID)
-		if err != nil {
-			return agentapi.AgentProbeRunArtifact{}, err
-		}
-		result.TriggeringEgressId = &id
-	}
 	for _, manifest := range run.Executions {
 		id, err := uuid.Parse(manifest.ID)
 		if err != nil {

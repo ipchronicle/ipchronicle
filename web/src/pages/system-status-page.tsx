@@ -64,7 +64,7 @@ export function SystemStatusPage() {
   return (
     <div className="w-full min-w-0 px-4 py-10 sm:px-6 sm:py-14">
       <div className="max-w-2xl">
-        <p className="text-xs font-medium text-muted-foreground uppercase">
+        <p className="text-sm font-medium text-muted-foreground uppercase">
           {t("status.section")}
         </p>
         <h1 className="mt-2 text-2xl font-semibold sm:text-3xl">
@@ -248,11 +248,11 @@ function StatusField({
   const { t } = useTranslation();
   return (
     <div className="min-w-0 border-b px-4 py-5 last:border-b-0 sm:border-r sm:px-5 sm:nth-[2n]:border-r-0 sm:nth-[n+7]:border-b-0 lg:nth-[2n]:border-r lg:nth-[4n]:border-r-0 lg:nth-[n+5]:border-b-0">
-      <dt className="flex items-center gap-2 text-xs font-medium text-muted-foreground [&_svg]:size-3.5">
+      <dt className="flex items-center gap-2 text-sm font-medium text-muted-foreground [&_svg]:size-3.5">
         {icon}
         {label}
       </dt>
-      <dd className="mt-2 break-all text-sm font-medium">
+      <dd className="mt-2 break-all text-base font-medium">
         {value ?? t("status.notAvailable")}
       </dd>
     </div>

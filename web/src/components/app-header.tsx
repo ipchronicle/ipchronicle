@@ -130,7 +130,7 @@ export function AppHeader({ withSidebar = false }: { withSidebar?: boolean }) {
       {actionError ? (
         <p
           role="alert"
-          className="border-t px-4 py-2 text-center text-xs text-destructive"
+          className="border-t px-4 py-2 text-center text-sm text-destructive"
         >
           {t("errors.actionFailed")}
         </p>

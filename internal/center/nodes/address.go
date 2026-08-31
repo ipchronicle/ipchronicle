@@ -41,7 +41,6 @@ type AddressEvent struct {
 	Sequence          int64
 	Kind              string
 	Family            string
-	PreviousAddress   *string
 	PublicAddress     *string
 	LocalInterface    *string
 	LocalAddress      *string
@@ -227,45 +226,24 @@ func (s *Service) reconcilePublicAddresses(
 	if err != nil {
 		return err
 	}
-	type priorAddressState struct {
-		record    configdb.PublicAddress
-		available bool
+	priorPaths, err := queries.ListNodePublicAddressPaths(ctx, nodeID)
+	if err != nil {
+		return err
 	}
-	prior := make(map[string]priorAddressState)
-	for _, state := range states {
-		if state.HistoryGeneration != historyGeneration || state.Status != "confirmed" || state.PublicAddress == nil {
-			continue
+	priorPathByID := make(map[string]configdb.PublicAddressPath, len(priorPaths))
+	priorAddresses := make(map[string]struct{}, len(priorPaths))
+	for _, path := range priorPaths {
+		priorPathByID[path.PathID] = path
+		if path.Available == 1 {
+			priorAddresses[path.PublicAddressID] = struct{}{}
 		}
-		parsed, err := netip.ParseAddr(*state.PublicAddress)
-		if err != nil {
-			return ErrInvalidMetadata
-		}
-		address := parsed.Unmap().String()
-		if _, exists := prior[address]; exists {
-			continue
-		}
-		record, err := queries.GetPublicAddressByAddress(ctx, address)
-		if errors.Is(err, sql.ErrNoRows) {
-			continue
-		}
-		if err != nil {
-			return err
-		}
-		paths, err := queries.ListPublicAddressPaths(ctx, record.ID)
-		if err != nil {
-			return err
-		}
-		available := false
-		for _, path := range paths {
-			available = available || path.Available == 1
-		}
-		prior[address] = priorAddressState{record: record, available: available}
 	}
+	newAddressCandidates := make(map[string]struct{})
 	if err := queries.MarkNodePublicAddressPathsUnavailable(ctx, nodeID); err != nil {
 		return err
 	}
 	for _, state := range states {
-		if state.HistoryGeneration != historyGeneration || state.Status != "confirmed" || state.PublicAddress == nil {
+		if state.HistoryGeneration != historyGeneration || state.PublicAddress == nil {
 			continue
 		}
 		parsed, err := netip.ParseAddr(*state.PublicAddress)
@@ -273,8 +251,8 @@ func (s *Service) reconcilePublicAddresses(
 			return ErrInvalidMetadata
 		}
 		address := parsed.Unmap().String()
-		observedAt := state.LastCheckedAt.UTC().Unix()
-		updatedAt := max(receivedAt, observedAt)
+		observedAt := state.LastSucceededAt.UTC().Unix()
+		updatedAt := max(receivedAt, state.LastCheckedAt.UTC().Unix())
 		addressID := uuid.NewString()
 		if err := queries.UpsertPublicAddress(ctx, configdb.UpsertPublicAddressParams{
 			ID: addressID, Address: address, Family: state.Family,
@@ -288,7 +266,7 @@ func (s *Service) reconcilePublicAddresses(
 		}
 		if err := queries.UpsertPublicAddressNode(ctx, configdb.UpsertPublicAddressNodeParams{
 			PublicAddressID: publicAddress.ID, NodeID: nodeID,
-			FirstSeenAt: state.LastCheckedAt.UTC().Unix(), LastSeenAt: state.LastCheckedAt.UTC().Unix(),
+			FirstSeenAt: observedAt, LastSeenAt: observedAt,
 		}); err != nil {
 			return err
 		}
@@ -305,6 +283,11 @@ func (s *Service) reconcilePublicAddresses(
 			LastCheckedAt: state.LastCheckedAt.UTC().Unix(), LastSucceededAt: lastSucceededAt,
 		}); err != nil {
 			return err
+		}
+		priorPath, established := priorPathByID[state.EgressID.String()]
+		_, alreadyCurrent := priorAddresses[publicAddress.ID]
+		if established && priorPath.PublicAddressID != publicAddress.ID && !alreadyCurrent {
+			newAddressCandidates[publicAddress.ID] = struct{}{}
 		}
 	}
 	cleared, err := queries.ClearUnavailablePublicAddressSelections(ctx)
@@ -340,40 +323,43 @@ func (s *Service) reconcilePublicAddresses(
 			return err
 		}
 	}
-	for address, previous := range prior {
-		if previous.available || previous.record.ProbeEnabled != 1 || previous.record.ProbeOnRediscovery != 1 {
-			continue
-		}
-		current, err := queries.GetPublicAddressByAddress(ctx, address)
-		if errors.Is(err, sql.ErrNoRows) {
-			continue
-		}
-		if err != nil {
+	cleanupNodes := make(map[string]struct{}, len(affectedNodes)+1)
+	cleanupNodes[nodeID] = struct{}{}
+	for affectedNodeID := range affectedNodes {
+		cleanupNodes[affectedNodeID] = struct{}{}
+	}
+	for cleanupNodeID := range cleanupNodes {
+		if err := queries.DeleteUnavailablePendingPublicAddressProbes(ctx, cleanupNodeID); err != nil {
 			return err
 		}
-		if current.SelectedPathID == nil {
-			continue
-		}
-		path, err := queries.GetPublicAddressPathByPathID(ctx, *current.SelectedPathID)
-		if err != nil {
-			return err
-		}
-		if path.Available != 1 || path.PublicAddressID != current.ID {
-			continue
-		}
-		selectedNode, err := queries.GetNodeByID(ctx, path.NodeID)
-		if err != nil {
-			return err
-		}
-		if err := queries.DeletePendingPublicAddressProbeByAddress(ctx, current.ID); err != nil {
-			return err
-		}
-		if err := queries.UpsertPendingPublicAddressProbe(ctx, configdb.UpsertPendingPublicAddressProbeParams{
-			PublicAddressID: current.ID, NodeID: path.NodeID,
-			RequiredConfigurationRevision: selectedNode.DesiredConfigurationRevision,
-			CreatedAt:                     receivedAt,
-		}); err != nil {
-			return err
+	}
+	node, err := queries.GetNodeProbeSettings(ctx, nodeID)
+	if err != nil {
+		return err
+	}
+	if node.ProbeOnNewAddress == 1 {
+		for publicAddressID := range newAddressCandidates {
+			address, err := queries.GetPublicAddressByID(ctx, publicAddressID)
+			if err != nil {
+				return err
+			}
+			if address.ProbeEnabled != 1 || address.SelectedPathID == nil {
+				continue
+			}
+			path, err := queries.GetPublicAddressPathByPathID(ctx, *address.SelectedPathID)
+			if err != nil {
+				return err
+			}
+			if path.NodeID != nodeID || path.PublicAddressID != publicAddressID || path.Available != 1 {
+				continue
+			}
+			if err := queries.UpsertPendingPublicAddressProbe(ctx, configdb.UpsertPendingPublicAddressProbeParams{
+				PublicAddressID: publicAddressID, NodeID: nodeID,
+				RequiredConfigurationRevision: node.DesiredConfigurationRevision,
+				CreatedAt:                     receivedAt,
+			}); err != nil {
+				return err
+			}
 		}
 	}
 	if err := transaction.Commit(); err != nil {
@@ -447,7 +433,7 @@ func (s *Service) createAddressNotificationEvent(
 ) error {
 	eventType := ""
 	switch item.Kind {
-	case "address-change":
+	case "address-added", "address-removed":
 		eventType = notifications.EventAddressChange
 	case "check-failure":
 		eventType = notifications.EventAddressCheckFailure
@@ -461,7 +447,7 @@ func (s *Service) createAddressNotificationEvent(
 		NodeID: &nodeID, EgressID: &publicAddressID,
 		Payload: notifications.AddressData{
 			Sequence: item.Sequence, Kind: item.Kind, Family: item.Family,
-			PreviousAddress: item.PreviousAddress, PublicAddress: item.PublicAddress,
+			PublicAddress:  item.PublicAddress,
 			LocalInterface: item.LocalInterface, LocalAddress: item.LocalAddress,
 			ProxyPath: item.ProxyPath, LikelyNAT: item.LikelyNAT,
 			Temporary: item.Temporary, FailureReason: item.FailureReason,
@@ -515,11 +501,6 @@ func normalizeAddressUpload(upload AddressUpload) (AddressUpload, error) {
 			return AddressUpload{}, err
 		}
 		upload.Events[index].PublicAddress = value
-		previous, err := canonicalPublicAddress(upload.Events[index].PreviousAddress, upload.Events[index].Family)
-		if err != nil {
-			return AddressUpload{}, err
-		}
-		upload.Events[index].PreviousAddress = previous
 	}
 	return upload, nil
 }
@@ -594,11 +575,15 @@ func validateAddressState(item AddressState, egress NetworkEgress) error {
 		!addressPathMatches(item.Family, item.PublicAddress, item.LocalInterface, item.LocalAddress, item.ProxyPath, item.LikelyNAT, item.Temporary, egress) {
 		return ErrInvalidMetadata
 	}
+	if item.LastSucceededAt != nil && item.LastSucceededAt.After(item.LastCheckedAt) {
+		return ErrInvalidMetadata
+	}
 	if item.Status == "confirmed" {
 		if item.PublicAddress == nil || item.FailureReason != nil || item.LastSucceededAt == nil || item.LastSucceededAt.After(item.LastCheckedAt) {
 			return ErrInvalidMetadata
 		}
-	} else if item.FailureReason == nil || !validAddressFailureReason(*item.FailureReason) {
+	} else if item.FailureReason == nil || !validAddressFailureReason(*item.FailureReason) ||
+		(item.PublicAddress != nil && item.LastSucceededAt == nil) {
 		return ErrInvalidMetadata
 	}
 	if item.LastChangedAt != nil && item.LastChangedAt.After(item.LastCheckedAt) {
@@ -614,11 +599,11 @@ func validateAddressEvent(item AddressEvent, egress NetworkEgress) error {
 	}
 	switch item.Kind {
 	case "first-observation":
-		if item.PreviousAddress != nil || item.PublicAddress == nil || item.FailureReason != nil {
+		if item.PublicAddress == nil || item.FailureReason != nil {
 			return ErrInvalidMetadata
 		}
-	case "address-change":
-		if item.PreviousAddress == nil || item.PublicAddress == nil || *item.PreviousAddress == *item.PublicAddress || item.FailureReason != nil {
+	case "address-added", "address-removed":
+		if item.PublicAddress == nil || item.FailureReason != nil {
 			return ErrInvalidMetadata
 		}
 	case "check-failure":
@@ -630,9 +615,6 @@ func validateAddressEvent(item AddressEvent, egress NetworkEgress) error {
 			return ErrInvalidMetadata
 		}
 	default:
-		return ErrInvalidMetadata
-	}
-	if item.PreviousAddress != nil && !validPublicAddress(*item.PreviousAddress, item.Family) {
 		return ErrInvalidMetadata
 	}
 	return nil
@@ -734,7 +716,7 @@ func addressEventParams(nodeID, publicAddressID string, item AddressEvent, recei
 	return historydb.CreateAddressEventParams{
 		ID: item.ID.String(), PublicAddressID: publicAddressID, SourcePathID: item.EgressID.String(), NodeID: nodeID,
 		HistoryGeneration: item.HistoryGeneration, Sequence: item.Sequence, Kind: item.Kind, Family: item.Family,
-		PreviousAddress: item.PreviousAddress, PublicAddress: item.PublicAddress,
+		PublicAddress:  item.PublicAddress,
 		LocalInterface: item.LocalInterface, LocalAddress: item.LocalAddress,
 		ProxyPath: boolInteger(item.ProxyPath), LikelyNat: boolInteger(item.LikelyNAT), Temporary: boolInteger(item.Temporary),
 		FailureReason: item.FailureReason, ObservedAt: item.ObservedAt.UTC().Unix(), ReceivedAt: receivedAt,
@@ -746,7 +728,7 @@ func addressEventMatches(existing historydb.AddressEvent, expected historydb.Cre
 		existing.SourcePathID == expected.SourcePathID && existing.NodeID == expected.NodeID &&
 		existing.HistoryGeneration == expected.HistoryGeneration && existing.Sequence == expected.Sequence &&
 		existing.Kind == expected.Kind && existing.Family == expected.Family &&
-		reflect.DeepEqual(existing.PreviousAddress, expected.PreviousAddress) && reflect.DeepEqual(existing.PublicAddress, expected.PublicAddress) &&
+		reflect.DeepEqual(existing.PublicAddress, expected.PublicAddress) &&
 		reflect.DeepEqual(existing.LocalInterface, expected.LocalInterface) && reflect.DeepEqual(existing.LocalAddress, expected.LocalAddress) &&
 		existing.ProxyPath == expected.ProxyPath && existing.LikelyNat == expected.LikelyNat && existing.Temporary == expected.Temporary &&
 		reflect.DeepEqual(existing.FailureReason, expected.FailureReason) && existing.ObservedAt == expected.ObservedAt
@@ -787,7 +769,7 @@ func addressEventFromRecord(record historydb.AddressEvent) (AddressEvent, error)
 	return AddressEvent{
 		ID: id, EgressID: egressID, HistoryGeneration: record.HistoryGeneration,
 		Sequence: record.Sequence, Kind: record.Kind, Family: record.Family,
-		PreviousAddress: record.PreviousAddress, PublicAddress: record.PublicAddress,
+		PublicAddress:  record.PublicAddress,
 		LocalInterface: record.LocalInterface, LocalAddress: record.LocalAddress,
 		ProxyPath: record.ProxyPath == 1, LikelyNAT: record.LikelyNat == 1, Temporary: record.Temporary == 1,
 		FailureReason: record.FailureReason, ObservedAt: time.Unix(record.ObservedAt, 0).UTC(),

@@ -5,6 +5,8 @@ import type { components } from "@/api/schema";
 export type NodeProbeState = components["schemas"]["NodeProbeState"];
 export type NodeProbeSettingsUpdate =
   components["schemas"]["NodeProbeSettingsUpdate"];
+export type CompleteProbeTaskCreate =
+  components["schemas"]["CompleteProbeTaskCreate"];
 export type ProbeTask = components["schemas"]["ProbeTask"];
 export type ProbeRun = components["schemas"]["ProbeRun"];
 export type ProbeRunSummary = components["schemas"]["ProbeRunSummary"];
@@ -41,10 +43,12 @@ export async function updateNodeProbeSettings(
 
 export async function createCompleteProbeTask(
   nodeId: string,
+  input: CompleteProbeTaskCreate,
   csrfToken: string,
 ) {
   const result = await apiClient.POST("/api/v1/nodes/{nodeId}/probe/tasks", {
     params: { path: { nodeId } },
+    body: input,
     headers: { "X-CSRF-Token": csrfToken },
   });
   if (!result.response.ok || result.data === undefined) {

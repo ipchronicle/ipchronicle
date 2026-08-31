@@ -116,7 +116,7 @@ export function ProbeRunPage() {
               {t("probeRun.back")}
             </Link>
           </Button>
-          <p className="text-xs font-medium text-muted-foreground uppercase">
+          <p className="text-sm font-medium text-muted-foreground uppercase">
             {t("probeRun.section")}
           </p>
           <h1 className="mt-2 text-2xl font-semibold sm:text-3xl">
@@ -276,13 +276,13 @@ function ExecutionRow({
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div className="min-w-0">
           <p className="break-words font-medium">{name}</p>
-          <p className="mt-1 text-xs text-muted-foreground">
+          <p className="mt-1 text-sm text-muted-foreground">
             {t("probeRun.executions.sequence", { value: execution.sequence })}
           </p>
         </div>
         <ProbeStatusBadge status={execution.status} />
       </div>
-      <dl className="mt-4 grid gap-3 text-sm sm:grid-cols-2 lg:grid-cols-3">
+      <dl className="mt-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
         <SummaryValue
           label={t("probeRun.executions.startedAt")}
           value={formatTime(
@@ -309,7 +309,7 @@ function ExecutionRow({
         />
       </dl>
       {execution.diagnostic ? (
-        <pre className="mt-4 max-h-48 overflow-auto whitespace-pre-wrap rounded-md bg-muted p-3 text-xs leading-5">
+        <pre className="mt-4 max-h-48 overflow-auto whitespace-pre-wrap rounded-md bg-muted p-3 text-sm leading-5">
           {execution.diagnostic}
         </pre>
       ) : null}
@@ -333,7 +333,7 @@ function ExecutionRow({
 function SummaryValue({ label, value }: { label: string; value: string }) {
   return (
     <div className="min-w-0">
-      <dt className="text-xs text-muted-foreground">{label}</dt>
+      <dt className="text-sm text-muted-foreground">{label}</dt>
       <dd className="mt-1 break-words font-medium">{value}</dd>
     </div>
   );

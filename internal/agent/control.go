@@ -26,6 +26,7 @@ import (
 	"github.com/ipchronicle/ipchronicle/internal/agent/state"
 	agentupdate "github.com/ipchronicle/ipchronicle/internal/agent/update"
 	"github.com/ipchronicle/ipchronicle/internal/generated/agentapi"
+	"github.com/ipchronicle/ipchronicle/internal/releaseinfo"
 	productversion "github.com/ipchronicle/ipchronicle/internal/version"
 )
 
@@ -158,13 +159,17 @@ func RunWithOptions(ctx context.Context, store *state.Store, version string, log
 		if err := options.UpdateConfig.Validate(); err != nil {
 			return err
 		}
-		updateManager, err = agentupdate.NewManager(agentupdate.ManagerOptions{
-			Store: store, CurrentVersion: version, Config: *options.UpdateConfig, Logger: logger,
-			HTTPClient: options.UpdateHTTPClient, ReleaseDownloadURL: options.UpdateReleaseDownloadURL,
-			Trigger: options.UpdateTrigger, Now: options.UpdateNow,
-		})
-		if err != nil {
-			return err
+		if _, versionErr := releaseinfo.CanonicalVersion(version); versionErr != nil {
+			logger.Printf("Agent updates disabled for non-release version %q: %v", version, versionErr)
+		} else {
+			updateManager, err = agentupdate.NewManager(agentupdate.ManagerOptions{
+				Store: store, CurrentVersion: version, Config: *options.UpdateConfig, Logger: logger,
+				HTTPClient: options.UpdateHTTPClient, ReleaseDownloadURL: options.UpdateReleaseDownloadURL,
+				Trigger: options.UpdateTrigger, Now: options.UpdateNow,
+			})
+			if err != nil {
+				return err
+			}
 		}
 	}
 	metadata, err := currentMetadata(version, updateManager != nil)
@@ -531,9 +536,12 @@ func (c *ControlClient) poll(
 				CreatedAt: response.JSON200.Task.CreatedAt,
 				ExpiresAt: response.JSON200.Task.ExpiresAt,
 			}
-			if response.JSON200.Task.TriggeringPublicAddressId != nil {
-				value := response.JSON200.Task.TriggeringPublicAddressId.String()
-				outcome.probeTask.TriggeringPublicAddressID = &value
+			if response.JSON200.Task.PublicAddressIds == nil {
+				return pollOutcome{}, errors.New("complete-probe task omits its public-address targets")
+			}
+			outcome.probeTask.PublicAddressIDs = make([]string, 0, len(*response.JSON200.Task.PublicAddressIds))
+			for _, id := range *response.JSON200.Task.PublicAddressIds {
+				outcome.probeTask.PublicAddressIDs = append(outcome.probeTask.PublicAddressIDs, id.String())
 			}
 		case agentapi.AgentTaskKindAgentUpdate:
 			if response.JSON200.Task.TargetVersion == nil {
@@ -634,7 +642,6 @@ func configurationFromAPI(snapshot agentapi.AgentConfigurationSnapshot) state.Co
 			Kind: string(target.Kind), Family: string(target.Family),
 			InterfaceName: target.InterfaceName, SourceAddress: target.SourceAddress,
 			ProxyID: uuidString(target.ProxyId), Enabled: true,
-			ProbeOnAddressChange: target.ProbeOnRediscovery,
 		})
 	}
 	for _, proxy := range snapshot.Proxies {
@@ -699,7 +706,7 @@ func currentMetadata(version string, updateCapable bool) (agentapi.AgentMetadata
 	if err != nil {
 		return agentapi.AgentMetadata{}, fmt.Errorf("read physical memory: %w", err)
 	}
-	capabilities := []string{controlCapability, "configuration-v6", "network-inventory-v1", "address-observation-v1", "complete-probe-v1", syncWakeCapability}
+	capabilities := []string{controlCapability, "configuration-v7", "network-inventory-v1", "address-observation-v1", "complete-probe-v1", syncWakeCapability}
 	if updateCapable {
 		capabilities = append(capabilities, "agent-update-v1")
 	}
@@ -783,7 +790,7 @@ func addressUploadToAPI(upload state.AddressUpload) ([]agentapi.AgentAddressStat
 		events = append(events, agentapi.AgentAddressEvent{
 			Id: id, EgressId: egressID, HistoryGeneration: item.HistoryGeneration,
 			Sequence: item.Sequence, Kind: agentapi.AddressEventKind(item.Kind), Family: agentapi.AddressFamily(item.Family),
-			PreviousAddress: item.PreviousAddress, PublicAddress: item.PublicAddress,
+			PublicAddress:  item.PublicAddress,
 			LocalInterface: item.LocalInterface, LocalAddress: item.LocalAddress,
 			ProxyPath: item.ProxyPath, LikelyNat: item.LikelyNAT, Temporary: item.Temporary,
 			FailureReason: failureReason, ObservedAt: item.ObservedAt,

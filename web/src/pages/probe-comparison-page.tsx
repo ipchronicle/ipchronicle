@@ -164,7 +164,7 @@ export function ProbeComparisonPage() {
             {t("comparison.back")}
           </Link>
         </Button>
-        <p className="text-xs font-medium text-muted-foreground uppercase">
+        <p className="text-sm font-medium text-muted-foreground uppercase">
           {t("comparison.section")}
         </p>
         <h1 className="mt-2 text-2xl font-semibold sm:text-3xl">
@@ -306,7 +306,7 @@ function ComparisonTimeline({
             <GitCompareArrows className="size-4 shrink-0" aria-hidden="true" />
             {t("comparison.timeline.title")}
           </CardTitle>
-          <CardDescription className="truncate text-xs">
+          <CardDescription className="truncate text-sm">
             {t("comparison.timeline.owner", {
               node: snapshots[0].owner.nodeName ?? t("probe.notAvailable"),
               egress: snapshots[0].owner.egressName ?? t("probe.notAvailable"),
@@ -327,7 +327,7 @@ function ComparisonTimeline({
         </div>
       </CardHeader>
       <CardContent className="space-y-2.5">
-        <div className="grid grid-cols-2 gap-3 text-xs">
+        <div className="grid grid-cols-2 gap-3 text-sm">
           <TimelineSelection
             label={t("comparison.start")}
             snapshot={start}
@@ -375,7 +375,7 @@ function ComparisonTimeline({
             />
           </div>
         </div>
-        <div className="flex flex-wrap gap-x-4 gap-y-1 text-[11px] text-muted-foreground">
+        <div className="flex flex-wrap gap-x-4 gap-y-1 text-sm text-muted-foreground">
           <span className="flex items-center gap-1.5">
             <span className="size-2 rounded-full bg-muted-foreground" />
             {t("comparison.timeline.snapshot")}
@@ -579,7 +579,7 @@ function ComparisonReport({
     <section ref={container} aria-label={label} className="min-w-0 space-y-4">
       <div className="flex flex-wrap items-start justify-between gap-3 border-b pb-4">
         <div className="min-w-0">
-          <div className="text-xs font-medium text-muted-foreground uppercase">
+          <div className="text-sm font-medium text-muted-foreground uppercase">
             {label}
           </div>
           <Link
@@ -594,7 +594,7 @@ function ComparisonReport({
           >
             {address}
           </div>
-          <dl className="mt-2 flex flex-wrap gap-x-4 gap-y-1 text-xs text-muted-foreground">
+          <dl className="mt-2 flex flex-wrap gap-x-4 gap-y-1 text-sm text-muted-foreground">
             <ReportHeaderFact
               label={t("snapshot.report.overview.version")}
               value={reportFieldValue(fields, "Head.Version")}
@@ -621,7 +621,7 @@ function ComparisonReport({
           {t(snapshot.starred ? "snapshot.unstar" : "snapshot.star")}
         </Button>
       </div>
-      <div className="[&_[data-report-changed]]:rounded-md [&_[data-report-changed]]:bg-amber-500/10 [&_[data-report-changed]]:ring-2 [&_[data-report-changed]]:ring-amber-500/70 [&_[data-report-changed]]:ring-offset-2 [&_[data-report-changed]]:ring-offset-background [&_[data-slot=card]]:gap-3 [&_[data-slot=card]]:py-3 [&_[data-slot=card-content]]:px-3 [&_[data-slot=card-header]]:px-3 [&_[data-slot=table-cell]]:px-1 [&_[data-slot=table-head]]:px-1 [&_table]:text-xs">
+      <div className="[&_[data-report-changed]]:rounded-md [&_[data-report-changed]]:bg-amber-500/10 [&_[data-report-changed]]:ring-2 [&_[data-report-changed]]:ring-amber-500/70 [&_[data-report-changed]]:ring-offset-2 [&_[data-report-changed]]:ring-offset-background [&_[data-slot=card]]:gap-3 [&_[data-slot=card]]:py-3 [&_[data-slot=card-content]]:px-3 [&_[data-slot=card-header]]:px-3 [&_[data-slot=table-cell]]:px-1 [&_[data-slot=table-head]]:px-1 [&_table]:text-sm">
         <SemanticProbeReport fields={fields} compact />
       </div>
     </section>

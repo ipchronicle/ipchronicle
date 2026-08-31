@@ -3,6 +3,7 @@ export const zhCN = {
     appName: "IPChronicle",
     common: {
       cancel: "取消",
+      close: "关闭",
     },
     navigation: {
       menu: "主导航",
@@ -300,6 +301,10 @@ export const zhCN = {
       section: "受管节点",
       back: "返回节点列表",
       identity: "{{hostname}} · Agent {{version}}",
+      header: {
+        agent: "Agent {{version}}",
+        lastSeen: "最后在线 {{value}}",
+      },
       notFound: "节点不存在或已被删除",
       loadFailed: "无法加载节点",
       retry: "重试",
@@ -314,6 +319,11 @@ export const zhCN = {
       overview: {
         loadFailed: "无法加载节点概览",
         refresh: "刷新概览",
+        attention: {
+          configurationTitle: "节点配置尚未同步",
+          configurationDetail:
+            "{{status}} · 已应用 revision {{applied}}，目标 revision {{desired}}。",
+        },
         node: {
           title: "节点状态",
           detail: "Agent 身份和当前控制面状态。",
@@ -333,11 +343,24 @@ export const zhCN = {
           empty: "尚未上报已确认的公网地址。",
           nat: "当前有 {{count}} 个公网 IP 通过 NAT 到达。",
           open: "管理公网 IP",
+          probeEnabled: "已启用探测",
+          probeDisabled: "未启用探测",
+          lastSeen: "最近确认",
         },
         probe: {
           title: "完整探测",
           detail: "当前计划和最近一次完整探测状态。",
           open: "打开探测",
+        },
+        activity: {
+          title: "最近活动",
+          detail: "该节点最近的完整探测与公网 IP 变化。",
+          latestProbe: "最近完整探测",
+          noProbe: "尚未执行",
+          currentTask: "最近任务",
+          noTask: "没有活动任务",
+          empty: "尚无完整探测或公网 IP 活动。",
+          gap: "离线队列丢弃了 {{count}} 条地址事件。",
         },
       },
       changes: {
@@ -346,6 +369,13 @@ export const zhCN = {
       },
       settings: {
         saved: "节点启用状态已更新。",
+        basic: {
+          title: "基本信息",
+          detail: "修改中心显示的节点名称和启用状态。",
+          name: "节点名称",
+          save: "保存更改",
+          saved: "节点基本信息已保存。",
+        },
         availability: {
           title: "节点启用状态",
           detail: "暂停节点会保留配置和历史，但停止所有探测工作。",
@@ -356,15 +386,50 @@ export const zhCN = {
         agent: {
           title: "Agent",
           detail: "查看已安装的 Agent，并应用可用版本。",
+          registered: "注册时间",
           platform: "平台",
           source: "源码 revision",
           capabilities: "能力数量",
+          credential: "凭据状态",
+          valid: "有效",
+          revoked: "已撤销",
           current: "已安装的 Agent 在当前发行通道中是最新版本。",
           updateAccepted: "Agent 更新任务已接受。",
+        },
+        discovery: {
+          title: "发现与探测",
+          detail: "配置节点级公网出口发现与自动探测策略。",
+          running: "运行中",
+          loadFailed: "无法加载节点探测设置。",
+          save: "保存策略",
+          saved: "节点发现与探测策略已保存。",
+        },
+        removal: {
+          title: "卸载 Agent",
+          detail:
+            "复制命令并在此节点上以 root 执行。Center 不会远程卸载主机软件，也不会因主机卸载自动删除节点历史。",
+          copied: "卸载命令已复制。",
+          copyFailed: "无法复制卸载命令。",
+          preserve: {
+            title: "保留状态卸载",
+            detail:
+              "移除 Agent 服务和二进制，保留本地身份、配置及待上报数据；以后重新安装会复用当前节点身份。",
+            action: "复制卸载命令",
+          },
+          purge: {
+            title: "完全卸载",
+            detail:
+              "同时永久删除本地身份、配置、凭据和待上报数据；以后重新安装会在 Center 创建新节点。",
+            action: "复制完整卸载命令",
+          },
         },
         danger: {
           title: "危险操作",
           detail: "撤销凭据与永久删除具有不同且不可逆的影响。",
+          revokeTitle: "撤销 Agent 凭据",
+          revokeDetail: "Agent 将无法再次连接，节点配置和历史仍会保留。",
+          deleteTitle: "永久删除节点",
+          deleteDetail: "删除节点级状态并撤销 Agent 身份。",
           revoked: "Agent 凭据已撤销。",
           deletionQueued: "节点永久删除任务已进入队列。",
         },
@@ -374,12 +439,16 @@ export const zhCN = {
       section: "设置",
       title: "网络探测",
       detail:
-        "管理可复用的 HTTP、HTTPS 和 SOCKS5 代理。密码只能替换或清除，保存后不会再次显示。",
+        "管理所有节点共用的公网地址发现服务。节点代理在相应节点的公网 IP 页面中配置。",
       refresh: "刷新",
       retry: "重试",
       loadFailed: "无法加载网络代理设置",
       empty: "尚未配置中心管理的代理。",
       save: "保存设置",
+      edit: "编辑",
+      editTitle: "编辑代理",
+      editDetail:
+        "保存连接信息后，Agent 会重新发现 IPv4 和 IPv6 公网出口。密码留空时保留当前值。",
       discovery: {
         title: "公网地址发现",
         detail:
@@ -395,7 +464,8 @@ export const zhCN = {
       },
       create: {
         title: "添加代理",
-        detail: "Center 只向拥有引用该代理发现路径的 Agent 下发凭据。",
+        detail:
+          "代理只属于当前节点；保存后，Agent 会自动检查代理的 IPv4 和 IPv6 公网出口。",
         submit: "添加代理",
       },
       fields: {
@@ -413,12 +483,13 @@ export const zhCN = {
         replace: "替换密码",
         clear: "清除密码",
         clearTitle: "清除已保存的代理密码？",
-        clearDetail: "引用此代理的 Agent 将收到不含密码的新配置。",
+        clearDetail: "此节点的 Agent 将收到不含密码的新配置。",
       },
       delete: {
         action: "删除代理",
         title: "删除这个网络代理？",
-        detail: "仍被代理发现路径引用的代理不能删除，需要先移除对应路径。",
+        detail:
+          "将停止当前节点通过“{{name}}”发现公网出口，并在 Agent 确认清理后删除凭据。已经发现的公网 IP、报告和地址历史会保留。",
         confirm: "删除代理",
       },
     },
@@ -439,6 +510,11 @@ export const zhCN = {
         empty: "等待 Agent 完成首次公网地址发现。",
         available: "当前可用",
         unavailable: "当前不可用",
+        status: {
+          available: "当前可用",
+          "check-failed": "检查失败",
+          unavailable: "当前不可用",
+        },
         firstSeen: "首次发现",
         lastSeen: "最近发现：{{value}}",
         executionNode: "当前执行节点",
@@ -447,10 +523,14 @@ export const zhCN = {
         proxy: "经代理到达",
         probeEnabled: "启用完整探测",
         probeEnabledDetail: "仅启用的公网 IP 会进入 IPQuality 完整探测。",
-        probeOnRediscovery: "重新发现后探测",
-        probeOnRediscoveryDetail:
-          "该公网 IP 从不可用恢复后，在 Agent 应用最新配置后执行一次完整探测。",
         saving: "正在保存公网 IP 设置",
+        path: "发现路径",
+        direct: "节点直连",
+        latestReport: "最近报告",
+        noReport: "尚未探测",
+        probeShort: "完整探测",
+        openReport: "查看结果",
+        probeNow: "立即探测",
       },
       observation: {
         waiting: "等待首次轻量地址观察。",
@@ -469,13 +549,14 @@ export const zhCN = {
         },
       },
       addressHistory: {
-        title: "地址变化",
+        title: "公网 IP 历史",
         detail:
-          "按公网 IP 保留首次观察、确认变化、失败边界和恢复；无法归属具体 IP 的缺口保留在节点层级。",
-        empty: "尚未上报地址变化事件。",
+          "独立记录公网 IP 进入或离开节点当前集合，以及检查失败和恢复事件。",
+        empty: "尚未上报公网 IP 历史事件。",
         kind: {
           "first-observation": "首次观察",
-          "address-change": "地址变化",
+          "address-added": "进入当前集合",
+          "address-removed": "离开当前集合",
           "check-failure": "检查失败",
           recovery: "已经恢复",
         },
@@ -483,28 +564,32 @@ export const zhCN = {
         nodeLevel: "节点级",
         gapDetail:
           "离线队列丢弃了 {{count}} 条事件（序号 {{first}} 至 {{last}}）。",
-      },
-      proxyDiscovery: {
-        title: "代理发现路径",
-        detail:
-          "代理无法从节点网络自动推断；在这里选择已保存的代理和地址族，让 Agent 发现代理后的公网 IP。",
-        noProxies: "尚未配置可复用的网络代理。",
-        openSettings: "配置网络代理",
-        proxy: "网络代理",
-        selectProxy: "选择代理",
-        family: "地址族",
-        add: "添加发现路径",
-        empty: "此节点尚未配置代理发现路径。",
-        available: "当前可用",
-        unavailable: "当前不可用",
-        deletion: { pending: "正在删除", failed: "删除失败" },
-        delete: {
-          action: "删除",
-          title: "删除代理发现路径？",
-          detail:
-            "将停止节点通过“{{name}}”发现公网 IP。已经发现的公网 IP、探测报告和地址历史不会删除。",
-          confirm: "删除路径",
+        current: {
+          title: "当前集合",
+          detail: "最近一次发现确认仍可用的公网 IP。",
+          empty: "当前没有已确认可用的公网 IP。",
         },
+      },
+      proxies: {
+        title: "网络代理",
+        detail:
+          "代理只在当前节点使用。添加或修改后，Agent 会自动发现 IPv4 和 IPv6 公网出口。",
+        empty: "此节点尚未配置网络代理。",
+        noAddress: "尚未发现公网 IP",
+        lastChecked: "检查于 {{value}}",
+        status: {
+          checking: "检查中",
+          "ipv4-only": "仅 IPv4",
+          "ipv6-only": "仅 IPv6",
+          "dual-stack": "双栈",
+          unavailable: "暂不可用",
+        },
+        familyStatus: {
+          checking: "检查中",
+          available: "可用",
+          unavailable: "不可用",
+        },
+        deletion: { pending: "正在删除", failed: "删除失败" },
       },
     },
     probe: {
@@ -518,6 +603,16 @@ export const zhCN = {
       nodeNotFound: "节点不存在或已经删除",
       notAvailable: "暂无",
       runNow: "执行完整探测",
+      targets: {
+        title: "选择公网 IP",
+        detail: "所选公网 IP 将被启用，并作为本次完整探测的目标。",
+        loading: "正在加载公网 IP",
+        loadFailed: "无法加载公网 IP。",
+        retry: "重试",
+        empty: "此节点当前没有可探测的公网 IP。",
+        selected: "已选择 {{selected}} / {{total}} 个公网 IP",
+        confirm: "保存并开始探测",
+      },
       lowMemory: {
         title: "内存不足，完整探测已暂停",
         detail:
@@ -539,6 +634,11 @@ export const zhCN = {
         last: "最近一次触发",
         trigger: "触发来源",
         memory: "物理内存",
+        latestComplete: "最近完整探测",
+        currentTask: "当前任务",
+        noActiveTask: "没有等待或执行中的任务",
+        scheduleEnabled: "周期计划已启用",
+        scheduleDisabled: "周期计划已关闭",
         lastSkipped: "最近一次触发已跳过：{{reason}}",
         resetApplied:
           "历史清空于 {{value}} 生效，已丢弃 {{count}} 条旧队列数据。",
@@ -547,6 +647,7 @@ export const zhCN = {
         title: "即时任务",
         detail: "最近一次管理员命令的下发与执行状态。",
         empty: "尚未创建即时完整探测任务。",
+        emptyShort: "无活动任务",
         created: "任务正在等待 Agent 接收。",
         offline: "任务仍处于活动状态，但节点当前离线。",
         waiting: "等待 Agent",
@@ -560,15 +661,28 @@ export const zhCN = {
         title: "最近运行",
         detail: "节点级运行保留冻结的公网 IP 顺序和每个 IP 的独立结果。",
         empty: "尚未执行过完整探测。",
+        emptyShort: "尚未执行",
         progress: "已完成 {{completed}} / {{total}}",
+        status: "状态",
+        completed: "完成",
+        open: "查看报告",
+      },
+      schedule: {
+        title: "周期计划",
+        detail: "按所选时区执行；错过的计划不会补跑。",
       },
       settings: {
         title: "探测设置",
-        detail: "计划由 Agent 在本地按六字段 Cron 表达式执行。",
+        detail: "配置此节点的自动完整探测。",
+        probeOnNewAddress: "发现新公网 IP 后自动探测",
+        probeOnNewAddressDetail:
+          "公网 IP 新进入节点当前集合时，仅为该 IP 创建一次完整探测；首次建立发现基线不触发。",
         scheduleEnabled: "启用周期探测",
         scheduleEnabledDetail: "错过的计划不会在重启后补跑。",
         cron: "Cron 表达式",
         timezone: "时区",
+        timezoneSearch: "搜索时区...",
+        timezoneEmpty: "没有匹配的时区",
         memoryOverride: "允许在低于 256 MiB 时探测",
         memoryOverrideDetail: "启用表示接受探测失败或节点资源耗尽的可能。",
         save: "保存探测设置",
@@ -576,7 +690,7 @@ export const zhCN = {
       trigger: {
         manual: "手动",
         schedule: "计划",
-        "address-change": "地址变化",
+        "new-address": "新公网 IP",
       },
       state: {
         pending: "等待接收",
@@ -1290,14 +1404,14 @@ export const zhCN = {
       network_inventory_unavailable: "节点尚未上报有效网络清单。",
       invalid_egress_candidate: "该发现路径当前不可用。",
       egress_already_exists: "该代理发现路径已经存在。",
-      egress_limit_reached: "此节点已达到 64 个代理发现路径的配置上限。",
+      egress_limit_reached: "此节点可管理的公网出口数量已达到上限。",
       egress_not_found: "代理发现路径不存在或已经删除。",
       egress_deletion_pending: "代理发现路径正在删除，不能执行其他操作。",
       invalid_network_proxy: "网络代理设置无效。",
       network_proxy_not_found: "网络代理不存在或已经删除。",
       network_proxy_already_exists: "同名网络代理已经存在。",
-      network_proxy_limit_reached: "此安装已达到 64 个网络代理的配置上限。",
-      network_proxy_in_use: "此代理仍被代理发现路径引用，不能删除。",
+      network_proxy_limit_reached: "此节点已达到 64 个网络代理的配置上限。",
+      network_proxy_deletion_pending: "此代理正在删除，不能执行其他操作。",
       invalid_observation_settings:
         "每个地址族需要填写 2 至 8 个有效的 HTTP 或 HTTPS 地址，并使用不同主机。",
       invalid_probe_settings: "Cron 表达式或时区无效。",
@@ -1305,6 +1419,8 @@ export const zhCN = {
       probe_task_slot_occupied: "此节点已有等待接收或执行中的即时任务。",
       probe_already_running: "此节点已有完整探测正在运行。",
       probe_paused_low_memory: "节点上报的内存少于 256 MiB，完整探测已暂停。",
+      probe_target_unavailable:
+        "所选公网 IP 已无法通过此节点执行，请重新打开探测弹窗后选择。",
       no_enabled_egress: "此节点没有已启用的公网 IP。",
       probe_run_not_found: "完整探测运行不存在或已经删除。",
       probe_snapshot_not_found: "报告快照不存在或已经删除。",

@@ -23,24 +23,27 @@ import (
 )
 
 const (
-	minimumProbeMemoryBytes = 256 * 1024 * 1024
-	probeTaskDeliveryWindow = 2 * time.Minute
-	maxProbeResultBytes     = 1024 * 1024
-	maxProbeDiagnosticBytes = 64 * 1024
+	minimumProbeMemoryBytes      = 256 * 1024 * 1024
+	probeTaskDeliveryWindow      = 2 * time.Minute
+	taskReportClockSkewTolerance = 5 * time.Minute
+	maxProbeResultBytes          = 1024 * 1024
+	maxProbeDiagnosticBytes      = 64 * 1024
 )
 
 var (
-	ErrInvalidProbeSettings  = errors.New("complete-probe settings are invalid")
-	ErrNodeOffline           = errors.New("node is offline")
-	ErrNodeDisabled          = errors.New("node is disabled")
-	ErrProbeTaskSlotOccupied = errors.New("node task slot is occupied")
-	ErrProbeAlreadyRunning   = errors.New("node already has an active complete-probe run")
-	ErrProbePausedLowMemory  = errors.New("complete probes are paused below the memory baseline")
-	ErrNoEnabledEgress       = errors.New("node has no enabled network egress")
-	ErrProbeRunNotFound      = errors.New("complete-probe run does not exist")
-	ErrProbeSnapshotNotFound = errors.New("complete-probe snapshot does not exist")
-	ErrInvalidProbeArtifact  = errors.New("complete-probe artifact is invalid")
-	ErrHistoryResetPending   = errors.New("history reset is pending completion")
+	ErrInvalidProbeSettings   = errors.New("complete-probe settings are invalid")
+	ErrNodeOffline            = errors.New("node is offline")
+	ErrNodeDisabled           = errors.New("node is disabled")
+	ErrProbeTaskSlotOccupied  = errors.New("node task slot is occupied")
+	ErrProbeAlreadyRunning    = errors.New("node already has an active complete-probe run")
+	ErrProbePausedLowMemory   = errors.New("complete probes are paused below the memory baseline")
+	ErrInvalidProbeTargets    = errors.New("complete-probe targets are invalid")
+	ErrProbeTargetUnavailable = errors.New("complete-probe target is unavailable")
+	ErrNoEnabledEgress        = errors.New("node has no enabled network egress")
+	ErrProbeRunNotFound       = errors.New("complete-probe run does not exist")
+	ErrProbeSnapshotNotFound  = errors.New("complete-probe snapshot does not exist")
+	ErrInvalidProbeArtifact   = errors.New("complete-probe artifact is invalid")
+	ErrHistoryResetPending    = errors.New("history reset is pending completion")
 )
 
 type ProbeStatus struct {
@@ -71,32 +74,34 @@ type TaskReport struct {
 }
 
 type Task struct {
-	ID                        uuid.UUID
-	NodeID                    uuid.UUID
-	Kind                      string
-	Trigger                   string
-	TriggeringPublicAddressID *uuid.UUID
-	Status                    string
-	CreatedAt                 time.Time
-	ExpiresAt                 time.Time
-	AcknowledgedAt            *time.Time
-	StartedAt                 *time.Time
-	CompletedAt               *time.Time
-	RunID                     *uuid.UUID
-	RejectionReason           *string
-	TargetVersion             *string
-	Offline                   bool
+	ID               uuid.UUID
+	NodeID           uuid.UUID
+	Kind             string
+	Trigger          string
+	PublicAddressIDs []uuid.UUID
+	Status           string
+	CreatedAt        time.Time
+	ExpiresAt        time.Time
+	AcknowledgedAt   *time.Time
+	StartedAt        *time.Time
+	CompletedAt      *time.Time
+	RunID            *uuid.UUID
+	RejectionReason  *string
+	TargetVersion    *string
+	Offline          bool
 }
 
 type ProbeSettingsUpdate struct {
 	Schedule          ProbeSchedule
 	LowMemoryOverride bool
+	ProbeOnNewAddress bool
 }
 
 type ProbeState struct {
 	NodeID              uuid.UUID
 	Schedule            ProbeSchedule
 	LowMemoryOverride   bool
+	ProbeOnNewAddress   bool
 	PhysicalMemoryBytes *int64
 	PausedLowMemory     bool
 	AgentStatus         *ProbeStatus
@@ -122,7 +127,6 @@ type ProbeRun struct {
 	HistoryGeneration     string
 	Trigger               string
 	TaskID                *uuid.UUID
-	TriggeringEgressID    *uuid.UUID
 	StartedAt             time.Time
 	CompletedAt           *time.Time
 	Status                string
@@ -172,7 +176,6 @@ type ProbeRunArtifact struct {
 	HistoryGeneration     string
 	Trigger               string
 	TaskID                *uuid.UUID
-	TriggeringEgressID    *uuid.UUID
 	StartedAt             time.Time
 	CompletedAt           *time.Time
 	Status                string
@@ -348,37 +351,76 @@ func (s *Service) deliverAgentTask(ctx context.Context, nodeID string, now int64
 		}
 		return nil, nil
 	}
-	task, err := taskFromRecord(record, false)
+	task, err := taskFromRecord(ctx, s.queries, record, false)
 	return &task, err
 }
 
-func (s *Service) createReadyRediscoveryTask(ctx context.Context, nodeID string, appliedRevision, now int64) error {
-	if _, err := s.queries.GetActiveNodeTask(ctx, nodeID); err == nil {
-		return nil
-	} else if !errors.Is(err, sql.ErrNoRows) {
-		return err
-	}
-	pending, err := s.queries.GetReadyPublicAddressProbe(ctx, configdb.GetReadyPublicAddressProbeParams{
-		NodeID: nodeID, RequiredConfigurationRevision: appliedRevision,
-	})
-	if errors.Is(err, sql.ErrNoRows) {
-		return nil
-	}
+func (s *Service) createReadyNewAddressTask(ctx context.Context, nodeID string, appliedRevision, now int64) error {
+	transaction, err := s.database.BeginTx(ctx, nil)
 	if err != nil {
 		return err
 	}
+	defer transaction.Rollback()
+	queries := s.queries.WithTx(transaction)
+	if _, err := queries.GetActiveNodeTask(ctx, nodeID); err == nil {
+		if err := queries.DeletePendingPublicAddressProbes(ctx, nodeID); err != nil {
+			return err
+		}
+		return transaction.Commit()
+	} else if !errors.Is(err, sql.ErrNoRows) {
+		return err
+	}
+	pending, err := queries.ListReadyPublicAddressProbes(ctx, configdb.ListReadyPublicAddressProbesParams{
+		NodeID: nodeID, RequiredConfigurationRevision: appliedRevision,
+	})
+	if err != nil {
+		return err
+	}
+	if len(pending) == 0 {
+		return transaction.Commit()
+	}
 	id := uuid.NewString()
-	if err := s.queries.CreateRediscoveryProbeTask(ctx, configdb.CreateRediscoveryProbeTaskParams{
-		ID: id, NodeID: nodeID, TriggeringPublicAddressID: &pending.PublicAddressID,
-		CreatedAt: now, ExpiresAt: now + int64(probeTaskDeliveryWindow/time.Second),
+	if err := queries.CreateNewAddressProbeTask(ctx, configdb.CreateNewAddressProbeTaskParams{
+		ID: id, NodeID: nodeID, CreatedAt: now,
+		ExpiresAt: now + int64(probeTaskDeliveryWindow/time.Second),
 	}); err != nil {
 		return err
 	}
-	return s.queries.DeletePendingPublicAddressProbe(ctx, nodeID)
+	for ordinal, target := range pending {
+		if err := queries.CreateProbeTaskPublicAddress(ctx, configdb.CreateProbeTaskPublicAddressParams{
+			TaskID: id, PublicAddressID: target.PublicAddressID, Ordinal: int64(ordinal),
+		}); err != nil {
+			return err
+		}
+	}
+	if err := queries.DeletePendingPublicAddressProbes(ctx, nodeID); err != nil {
+		return err
+	}
+	return transaction.Commit()
 }
 
-func (s *Service) CreateCompleteProbeTask(ctx context.Context, nodeID uuid.UUID) (Task, error) {
-	node, err := s.queries.GetNodeProbeSettings(ctx, nodeID.String())
+func (s *Service) CreateCompleteProbeTask(ctx context.Context, nodeID uuid.UUID, publicAddressIDs []uuid.UUID) (Task, error) {
+	if len(publicAddressIDs) == 0 || len(publicAddressIDs) > 64 {
+		return Task{}, ErrInvalidProbeTargets
+	}
+	requested := make(map[string]struct{}, len(publicAddressIDs))
+	for _, id := range publicAddressIDs {
+		if id == uuid.Nil {
+			return Task{}, ErrInvalidProbeTargets
+		}
+		if _, exists := requested[id.String()]; exists {
+			return Task{}, ErrInvalidProbeTargets
+		}
+		requested[id.String()] = struct{}{}
+	}
+
+	transaction, err := s.database.BeginTx(ctx, nil)
+	if err != nil {
+		return Task{}, err
+	}
+	defer transaction.Rollback()
+	queries := s.queries.WithTx(transaction)
+	node, err := queries.GetNodeProbeSettings(ctx, nodeID.String())
 	if errors.Is(err, sql.ErrNoRows) {
 		return Task{}, ErrNodeNotFound
 	}
@@ -398,17 +440,51 @@ func (s *Service) CreateCompleteProbeTask(ctx context.Context, nodeID uuid.UUID)
 	if node.PhysicalMemoryBytes != nil && *node.PhysicalMemoryBytes < minimumProbeMemoryBytes && node.ProbeLowMemoryOverride == 0 {
 		return Task{}, ErrProbePausedLowMemory
 	}
-	if status, statusErr := s.queries.GetNodeProbeStatus(ctx, nodeID.String()); statusErr == nil && status.ActiveRunID != nil {
+	if status, statusErr := queries.GetNodeProbeStatus(ctx, nodeID.String()); statusErr == nil && status.ActiveRunID != nil {
 		return Task{}, ErrProbeAlreadyRunning
 	} else if statusErr != nil && !errors.Is(statusErr, sql.ErrNoRows) {
 		return Task{}, statusErr
 	}
-	if _, err := s.queries.GetActiveNodeTask(ctx, nodeID.String()); err == nil {
+	if _, err := queries.GetActiveNodeTask(ctx, nodeID.String()); err == nil {
 		return Task{}, ErrProbeTaskSlotOccupied
 	} else if !errors.Is(err, sql.ErrNoRows) {
 		return Task{}, err
 	}
-	targets, err := s.queries.ListNodeSelectedPublicAddresses(ctx, nodeID.String())
+	available, err := queries.ListNodeAvailablePublicAddressProbeSettings(ctx, nodeID.String())
+	if err != nil {
+		return Task{}, err
+	}
+	eligible := make(map[string]struct{}, len(available))
+	for _, address := range available {
+		eligible[address.ID] = struct{}{}
+	}
+	for id := range requested {
+		if _, exists := eligible[id]; !exists {
+			return Task{}, ErrProbeTargetUnavailable
+		}
+	}
+
+	configurationChanged := false
+	for _, address := range available {
+		_, enabled := requested[address.ID]
+		value := boolInteger(enabled)
+		changed, err := queries.SetPublicAddressProbeSettings(ctx, configdb.SetPublicAddressProbeSettingsParams{
+			ProbeEnabled: value, UpdatedAt: now.Unix(), ID: address.ID, ProbeEnabled_2: value,
+		})
+		if err != nil {
+			return Task{}, err
+		}
+		configurationChanged = configurationChanged || changed > 0
+		if err := queries.DeletePendingPublicAddressProbeByAddress(ctx, address.ID); err != nil {
+			return Task{}, err
+		}
+	}
+	if configurationChanged {
+		if err := incrementNodeConfiguration(ctx, queries, nodeID.String()); err != nil {
+			return Task{}, err
+		}
+	}
+	targets, err := queries.ListNodeSelectedPublicAddresses(ctx, nodeID.String())
 	if err != nil {
 		return Task{}, err
 	}
@@ -417,7 +493,7 @@ func (s *Service) CreateCompleteProbeTask(ctx context.Context, nodeID uuid.UUID)
 	}
 	id := uuid.New()
 	expiresAt := now.Add(probeTaskDeliveryWindow)
-	if err := s.queries.CreateProbeTask(ctx, configdb.CreateProbeTaskParams{
+	if err := queries.CreateProbeTask(ctx, configdb.CreateProbeTaskParams{
 		ID: id.String(), NodeID: nodeID.String(), CreatedAt: now.Unix(), ExpiresAt: expiresAt.Unix(),
 	}); err != nil {
 		if strings.Contains(err.Error(), "probe_tasks_active_node_idx") {
@@ -425,8 +501,24 @@ func (s *Service) CreateCompleteProbeTask(ctx context.Context, nodeID uuid.UUID)
 		}
 		return Task{}, err
 	}
+	targetIDs := make([]uuid.UUID, 0, len(targets))
+	for ordinal, target := range targets {
+		if err := queries.CreateProbeTaskPublicAddress(ctx, configdb.CreateProbeTaskPublicAddressParams{
+			TaskID: id.String(), PublicAddressID: target.ID, Ordinal: int64(ordinal),
+		}); err != nil {
+			return Task{}, err
+		}
+		parsed, err := uuid.Parse(target.ID)
+		if err != nil {
+			return Task{}, err
+		}
+		targetIDs = append(targetIDs, parsed)
+	}
+	if err := transaction.Commit(); err != nil {
+		return Task{}, err
+	}
 	s.sync.Wake(nodeID.String())
-	return Task{ID: id, NodeID: nodeID, Kind: "complete-probe", Trigger: "manual", Status: "pending", CreatedAt: now, ExpiresAt: expiresAt}, nil
+	return Task{ID: id, NodeID: nodeID, Kind: "complete-probe", Trigger: "manual", PublicAddressIDs: targetIDs, Status: "pending", CreatedAt: now, ExpiresAt: expiresAt}, nil
 }
 
 func (s *Service) Probe(ctx context.Context, nodeID uuid.UUID) (ProbeState, error) {
@@ -441,6 +533,7 @@ func (s *Service) Probe(ctx context.Context, nodeID uuid.UUID) (ProbeState, erro
 		NodeID:              nodeID,
 		Schedule:            ProbeSchedule{Enabled: settings.ProbeScheduleEnabled == 1, Cron: settings.ProbeScheduleCron, Timezone: settings.ProbeScheduleTimezone},
 		LowMemoryOverride:   settings.ProbeLowMemoryOverride == 1,
+		ProbeOnNewAddress:   settings.ProbeOnNewAddress == 1,
 		PhysicalMemoryBytes: settings.PhysicalMemoryBytes,
 	}
 	state.PausedLowMemory = settings.PhysicalMemoryBytes != nil && *settings.PhysicalMemoryBytes < minimumProbeMemoryBytes && !state.LowMemoryOverride
@@ -455,7 +548,7 @@ func (s *Service) Probe(ctx context.Context, nodeID uuid.UUID) (ProbeState, erro
 	}
 	if record, taskErr := s.queries.GetLatestProbeTask(ctx, nodeID.String()); taskErr == nil {
 		offline := settings.LastSeenAt == nil || s.now().UTC().Sub(time.Unix(*settings.LastSeenAt, 0)) > OnlineWindow
-		task, err := taskFromRecord(record, offline && !taskTerminal(record.Status))
+		task, err := taskFromRecord(ctx, s.queries, record, offline && !taskTerminal(record.Status))
 		if err != nil {
 			return ProbeState{}, err
 		}
@@ -503,12 +596,14 @@ func (s *Service) UpdateProbeSettings(ctx context.Context, nodeID uuid.UUID, upd
 		return ProbeState{}, ErrNodeRevoked
 	}
 	if current.ProbeScheduleEnabled == boolInt(update.Schedule.Enabled) && current.ProbeScheduleCron == update.Schedule.Cron &&
-		current.ProbeScheduleTimezone == update.Schedule.Timezone && current.ProbeLowMemoryOverride == boolInt(update.LowMemoryOverride) {
+		current.ProbeScheduleTimezone == update.Schedule.Timezone && current.ProbeLowMemoryOverride == boolInt(update.LowMemoryOverride) &&
+		current.ProbeOnNewAddress == boolInt(update.ProbeOnNewAddress) {
 		return s.Probe(ctx, nodeID)
 	}
 	updated, err := s.queries.UpdateNodeProbeSettings(ctx, configdb.UpdateNodeProbeSettingsParams{
 		ProbeScheduleEnabled: boolInt(update.Schedule.Enabled), ProbeScheduleCron: update.Schedule.Cron,
-		ProbeScheduleTimezone: update.Schedule.Timezone, ProbeLowMemoryOverride: boolInt(update.LowMemoryOverride), ID: nodeID.String(),
+		ProbeScheduleTimezone: update.Schedule.Timezone, ProbeLowMemoryOverride: boolInt(update.LowMemoryOverride),
+		ProbeOnNewAddress: boolInt(update.ProbeOnNewAddress), ID: nodeID.String(),
 	})
 	if err != nil {
 		return ProbeState{}, err
@@ -518,6 +613,11 @@ func (s *Service) UpdateProbeSettings(ctx context.Context, nodeID uuid.UUID, upd
 			return ProbeState{}, ErrNodeDeletionPending
 		}
 		return ProbeState{}, ErrNodeNotFound
+	}
+	if !update.ProbeOnNewAddress {
+		if err := s.queries.DeletePendingPublicAddressProbes(ctx, nodeID.String()); err != nil {
+			return ProbeState{}, err
+		}
 	}
 	s.sync.Wake(nodeID.String())
 	return s.Probe(ctx, nodeID)
@@ -547,13 +647,12 @@ func (s *Service) UploadProbeArtifact(ctx context.Context, credential string, ar
 		return ProbeArtifactReceipt{}, ErrHistoryResetPending
 	}
 	if artifact.Gap != nil {
-		owned, deleted, err := s.egressOwnership(ctx, node.ID, artifact.Gap.EgressID)
+		owned, err := s.publicAddressOwnership(ctx, node.ID, artifact.Gap.EgressID)
 		if err != nil {
 			return ProbeArtifactReceipt{}, err
 		}
-		if !owned || deleted {
-			receipt.Disposition = "egress-deleted"
-			return receipt, nil
+		if !owned {
+			return ProbeArtifactReceipt{}, ErrInvalidProbeArtifact
 		}
 		transaction, err := s.history.BeginTx(ctx, nil)
 		if err != nil {
@@ -601,26 +700,21 @@ func (s *Service) UploadProbeArtifact(ctx context.Context, credential string, ar
 		return receipt, nil
 	}
 	for _, manifest := range artifact.Run.Executions {
-		owned, deleted, err := s.egressOwnership(ctx, node.ID, manifest.EgressID)
+		owned, err := s.publicAddressOwnership(ctx, node.ID, manifest.EgressID)
 		if err != nil {
 			return ProbeArtifactReceipt{}, err
 		}
 		if !owned {
 			return ProbeArtifactReceipt{}, ErrInvalidProbeArtifact
 		}
-		if deleted {
-			receipt.Disposition = "egress-deleted"
-			return receipt, nil
-		}
 	}
 	if artifact.Execution != nil {
-		owned, deleted, err := s.egressOwnership(ctx, node.ID, artifact.Execution.EgressID)
+		owned, err := s.publicAddressOwnership(ctx, node.ID, artifact.Execution.EgressID)
 		if err != nil {
 			return ProbeArtifactReceipt{}, err
 		}
-		if !owned || deleted {
-			receipt.Disposition = "egress-deleted"
-			return receipt, nil
+		if !owned {
+			return ProbeArtifactReceipt{}, ErrInvalidProbeArtifact
 		}
 	}
 	transaction, err := s.history.BeginTx(ctx, nil)
@@ -844,19 +938,15 @@ func (s *Service) ResetHistory(ctx context.Context) (HistoryState, error) {
 }
 
 func ingestProbeRun(ctx context.Context, queries *historydb.Queries, nodeID string, run ProbeRunArtifact, receivedAt int64) error {
-	var taskID, triggeringEgressID *string
+	var taskID *string
 	if run.TaskID != nil {
 		value := run.TaskID.String()
 		taskID = &value
 	}
-	if run.TriggeringEgressID != nil {
-		value := run.TriggeringEgressID.String()
-		triggeringEgressID = &value
-	}
 	inserted, err := queries.CreateProbeRun(ctx, historydb.CreateProbeRunParams{
 		ID: run.ID.String(), NodeID: nodeID, HistoryGeneration: run.HistoryGeneration,
 		ConfigurationRevision: run.ConfigurationRevision, Trigger: run.Trigger, TaskID: taskID,
-		TriggeringEgressID: triggeringEgressID, Status: "running", ExpectedExecutions: int64(len(run.Executions)),
+		Status: "running", ExpectedExecutions: int64(len(run.Executions)),
 		StartedAt: run.StartedAt.Unix(), ReceivedAt: receivedAt,
 	})
 	if err != nil {
@@ -1045,7 +1135,7 @@ func validateProbeArtifact(artifact ProbeArtifact) error {
 	if run.CompletedAt != nil && run.CompletedAt.Before(run.StartedAt) {
 		return ErrInvalidProbeArtifact
 	}
-	if (run.Trigger == "manual") != (run.TaskID != nil) || (run.Trigger == "address-change") != (run.TriggeringEgressID != nil) {
+	if (run.Trigger == "manual" || run.Trigger == "new-address") != (run.TaskID != nil) {
 		return ErrInvalidProbeArtifact
 	}
 	seenIDs := make(map[uuid.UUID]struct{}, len(run.Executions))
@@ -1062,11 +1152,6 @@ func validateProbeArtifact(artifact ProbeArtifact) error {
 		}
 		seenIDs[item.ID] = struct{}{}
 		seenEgresses[item.EgressID] = struct{}{}
-	}
-	if run.TriggeringEgressID != nil {
-		if _, exists := seenEgresses[*run.TriggeringEgressID]; !exists {
-			return ErrInvalidProbeArtifact
-		}
 	}
 	if artifact.Execution == nil {
 		return nil
@@ -1139,8 +1224,11 @@ func validateProbeStatus(status *ProbeStatus) error {
 }
 
 func validateTaskReport(record configdb.ProbeTask, report TaskReport) error {
-	if report.ID == uuid.Nil || report.AcknowledgedAt.IsZero() || report.AcknowledgedAt.Unix() < record.CreatedAt ||
-		report.AcknowledgedAt.Unix() > record.ExpiresAt {
+	createdAt := time.Unix(record.CreatedAt, 0).UTC()
+	expiresAt := time.Unix(record.ExpiresAt, 0).UTC()
+	if report.ID == uuid.Nil || report.AcknowledgedAt.IsZero() ||
+		report.AcknowledgedAt.Before(createdAt.Add(-taskReportClockSkewTolerance)) ||
+		report.AcknowledgedAt.After(expiresAt.Add(taskReportClockSkewTolerance)) {
 		return ErrInvalidMetadata
 	}
 	if report.StartedAt != nil && report.StartedAt.Before(report.AcknowledgedAt) || report.CompletedAt != nil && report.CompletedAt.Before(report.AcknowledgedAt) {
@@ -1248,14 +1336,14 @@ func validProbeJSONObject(raw []byte) bool {
 	return json.Unmarshal(raw, &object) == nil && object != nil
 }
 
-func (s *Service) egressOwnership(ctx context.Context, nodeID string, egressID uuid.UUID) (bool, bool, error) {
+func (s *Service) publicAddressOwnership(ctx context.Context, nodeID string, publicAddressID uuid.UUID) (bool, error) {
 	count, err := s.queries.PublicAddressBelongsToNode(ctx, configdb.PublicAddressBelongsToNodeParams{
-		PublicAddressID: egressID.String(), NodeID: nodeID,
+		PublicAddressID: publicAddressID.String(), NodeID: nodeID,
 	})
 	if err != nil {
-		return false, false, err
+		return false, err
 	}
-	return count > 0, false, nil
+	return count > 0, nil
 }
 
 func artifactGeneration(artifact ProbeArtifact) string {
@@ -1265,7 +1353,7 @@ func artifactGeneration(artifact ProbeArtifact) string {
 	return artifact.Gap.HistoryGeneration
 }
 
-func taskFromRecord(record configdb.ProbeTask, offline bool) (Task, error) {
+func taskFromRecord(ctx context.Context, queries *configdb.Queries, record configdb.ProbeTask, offline bool) (Task, error) {
 	id, err := uuid.Parse(record.ID)
 	if err != nil {
 		return Task{}, err
@@ -1282,17 +1370,21 @@ func taskFromRecord(record configdb.ProbeTask, offline bool) (Task, error) {
 		}
 		runID = &value
 	}
-	var triggeringPublicAddressID *uuid.UUID
-	if record.TriggeringPublicAddressID != nil {
-		value, err := uuid.Parse(*record.TriggeringPublicAddressID)
+	targetRecords, err := queries.ListProbeTaskPublicAddresses(ctx, record.ID)
+	if err != nil {
+		return Task{}, err
+	}
+	targetIDs := make([]uuid.UUID, 0, len(targetRecords))
+	for _, targetRecord := range targetRecords {
+		value, err := uuid.Parse(targetRecord)
 		if err != nil {
 			return Task{}, err
 		}
-		triggeringPublicAddressID = &value
+		targetIDs = append(targetIDs, value)
 	}
 	return Task{
 		ID: id, NodeID: nodeID, Kind: record.Kind, Trigger: record.Trigger,
-		TriggeringPublicAddressID: triggeringPublicAddressID, Status: record.Status,
+		PublicAddressIDs: targetIDs, Status: record.Status,
 		CreatedAt: time.Unix(record.CreatedAt, 0).UTC(), ExpiresAt: time.Unix(record.ExpiresAt, 0).UTC(),
 		AcknowledgedAt: timePointer(record.AcknowledgedAt), StartedAt: timePointer(record.StartedAt),
 		CompletedAt: timePointer(record.CompletedAt), RunID: runID, RejectionReason: record.RejectionReason,
@@ -1341,7 +1433,7 @@ func probeRunFromRecord(record historydb.ProbeRun) (ProbeRun, error) {
 	if err != nil {
 		return ProbeRun{}, err
 	}
-	var taskID, triggeringEgressID *uuid.UUID
+	var taskID *uuid.UUID
 	if record.TaskID != nil {
 		value, err := uuid.Parse(*record.TaskID)
 		if err != nil {
@@ -1349,17 +1441,10 @@ func probeRunFromRecord(record historydb.ProbeRun) (ProbeRun, error) {
 		}
 		taskID = &value
 	}
-	if record.TriggeringEgressID != nil {
-		value, err := uuid.Parse(*record.TriggeringEgressID)
-		if err != nil {
-			return ProbeRun{}, err
-		}
-		triggeringEgressID = &value
-	}
 	return ProbeRun{
 		ID: summary.ID, NodeID: summary.NodeID, ConfigurationRevision: record.ConfigurationRevision,
 		HistoryGeneration: record.HistoryGeneration, Trigger: record.Trigger, TaskID: taskID,
-		TriggeringEgressID: triggeringEgressID, StartedAt: summary.StartedAt, CompletedAt: summary.CompletedAt,
+		StartedAt: summary.StartedAt, CompletedAt: summary.CompletedAt,
 		Status: summary.Status, ExpectedExecutions: summary.ExpectedExecutions,
 	}, nil
 }
@@ -1385,16 +1470,13 @@ func probeExecutionFromRecord(record historydb.ProbeExecution) (ProbeExecution, 
 }
 
 func sameProbeRun(record historydb.ProbeRun, nodeID string, run ProbeRunArtifact) bool {
-	var taskID, triggeringEgressID string
+	var taskID string
 	if run.TaskID != nil {
 		taskID = run.TaskID.String()
 	}
-	if run.TriggeringEgressID != nil {
-		triggeringEgressID = run.TriggeringEgressID.String()
-	}
 	return record.ID == run.ID.String() && record.NodeID == nodeID && record.HistoryGeneration == run.HistoryGeneration &&
 		record.ConfigurationRevision == run.ConfigurationRevision && record.Trigger == run.Trigger &&
-		pointerString(record.TaskID) == taskID && pointerString(record.TriggeringEgressID) == triggeringEgressID &&
+		pointerString(record.TaskID) == taskID &&
 		record.ExpectedExecutions == int64(len(run.Executions)) && record.StartedAt == run.StartedAt.Unix()
 }
 
@@ -1423,7 +1505,7 @@ func sameTerminalTask(record configdb.ProbeTask, report TaskReport) bool {
 }
 
 func validProbeTrigger(value string) bool {
-	return value == "manual" || value == "schedule" || value == "address-change"
+	return value == "manual" || value == "schedule" || value == "new-address"
 }
 
 func validFailureStage(value string) bool {

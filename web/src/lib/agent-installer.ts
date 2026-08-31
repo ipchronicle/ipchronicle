@@ -19,3 +19,11 @@ export function agentInstallationCommand(
     channelArgument
   );
 }
+
+export function agentUninstallCommand(mode: "preserve" | "purge") {
+  const purgeArgument = mode === "purge" ? " --purge" : "";
+  return (
+    `curl --proto '=https' --tlsv1.2 -fsSL ${shellQuote(officialInstallerURL)} | ` +
+    `sh -s -- --uninstall${purgeArgument}`
+  );
+}

@@ -41,14 +41,14 @@ WHERE excluded.history_generation != address_states.history_generation
 -- name: CreateAddressEvent :execrows
 INSERT INTO address_events (
     id, public_address_id, source_path_id, node_id, history_generation, sequence, kind, family,
-    previous_address, public_address, local_interface, local_address,
+    public_address, local_interface, local_address,
     proxy_path, likely_nat, temporary, failure_reason, observed_at, received_at
-) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
 ON CONFLICT (id) DO NOTHING;
 
 -- name: GetAddressEvent :one
 SELECT id, public_address_id, source_path_id, node_id, history_generation, sequence, kind, family,
-       previous_address, public_address, local_interface, local_address,
+       public_address, local_interface, local_address,
        proxy_path, likely_nat, temporary, failure_reason, observed_at,
        received_at
 FROM address_events
@@ -56,7 +56,7 @@ WHERE id = ?;
 
 -- name: GetAddressEventBySequence :one
 SELECT id, public_address_id, source_path_id, node_id, history_generation, sequence, kind, family,
-       previous_address, public_address, local_interface, local_address,
+       public_address, local_interface, local_address,
        proxy_path, likely_nat, temporary, failure_reason, observed_at,
        received_at
 FROM address_events
@@ -90,7 +90,7 @@ ORDER BY egress_id;
 
 -- name: ListNodeAddressEvents :many
 SELECT id, public_address_id, source_path_id, node_id, history_generation, sequence, kind, family,
-       previous_address, public_address, local_interface, local_address,
+       public_address, local_interface, local_address,
        proxy_path, likely_nat, temporary, failure_reason, observed_at,
        received_at
 FROM address_events
@@ -130,14 +130,14 @@ WHERE id = 1;
 -- name: CreateProbeRun :execrows
 INSERT INTO probe_runs (
     id, node_id, history_generation, configuration_revision, trigger,
-    task_id, triggering_egress_id, status, expected_executions,
+    task_id, status, expected_executions,
     started_at, completed_at, received_at
-) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
 ON CONFLICT (id) DO NOTHING;
 
 -- name: GetProbeRun :one
 SELECT id, node_id, history_generation, configuration_revision, trigger,
-       task_id, triggering_egress_id, status, expected_executions,
+       task_id, status, expected_executions,
        started_at, completed_at, received_at
 FROM probe_runs
 WHERE id = ?;
@@ -225,6 +225,11 @@ SELECT egress_id, node_id, history_generation, next_sequence,
        last_success_snapshot_id, updated_at
 FROM probe_comparison_progress
 WHERE egress_id = ?;
+
+-- name: ListCurrentProbeSnapshots :many
+SELECT egress_id, snapshot_id, observed_at
+FROM current_probe_snapshots
+ORDER BY egress_id;
 
 -- name: UpsertProbeComparisonProgress :exec
 INSERT INTO probe_comparison_progress (
@@ -386,7 +391,7 @@ WHERE (sqlc.arg(node_id) = '' OR r.node_id = sqlc.arg(node_id))
 
 -- name: ListGlobalAddressEvents :many
 SELECT id, public_address_id, source_path_id, node_id, history_generation, sequence, kind, family,
-       previous_address, public_address, local_interface, local_address,
+       public_address, local_interface, local_address,
        proxy_path, likely_nat, temporary, failure_reason, observed_at,
        received_at
 FROM address_events
@@ -482,12 +487,11 @@ FROM (
     ), COUNT(*) FROM probe_executions
     UNION ALL SELECT SUM(
         256 + length(id) + length(node_id) + length(history_generation) +
-        length(trigger) + COALESCE(length(task_id), 0) +
-        COALESCE(length(triggering_egress_id), 0)
+        length(trigger) + COALESCE(length(task_id), 0)
     ), COUNT(*) FROM probe_runs
     UNION ALL SELECT SUM(
         256 + length(id) + length(public_address_id) + length(source_path_id) + length(node_id) +
-        COALESCE(length(previous_address), 0) + COALESCE(length(public_address), 0) +
+        COALESCE(length(public_address), 0) +
         COALESCE(length(local_interface), 0) + COALESCE(length(local_address), 0) +
         COALESCE(length(proxy_path), 0) + COALESCE(length(failure_reason), 0)
     ), COUNT(*) FROM address_events
@@ -546,8 +550,7 @@ WITH protected_snapshots AS (
        OR EXISTS(SELECT 1 FROM protected_snapshots snapshot WHERE snapshot.execution_id = e.id)
        OR EXISTS(SELECT 1 FROM probe_outcome_states outcome WHERE outcome.execution_id = e.id)
 ), protected_runs AS (
-    SELECT r.id, r.node_id, r.history_generation, r.trigger,
-           r.task_id, r.triggering_egress_id
+    SELECT r.id, r.node_id, r.history_generation, r.trigger, r.task_id
     FROM probe_runs r
     WHERE r.status = 'running'
        OR EXISTS(SELECT 1 FROM protected_executions execution WHERE execution.run_id = r.id)
@@ -563,8 +566,7 @@ FROM (
     UNION ALL
     SELECT SUM(
         256 + length(id) + length(node_id) + length(history_generation) +
-        length(trigger) + COALESCE(length(task_id), 0) +
-        COALESCE(length(triggering_egress_id), 0)
+        length(trigger) + COALESCE(length(task_id), 0)
     ) FROM protected_runs
     UNION ALL
     SELECT SUM(192 + length(format.issues_json))
@@ -651,7 +653,7 @@ FROM (
     UNION ALL
     SELECT 'address-event', id, observed_at,
            256 + length(id) + length(public_address_id) + length(source_path_id) + length(node_id) +
-           COALESCE(length(previous_address), 0) + COALESCE(length(public_address), 0) +
+           COALESCE(length(public_address), 0) +
            COALESCE(length(local_interface), 0) + COALESCE(length(local_address), 0) +
            COALESCE(length(proxy_path), 0) + COALESCE(length(failure_reason), 0)
     FROM address_events
@@ -739,15 +741,12 @@ WHERE notification_events.id = ? AND processed_at IS NOT NULL
 -- name: DeleteNodeProbeComparisonProgress :exec
 DELETE FROM probe_comparison_progress WHERE node_id = ?;
 
--- name: DeleteEgressProbeComparisonProgress :exec
-DELETE FROM probe_comparison_progress WHERE egress_id = ?;
-
 -- name: ResetProbeComparisonProgress :exec
 DELETE FROM probe_comparison_progress;
 
 -- name: ListNodeProbeRuns :many
 SELECT id, node_id, history_generation, configuration_revision, trigger,
-       task_id, triggering_egress_id, status, expected_executions,
+       task_id, status, expected_executions,
        started_at, completed_at, received_at
 FROM probe_runs
 WHERE node_id = ?
@@ -783,15 +782,6 @@ DELETE FROM probe_runs WHERE node_id = ?;
 
 -- name: DeleteNodeProbeGaps :exec
 DELETE FROM probe_gaps WHERE node_id = ?;
-
--- name: DeleteEgressProbeSnapshots :exec
-DELETE FROM probe_snapshots WHERE egress_id = ?;
-
--- name: DeleteEgressProbeExecutions :exec
-DELETE FROM probe_executions WHERE egress_id = ?;
-
--- name: DeleteEgressProbeGaps :exec
-DELETE FROM probe_gaps WHERE egress_id = ?;
 
 -- name: DeleteEmptyProbeRuns :exec
 DELETE FROM probe_runs
@@ -969,9 +959,6 @@ DELETE FROM notification_events WHERE node_id = ?;
 -- name: DeleteNodeAddressNotificationHistory :exec
 DELETE FROM notification_events
 WHERE node_id = ? AND egress_id IS NULL;
-
--- name: DeleteEgressNotificationHistory :exec
-DELETE FROM notification_events WHERE egress_id = ?;
 
 -- name: DeleteProbeOutcomeState :exec
 DELETE FROM probe_outcome_states WHERE egress_id = ?;

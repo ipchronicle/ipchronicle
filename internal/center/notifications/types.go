@@ -207,17 +207,16 @@ type FormatData struct {
 }
 
 type AddressData struct {
-	Sequence        int64   `json:"sequence"`
-	Kind            string  `json:"kind"`
-	Family          string  `json:"family"`
-	PreviousAddress *string `json:"previousAddress,omitempty"`
-	PublicAddress   *string `json:"publicAddress,omitempty"`
-	LocalInterface  *string `json:"localInterface,omitempty"`
-	LocalAddress    *string `json:"localAddress,omitempty"`
-	ProxyPath       bool    `json:"proxyPath"`
-	LikelyNAT       bool    `json:"likelyNat"`
-	Temporary       bool    `json:"temporary"`
-	FailureReason   *string `json:"failureReason,omitempty"`
+	Sequence       int64   `json:"sequence"`
+	Kind           string  `json:"kind"`
+	Family         string  `json:"family"`
+	PublicAddress  *string `json:"publicAddress,omitempty"`
+	LocalInterface *string `json:"localInterface,omitempty"`
+	LocalAddress   *string `json:"localAddress,omitempty"`
+	ProxyPath      bool    `json:"proxyPath"`
+	LikelyNAT      bool    `json:"likelyNat"`
+	Temporary      bool    `json:"temporary"`
+	FailureReason  *string `json:"failureReason,omitempty"`
 }
 
 type GapData struct {

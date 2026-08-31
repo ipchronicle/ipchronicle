@@ -49,8 +49,12 @@ func TestEnrollmentRegistrationAndHeartbeatLifecycle(t *testing.T) {
 	if _, err := service.SetEnrollmentEnabled(ctx, true); !errors.Is(err, ErrEnrollmentKeyMissing) {
 		t.Fatalf("enable without key error = %v", err)
 	}
-	enrollment, err = service.RotateEnrollmentKey(ctx)
-	if err != nil || !enrollment.HasKey || !enrollment.Enabled || enrollment.Key == "" {
+	if _, err := service.RotateEnrollmentKey(ctx, "agent-local"); !errors.Is(err, ErrEnrollmentTimezone) {
+		t.Fatalf("Agent-local enrollment timezone error = %v", err)
+	}
+	enrollment, err = service.RotateEnrollmentKey(ctx, "Asia/Shanghai")
+	if err != nil || !enrollment.HasKey || !enrollment.Enabled || enrollment.Key == "" ||
+		enrollment.DefaultProbeTimezone != "Asia/Shanghai" {
 		t.Fatalf("rotated enrollment = %#v, %v", enrollment, err)
 	}
 	record, err := store.ConfigQueries.GetAgentEnrollment(ctx)
@@ -59,6 +63,9 @@ func TestEnrollmentRegistrationAndHeartbeatLifecycle(t *testing.T) {
 	}
 	if bytes.Contains(record.KeyEncrypted, []byte(enrollment.Key)) {
 		t.Fatal("registration key is stored as plaintext")
+	}
+	if record.DefaultProbeTimezone != "Asia/Shanghai" {
+		t.Fatalf("stored enrollment timezone = %q", record.DefaultProbeTimezone)
 	}
 
 	metadata := testMetadata()
@@ -90,6 +97,9 @@ func TestEnrollmentRegistrationAndHeartbeatLifecycle(t *testing.T) {
 	if bytes.Contains(nodeRecord.CredentialDigest, []byte(registration.Credential)) {
 		t.Fatal("Agent credential is stored as plaintext")
 	}
+	if nodeRecord.ProbeScheduleTimezone != "Asia/Shanghai" {
+		t.Fatalf("registered node timezone = %q", nodeRecord.ProbeScheduleTimezone)
+	}
 
 	listed, err := service.List(ctx)
 	if err != nil || len(listed) != 1 || listed[0].Status != "offline" {
@@ -104,7 +114,8 @@ func TestEnrollmentRegistrationAndHeartbeatLifecycle(t *testing.T) {
 		t.Fatalf("poll = %#v, %v", poll, err)
 	}
 	configuration, err := service.Configuration(ctx, registration.Credential)
-	if err != nil || configuration.Revision != 1 || !configuration.Enabled || len(configuration.HistoryGeneration) != 64 {
+	if err != nil || configuration.Revision != 1 || !configuration.Enabled || len(configuration.HistoryGeneration) != 64 ||
+		configuration.ProbeSchedule.Timezone != "Asia/Shanghai" {
 		t.Fatalf("configuration = %#v, %v", configuration, err)
 	}
 	if _, err := service.Poll(ctx, registration.Credential, metadata, 1, nil, nil, nil, nil); err != nil {
@@ -121,11 +132,11 @@ func TestEnrollmentRegistrationAndHeartbeatLifecycle(t *testing.T) {
 
 	restarted := NewService(store.Config, store.History, store.ConfigQueries, store.MasterKey, &testSyncConnections{})
 	restartedEnrollment, err := restarted.Enrollment(ctx)
-	if err != nil || restartedEnrollment.Key != enrollment.Key {
+	if err != nil || restartedEnrollment.Key != enrollment.Key || restartedEnrollment.DefaultProbeTimezone != "Asia/Shanghai" {
 		t.Fatalf("enrollment key did not survive restart: %#v, %v", restartedEnrollment, err)
 	}
-	rotated, err := restarted.RotateEnrollmentKey(ctx)
-	if err != nil || rotated.Key == enrollment.Key {
+	rotated, err := restarted.RotateEnrollmentKey(ctx, "UTC")
+	if err != nil || rotated.Key == enrollment.Key || rotated.DefaultProbeTimezone != "UTC" {
 		t.Fatalf("second rotation = %#v, %v", rotated, err)
 	}
 	if _, err := restarted.Register(ctx, enrollment.Key, metadata); !errors.Is(err, ErrEnrollmentKeyInvalid) {
@@ -133,6 +144,10 @@ func TestEnrollmentRegistrationAndHeartbeatLifecycle(t *testing.T) {
 	}
 	if _, err := restarted.Poll(ctx, registration.Credential, metadata, 1, nil, nil, nil, nil); err != nil {
 		t.Fatalf("key rotation invalidated existing Agent: %v", err)
+	}
+	configuration, err = restarted.Configuration(ctx, registration.Credential)
+	if err != nil || configuration.ProbeSchedule.Timezone != "Asia/Shanghai" {
+		t.Fatalf("key rotation changed existing node timezone: %#v, %v", configuration.ProbeSchedule, err)
 	}
 }
 
@@ -163,13 +178,22 @@ func TestConfigurationFailureAndNodeLifecycle(t *testing.T) {
 	service := NewService(store.Config, store.History, store.ConfigQueries, store.MasterKey, &testSyncConnections{})
 	now := time.Date(2026, 8, 7, 13, 0, 0, 0, time.UTC)
 	service.now = func() time.Time { return now }
-	enrollment, err := service.RotateEnrollmentKey(ctx)
+	enrollment, err := service.RotateEnrollmentKey(ctx, "UTC")
 	if err != nil {
 		t.Fatal(err)
 	}
 	registration, err := service.Register(ctx, enrollment.Key, testMetadata())
 	if err != nil {
 		t.Fatal(err)
+	}
+	renamedName := "edge-primary"
+	renamed, err := service.Update(ctx, registration.NodeID, &renamedName, true)
+	if err != nil || renamed.Name != renamedName || renamed.DesiredConfigurationRevision != 1 {
+		t.Fatalf("renamed node = %#v, %v", renamed, err)
+	}
+	invalidName := "  "
+	if _, err := service.Update(ctx, registration.NodeID, &invalidName, true); !errors.Is(err, ErrInvalidNodeName) {
+		t.Fatalf("invalid node name error = %v", err)
 	}
 
 	disabled, err := service.SetEnabled(ctx, registration.NodeID, false)
@@ -245,7 +269,7 @@ func TestTemporarySyncSessionLifecycle(t *testing.T) {
 	service := NewService(store.Config, store.History, store.ConfigQueries, store.MasterKey, connections)
 	now := time.Date(2026, 8, 9, 4, 0, 0, 0, time.UTC)
 	service.now = func() time.Time { return now }
-	enrollment, err := service.RotateEnrollmentKey(ctx)
+	enrollment, err := service.RotateEnrollmentKey(ctx, "UTC")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -335,7 +359,7 @@ func TestTemporarySyncRequiresAdvertisedCapability(t *testing.T) {
 	}
 	t.Cleanup(func() { _ = store.Close() })
 	service := NewService(store.Config, store.History, store.ConfigQueries, store.MasterKey, &testSyncConnections{})
-	enrollment, err := service.RotateEnrollmentKey(ctx)
+	enrollment, err := service.RotateEnrollmentKey(ctx, "UTC")
 	if err != nil {
 		t.Fatal(err)
 	}

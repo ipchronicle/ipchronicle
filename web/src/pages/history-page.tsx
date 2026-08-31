@@ -121,7 +121,7 @@ export function HistoryPage() {
                   runStatus: value(params, "runStatus") as
                     "running" | "succeeded" | "partial" | "failed" | undefined,
                   trigger: value(params, "trigger") as
-                    "manual" | "schedule" | "address-change" | undefined,
+                    "manual" | "schedule" | "new-address" | undefined,
                   changed:
                     changed === "true"
                       ? true
@@ -167,7 +167,8 @@ export function HistoryPage() {
               gapPage: positiveInteger(params.get("gapPage"), 1),
               eventKind: value(params, "eventKind") as
                 | "first-observation"
-                | "address-change"
+                | "address-added"
+                | "address-removed"
                 | "check-failure"
                 | "recovery"
                 | undefined,
@@ -233,7 +234,7 @@ export function HistoryPage() {
   return (
     <main className="w-full min-w-0 px-4 py-10 sm:px-6 sm:py-14">
       <div className="max-w-2xl">
-        <p className="text-xs font-medium text-muted-foreground uppercase">
+        <p className="text-sm font-medium text-muted-foreground uppercase">
           {t("history.section")}
         </p>
         <h1 className="mt-2 text-2xl font-semibold sm:text-3xl">
@@ -415,7 +416,7 @@ function FilterGrid({
               [all, t("history.filters.allTriggers")],
               ["manual", t("probe.trigger.manual")],
               ["schedule", t("probe.trigger.schedule")],
-              ["address-change", t("probe.trigger.address-change")],
+              ["new-address", t("probe.trigger.new-address")],
             ]}
           />
           <FilterSelect
@@ -451,9 +452,10 @@ function FilterGrid({
                 "first-observation",
                 t("network.addressHistory.kind.first-observation"),
               ],
+              ["address-added", t("network.addressHistory.kind.address-added")],
               [
-                "address-change",
-                t("network.addressHistory.kind.address-change"),
+                "address-removed",
+                t("network.addressHistory.kind.address-removed"),
               ],
               ["check-failure", t("network.addressHistory.kind.check-failure")],
               ["recovery", t("network.addressHistory.kind.recovery")],
@@ -715,7 +717,7 @@ function Owner({ snapshot }: { snapshot: Snapshot }) {
           {snapshot.owner.nodeName ?? shortID(snapshot.nodeId)}
         </span>
       </div>
-      <div className="truncate text-xs text-muted-foreground">
+      <div className="truncate text-sm text-muted-foreground">
         {historyEgressName(snapshot.owner.egressName, t)} · #{snapshot.sequence}
       </div>
     </div>
@@ -843,7 +845,7 @@ function AddressRow({
         <div className="font-medium">
           {item.owner.nodeName ?? shortID(item.nodeId)}
         </div>
-        <div className="text-xs text-muted-foreground">
+        <div className="text-sm text-muted-foreground">
           {addressEventOwner(item, t)}
         </div>
       </TableCell>
@@ -912,12 +914,9 @@ function AddressMapping({ item }: { item: AddressEvent }) {
       </span>
     );
   }
-  const current = item.event.publicAddress ?? t("probe.notAvailable");
   return (
-    <div className="min-w-0 break-all font-mono text-xs">
-      {item.event.previousAddress
-        ? `${item.event.previousAddress} -> ${current}`
-        : current}
+    <div className="min-w-0 break-all font-mono text-base">
+      {item.event.publicAddress ?? t("probe.notAvailable")}
     </div>
   );
 }
@@ -946,7 +945,7 @@ function ProbeGapCard({
               {gap.owner.nodeName ?? shortID(gap.nodeId)} ·{" "}
               {historyEgressName(gap.owner.egressName, t)}
             </div>
-            <div className="mt-1 text-xs text-muted-foreground">
+            <div className="mt-1 text-sm text-muted-foreground">
               {t("history.gaps.probeItem", {
                 count: gap.droppedCount,
                 first: gap.firstSequence,
@@ -994,7 +993,7 @@ function FormatEventCard({
                 {event.owner.nodeName ?? shortID(event.nodeId)} ·{" "}
                 {historyEgressName(event.owner.egressName, t)}
               </div>
-              <div className="mt-1 text-xs text-muted-foreground">
+              <div className="mt-1 text-sm text-muted-foreground">
                 {t(`history.formatEvents.kind.${event.kind}`)} ·{" "}
                 {t("history.formatEvents.issueCount", {
                   count: event.issues.length,
@@ -1045,7 +1044,7 @@ function AddressGapCard({
                 {t("history.gaps.nodeLevel")}
               </Badge>
             </div>
-            <div className="mt-1 text-xs text-muted-foreground">
+            <div className="mt-1 text-sm text-muted-foreground">
               {t("history.gaps.addressItem", {
                 count: item.gap.droppedCount,
                 first: item.gap.firstSequence,
@@ -1070,10 +1069,7 @@ function addressEventOwner(
   t: ReturnType<typeof useTranslation>["t"],
 ) {
   return (
-    item.owner.egressName ??
-    item.event.publicAddress ??
-    item.event.previousAddress ??
-    t("probe.notAvailable")
+    item.owner.egressName ?? item.event.publicAddress ?? t("probe.notAvailable")
   );
 }
 
@@ -1103,7 +1099,7 @@ function Pagination({
           <ArrowLeft data-icon="inline-start" aria-hidden="true" />
           {t("history.pagination.previous")}
         </Button>
-        <span className="text-xs text-muted-foreground">
+        <span className="text-sm text-muted-foreground">
           {t("history.pagination.page", { current, total: pages })}
         </span>
         <Button

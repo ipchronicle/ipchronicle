@@ -1,9 +1,10 @@
-import { useCallback, useEffect, useState } from "react";
-import type { FormEvent } from "react";
+import { useCallback, useEffect, useState, type FormEvent } from "react";
 import {
   Activity,
+  CalendarClock,
   Check,
   Clock3,
+  Eye,
   LoaderCircle,
   MemoryStick,
   Play,
@@ -16,16 +17,16 @@ import { Link, useParams } from "react-router";
 
 import type { Node } from "@/api/nodes";
 import {
-  createCompleteProbeTask,
   getNodeProbe,
   updateNodeProbeSettings,
-  type NodeProbeSettingsUpdate,
   type NodeProbeState,
   type ProbeRunSummary,
   type ProbeTask,
 } from "@/api/probes";
 import { useAuth } from "@/auth-context";
+import { CompleteProbeDialog } from "@/components/complete-probe-dialog";
 import { useNodeDetail } from "@/components/node-detail-layout";
+import { TimeZoneCombobox } from "@/components/time-zone-combobox";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -57,7 +58,6 @@ export function NodeProbePage() {
   const { state: authState } = useAuth();
   const [state, setState] = useState<ViewState>({ kind: "loading" });
   const [refreshing, setRefreshing] = useState(false);
-  const [starting, setStarting] = useState(false);
   const [feedback, setFeedback] = useState<
     { kind: "success" | "error"; message: string } | undefined
   >();
@@ -74,7 +74,7 @@ export function NodeProbePage() {
       } catch (error) {
         if (error instanceof DOMException && error.name === "AbortError")
           return;
-        setState({ kind: "error" });
+        if (!quiet) setState({ kind: "error" });
       } finally {
         if (!quiet) setRefreshing(false);
       }
@@ -97,7 +97,7 @@ export function NodeProbePage() {
     if (!shouldPoll) return;
     const timer = window.setInterval(
       () => void load(undefined, false, true),
-      5000,
+      5_000,
     );
     return () => window.clearInterval(timer);
   }, [load, shouldPoll]);
@@ -105,22 +105,13 @@ export function NodeProbePage() {
   const csrfToken =
     authState.status === "authenticated" ? authState.session.csrfToken : "";
 
-  async function startProbe() {
-    setStarting(true);
-    setFeedback(undefined);
-    try {
-      const task = await createCompleteProbeTask(nodeId, csrfToken);
-      setState((current) =>
-        current.kind === "success"
-          ? { ...current, probe: { ...current.probe, task } }
-          : current,
-      );
-      setFeedback({ kind: "success", message: t("probe.task.created") });
-    } catch (error) {
-      setFeedback({ kind: "error", message: formatAPIError(error, t) });
-    } finally {
-      setStarting(false);
-    }
+  function probeCreated(task: ProbeTask) {
+    setState((current) =>
+      current.kind === "success"
+        ? { ...current, probe: { ...current.probe, task } }
+        : current,
+    );
+    setFeedback({ kind: "success", message: t("probe.task.created") });
   }
 
   function replaceProbe(probe: NodeProbeState) {
@@ -145,95 +136,94 @@ export function NodeProbePage() {
           {t("probe.refresh")}
         </Button>
         {state.kind === "success" ? (
-          <Button
-            disabled={starting || immediateProbeUnavailable(node, state.probe)}
-            onClick={() => void startProbe()}
+          <CompleteProbeDialog
+            nodeId={nodeId}
+            csrfToken={csrfToken}
+            onCreated={probeCreated}
           >
-            {starting ? (
-              <LoaderCircle
-                data-icon="inline-start"
-                aria-hidden="true"
-                className="animate-spin"
-              />
-            ) : (
+            <Button disabled={immediateProbeUnavailable(node, state.probe)}>
               <Play data-icon="inline-start" aria-hidden="true" />
-            )}
-            {t("probe.runNow")}
-          </Button>
+              {t("probe.runNow")}
+            </Button>
+          </CompleteProbeDialog>
         ) : null}
       </div>
 
-      <div className="space-y-4">
-        {state.kind === "loading" ? <ProbeSkeleton /> : null}
-        {state.kind === "error" ? (
-          <Alert variant="destructive">
+      {state.kind === "loading" ? <ProbeSkeleton /> : null}
+      {state.kind === "error" ? (
+        <Alert variant="destructive">
+          <TriangleAlert aria-hidden="true" />
+          <AlertTitle>{t("probe.loadFailed")}</AlertTitle>
+          <AlertDescription>
+            <Button
+              variant="outline"
+              size="sm"
+              className="mt-3"
+              onClick={() => void load(undefined, true)}
+            >
+              <RefreshCw data-icon="inline-start" aria-hidden="true" />
+              {t("probe.retry")}
+            </Button>
+          </AlertDescription>
+        </Alert>
+      ) : null}
+      {feedback ? (
+        <Alert variant={feedback.kind === "error" ? "destructive" : "default"}>
+          {feedback.kind === "error" ? (
             <TriangleAlert aria-hidden="true" />
-            <AlertTitle>{t("probe.loadFailed")}</AlertTitle>
-            <AlertDescription>
-              <Button
-                variant="outline"
-                size="sm"
-                className="mt-3"
-                onClick={() => void load(undefined, true)}
-              >
-                <RefreshCw data-icon="inline-start" aria-hidden="true" />
-                {t("probe.retry")}
-              </Button>
-            </AlertDescription>
-          </Alert>
-        ) : null}
-        {feedback ? (
-          <Alert
-            variant={feedback.kind === "error" ? "destructive" : "default"}
-          >
-            {feedback.kind === "error" ? (
-              <TriangleAlert aria-hidden="true" />
-            ) : (
-              <Check aria-hidden="true" />
-            )}
-            <AlertDescription>{feedback.message}</AlertDescription>
-          </Alert>
-        ) : null}
-        {state.kind === "success" ? (
-          <>
-            {state.probe.pausedLowMemory ? (
-              <Alert variant="destructive">
-                <MemoryStick aria-hidden="true" />
-                <AlertTitle>{t("probe.lowMemory.title")}</AlertTitle>
-                <AlertDescription>
-                  {t("probe.lowMemory.detail")}
-                </AlertDescription>
-              </Alert>
-            ) : null}
-            {immediateProbeReason(node, state.probe) ? (
-              <Alert>
-                <Clock3 aria-hidden="true" />
-                <AlertDescription>
-                  {t(
-                    `probe.unavailable.${immediateProbeReason(node, state.probe)}`,
-                  )}
-                </AlertDescription>
-              </Alert>
-            ) : null}
-            <ProbeStatusCard probe={state.probe} />
-            <TaskCard task={state.probe.task} />
-            <RecentRunsCard runs={state.probe.recentRuns} />
-            <ProbeSettingsCard
-              key={`${state.probe.schedule.enabled}:${state.probe.schedule.cron}:${state.probe.schedule.timezone}:${state.probe.lowMemoryOverride}`}
-              nodeId={nodeId}
-              probe={state.probe}
-              csrfToken={csrfToken}
-              onChange={replaceProbe}
-            />
-          </>
-        ) : null}
-      </div>
+          ) : (
+            <Check aria-hidden="true" />
+          )}
+          <AlertDescription>{feedback.message}</AlertDescription>
+        </Alert>
+      ) : null}
+
+      {state.kind === "success" ? (
+        <>
+          {state.probe.pausedLowMemory ? (
+            <Alert variant="destructive">
+              <MemoryStick aria-hidden="true" />
+              <AlertTitle>{t("probe.lowMemory.title")}</AlertTitle>
+              <AlertDescription>{t("probe.lowMemory.detail")}</AlertDescription>
+            </Alert>
+          ) : null}
+          {immediateProbeReason(node, state.probe) ? (
+            <Alert>
+              <Clock3 aria-hidden="true" />
+              <AlertDescription>
+                {t(
+                  `probe.unavailable.${immediateProbeReason(node, state.probe)}`,
+                )}
+              </AlertDescription>
+            </Alert>
+          ) : null}
+
+          <div className="grid items-start gap-4 xl:grid-cols-[minmax(0,2.5fr)_minmax(290px,.8fr)]">
+            <div className="space-y-4">
+              <ProbeStatusCard probe={state.probe} />
+              <RecentRunsCard runs={state.probe.recentRuns} />
+            </div>
+            <aside className="space-y-4">
+              <ProbeScheduleCard
+                key={`${state.probe.schedule.enabled}:${state.probe.schedule.cron}:${state.probe.schedule.timezone}`}
+                nodeId={nodeId}
+                probe={state.probe}
+                csrfToken={csrfToken}
+                onChange={replaceProbe}
+              />
+              <TaskCard task={state.probe.task} />
+            </aside>
+          </div>
+        </>
+      ) : null}
     </div>
   );
 }
 
 function ProbeStatusCard({ probe }: { probe: NodeProbeState }) {
   const { t, i18n } = useTranslation();
+  const latestRun = probe.recentRuns[0];
+  const task = probe.task;
   const status = probe.agentStatus;
   return (
     <Card>
@@ -244,7 +234,7 @@ function ProbeStatusCard({ probe }: { probe: NodeProbeState }) {
         </CardTitle>
         <CardDescription>{t("probe.status.detail")}</CardDescription>
         <CardAction>
-          <Badge variant={status?.activeRunId ? "default" : "outline"}>
+          <Badge variant={status?.activeRunId ? "info" : "outline"}>
             {status?.activeRunId
               ? t("probe.status.running")
               : t("probe.status.idle")}
@@ -252,15 +242,59 @@ function ProbeStatusCard({ probe }: { probe: NodeProbeState }) {
         </CardAction>
       </CardHeader>
       <CardContent>
-        <dl className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-          <StatusValue
+        <div className="grid gap-3 md:grid-cols-3">
+          <SummaryItem
+            label={t("probe.status.latestComplete")}
+            value={
+              latestRun
+                ? t(`probe.state.${latestRun.status}`)
+                : t("probe.runs.emptyShort")
+            }
+            detail={formatTime(
+              latestRun?.startedAt,
+              i18n.resolvedLanguage,
+              t("probe.notAvailable"),
+            )}
+            tone={latestRun?.status === "succeeded" ? "success" : "neutral"}
+          />
+          <SummaryItem
+            label={t("probe.status.currentTask")}
+            value={
+              task
+                ? t(`probe.state.${task.status}`)
+                : t("probe.task.emptyShort")
+            }
+            detail={
+              task
+                ? formatTime(
+                    task.createdAt,
+                    i18n.resolvedLanguage,
+                    t("probe.notAvailable"),
+                  )
+                : t("probe.status.noActiveTask")
+            }
+            tone={
+              task && activeTaskStatuses.has(task.status)
+                ? "warning"
+                : "neutral"
+            }
+          />
+          <SummaryItem
             label={t("probe.status.next")}
             value={formatTime(
               status?.nextScheduledAt,
               i18n.resolvedLanguage,
               t("probe.notAvailable"),
             )}
+            detail={
+              probe.schedule.enabled
+                ? t("probe.status.scheduleEnabled")
+                : t("probe.status.scheduleDisabled")
+            }
           />
+        </div>
+
+        <dl className="mt-4 grid gap-4 border-t pt-4 sm:grid-cols-3">
           <StatusValue
             label={t("probe.status.last")}
             value={formatTime(
@@ -312,10 +346,44 @@ function ProbeStatusCard({ probe }: { probe: NodeProbeState }) {
   );
 }
 
+function SummaryItem({
+  label,
+  value,
+  detail,
+  tone = "neutral",
+}: {
+  label: string;
+  value: string;
+  detail: string;
+  tone?: "neutral" | "success" | "warning";
+}) {
+  const className =
+    tone === "success"
+      ? "bg-emerald-50 dark:bg-emerald-950/40"
+      : tone === "warning"
+        ? "bg-amber-50 dark:bg-amber-950/40"
+        : "bg-muted/60";
+  const valueClassName =
+    tone === "success"
+      ? "text-emerald-700 dark:text-emerald-300"
+      : tone === "warning"
+        ? "text-amber-700 dark:text-amber-300"
+        : "text-foreground";
+  return (
+    <div className={`rounded-lg p-4 ${className}`}>
+      <p className="text-xs text-muted-foreground">{label}</p>
+      <p className={`mt-1 text-base font-semibold ${valueClassName}`}>
+        {value}
+      </p>
+      <p className="mt-1 text-xs text-muted-foreground">{detail}</p>
+    </div>
+  );
+}
+
 function StatusValue({ label, value }: { label: string; value: string }) {
   return (
     <div className="min-w-0">
-      <dt className="text-xs text-muted-foreground">{label}</dt>
+      <dt className="text-sm text-muted-foreground">{label}</dt>
       <dd className="mt-1 break-words font-medium">{value}</dd>
     </div>
   );
@@ -350,8 +418,8 @@ function TaskCard({ task }: { task?: ProbeTask }) {
                 <AlertDescription>{t("probe.task.offline")}</AlertDescription>
               </Alert>
             ) : null}
-            <dl className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-              <StatusValue
+            <dl className="space-y-3">
+              <CompactValue
                 label={t("probe.task.createdAt")}
                 value={formatTime(
                   task.createdAt,
@@ -359,7 +427,7 @@ function TaskCard({ task }: { task?: ProbeTask }) {
                   t("probe.notAvailable"),
                 )}
               />
-              <StatusValue
+              <CompactValue
                 label={t("probe.task.receivedAt")}
                 value={formatTime(
                   task.acknowledgedAt,
@@ -367,15 +435,7 @@ function TaskCard({ task }: { task?: ProbeTask }) {
                   t("probe.task.waiting"),
                 )}
               />
-              <StatusValue
-                label={t("probe.task.startedAt")}
-                value={formatTime(
-                  task.startedAt,
-                  i18n.resolvedLanguage,
-                  t("probe.notAvailable"),
-                )}
-              />
-              <StatusValue
+              <CompactValue
                 label={t("probe.task.completedAt")}
                 value={formatTime(
                   task.completedAt,
@@ -387,6 +447,7 @@ function TaskCard({ task }: { task?: ProbeTask }) {
             {task.runId ? (
               <Button variant="outline" size="sm" asChild>
                 <Link to={`/probe-runs/${task.runId}`}>
+                  <Eye data-icon="inline-start" aria-hidden="true" />
                   {t("probe.task.openRun")}
                 </Link>
               </Button>
@@ -403,6 +464,15 @@ function TaskCard({ task }: { task?: ProbeTask }) {
   );
 }
 
+function CompactValue({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="flex items-start justify-between gap-4 border-t pt-3 first:border-t-0 first:pt-0">
+      <dt className="text-sm text-muted-foreground">{label}</dt>
+      <dd className="text-right text-sm font-medium">{value}</dd>
+    </div>
+  );
+}
+
 function RecentRunsCard({ runs }: { runs: ProbeRunSummary[] }) {
   const { t, i18n } = useTranslation();
   return (
@@ -411,51 +481,66 @@ function RecentRunsCard({ runs }: { runs: ProbeRunSummary[] }) {
         <CardTitle>{t("probe.runs.title")}</CardTitle>
         <CardDescription>{t("probe.runs.detail")}</CardDescription>
         <CardAction>
-          <Badge variant="secondary">{runs.length}</Badge>
+          <Badge variant="info">{runs.length}</Badge>
         </CardAction>
       </CardHeader>
-      <CardContent className="space-y-2">
+      <CardContent>
         {runs.length === 0 ? (
           <p className="py-6 text-center text-sm text-muted-foreground">
             {t("probe.runs.empty")}
           </p>
         ) : (
-          runs.map((run) => (
-            <Link
-              key={run.id}
-              to={`/probe-runs/${run.id}`}
-              className="flex flex-col gap-3 rounded-md border p-4 transition-colors hover:bg-muted/50 sm:flex-row sm:items-center sm:justify-between"
-            >
-              <div className="min-w-0">
-                <div className="flex flex-wrap items-center gap-2">
-                  <ProbeStatusBadge status={run.status} />
-                  <span className="text-sm font-medium">
+          <div className="overflow-hidden rounded-lg border">
+            {runs.map((run) => (
+              <div
+                key={run.id}
+                className="grid gap-4 border-t p-4 first:border-t-0 md:grid-cols-[minmax(180px,1.2fr)_minmax(110px,.55fr)_minmax(120px,.65fr)_auto] md:items-center"
+              >
+                <div className="min-w-0">
+                  <p className="font-medium">
+                    {formatTime(
+                      run.startedAt,
+                      i18n.resolvedLanguage,
+                      t("probe.notAvailable"),
+                    )}
+                  </p>
+                  <p className="mt-1 text-sm text-muted-foreground">
                     {t(`probe.trigger.${run.trigger}`)}
-                  </span>
+                  </p>
                 </div>
-                <p className="mt-2 text-xs text-muted-foreground">
-                  {formatTime(
-                    run.startedAt,
-                    i18n.resolvedLanguage,
-                    t("probe.notAvailable"),
-                  )}
-                </p>
+                <div>
+                  <p className="mb-1 text-xs text-muted-foreground">
+                    {t("probe.runs.status")}
+                  </p>
+                  <ProbeStatusBadge status={run.status} />
+                </div>
+                <div>
+                  <p className="mb-1 text-xs text-muted-foreground">
+                    {t("probe.runs.completed")}
+                  </p>
+                  <p className="text-sm font-medium">
+                    {t("probe.runs.progress", {
+                      completed: run.completedExecutions,
+                      total: run.expectedExecutions,
+                    })}
+                  </p>
+                </div>
+                <Button variant="outline" size="sm" asChild>
+                  <Link to={`/probe-runs/${run.id}`}>
+                    <Eye data-icon="inline-start" aria-hidden="true" />
+                    {t("probe.runs.open")}
+                  </Link>
+                </Button>
               </div>
-              <span className="text-sm text-muted-foreground">
-                {t("probe.runs.progress", {
-                  completed: run.completedExecutions,
-                  total: run.expectedExecutions,
-                })}
-              </span>
-            </Link>
-          ))
+            ))}
+          </div>
         )}
       </CardContent>
     </Card>
   );
 }
 
-function ProbeSettingsCard({
+function ProbeScheduleCard({
   nodeId,
   probe,
   csrfToken,
@@ -467,10 +552,7 @@ function ProbeSettingsCard({
   onChange: (value: NodeProbeState) => void;
 }) {
   const { t } = useTranslation();
-  const [form, setForm] = useState<NodeProbeSettingsUpdate>({
-    schedule: { ...probe.schedule },
-    lowMemoryOverride: probe.lowMemoryOverride,
-  });
+  const [schedule, setSchedule] = useState({ ...probe.schedule });
   const [saving, setSaving] = useState(false);
   const [feedback, setFeedback] = useState<string>();
 
@@ -479,7 +561,17 @@ function ProbeSettingsCard({
     setSaving(true);
     setFeedback(undefined);
     try {
-      onChange(await updateNodeProbeSettings(nodeId, form, csrfToken));
+      onChange(
+        await updateNodeProbeSettings(
+          nodeId,
+          {
+            schedule,
+            lowMemoryOverride: probe.lowMemoryOverride,
+            probeOnNewAddress: probe.probeOnNewAddress,
+          },
+          csrfToken,
+        ),
+      );
     } catch (error) {
       setFeedback(formatAPIError(error, t));
     } finally {
@@ -490,94 +582,62 @@ function ProbeSettingsCard({
   return (
     <Card>
       <CardHeader>
-        <CardTitle>{t("probe.settings.title")}</CardTitle>
-        <CardDescription>{t("probe.settings.detail")}</CardDescription>
+        <CardTitle className="flex items-center gap-2">
+          <CalendarClock aria-hidden="true" className="size-4" />
+          {t("probe.schedule.title")}
+        </CardTitle>
+        <CardDescription>{t("probe.schedule.detail")}</CardDescription>
+        <CardAction>
+          <Switch
+            checked={schedule.enabled}
+            disabled={saving}
+            onCheckedChange={(enabled) =>
+              setSchedule((current) => ({ ...current, enabled }))
+            }
+            aria-label={t("probe.settings.scheduleEnabled")}
+          />
+        </CardAction>
       </CardHeader>
       <CardContent>
-        <form className="space-y-5" onSubmit={(event) => void submit(event)}>
+        <form className="space-y-4" onSubmit={(event) => void submit(event)}>
           {feedback ? (
             <Alert variant="destructive">
               <TriangleAlert aria-hidden="true" />
               <AlertDescription>{feedback}</AlertDescription>
             </Alert>
           ) : null}
-          <div className="flex items-start justify-between gap-4 rounded-md border p-4">
-            <div>
-              <Label htmlFor="probe-schedule-enabled">
-                {t("probe.settings.scheduleEnabled")}
-              </Label>
-              <p className="mt-1 text-sm text-muted-foreground">
-                {t("probe.settings.scheduleEnabledDetail")}
-              </p>
-            </div>
-            <Switch
-              id="probe-schedule-enabled"
-              checked={form.schedule.enabled}
+          <div className="space-y-2">
+            <Label htmlFor="probe-cron">{t("probe.settings.cron")}</Label>
+            <Input
+              id="probe-cron"
+              value={schedule.cron}
               disabled={saving}
-              onCheckedChange={(enabled) =>
-                setForm((current) => ({
+              autoComplete="off"
+              onChange={(event) =>
+                setSchedule((current) => ({
                   ...current,
-                  schedule: { ...current.schedule, enabled },
+                  cron: event.target.value,
                 }))
               }
             />
           </div>
-          <div className="grid gap-4 sm:grid-cols-2">
-            <div className="space-y-2">
-              <Label htmlFor="probe-cron">{t("probe.settings.cron")}</Label>
-              <Input
-                id="probe-cron"
-                value={form.schedule.cron}
-                disabled={saving}
-                autoComplete="off"
-                onChange={(event) =>
-                  setForm((current) => ({
-                    ...current,
-                    schedule: { ...current.schedule, cron: event.target.value },
-                  }))
-                }
-              />
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="probe-timezone">
-                {t("probe.settings.timezone")}
-              </Label>
-              <Input
-                id="probe-timezone"
-                value={form.schedule.timezone}
-                disabled={saving}
-                autoComplete="off"
-                onChange={(event) =>
-                  setForm((current) => ({
-                    ...current,
-                    schedule: {
-                      ...current.schedule,
-                      timezone: event.target.value,
-                    },
-                  }))
-                }
-              />
-            </div>
-          </div>
-          <div className="flex items-start justify-between gap-4 rounded-md border p-4">
-            <div>
-              <Label htmlFor="probe-memory-override">
-                {t("probe.settings.memoryOverride")}
-              </Label>
-              <p className="mt-1 text-sm text-muted-foreground">
-                {t("probe.settings.memoryOverrideDetail")}
-              </p>
-            </div>
-            <Switch
-              id="probe-memory-override"
-              checked={form.lowMemoryOverride}
+          <div className="space-y-2">
+            <Label htmlFor="probe-timezone">
+              {t("probe.settings.timezone")}
+            </Label>
+            <TimeZoneCombobox
+              id="probe-timezone"
+              value={schedule.timezone}
               disabled={saving}
-              onCheckedChange={(lowMemoryOverride) =>
-                setForm((current) => ({ ...current, lowMemoryOverride }))
+              onValueChange={(timezone) =>
+                setSchedule((current) => ({
+                  ...current,
+                  timezone,
+                }))
               }
             />
           </div>
-          <Button type="submit" disabled={saving}>
+          <Button type="submit" size="sm" disabled={saving}>
             {saving ? (
               <LoaderCircle
                 data-icon="inline-start"
@@ -597,25 +657,20 @@ function ProbeSettingsCard({
 
 export function ProbeStatusBadge({ status }: { status: string }) {
   const { t } = useTranslation();
-  const destructive =
+  const variant =
     status === "failed" ||
     status === "rejected" ||
     status === "expired" ||
-    status === "interrupted";
-  const warning = status === "partial" || status === "skipped";
-  return (
-    <Badge
-      variant={
-        destructive
-          ? "destructive"
-          : warning || status === "pending"
-            ? "secondary"
-            : "outline"
-      }
-    >
-      {t(`probe.state.${status}`)}
-    </Badge>
-  );
+    status === "interrupted"
+      ? "destructive"
+      : status === "succeeded"
+        ? "success"
+        : status === "running"
+          ? "info"
+          : status === "partial" || status === "skipped" || status === "pending"
+            ? "warning"
+            : "outline";
+  return <Badge variant={variant}>{t(`probe.state.${status}`)}</Badge>;
 }
 
 function immediateProbeUnavailable(node: Node, probe: NodeProbeState) {
@@ -657,18 +712,31 @@ function formatBytes(value: number, locale: string | undefined) {
 
 function ProbeSkeleton() {
   return (
-    <div className="space-y-4" aria-busy="true">
-      {[0, 1, 2].map((item) => (
-        <Card key={item}>
-          <CardHeader>
-            <Skeleton className="h-5 w-40" />
-            <Skeleton className="h-4 w-64 max-w-full" />
-          </CardHeader>
-          <CardContent>
-            <Skeleton className="h-20 w-full" />
-          </CardContent>
-        </Card>
-      ))}
+    <div
+      className="grid items-start gap-4 xl:grid-cols-[minmax(0,2.5fr)_minmax(290px,.8fr)]"
+      aria-busy="true"
+    >
+      <div className="space-y-4">
+        {[0, 1].map((item) => (
+          <Card key={item}>
+            <CardHeader>
+              <Skeleton className="h-5 w-40" />
+              <Skeleton className="h-4 w-64 max-w-full" />
+            </CardHeader>
+            <CardContent>
+              <Skeleton className="h-28 w-full" />
+            </CardContent>
+          </Card>
+        ))}
+      </div>
+      <Card>
+        <CardHeader>
+          <Skeleton className="h-5 w-32" />
+        </CardHeader>
+        <CardContent>
+          <Skeleton className="h-40 w-full" />
+        </CardContent>
+      </Card>
     </div>
   );
 }

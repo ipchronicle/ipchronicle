@@ -483,10 +483,16 @@ paths:
       - $ref: "#/components/parameters/NodeId"
     post:
       operationId: createCompleteProbeTask
-      summary: Create the node's single immediate complete-probe task
+      summary: Save the selected public-IP targets and create the node's single immediate complete-probe task
       tags: [probes]
       parameters:
         - $ref: "#/components/parameters/CSRFToken"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CompleteProbeTaskCreate"
       responses:
         "202":
           description: The immediate task was created for an online Agent.
@@ -494,6 +500,8 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/ProbeTask"
+        "400":
+          $ref: "#/components/responses/BadRequest"
         "401":
           $ref: "#/components/responses/Unauthorized"
         "403":
@@ -1069,7 +1077,7 @@ paths:
       - $ref: "#/components/parameters/NodeId"
     get:
       operationId: getNodeNetwork
-      summary: Read discovered public addresses and explicit proxy discovery paths
+      summary: Read discovered public addresses and node-owned network proxies
       tags: [network]
       responses:
         "200":
@@ -1118,12 +1126,27 @@ paths:
           $ref: "#/components/responses/Forbidden"
         "404":
           $ref: "#/components/responses/NotFound"
-  /api/v1/nodes/{nodeId}/proxy-discovery-paths:
+  /api/v1/nodes/{nodeId}/network-proxies:
     parameters:
       - $ref: "#/components/parameters/NodeId"
+    get:
+      operationId: listNodeNetworkProxies
+      summary: List the network proxies owned by a node without revealing passwords
+      tags: [network]
+      responses:
+        "200":
+          description: Node network proxies ordered by name.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/NetworkProxyList"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "404":
+          $ref: "#/components/responses/NotFound"
     post:
-      operationId: createNodeProxyDiscoveryPath
-      summary: Add an explicit proxy path for public-address discovery
+      operationId: createNodeNetworkProxy
+      summary: Create a node-owned proxy and start IPv4 and IPv6 discovery
       tags: [network]
       parameters:
         - $ref: "#/components/parameters/CSRFToken"
@@ -1132,14 +1155,14 @@ paths:
         content:
           application/json:
             schema:
-              $ref: "#/components/schemas/ProxyDiscoveryPathCreate"
+              $ref: "#/components/schemas/NetworkProxyCreate"
       responses:
         "201":
-          description: The proxy discovery path was created.
+          description: The node proxy and its internal discovery paths were created.
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/ProxyDiscoveryPath"
+                $ref: "#/components/schemas/NetworkProxy"
         "400":
           $ref: "#/components/responses/BadRequest"
         "401":
@@ -1150,28 +1173,52 @@ paths:
           $ref: "#/components/responses/NotFound"
         "409":
           $ref: "#/components/responses/Conflict"
-  /api/v1/nodes/{nodeId}/proxy-discovery-paths/{pathId}:
+  /api/v1/nodes/{nodeId}/network-proxies/{proxyId}:
     parameters:
       - $ref: "#/components/parameters/NodeId"
-      - name: pathId
-        in: path
+      - $ref: "#/components/parameters/ProxyId"
+    put:
+      operationId: updateNodeNetworkProxy
+      summary: Replace a node proxy and restart discovery for both address families
+      tags: [network]
+      parameters:
+        - $ref: "#/components/parameters/CSRFToken"
+      requestBody:
         required: true
-        schema:
-          type: string
-          format: uuid
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/NetworkProxyUpdate"
+      responses:
+        "200":
+          description: The node proxy was updated.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/NetworkProxy"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "409":
+          $ref: "#/components/responses/Conflict"
     delete:
-      operationId: deleteNodeProxyDiscoveryPath
-      summary: Remove an explicit proxy discovery path
+      operationId: deleteNodeNetworkProxy
+      summary: Queue durable removal of a node proxy and both internal discovery paths
       tags: [network]
       parameters:
         - $ref: "#/components/parameters/CSRFToken"
       responses:
         "202":
-          description: Proxy discovery path deletion has been queued.
+          description: Node proxy deletion has been queued.
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/ProxyDiscoveryPathDeletion"
+                $ref: "#/components/schemas/NetworkProxy"
         "401":
           $ref: "#/components/responses/Unauthorized"
         "403":
@@ -1219,96 +1266,6 @@ paths:
           $ref: "#/components/responses/Unauthorized"
         "403":
           $ref: "#/components/responses/Forbidden"
-  /api/v1/network-proxies:
-    get:
-      operationId: listNetworkProxies
-      summary: List centrally managed network proxies without revealing passwords
-      tags: [network]
-      responses:
-        "200":
-          description: Network proxies ordered by name.
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/NetworkProxyList"
-        "401":
-          $ref: "#/components/responses/Unauthorized"
-    post:
-      operationId: createNetworkProxy
-      summary: Create a centrally managed network proxy
-      tags: [network]
-      parameters:
-        - $ref: "#/components/parameters/CSRFToken"
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              $ref: "#/components/schemas/NetworkProxyCreate"
-      responses:
-        "201":
-          description: The network proxy was created.
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/NetworkProxy"
-        "400":
-          $ref: "#/components/responses/BadRequest"
-        "401":
-          $ref: "#/components/responses/Unauthorized"
-        "403":
-          $ref: "#/components/responses/Forbidden"
-        "409":
-          $ref: "#/components/responses/Conflict"
-  /api/v1/network-proxies/{proxyId}:
-    parameters:
-      - $ref: "#/components/parameters/ProxyId"
-    put:
-      operationId: updateNetworkProxy
-      summary: Replace network proxy settings and explicitly keep, replace, or clear its password
-      tags: [network]
-      parameters:
-        - $ref: "#/components/parameters/CSRFToken"
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              $ref: "#/components/schemas/NetworkProxyUpdate"
-      responses:
-        "200":
-          description: The network proxy was updated.
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/NetworkProxy"
-        "400":
-          $ref: "#/components/responses/BadRequest"
-        "401":
-          $ref: "#/components/responses/Unauthorized"
-        "403":
-          $ref: "#/components/responses/Forbidden"
-        "404":
-          $ref: "#/components/responses/NotFound"
-        "409":
-          $ref: "#/components/responses/Conflict"
-    delete:
-      operationId: deleteNetworkProxy
-      summary: Delete an unreferenced network proxy
-      tags: [network]
-      parameters:
-        - $ref: "#/components/parameters/CSRFToken"
-      responses:
-        "204":
-          description: The network proxy was deleted.
-        "401":
-          $ref: "#/components/responses/Unauthorized"
-        "403":
-          $ref: "#/components/responses/Forbidden"
-        "404":
-          $ref: "#/components/responses/NotFound"
-        "409":
-          $ref: "#/components/responses/Conflict"
   /api/v1/agent-enrollment:
     get:
       operationId: getAgentEnrollment
@@ -1357,6 +1314,12 @@ paths:
       tags: [nodes]
       parameters:
         - $ref: "#/components/parameters/CSRFToken"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/AgentEnrollmentKeyRotation"
       responses:
         "200":
           description: Automatic enrollment is enabled with a new key.
@@ -1364,6 +1327,8 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/AgentEnrollmentSettings"
+        "400":
+          $ref: "#/components/responses/BadRequest"
         "401":
           $ref: "#/components/responses/Unauthorized"
         "403":
@@ -1829,13 +1794,14 @@ components:
         - network_proxy_not_found
         - network_proxy_already_exists
         - network_proxy_limit_reached
-        - network_proxy_in_use
+        - network_proxy_deletion_pending
         - invalid_observation_settings
         - invalid_probe_settings
         - node_offline
         - probe_task_slot_occupied
         - probe_already_running
         - probe_paused_low_memory
+        - probe_target_unavailable
         - no_enabled_egress
         - probe_run_not_found
         - probe_snapshot_not_found
@@ -1945,6 +1911,19 @@ components:
         rotatedAt:
           type: string
           format: date-time
+        defaultProbeTimezone:
+          type: string
+          minLength: 1
+          maxLength: 128
+    AgentEnrollmentKeyRotation:
+      type: object
+      additionalProperties: false
+      required: [defaultProbeTimezone]
+      properties:
+        defaultProbeTimezone:
+          type: string
+          minLength: 1
+          maxLength: 128
     AgentEnrollmentUpdate:
       type: object
       additionalProperties: false
@@ -2135,7 +2114,7 @@ components:
       properties:
         schemaVersion:
           type: integer
-          enum: [6]
+          enum: [7]
         revision:
           type: integer
           format: int64
@@ -2290,81 +2269,21 @@ components:
     NetworkEgressKind:
       type: string
       enum: [default, interface, source, proxy]
-    ProxyDiscoveryPath:
-      type: object
-      additionalProperties: false
-      required:
-        [
-          id,
-          nodeId,
-          name,
-          family,
-          proxyId,
-          available,
-        ]
-      properties:
-        id:
-          type: string
-          format: uuid
-        nodeId:
-          type: string
-          format: uuid
-        name:
-          type: string
-          minLength: 1
-          maxLength: 128
-        family:
-          $ref: "#/components/schemas/AddressFamily"
-        proxyId:
-          type: string
-          format: uuid
-        available:
-          type: boolean
-        deletionStatus:
-          $ref: "#/components/schemas/ProxyDiscoveryPathDeletionStatus"
-        deletionError:
-          type: string
-          minLength: 1
-          maxLength: 1024
-    ProxyDiscoveryPathDeletionStatus:
-      type: string
-      enum: [pending, failed]
-    ProxyDiscoveryPathDeletion:
-      type: object
-      additionalProperties: false
-      required: [pathId, nodeId, status, requestedAt]
-      properties:
-        pathId:
-          type: string
-          format: uuid
-        nodeId:
-          type: string
-          format: uuid
-        status:
-          $ref: "#/components/schemas/ProxyDiscoveryPathDeletionStatus"
-        requestedAt:
-          type: string
-          format: date-time
-        error:
-          type: string
-          minLength: 1
-          maxLength: 1024
     NodeNetworkState:
       type: object
       additionalProperties: false
-      required:
-        [publicAddresses, proxyDiscoveryPaths, addressEvents, addressGaps]
+      required: [publicAddresses, networkProxies, addressEvents, addressGaps]
       properties:
         publicAddresses:
           type: array
           maxItems: 128
           items:
             $ref: "#/components/schemas/PublicAddress"
-        proxyDiscoveryPaths:
+        networkProxies:
           type: array
           maxItems: 64
           items:
-            $ref: "#/components/schemas/ProxyDiscoveryPath"
+            $ref: "#/components/schemas/NetworkProxy"
         addressEvents:
           type: array
           maxItems: 100
@@ -2379,7 +2298,18 @@ components:
       type: object
       additionalProperties: false
       required:
-        [id, address, family, probeEnabled, probeOnRediscovery, available, pathCount, likelyNat, proxyPath, firstSeenAt, lastSeenAt]
+        [
+          id,
+          address,
+          family,
+          probeEnabled,
+          available,
+          pathCount,
+          likelyNat,
+          proxyPath,
+          firstSeenAt,
+          lastSeenAt,
+        ]
       properties:
         id:
           type: string
@@ -2391,8 +2321,6 @@ components:
         family:
           $ref: "#/components/schemas/AddressFamily"
         probeEnabled:
-          type: boolean
-        probeOnRediscovery:
           type: boolean
         available:
           type: boolean
@@ -2422,25 +2350,32 @@ components:
         lastSucceededAt:
           type: string
           format: date-time
+        latestSnapshotId:
+          type: string
+          format: uuid
+        latestSnapshotAt:
+          type: string
+          format: date-time
     PublicAddressUpdate:
       type: object
       additionalProperties: false
-      required: [probeEnabled, probeOnRediscovery]
+      required: [probeEnabled]
       properties:
         probeEnabled:
           type: boolean
-        probeOnRediscovery:
-          type: boolean
-    ProxyDiscoveryPathCreate:
+    CompleteProbeTaskCreate:
       type: object
       additionalProperties: false
-      required: [proxyId, family]
+      required: [publicAddressIds]
       properties:
-        family:
-          $ref: "#/components/schemas/AddressFamily"
-        proxyId:
-          type: string
-          format: uuid
+        publicAddressIds:
+          type: array
+          minItems: 1
+          maxItems: 64
+          uniqueItems: true
+          items:
+            type: string
+            format: uuid
     PublicAddressEvent:
       type: object
       additionalProperties: false
@@ -2457,10 +2392,6 @@ components:
           $ref: "#/components/schemas/AddressEventKind"
         family:
           $ref: "#/components/schemas/AddressFamily"
-        previousAddress:
-          type: string
-          minLength: 2
-          maxLength: 45
         publicAddress:
           type: string
           minLength: 2
@@ -2473,7 +2404,15 @@ components:
     PublicAddressGap:
       type: object
       additionalProperties: false
-      required: [id, droppedCount, firstSequence, lastSequence, firstObservedAt, lastObservedAt]
+      required:
+        [
+          id,
+          droppedCount,
+          firstSequence,
+          lastSequence,
+          firstObservedAt,
+          lastObservedAt,
+        ]
       properties:
         id:
           type: string
@@ -2499,13 +2438,7 @@ components:
     AgentDiscoveryPath:
       type: object
       additionalProperties: false
-      required:
-        [
-          id,
-          kind,
-          family,
-          lightweightIntervalSeconds,
-        ]
+      required: [id, kind, family, lightweightIntervalSeconds]
       properties:
         id:
           type: string
@@ -2532,7 +2465,7 @@ components:
     AgentProbeTarget:
       type: object
       additionalProperties: false
-      required: [id, pathId, publicAddress, kind, family, probeOnRediscovery]
+      required: [id, pathId, publicAddress, kind, family]
       properties:
         id:
           type: string
@@ -2559,18 +2492,57 @@ components:
         proxyId:
           type: string
           format: uuid
-        probeOnRediscovery:
-          type: boolean
     NetworkProxyScheme:
       type: string
       enum: [http, https, socks5]
+    NetworkProxyStatus:
+      type: string
+      enum: [checking, ipv4-only, ipv6-only, dual-stack, unavailable]
+    NetworkProxyFamilyStatus:
+      type: string
+      enum: [checking, available, unavailable]
+    NetworkProxyDeletionStatus:
+      type: string
+      enum: [pending, failed]
+    NetworkProxyFamilyResult:
+      type: object
+      additionalProperties: false
+      required: [status]
+      properties:
+        status:
+          $ref: "#/components/schemas/NetworkProxyFamilyStatus"
+        publicAddress:
+          type: string
+          minLength: 2
+          maxLength: 45
+        failureReason:
+          $ref: "#/components/schemas/AddressFailureReason"
+        lastCheckedAt:
+          type: string
+          format: date-time
     NetworkProxy:
       type: object
       additionalProperties: false
       required:
-        [id, name, scheme, host, port, passwordConfigured, createdAt, updatedAt]
+        [
+          id,
+          nodeId,
+          name,
+          scheme,
+          host,
+          port,
+          passwordConfigured,
+          status,
+          ipv4,
+          ipv6,
+          createdAt,
+          updatedAt,
+        ]
       properties:
         id:
+          type: string
+          format: uuid
+        nodeId:
           type: string
           format: uuid
         name:
@@ -2594,6 +2566,18 @@ components:
           maxLength: 512
         passwordConfigured:
           type: boolean
+        status:
+          $ref: "#/components/schemas/NetworkProxyStatus"
+        ipv4:
+          $ref: "#/components/schemas/NetworkProxyFamilyResult"
+        ipv6:
+          $ref: "#/components/schemas/NetworkProxyFamilyResult"
+        deletionStatus:
+          $ref: "#/components/schemas/NetworkProxyDeletionStatus"
+        deletionError:
+          type: string
+          minLength: 1
+          maxLength: 1024
         createdAt:
           type: string
           format: date-time
@@ -2744,7 +2728,14 @@ components:
         ]
     AddressEventKind:
       type: string
-      enum: [first-observation, address-change, check-failure, recovery]
+      enum:
+        [
+          first-observation,
+          address-added,
+          address-removed,
+          check-failure,
+          recovery,
+        ]
     AgentAddressState:
       type: object
       additionalProperties: false
@@ -2838,10 +2829,6 @@ components:
           $ref: "#/components/schemas/AddressEventKind"
         family:
           $ref: "#/components/schemas/AddressFamily"
-        previousAddress:
-          type: string
-          minLength: 2
-          maxLength: 45
         publicAddress:
           type: string
           minLength: 2
@@ -2949,7 +2936,7 @@ components:
             $ref: "#/components/schemas/AgentAddressGapReceipt"
     ProbeTrigger:
       type: string
-      enum: [manual, schedule, address-change]
+      enum: [manual, schedule, new-address]
     ProbeRunStatus:
       type: string
       enum: [running, succeeded, partial, failed]
@@ -2987,15 +2974,17 @@ components:
           type: string
           minLength: 1
           maxLength: 128
-          description: Use agent-local or an IANA time zone name.
+          description: An explicit IANA time zone name.
     NodeProbeSettingsUpdate:
       type: object
       additionalProperties: false
-      required: [schedule, lowMemoryOverride]
+      required: [schedule, lowMemoryOverride, probeOnNewAddress]
       properties:
         schedule:
           $ref: "#/components/schemas/ProbeSchedule"
         lowMemoryOverride:
+          type: boolean
+        probeOnNewAddress:
           type: boolean
     AgentProbeOccurrenceStatus:
       type: string
@@ -3049,10 +3038,15 @@ components:
           enum: [complete-probe, agent-update]
         trigger:
           type: string
-          enum: [manual, address-change, agent-update]
-        triggeringPublicAddressId:
-          type: string
-          format: uuid
+          enum: [manual, new-address, agent-update]
+        publicAddressIds:
+          type: array
+          minItems: 1
+          maxItems: 64
+          uniqueItems: true
+          items:
+            type: string
+            format: uuid
         createdAt:
           type: string
           format: date-time
@@ -3355,9 +3349,6 @@ components:
         taskId:
           type: string
           format: uuid
-        triggeringEgressId:
-          type: string
-          format: uuid
         startedAt:
           type: string
           format: date-time
@@ -3470,7 +3461,7 @@ components:
           $ref: "#/components/schemas/AgentProbeGapArtifact"
     AgentProbeArtifactDisposition:
       type: string
-      enum: [accepted, obsolete-generation, egress-deleted]
+      enum: [accepted, obsolete-generation]
     AgentProbeArtifactReceipt:
       type: object
       additionalProperties: false
@@ -3589,9 +3580,6 @@ components:
         taskId:
           type: string
           format: uuid
-        triggeringEgressId:
-          type: string
-          format: uuid
         startedAt:
           type: string
           format: date-time
@@ -3647,7 +3635,14 @@ components:
       type: object
       additionalProperties: false
       required:
-        [nodeId, schedule, lowMemoryOverride, pausedLowMemory, recentRuns]
+        [
+          nodeId,
+          schedule,
+          lowMemoryOverride,
+          probeOnNewAddress,
+          pausedLowMemory,
+          recentRuns,
+        ]
       properties:
         nodeId:
           type: string
@@ -3655,6 +3650,8 @@ components:
         schedule:
           $ref: "#/components/schemas/ProbeSchedule"
         lowMemoryOverride:
+          type: boolean
+        probeOnNewAddress:
           type: boolean
         physicalMemoryBytes:
           type: integer
@@ -4624,6 +4621,10 @@ components:
       additionalProperties: false
       required: [enabled]
       properties:
+        name:
+          type: string
+          minLength: 1
+          maxLength: 128
         enabled:
           type: boolean
     NodeDeletion:

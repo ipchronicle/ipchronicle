@@ -15,7 +15,7 @@ func TestProbeRunReconcilesWithoutRerunningAfterRestart(t *testing.T) {
 	directory := filepath.Join(t.TempDir(), "agent")
 	store, _ := openProbeTestStore(t, directory, 2)
 	startedAt := time.Date(2026, 8, 9, 12, 0, 0, 0, time.UTC)
-	run, err := store.StartProbeRun("schedule", nil, nil, startedAt)
+	run, err := store.StartProbeRun("schedule", nil, startedAt)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -65,7 +65,7 @@ func TestProbeQueueEvictsOldestPerEgressAndKeepsGap(t *testing.T) {
 	var firstResult string
 	for index := 0; index < maxPendingProbeResultsPerEgress+1; index++ {
 		at := start.Add(time.Duration(index) * time.Minute)
-		run, err := store.StartProbeRun("schedule", nil, nil, at)
+		run, err := store.StartProbeRun("schedule", nil, at)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -123,7 +123,7 @@ func TestMissingProbeResultBecomesGapOnOpen(t *testing.T) {
 	directory := filepath.Join(t.TempDir(), "agent")
 	store, egresses := openProbeTestStore(t, directory, 1)
 	start := time.Date(2026, 8, 9, 12, 0, 0, 0, time.UTC)
-	run, err := store.StartProbeRun("schedule", nil, nil, start)
+	run, err := store.StartProbeRun("schedule", nil, start)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -163,15 +163,15 @@ func TestMissingProbeResultBecomesGapOnOpen(t *testing.T) {
 }
 
 func TestProbeTaskDeliveryIsDeduplicated(t *testing.T) {
-	store, _ := openProbeTestStore(t, filepath.Join(t.TempDir(), "agent"), 1)
+	store, egresses := openProbeTestStore(t, filepath.Join(t.TempDir(), "agent"), 1)
 	defer store.Close()
 	start := time.Date(2026, 8, 9, 12, 0, 0, 0, time.UTC)
-	task := ProbeTaskDelivery{ID: uuid.NewString(), CreatedAt: start, ExpiresAt: start.Add(2 * time.Minute)}
-	run, err := store.StartProbeRun("manual", &task, nil, start)
+	task := ProbeTaskDelivery{ID: uuid.NewString(), Trigger: "manual", PublicAddressIDs: egresses, CreatedAt: start, ExpiresAt: start.Add(2 * time.Minute)}
+	run, err := store.StartProbeRun("manual", &task, start)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if _, err := store.StartProbeRun("manual", &task, nil, start.Add(time.Second)); !errors.Is(err, ErrProbeTaskHandled) {
+	if _, err := store.StartProbeRun("manual", &task, start.Add(time.Second)); !errors.Is(err, ErrProbeTaskHandled) {
 		t.Fatalf("duplicate active task error = %v", err)
 	}
 	execution, err := store.StartProbeExecution(run.ID, run.Executions[0].ID, start.Add(time.Second))
@@ -187,23 +187,55 @@ func TestProbeTaskDeliveryIsDeduplicated(t *testing.T) {
 	if _, err := store.FinishProbeRun(run.ID, start.Add(3*time.Second)); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := store.StartProbeRun("manual", &task, nil, start.Add(4*time.Second)); !errors.Is(err, ErrProbeTaskHandled) {
+	if _, err := store.StartProbeRun("manual", &task, start.Add(4*time.Second)); !errors.Is(err, ErrProbeTaskHandled) {
 		t.Fatalf("duplicate terminal task error = %v", err)
+	}
+}
+
+func TestNewAddressTaskFreezesOnlyRequestedTargets(t *testing.T) {
+	store, publicAddressIDs := openProbeTestStore(t, filepath.Join(t.TempDir(), "agent"), 3)
+	defer store.Close()
+	start := time.Date(2026, 8, 9, 13, 0, 0, 0, time.UTC)
+	task := ProbeTaskDelivery{
+		ID: uuid.NewString(), Trigger: "new-address",
+		PublicAddressIDs: []string{publicAddressIDs[2], publicAddressIDs[0]},
+		CreatedAt:        start, ExpiresAt: start.Add(2 * time.Minute),
+	}
+	run, err := store.StartProbeRun("new-address", &task, start)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if run.Trigger != "new-address" || run.TaskID == nil || *run.TaskID != task.ID || len(run.Executions) != 2 {
+		t.Fatalf("new-address run = %#v", run)
+	}
+	want := map[string]struct{}{publicAddressIDs[0]: {}, publicAddressIDs[2]: {}}
+	for _, execution := range run.Executions {
+		if _, exists := want[execution.EgressID]; !exists {
+			t.Fatalf("unexpected frozen target %s in %#v", execution.EgressID, run.Executions)
+		}
+		delete(want, execution.EgressID)
+	}
+	if len(want) != 0 {
+		t.Fatalf("missing frozen targets %#v", want)
 	}
 }
 
 func TestHistoryGenerationChangeDiscardsQueuedProbeArtifactsAndFinishesActiveRun(t *testing.T) {
 	directory := filepath.Join(t.TempDir(), "agent")
-	store, egresses := openProbeTestStore(t, directory, 1)
+	store, _ := openProbeTestStore(t, directory, 1)
 	defer store.Close()
 	start := time.Date(2026, 8, 9, 12, 0, 0, 0, time.UTC)
-	if _, err := store.RecordAddressObservation(AddressObservation{
-		EgressID: egresses[0], ConfigurationRevision: 1, HistoryGeneration: testHistoryGeneration,
+	configuration, err := store.Configuration()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := store.RecordAddressObservation(AddressObservation{
+		EgressID: configuration.DiscoveryPaths[0].ID, ConfigurationRevision: 1, HistoryGeneration: testHistoryGeneration,
 		Family: "ipv4", FailureReason: "no-valid-response", CheckedAt: start,
 	}); err != nil {
 		t.Fatal(err)
 	}
-	run, err := store.StartProbeRun("schedule", nil, nil, start)
+	run, err := store.StartProbeRun("schedule", nil, start)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -219,7 +251,7 @@ func TestHistoryGenerationChangeDiscardsQueuedProbeArtifactsAndFinishesActiveRun
 		t.Fatal(err)
 	}
 
-	configuration, err := store.Configuration()
+	configuration, err = store.Configuration()
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -257,7 +289,7 @@ func TestHistoryGenerationChangeDiscardsQueuedProbeArtifactsAndFinishesActiveRun
 	if err != nil || artifact.ID != "" {
 		t.Fatalf("obsolete artifact remains queued: %#v, %v", artifact, err)
 	}
-	newRun, err := store.StartProbeRun("schedule", nil, nil, start.Add(4*time.Second))
+	newRun, err := store.StartProbeRun("schedule", nil, start.Add(4*time.Second))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -272,7 +304,7 @@ func TestProbeArtifactAcknowledgementIsRevisionAware(t *testing.T) {
 	store, _ := openProbeTestStore(t, filepath.Join(t.TempDir(), "agent"), 1)
 	defer store.Close()
 	start := time.Date(2026, 8, 9, 12, 0, 0, 0, time.UTC)
-	run, err := store.StartProbeRun("schedule", nil, nil, start)
+	run, err := store.StartProbeRun("schedule", nil, start)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -346,8 +378,8 @@ func openProbeTestStore(t *testing.T, directory string, egressCount int) (*Store
 		t.Fatal(err)
 	}
 	configuration := Configuration{
-		SchemaVersion: 5, Revision: 1, Enabled: true, HistoryGeneration: testHistoryGeneration,
-		ProbeSchedule:     ProbeSchedule{Enabled: true, Cron: "0 0 0 * * *", Timezone: "agent-local"},
+		SchemaVersion: 7, Revision: 1, Enabled: true, HistoryGeneration: testHistoryGeneration,
+		ProbeSchedule:     ProbeSchedule{Enabled: true, Cron: "0 0 0 * * *", Timezone: "UTC"},
 		DiscoveryServices: testDiscoveryServices(),
 	}
 	var egresses []string
@@ -358,9 +390,18 @@ func openProbeTestStore(t *testing.T, directory string, egressCount int) (*Store
 		if index%2 == 1 {
 			family = "ipv6"
 		}
-		configuration.Egresses = append(configuration.Egresses, Egress{
-			ID: id, Kind: "default", Family: family, Enabled: true,
-			LightweightIntervalSeconds: 600, ProbeOnAddressChange: true,
+		pathID := uuid.NewString()
+		publicAddress := "203.0.113.10"
+		if family == "ipv6" {
+			publicAddress = "2001:db8::10"
+		}
+		configuration.DiscoveryPaths = append(configuration.DiscoveryPaths, Egress{
+			ID: pathID, Kind: "default", Family: family, Enabled: true,
+			LightweightIntervalSeconds: 600,
+		})
+		configuration.ProbeTargets = append(configuration.ProbeTargets, Egress{
+			ID: id, PathID: &pathID, PublicAddress: &publicAddress,
+			Kind: "default", Family: family, Enabled: true,
 		})
 	}
 	if err := store.ApplyConfiguration(configuration); err != nil {

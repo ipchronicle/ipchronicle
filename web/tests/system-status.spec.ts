@@ -317,7 +317,7 @@ test("generates an Agent installation command from the nodes page", async ({
         physicalMemoryBytes: 536870912,
         capabilities: [
           "control-v1",
-          "configuration-v6",
+          "configuration-v7",
           "complete-probe-v1",
           "network-inventory-v1",
           "sync-wakeup-v1",
@@ -360,7 +360,7 @@ test("generates an Agent installation command from the nodes page", async ({
         physicalMemoryBytes: 536870912,
         capabilities: [
           "control-v1",
-          "configuration-v6",
+          "configuration-v7",
           "complete-probe-v1",
           "network-inventory-v1",
           "sync-wakeup-v1",
@@ -442,7 +442,7 @@ test("generates an Agent installation command from the nodes page", async ({
         physicalMemoryBytes: 536870912,
         capabilities: [
           "control-v1",
-          "configuration-v6",
+          "configuration-v7",
           "network-inventory-v1",
           "address-observation-v1",
           "complete-probe-v1",
@@ -527,21 +527,6 @@ test("generates an Agent installation command from the nodes page", async ({
       return body.ipv4Services[0];
     })
     .toBe("http://one.example/ip");
-  await page.getByLabel("Name", { exact: true }).fill(proxyName);
-  await page.getByLabel("Protocol").click();
-  await page.getByRole("option", { name: "SOCKS5" }).click();
-  await page.getByLabel("Host or IP address").fill("proxy.example.test");
-  await page.getByLabel("Port").fill("1080");
-  await page.getByLabel("Username").fill("probe-user");
-  await page.getByLabel("Password").fill("e2e-proxy-secret");
-  await page.getByRole("button", { name: "Add proxy" }).click();
-  await expect(page.getByText("Password configured")).toBeVisible();
-  const inputValues = await page
-    .locator("input")
-    .evaluateAll((inputs) =>
-      inputs.map((input) => (input as HTMLInputElement).value),
-    );
-  expect(inputValues).not.toContain("e2e-proxy-secret");
   await expect
     .poll(() =>
       page.evaluate(
@@ -563,6 +548,16 @@ test("generates an Agent installation command from the nodes page", async ({
   await returnToNodes.click();
   await expect(page.getByRole("heading", { name: "Nodes" })).toBeVisible();
 
+  await clickNodeAction(page, nodeName, "Run probe");
+  const targetDialog = page.getByRole("alertdialog");
+  const targetCheckbox = targetDialog.getByRole("checkbox", {
+    name: new RegExp(publicAddress),
+  });
+  await expect(targetCheckbox).toBeChecked();
+  await expect(page).toHaveURL(/\/nodes$/);
+  await expect(targetDialog).toBeVisible();
+  await targetDialog.getByRole("button", { name: "Cancel" }).click();
+
   await page
     .getByRole("link", { name: nodeName, exact: true })
     .filter({ visible: true })
@@ -573,18 +568,37 @@ test("generates an Agent installation command from the nodes page", async ({
   await expect(page.getByText(publicAddress, { exact: true })).toBeVisible();
   await expect(page.getByText("Reached through NAT")).toBeVisible();
   await expect(page.getByText("eth0")).toHaveCount(0);
-  await page.getByRole("switch", { name: "Enable complete probe" }).click();
   await expect(
     page.getByRole("switch", { name: "Enable complete probe" }),
   ).toBeChecked();
-  await page.getByRole("combobox", { name: "Network proxy" }).click();
-  await page.getByRole("option", { name: proxyName }).click();
-  await page.getByRole("button", { name: "Add discovery path" }).click();
-  await expect(page.getByText(`${proxyName} · IPv4`)).toBeVisible();
-  await page.getByRole("button", { name: "Delete", exact: true }).click();
+  await page.getByRole("button", { name: "Add proxy" }).click();
+  const proxyDialog = page.getByRole("dialog", { name: "Add proxy" });
+  await proxyDialog.getByLabel("Name", { exact: true }).fill(proxyName);
+  await proxyDialog.getByLabel("Protocol").click();
+  await page.getByRole("option", { name: "SOCKS5" }).click();
+  await proxyDialog.getByLabel("Host or IP address").fill("proxy.example.test");
+  await proxyDialog.getByLabel("Port").fill("1080");
+  await proxyDialog.getByLabel("Username").fill("probe-user");
+  await proxyDialog.getByLabel("Password").fill("e2e-proxy-secret");
+  await proxyDialog.getByRole("button", { name: "Add proxy" }).click();
+  await expect(page.getByText(proxyName, { exact: true })).toBeVisible();
+  await expect(page.getByText("Password configured")).toBeVisible();
+  await expect(page.getByText("IPv4", { exact: true }).last()).toBeVisible();
+  await expect(page.getByText("IPv6", { exact: true }).last()).toBeVisible();
+  await expect(
+    page.getByText("Checking", { exact: true }).first(),
+  ).toBeVisible();
+  await expect(page.getByLabel("Address family")).toHaveCount(0);
+  const inputValues = await page
+    .locator("input")
+    .evaluateAll((inputs) =>
+      inputs.map((input) => (input as HTMLInputElement).value),
+    );
+  expect(inputValues).not.toContain("e2e-proxy-secret");
+  await page.getByRole("button", { name: "Delete proxy" }).click();
   await page
     .getByRole("alertdialog")
-    .getByRole("button", { name: "Delete path", exact: true })
+    .getByRole("button", { name: "Delete proxy", exact: true })
     .click();
   await expect(page.getByText("Deleting", { exact: true })).toBeVisible();
   await expect
@@ -606,7 +620,7 @@ test("generates an Agent installation command from the nodes page", async ({
   ).toBeVisible();
   await expectNoPageOverflow(page);
   await page.screenshot({
-    path: testInfo.outputPath("node-address-changes.png"),
+    path: testInfo.outputPath("node-address-history.png"),
     fullPage: true,
   });
 
@@ -614,6 +628,15 @@ test("generates an Agent installation command from the nodes page", async ({
   await expect(page.getByRole("heading", { name: nodeName })).toBeVisible();
   await expect(page.getByLabel("Cron expression")).toHaveValue("0 0 0 * * *");
   await page.getByRole("button", { name: "Run complete probe" }).click();
+  await expect(
+    page.getByRole("checkbox", { name: new RegExp(publicAddress) }),
+  ).toBeChecked();
+  await expectNoPageOverflow(page);
+  await page.screenshot({
+    path: testInfo.outputPath("probe-target-selection.png"),
+    fullPage: true,
+  });
+  await page.getByRole("button", { name: "Save and run probe" }).click();
   await expect(
     page.getByText("The task is waiting for the Agent."),
   ).toBeVisible();
@@ -650,7 +673,7 @@ test("generates an Agent installation command from the nodes page", async ({
           physicalMemoryBytes: 536870912,
           capabilities: [
             "control-v1",
-            "configuration-v6",
+            "configuration-v7",
             "network-inventory-v1",
             "address-observation-v1",
             "complete-probe-v1",
@@ -685,7 +708,7 @@ test("generates an Agent installation command from the nodes page", async ({
         physicalMemoryBytes: 536870912,
         capabilities: [
           "control-v1",
-          "configuration-v6",
+          "configuration-v7",
           "network-inventory-v1",
           "address-observation-v1",
           "complete-probe-v1",
@@ -929,7 +952,7 @@ test("generates an Agent installation command from the nodes page", async ({
         physicalMemoryBytes: 536870912,
         capabilities: [
           "control-v1",
-          "configuration-v6",
+          "configuration-v7",
           "network-inventory-v1",
           "address-observation-v1",
           "complete-probe-v1",
@@ -1253,6 +1276,20 @@ test("generates an Agent installation command from the nodes page", async ({
     .first()
     .click();
   await page.getByRole("tab", { name: "Settings" }).click();
+  await expect(
+    page.getByText("Uninstall Agent", { exact: true }),
+  ).toBeVisible();
+  await expect(
+    page.locator("pre code").filter({ hasText: "--uninstall" }).first(),
+  ).not.toContainText("--purge");
+  await expect(
+    page.locator("pre code").filter({ hasText: "--uninstall --purge" }),
+  ).toBeVisible();
+  await expectNoPageOverflow(page);
+  await page.screenshot({
+    path: testInfo.outputPath("node-settings.png"),
+    fullPage: true,
+  });
   await page.getByRole("button", { name: "Revoke Agent credential" }).click();
   await expect(
     page.getByRole("heading", {
@@ -1260,7 +1297,12 @@ test("generates an Agent installation command from the nodes page", async ({
     }),
   ).toBeVisible();
   await page.getByRole("button", { name: "Revoke credential" }).click();
-  await expect(page.getByText("Revoked", { exact: true })).toBeVisible();
+  await expect(
+    page
+      .locator('[data-slot="badge"]')
+      .filter({ hasText: /^Revoked$/ })
+      .first(),
+  ).toBeVisible();
 
   await page.getByRole("button", { name: "Permanently delete node" }).click();
   await expect(
@@ -1290,23 +1332,6 @@ test("generates an Agent installation command from the nodes page", async ({
     path: testInfo.outputPath("nodes.png"),
     fullPage: true,
   });
-
-  const cleanupSettingsLink = page.getByRole("link", {
-    name: "Network probes",
-    exact: true,
-  });
-  if (!(await cleanupSettingsLink.isVisible())) {
-    await page.getByRole("button", { name: "Toggle sidebar" }).click();
-  }
-  await cleanupSettingsLink.click();
-  await page.getByRole("button", { name: "Delete proxy" }).click();
-  await page
-    .getByRole("alertdialog")
-    .getByRole("button", { name: "Delete proxy", exact: true })
-    .click();
-  await expect(
-    page.getByText("No centrally managed proxies are configured."),
-  ).toBeVisible();
 });
 
 test("updates one registered Agent and keeps the task phase visible", async ({
@@ -1385,7 +1410,7 @@ test("updates one registered Agent and keeps the task phase visible", async ({
     operatingSystem: "linux",
     architecture: "amd64",
     physicalMemoryBytes: 536870912,
-    capabilities: ["control-v1", "configuration-v6", "agent-update-v1"],
+    capabilities: ["control-v1", "configuration-v7", "agent-update-v1"],
   } as const;
   const registration = await page.request.post("/api/v1/agent/enroll", {
     data: {

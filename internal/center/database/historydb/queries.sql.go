@@ -287,9 +287,9 @@ func (q *Queries) CountProbeSnapshots(ctx context.Context, arg CountProbeSnapsho
 const createAddressEvent = `-- name: CreateAddressEvent :execrows
 INSERT INTO address_events (
     id, public_address_id, source_path_id, node_id, history_generation, sequence, kind, family,
-    previous_address, public_address, local_interface, local_address,
+    public_address, local_interface, local_address,
     proxy_path, likely_nat, temporary, failure_reason, observed_at, received_at
-) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
 ON CONFLICT (id) DO NOTHING
 `
 
@@ -302,7 +302,6 @@ type CreateAddressEventParams struct {
 	Sequence          int64
 	Kind              string
 	Family            string
-	PreviousAddress   *string
 	PublicAddress     *string
 	LocalInterface    *string
 	LocalAddress      *string
@@ -324,7 +323,6 @@ func (q *Queries) CreateAddressEvent(ctx context.Context, arg CreateAddressEvent
 		arg.Sequence,
 		arg.Kind,
 		arg.Family,
-		arg.PreviousAddress,
 		arg.PublicAddress,
 		arg.LocalInterface,
 		arg.LocalAddress,
@@ -624,9 +622,9 @@ func (q *Queries) CreateProbeFormatEvent(ctx context.Context, arg CreateProbeFor
 const createProbeRun = `-- name: CreateProbeRun :execrows
 INSERT INTO probe_runs (
     id, node_id, history_generation, configuration_revision, trigger,
-    task_id, triggering_egress_id, status, expected_executions,
+    task_id, status, expected_executions,
     started_at, completed_at, received_at
-) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
 ON CONFLICT (id) DO NOTHING
 `
 
@@ -637,7 +635,6 @@ type CreateProbeRunParams struct {
 	ConfigurationRevision int64
 	Trigger               string
 	TaskID                *string
-	TriggeringEgressID    *string
 	Status                string
 	ExpectedExecutions    int64
 	StartedAt             int64
@@ -653,7 +650,6 @@ func (q *Queries) CreateProbeRun(ctx context.Context, arg CreateProbeRunParams) 
 		arg.ConfigurationRevision,
 		arg.Trigger,
 		arg.TaskID,
-		arg.TriggeringEgressID,
 		arg.Status,
 		arg.ExpectedExecutions,
 		arg.StartedAt,
@@ -746,51 +742,6 @@ DELETE FROM address_states WHERE egress_id = ?
 
 func (q *Queries) DeleteEgressAddressStates(ctx context.Context, egressID string) error {
 	_, err := q.db.ExecContext(ctx, deleteEgressAddressStates, egressID)
-	return err
-}
-
-const deleteEgressNotificationHistory = `-- name: DeleteEgressNotificationHistory :exec
-DELETE FROM notification_events WHERE egress_id = ?
-`
-
-func (q *Queries) DeleteEgressNotificationHistory(ctx context.Context, egressID *string) error {
-	_, err := q.db.ExecContext(ctx, deleteEgressNotificationHistory, egressID)
-	return err
-}
-
-const deleteEgressProbeComparisonProgress = `-- name: DeleteEgressProbeComparisonProgress :exec
-DELETE FROM probe_comparison_progress WHERE egress_id = ?
-`
-
-func (q *Queries) DeleteEgressProbeComparisonProgress(ctx context.Context, egressID string) error {
-	_, err := q.db.ExecContext(ctx, deleteEgressProbeComparisonProgress, egressID)
-	return err
-}
-
-const deleteEgressProbeExecutions = `-- name: DeleteEgressProbeExecutions :exec
-DELETE FROM probe_executions WHERE egress_id = ?
-`
-
-func (q *Queries) DeleteEgressProbeExecutions(ctx context.Context, egressID string) error {
-	_, err := q.db.ExecContext(ctx, deleteEgressProbeExecutions, egressID)
-	return err
-}
-
-const deleteEgressProbeGaps = `-- name: DeleteEgressProbeGaps :exec
-DELETE FROM probe_gaps WHERE egress_id = ?
-`
-
-func (q *Queries) DeleteEgressProbeGaps(ctx context.Context, egressID string) error {
-	_, err := q.db.ExecContext(ctx, deleteEgressProbeGaps, egressID)
-	return err
-}
-
-const deleteEgressProbeSnapshots = `-- name: DeleteEgressProbeSnapshots :exec
-DELETE FROM probe_snapshots WHERE egress_id = ?
-`
-
-func (q *Queries) DeleteEgressProbeSnapshots(ctx context.Context, egressID string) error {
-	_, err := q.db.ExecContext(ctx, deleteEgressProbeSnapshots, egressID)
 	return err
 }
 
@@ -1021,7 +972,7 @@ func (q *Queries) FailNotificationDelivery(ctx context.Context, arg FailNotifica
 
 const getAddressEvent = `-- name: GetAddressEvent :one
 SELECT id, public_address_id, source_path_id, node_id, history_generation, sequence, kind, family,
-       previous_address, public_address, local_interface, local_address,
+       public_address, local_interface, local_address,
        proxy_path, likely_nat, temporary, failure_reason, observed_at,
        received_at
 FROM address_events
@@ -1040,7 +991,6 @@ func (q *Queries) GetAddressEvent(ctx context.Context, id string) (AddressEvent,
 		&i.Sequence,
 		&i.Kind,
 		&i.Family,
-		&i.PreviousAddress,
 		&i.PublicAddress,
 		&i.LocalInterface,
 		&i.LocalAddress,
@@ -1056,7 +1006,7 @@ func (q *Queries) GetAddressEvent(ctx context.Context, id string) (AddressEvent,
 
 const getAddressEventBySequence = `-- name: GetAddressEventBySequence :one
 SELECT id, public_address_id, source_path_id, node_id, history_generation, sequence, kind, family,
-       previous_address, public_address, local_interface, local_address,
+       public_address, local_interface, local_address,
        proxy_path, likely_nat, temporary, failure_reason, observed_at,
        received_at
 FROM address_events
@@ -1081,7 +1031,6 @@ func (q *Queries) GetAddressEventBySequence(ctx context.Context, arg GetAddressE
 		&i.Sequence,
 		&i.Kind,
 		&i.Family,
-		&i.PreviousAddress,
 		&i.PublicAddress,
 		&i.LocalInterface,
 		&i.LocalAddress,
@@ -1107,12 +1056,11 @@ FROM (
     ), COUNT(*) FROM probe_executions
     UNION ALL SELECT SUM(
         256 + length(id) + length(node_id) + length(history_generation) +
-        length(trigger) + COALESCE(length(task_id), 0) +
-        COALESCE(length(triggering_egress_id), 0)
+        length(trigger) + COALESCE(length(task_id), 0)
     ), COUNT(*) FROM probe_runs
     UNION ALL SELECT SUM(
         256 + length(id) + length(public_address_id) + length(source_path_id) + length(node_id) +
-        COALESCE(length(previous_address), 0) + COALESCE(length(public_address), 0) +
+        COALESCE(length(public_address), 0) +
         COALESCE(length(local_interface), 0) + COALESCE(length(local_address), 0) +
         COALESCE(length(proxy_path), 0) + COALESCE(length(failure_reason), 0)
     ), COUNT(*) FROM address_events
@@ -1451,7 +1399,7 @@ func (q *Queries) GetProbeOutcomeState(ctx context.Context, egressID string) (Pr
 
 const getProbeRun = `-- name: GetProbeRun :one
 SELECT id, node_id, history_generation, configuration_revision, trigger,
-       task_id, triggering_egress_id, status, expected_executions,
+       task_id, status, expected_executions,
        started_at, completed_at, received_at
 FROM probe_runs
 WHERE id = ?
@@ -1467,7 +1415,6 @@ func (q *Queries) GetProbeRun(ctx context.Context, id string) (ProbeRun, error) 
 		&i.ConfigurationRevision,
 		&i.Trigger,
 		&i.TaskID,
-		&i.TriggeringEgressID,
 		&i.Status,
 		&i.ExpectedExecutions,
 		&i.StartedAt,
@@ -1566,8 +1513,7 @@ WITH protected_snapshots AS (
        OR EXISTS(SELECT 1 FROM protected_snapshots snapshot WHERE snapshot.execution_id = e.id)
        OR EXISTS(SELECT 1 FROM probe_outcome_states outcome WHERE outcome.execution_id = e.id)
 ), protected_runs AS (
-    SELECT r.id, r.node_id, r.history_generation, r.trigger,
-           r.task_id, r.triggering_egress_id
+    SELECT r.id, r.node_id, r.history_generation, r.trigger, r.task_id
     FROM probe_runs r
     WHERE r.status = 'running'
        OR EXISTS(SELECT 1 FROM protected_executions execution WHERE execution.run_id = r.id)
@@ -1583,8 +1529,7 @@ FROM (
     UNION ALL
     SELECT SUM(
         256 + length(id) + length(node_id) + length(history_generation) +
-        length(trigger) + COALESCE(length(task_id), 0) +
-        COALESCE(length(triggering_egress_id), 0)
+        length(trigger) + COALESCE(length(task_id), 0)
     ) FROM protected_runs
     UNION ALL
     SELECT SUM(192 + length(format.issues_json))
@@ -1666,9 +1611,44 @@ func (q *Queries) IsProbeSnapshotStarred(ctx context.Context, snapshotID string)
 	return starred, err
 }
 
+const listCurrentProbeSnapshots = `-- name: ListCurrentProbeSnapshots :many
+SELECT egress_id, snapshot_id, observed_at
+FROM current_probe_snapshots
+ORDER BY egress_id
+`
+
+type ListCurrentProbeSnapshotsRow struct {
+	EgressID   string
+	SnapshotID string
+	ObservedAt int64
+}
+
+func (q *Queries) ListCurrentProbeSnapshots(ctx context.Context) ([]ListCurrentProbeSnapshotsRow, error) {
+	rows, err := q.db.QueryContext(ctx, listCurrentProbeSnapshots)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []ListCurrentProbeSnapshotsRow{}
+	for rows.Next() {
+		var i ListCurrentProbeSnapshotsRow
+		if err := rows.Scan(&i.EgressID, &i.SnapshotID, &i.ObservedAt); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const listGlobalAddressEvents = `-- name: ListGlobalAddressEvents :many
 SELECT id, public_address_id, source_path_id, node_id, history_generation, sequence, kind, family,
-       previous_address, public_address, local_interface, local_address,
+       public_address, local_interface, local_address,
        proxy_path, likely_nat, temporary, failure_reason, observed_at,
        received_at
 FROM address_events
@@ -1720,7 +1700,6 @@ func (q *Queries) ListGlobalAddressEvents(ctx context.Context, arg ListGlobalAdd
 			&i.Sequence,
 			&i.Kind,
 			&i.Family,
-			&i.PreviousAddress,
 			&i.PublicAddress,
 			&i.LocalInterface,
 			&i.LocalAddress,
@@ -1957,7 +1936,7 @@ func (q *Queries) ListGlobalProbeGaps(ctx context.Context, arg ListGlobalProbeGa
 
 const listNodeAddressEvents = `-- name: ListNodeAddressEvents :many
 SELECT id, public_address_id, source_path_id, node_id, history_generation, sequence, kind, family,
-       previous_address, public_address, local_interface, local_address,
+       public_address, local_interface, local_address,
        proxy_path, likely_nat, temporary, failure_reason, observed_at,
        received_at
 FROM address_events
@@ -1989,7 +1968,6 @@ func (q *Queries) ListNodeAddressEvents(ctx context.Context, arg ListNodeAddress
 			&i.Sequence,
 			&i.Kind,
 			&i.Family,
-			&i.PreviousAddress,
 			&i.PublicAddress,
 			&i.LocalInterface,
 			&i.LocalAddress,
@@ -2116,7 +2094,7 @@ func (q *Queries) ListNodeAddressStates(ctx context.Context, nodeID string) ([]A
 
 const listNodeProbeRuns = `-- name: ListNodeProbeRuns :many
 SELECT id, node_id, history_generation, configuration_revision, trigger,
-       task_id, triggering_egress_id, status, expected_executions,
+       task_id, status, expected_executions,
        started_at, completed_at, received_at
 FROM probe_runs
 WHERE node_id = ?
@@ -2145,7 +2123,6 @@ func (q *Queries) ListNodeProbeRuns(ctx context.Context, arg ListNodeProbeRunsPa
 			&i.ConfigurationRevision,
 			&i.Trigger,
 			&i.TaskID,
-			&i.TriggeringEgressID,
 			&i.Status,
 			&i.ExpectedExecutions,
 			&i.StartedAt,
@@ -2638,7 +2615,7 @@ FROM (
     UNION ALL
     SELECT 'address-event', id, observed_at,
            256 + length(id) + length(public_address_id) + length(source_path_id) + length(node_id) +
-           COALESCE(length(previous_address), 0) + COALESCE(length(public_address), 0) +
+           COALESCE(length(public_address), 0) +
            COALESCE(length(local_interface), 0) + COALESCE(length(local_address), 0) +
            COALESCE(length(proxy_path), 0) + COALESCE(length(failure_reason), 0)
     FROM address_events

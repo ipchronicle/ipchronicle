@@ -61,23 +61,12 @@ func (q *Queries) CompleteNodeDeletion(ctx context.Context, arg CompleteNodeDele
 	return err
 }
 
-const countNetworkProxies = `-- name: CountNetworkProxies :one
-SELECT count(*) FROM network_proxies
+const countNodeNetworkProxies = `-- name: CountNodeNetworkProxies :one
+SELECT count(*) FROM network_proxies WHERE node_id = ?
 `
 
-func (q *Queries) CountNetworkProxies(ctx context.Context) (int64, error) {
-	row := q.db.QueryRowContext(ctx, countNetworkProxies)
-	var count int64
-	err := row.Scan(&count)
-	return count, err
-}
-
-const countNetworkProxyReferences = `-- name: CountNetworkProxyReferences :one
-SELECT count(*) FROM network_egresses WHERE proxy_id = ?
-`
-
-func (q *Queries) CountNetworkProxyReferences(ctx context.Context, proxyID *string) (int64, error) {
-	row := q.db.QueryRowContext(ctx, countNetworkProxyReferences, proxyID)
+func (q *Queries) CountNodeNetworkProxies(ctx context.Context, nodeID string) (int64, error) {
+	row := q.db.QueryRowContext(ctx, countNodeNetworkProxies, nodeID)
 	var count int64
 	err := row.Scan(&count)
 	return count, err
@@ -193,12 +182,14 @@ func (q *Queries) CreateEgressDeletion(ctx context.Context, arg CreateEgressDele
 
 const createNetworkProxy = `-- name: CreateNetworkProxy :exec
 INSERT INTO network_proxies (
-    id, name, scheme, host, port, username, password_encrypted, created_at, updated_at
-) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+    id, node_id, name, scheme, host, port, username, password_encrypted,
+    created_at, updated_at
+) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
 `
 
 type CreateNetworkProxyParams struct {
 	ID                string
+	NodeID            string
 	Name              string
 	Scheme            string
 	Host              string
@@ -212,6 +203,7 @@ type CreateNetworkProxyParams struct {
 func (q *Queries) CreateNetworkProxy(ctx context.Context, arg CreateNetworkProxyParams) error {
 	_, err := q.db.ExecContext(ctx, createNetworkProxy,
 		arg.ID,
+		arg.NodeID,
 		arg.Name,
 		arg.Scheme,
 		arg.Host,
@@ -224,23 +216,48 @@ func (q *Queries) CreateNetworkProxy(ctx context.Context, arg CreateNetworkProxy
 	return err
 }
 
+const createNewAddressProbeTask = `-- name: CreateNewAddressProbeTask :exec
+INSERT INTO probe_tasks (
+    id, node_id, kind, status, trigger, created_at, expires_at
+) VALUES (?, ?, 'complete-probe', 'pending', 'new-address', ?, ?)
+`
+
+type CreateNewAddressProbeTaskParams struct {
+	ID        string
+	NodeID    string
+	CreatedAt int64
+	ExpiresAt int64
+}
+
+func (q *Queries) CreateNewAddressProbeTask(ctx context.Context, arg CreateNewAddressProbeTaskParams) error {
+	_, err := q.db.ExecContext(ctx, createNewAddressProbeTask,
+		arg.ID,
+		arg.NodeID,
+		arg.CreatedAt,
+		arg.ExpiresAt,
+	)
+	return err
+}
+
 const createNode = `-- name: CreateNode :exec
 INSERT INTO nodes (
     id, name, hostname, credential_digest, agent_version, agent_revision,
-    operating_system, architecture, desired_configuration_revision, registered_at
-) VALUES (?, ?, ?, ?, ?, ?, ?, ?, 1, ?)
+    operating_system, architecture, desired_configuration_revision,
+    probe_schedule_timezone, registered_at
+) VALUES (?, ?, ?, ?, ?, ?, ?, ?, 1, ?, ?)
 `
 
 type CreateNodeParams struct {
-	ID               string
-	Name             string
-	Hostname         string
-	CredentialDigest []byte
-	AgentVersion     string
-	AgentRevision    *string
-	OperatingSystem  string
-	Architecture     string
-	RegisteredAt     int64
+	ID                    string
+	Name                  string
+	Hostname              string
+	CredentialDigest      []byte
+	AgentVersion          string
+	AgentRevision         *string
+	OperatingSystem       string
+	Architecture          string
+	ProbeScheduleTimezone string
+	RegisteredAt          int64
 }
 
 func (q *Queries) CreateNode(ctx context.Context, arg CreateNodeParams) error {
@@ -253,6 +270,7 @@ func (q *Queries) CreateNode(ctx context.Context, arg CreateNodeParams) error {
 		arg.AgentRevision,
 		arg.OperatingSystem,
 		arg.Architecture,
+		arg.ProbeScheduleTimezone,
 		arg.RegisteredAt,
 	)
 	return err
@@ -306,9 +324,8 @@ func (q *Queries) CreateNodeDeletion(ctx context.Context, arg CreateNodeDeletion
 const createNodeEgress = `-- name: CreateNodeEgress :exec
 INSERT INTO network_egresses (
     id, node_id, name, kind, family, interface_name, source_address, proxy_id,
-    enabled, available, automatic, lightweight_interval_seconds,
-    probe_on_address_change, created_at, updated_at
-) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    enabled, available, automatic, lightweight_interval_seconds, created_at, updated_at
+) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
 `
 
 type CreateNodeEgressParams struct {
@@ -324,7 +341,6 @@ type CreateNodeEgressParams struct {
 	Available                  int64
 	Automatic                  int64
 	LightweightIntervalSeconds int64
-	ProbeOnAddressChange       int64
 	CreatedAt                  int64
 	UpdatedAt                  int64
 }
@@ -343,7 +359,6 @@ func (q *Queries) CreateNodeEgress(ctx context.Context, arg CreateNodeEgressPara
 		arg.Available,
 		arg.Automatic,
 		arg.LightweightIntervalSeconds,
-		arg.ProbeOnAddressChange,
 		arg.CreatedAt,
 		arg.UpdatedAt,
 	)
@@ -438,29 +453,20 @@ func (q *Queries) CreateProbeTask(ctx context.Context, arg CreateProbeTaskParams
 	return err
 }
 
-const createRediscoveryProbeTask = `-- name: CreateRediscoveryProbeTask :exec
-INSERT INTO probe_tasks (
-    id, node_id, kind, status, trigger, triggering_public_address_id,
-    created_at, expires_at
-) VALUES (?, ?, 'complete-probe', 'pending', 'address-change', ?, ?, ?)
+const createProbeTaskPublicAddress = `-- name: CreateProbeTaskPublicAddress :exec
+INSERT INTO probe_task_public_addresses (
+    task_id, public_address_id, ordinal
+) VALUES (?, ?, ?)
 `
 
-type CreateRediscoveryProbeTaskParams struct {
-	ID                        string
-	NodeID                    string
-	TriggeringPublicAddressID *string
-	CreatedAt                 int64
-	ExpiresAt                 int64
+type CreateProbeTaskPublicAddressParams struct {
+	TaskID          string
+	PublicAddressID string
+	Ordinal         int64
 }
 
-func (q *Queries) CreateRediscoveryProbeTask(ctx context.Context, arg CreateRediscoveryProbeTaskParams) error {
-	_, err := q.db.ExecContext(ctx, createRediscoveryProbeTask,
-		arg.ID,
-		arg.NodeID,
-		arg.TriggeringPublicAddressID,
-		arg.CreatedAt,
-		arg.ExpiresAt,
-	)
+func (q *Queries) CreateProbeTaskPublicAddress(ctx context.Context, arg CreateProbeTaskPublicAddressParams) error {
+	_, err := q.db.ExecContext(ctx, createProbeTaskPublicAddress, arg.TaskID, arg.PublicAddressID, arg.Ordinal)
 	return err
 }
 
@@ -503,12 +509,22 @@ func (q *Queries) DeleteExpiredAdministratorSessions(ctx context.Context, expire
 	return err
 }
 
-const deleteNetworkProxy = `-- name: DeleteNetworkProxy :execrows
-DELETE FROM network_proxies WHERE id = ?
+const deleteMarkedNetworkProxyIfUnreferenced = `-- name: DeleteMarkedNetworkProxyIfUnreferenced :execrows
+DELETE FROM network_proxies
+WHERE network_proxies.node_id = ? AND network_proxies.id = ?
+  AND network_proxies.deletion_requested_at IS NOT NULL
+  AND NOT EXISTS (
+      SELECT 1 FROM network_egresses WHERE proxy_id = network_proxies.id
+  )
 `
 
-func (q *Queries) DeleteNetworkProxy(ctx context.Context, id string) (int64, error) {
-	result, err := q.db.ExecContext(ctx, deleteNetworkProxy, id)
+type DeleteMarkedNetworkProxyIfUnreferencedParams struct {
+	NodeID string
+	ID     string
+}
+
+func (q *Queries) DeleteMarkedNetworkProxyIfUnreferenced(ctx context.Context, arg DeleteMarkedNetworkProxyIfUnreferencedParams) (int64, error) {
+	result, err := q.db.ExecContext(ctx, deleteMarkedNetworkProxyIfUnreferenced, arg.NodeID, arg.ID)
 	if err != nil {
 		return 0, err
 	}
@@ -601,16 +617,6 @@ func (q *Queries) DeleteNotificationSender(ctx context.Context, id string) (int6
 	return result.RowsAffected()
 }
 
-const deletePendingPublicAddressProbe = `-- name: DeletePendingPublicAddressProbe :exec
-DELETE FROM pending_public_address_probes
-WHERE node_id = ?
-`
-
-func (q *Queries) DeletePendingPublicAddressProbe(ctx context.Context, nodeID string) error {
-	_, err := q.db.ExecContext(ctx, deletePendingPublicAddressProbe, nodeID)
-	return err
-}
-
 const deletePendingPublicAddressProbeByAddress = `-- name: DeletePendingPublicAddressProbeByAddress :exec
 DELETE FROM pending_public_address_probes
 WHERE public_address_id = ?
@@ -618,6 +624,16 @@ WHERE public_address_id = ?
 
 func (q *Queries) DeletePendingPublicAddressProbeByAddress(ctx context.Context, publicAddressID string) error {
 	_, err := q.db.ExecContext(ctx, deletePendingPublicAddressProbeByAddress, publicAddressID)
+	return err
+}
+
+const deletePendingPublicAddressProbes = `-- name: DeletePendingPublicAddressProbes :exec
+DELETE FROM pending_public_address_probes
+WHERE node_id = ?
+`
+
+func (q *Queries) DeletePendingPublicAddressProbes(ctx context.Context, nodeID string) error {
+	_, err := q.db.ExecContext(ctx, deletePendingPublicAddressProbes, nodeID)
 	return err
 }
 
@@ -629,6 +645,26 @@ WHERE completed_at IS NOT NULL AND completed_at < ?
 
 func (q *Queries) DeleteTerminalProbeTasksBefore(ctx context.Context, completedAt *int64) error {
 	_, err := q.db.ExecContext(ctx, deleteTerminalProbeTasksBefore, completedAt)
+	return err
+}
+
+const deleteUnavailablePendingPublicAddressProbes = `-- name: DeleteUnavailablePendingPublicAddressProbes :exec
+DELETE FROM pending_public_address_probes
+WHERE pending_public_address_probes.node_id = ?
+  AND NOT EXISTS (
+      SELECT 1
+      FROM public_addresses AS address
+      JOIN public_address_paths AS path ON path.path_id = address.selected_path_id
+      WHERE address.id = pending_public_address_probes.public_address_id
+        AND address.probe_enabled = 1
+        AND path.node_id = pending_public_address_probes.node_id
+        AND path.public_address_id = address.id
+        AND path.available = 1
+  )
+`
+
+func (q *Queries) DeleteUnavailablePendingPublicAddressProbes(ctx context.Context, nodeID string) error {
+	_, err := q.db.ExecContext(ctx, deleteUnavailablePendingPublicAddressProbes, nodeID)
 	return err
 }
 
@@ -771,7 +807,7 @@ func (q *Queries) GetActiveNodeSyncSessionByID(ctx context.Context, arg GetActiv
 }
 
 const getActiveNodeTask = `-- name: GetActiveNodeTask :one
-SELECT id, node_id, kind, status, created_at, expires_at, acknowledged_at, started_at, completed_at, run_id, rejection_reason, target_version, previous_version, result_version, failure_code, diagnostic, terminal_confirmed_at, "trigger", triggering_public_address_id
+SELECT id, node_id, kind, status, created_at, expires_at, acknowledged_at, started_at, completed_at, run_id, rejection_reason, target_version, previous_version, result_version, failure_code, diagnostic, terminal_confirmed_at, "trigger"
 FROM probe_tasks
 WHERE node_id = ? AND status IN (
     'pending', 'acknowledged', 'running', 'verifying', 'installing', 'restarting'
@@ -802,7 +838,6 @@ func (q *Queries) GetActiveNodeTask(ctx context.Context, nodeID string) (ProbeTa
 		&i.Diagnostic,
 		&i.TerminalConfirmedAt,
 		&i.Trigger,
-		&i.TriggeringPublicAddressID,
 	)
 	return i, err
 }
@@ -884,7 +919,8 @@ func (q *Queries) GetAdministratorSession(ctx context.Context, arg GetAdministra
 }
 
 const getAgentEnrollment = `-- name: GetAgentEnrollment :one
-SELECT id, enabled, key_digest, key_encrypted, created_at, rotated_at
+SELECT id, enabled, key_digest, key_encrypted, default_probe_timezone,
+       created_at, rotated_at
 FROM agent_enrollment
 WHERE id = 1
 `
@@ -897,6 +933,7 @@ func (q *Queries) GetAgentEnrollment(ctx context.Context) (AgentEnrollment, erro
 		&i.Enabled,
 		&i.KeyDigest,
 		&i.KeyEncrypted,
+		&i.DefaultProbeTimezone,
 		&i.CreatedAt,
 		&i.RotatedAt,
 	)
@@ -906,7 +943,7 @@ func (q *Queries) GetAgentEnrollment(ctx context.Context) (AgentEnrollment, erro
 const getDefaultNodeEgress = `-- name: GetDefaultNodeEgress :one
 SELECT id, node_id, name, kind, family, interface_name, source_address, proxy_id,
        enabled, available, automatic, lightweight_interval_seconds,
-       probe_on_address_change, created_at, updated_at
+       created_at, updated_at
 FROM network_egresses
 WHERE node_id = ? AND kind = 'default' AND family = ?
 `
@@ -932,34 +969,8 @@ func (q *Queries) GetDefaultNodeEgress(ctx context.Context, arg GetDefaultNodeEg
 		&i.Available,
 		&i.Automatic,
 		&i.LightweightIntervalSeconds,
-		&i.ProbeOnAddressChange,
 		&i.CreatedAt,
 		&i.UpdatedAt,
-	)
-	return i, err
-}
-
-const getEgressDeletion = `-- name: GetEgressDeletion :one
-SELECT egress_id, node_id, status, requested_at, updated_at, last_error
-FROM egress_deletion_operations
-WHERE egress_id = ? AND node_id = ?
-`
-
-type GetEgressDeletionParams struct {
-	EgressID string
-	NodeID   string
-}
-
-func (q *Queries) GetEgressDeletion(ctx context.Context, arg GetEgressDeletionParams) (EgressDeletionOperation, error) {
-	row := q.db.QueryRowContext(ctx, getEgressDeletion, arg.EgressID, arg.NodeID)
-	var i EgressDeletionOperation
-	err := row.Scan(
-		&i.EgressID,
-		&i.NodeID,
-		&i.Status,
-		&i.RequestedAt,
-		&i.UpdatedAt,
-		&i.LastError,
 	)
 	return i, err
 }
@@ -1001,7 +1012,7 @@ func (q *Queries) GetHistoryRetentionSettings(ctx context.Context) (HistoryReten
 }
 
 const getLatestAgentUpdateTask = `-- name: GetLatestAgentUpdateTask :one
-SELECT id, node_id, kind, status, created_at, expires_at, acknowledged_at, started_at, completed_at, run_id, rejection_reason, target_version, previous_version, result_version, failure_code, diagnostic, terminal_confirmed_at, "trigger", triggering_public_address_id
+SELECT id, node_id, kind, status, created_at, expires_at, acknowledged_at, started_at, completed_at, run_id, rejection_reason, target_version, previous_version, result_version, failure_code, diagnostic, terminal_confirmed_at, "trigger"
 FROM probe_tasks
 WHERE node_id = ? AND kind = 'agent-update'
 ORDER BY created_at DESC, id DESC
@@ -1030,13 +1041,12 @@ func (q *Queries) GetLatestAgentUpdateTask(ctx context.Context, nodeID string) (
 		&i.Diagnostic,
 		&i.TerminalConfirmedAt,
 		&i.Trigger,
-		&i.TriggeringPublicAddressID,
 	)
 	return i, err
 }
 
 const getLatestProbeTask = `-- name: GetLatestProbeTask :one
-SELECT id, node_id, kind, status, created_at, expires_at, acknowledged_at, started_at, completed_at, run_id, rejection_reason, target_version, previous_version, result_version, failure_code, diagnostic, terminal_confirmed_at, "trigger", triggering_public_address_id
+SELECT id, node_id, kind, status, created_at, expires_at, acknowledged_at, started_at, completed_at, run_id, rejection_reason, target_version, previous_version, result_version, failure_code, diagnostic, terminal_confirmed_at, "trigger"
 FROM probe_tasks
 WHERE node_id = ? AND kind = 'complete-probe'
 ORDER BY created_at DESC, id DESC
@@ -1065,7 +1075,6 @@ func (q *Queries) GetLatestProbeTask(ctx context.Context, nodeID string) (ProbeT
 		&i.Diagnostic,
 		&i.TerminalConfirmedAt,
 		&i.Trigger,
-		&i.TriggeringPublicAddressID,
 	)
 	return i, err
 }
@@ -1073,7 +1082,7 @@ func (q *Queries) GetLatestProbeTask(ctx context.Context, nodeID string) (ProbeT
 const getNetworkEgressByID = `-- name: GetNetworkEgressByID :one
 SELECT id, node_id, name, kind, family, interface_name, source_address, proxy_id,
        enabled, available, automatic, lightweight_interval_seconds,
-       probe_on_address_change, created_at, updated_at
+       created_at, updated_at
 FROM network_egresses
 WHERE id = ?
 `
@@ -1094,7 +1103,6 @@ func (q *Queries) GetNetworkEgressByID(ctx context.Context, id string) (NetworkE
 		&i.Available,
 		&i.Automatic,
 		&i.LightweightIntervalSeconds,
-		&i.ProbeOnAddressChange,
 		&i.CreatedAt,
 		&i.UpdatedAt,
 	)
@@ -1119,52 +1127,6 @@ func (q *Queries) GetNetworkObservationSettings(ctx context.Context) (NetworkObs
 	return i, err
 }
 
-const getNetworkProxy = `-- name: GetNetworkProxy :one
-SELECT id, name, scheme, host, port, username, password_encrypted, created_at, updated_at
-FROM network_proxies
-WHERE id = ?
-`
-
-func (q *Queries) GetNetworkProxy(ctx context.Context, id string) (NetworkProxy, error) {
-	row := q.db.QueryRowContext(ctx, getNetworkProxy, id)
-	var i NetworkProxy
-	err := row.Scan(
-		&i.ID,
-		&i.Name,
-		&i.Scheme,
-		&i.Host,
-		&i.Port,
-		&i.Username,
-		&i.PasswordEncrypted,
-		&i.CreatedAt,
-		&i.UpdatedAt,
-	)
-	return i, err
-}
-
-const getNetworkProxyByName = `-- name: GetNetworkProxyByName :one
-SELECT id, name, scheme, host, port, username, password_encrypted, created_at, updated_at
-FROM network_proxies
-WHERE name = ? COLLATE NOCASE
-`
-
-func (q *Queries) GetNetworkProxyByName(ctx context.Context, name string) (NetworkProxy, error) {
-	row := q.db.QueryRowContext(ctx, getNetworkProxyByName, name)
-	var i NetworkProxy
-	err := row.Scan(
-		&i.ID,
-		&i.Name,
-		&i.Scheme,
-		&i.Host,
-		&i.Port,
-		&i.Username,
-		&i.PasswordEncrypted,
-		&i.CreatedAt,
-		&i.UpdatedAt,
-	)
-	return i, err
-}
-
 const getNodeByCredentialDigest = `-- name: GetNodeByCredentialDigest :one
 SELECT id, name, hostname, credential_digest, enabled, revoked_at,
        agent_version, agent_revision, operating_system, architecture,
@@ -1172,7 +1134,7 @@ SELECT id, name, hostname, credential_digest, enabled, revoked_at,
        configuration_error, registered_at, last_seen_at,
        configuration_error_revision, physical_memory_bytes,
        probe_schedule_enabled, probe_schedule_cron, probe_schedule_timezone,
-       probe_low_memory_override
+       probe_low_memory_override, probe_on_new_address
 FROM nodes
 WHERE credential_digest = ?
 `
@@ -1199,6 +1161,7 @@ type GetNodeByCredentialDigestRow struct {
 	ProbeScheduleCron            string
 	ProbeScheduleTimezone        string
 	ProbeLowMemoryOverride       int64
+	ProbeOnNewAddress            int64
 }
 
 func (q *Queries) GetNodeByCredentialDigest(ctx context.Context, credentialDigest []byte) (GetNodeByCredentialDigestRow, error) {
@@ -1226,6 +1189,7 @@ func (q *Queries) GetNodeByCredentialDigest(ctx context.Context, credentialDiges
 		&i.ProbeScheduleCron,
 		&i.ProbeScheduleTimezone,
 		&i.ProbeLowMemoryOverride,
+		&i.ProbeOnNewAddress,
 	)
 	return i, err
 }
@@ -1237,7 +1201,7 @@ SELECT id, name, hostname, credential_digest, enabled, revoked_at,
        configuration_error, registered_at, last_seen_at,
        configuration_error_revision, physical_memory_bytes,
        probe_schedule_enabled, probe_schedule_cron, probe_schedule_timezone,
-       probe_low_memory_override
+       probe_low_memory_override, probe_on_new_address
 FROM nodes
 WHERE id = ?
 `
@@ -1264,6 +1228,7 @@ type GetNodeByIDRow struct {
 	ProbeScheduleCron            string
 	ProbeScheduleTimezone        string
 	ProbeLowMemoryOverride       int64
+	ProbeOnNewAddress            int64
 }
 
 func (q *Queries) GetNodeByID(ctx context.Context, id string) (GetNodeByIDRow, error) {
@@ -1291,6 +1256,7 @@ func (q *Queries) GetNodeByID(ctx context.Context, id string) (GetNodeByIDRow, e
 		&i.ProbeScheduleCron,
 		&i.ProbeScheduleTimezone,
 		&i.ProbeLowMemoryOverride,
+		&i.ProbeOnNewAddress,
 	)
 	return i, err
 }
@@ -1336,7 +1302,7 @@ func (q *Queries) GetNodeDeletion(ctx context.Context, nodeID string) (NodeDelet
 const getNodeEgress = `-- name: GetNodeEgress :one
 SELECT id, node_id, name, kind, family, interface_name, source_address, proxy_id,
        enabled, available, automatic, lightweight_interval_seconds,
-       probe_on_address_change, created_at, updated_at
+       created_at, updated_at
 FROM network_egresses
 WHERE node_id = ? AND id = ?
 `
@@ -1362,90 +1328,6 @@ func (q *Queries) GetNodeEgress(ctx context.Context, arg GetNodeEgressParams) (N
 		&i.Available,
 		&i.Automatic,
 		&i.LightweightIntervalSeconds,
-		&i.ProbeOnAddressChange,
-		&i.CreatedAt,
-		&i.UpdatedAt,
-	)
-	return i, err
-}
-
-const getNodeEgressByProxy = `-- name: GetNodeEgressByProxy :one
-SELECT id, node_id, name, kind, family, interface_name, source_address, proxy_id,
-       enabled, available, automatic, lightweight_interval_seconds,
-       probe_on_address_change, created_at, updated_at
-FROM network_egresses
-WHERE node_id = ? AND kind = 'proxy' AND family = ? AND proxy_id = ?
-`
-
-type GetNodeEgressByProxyParams struct {
-	NodeID  string
-	Family  string
-	ProxyID *string
-}
-
-func (q *Queries) GetNodeEgressByProxy(ctx context.Context, arg GetNodeEgressByProxyParams) (NetworkEgress, error) {
-	row := q.db.QueryRowContext(ctx, getNodeEgressByProxy, arg.NodeID, arg.Family, arg.ProxyID)
-	var i NetworkEgress
-	err := row.Scan(
-		&i.ID,
-		&i.NodeID,
-		&i.Name,
-		&i.Kind,
-		&i.Family,
-		&i.InterfaceName,
-		&i.SourceAddress,
-		&i.ProxyID,
-		&i.Enabled,
-		&i.Available,
-		&i.Automatic,
-		&i.LightweightIntervalSeconds,
-		&i.ProbeOnAddressChange,
-		&i.CreatedAt,
-		&i.UpdatedAt,
-	)
-	return i, err
-}
-
-const getNodeEgressBySelector = `-- name: GetNodeEgressBySelector :one
-SELECT id, node_id, name, kind, family, interface_name, source_address, proxy_id,
-       enabled, available, automatic, lightweight_interval_seconds,
-       probe_on_address_change, created_at, updated_at
-FROM network_egresses
-WHERE node_id = ? AND kind = ? AND family = ? AND interface_name = ?
-  AND COALESCE(source_address, '') = COALESCE(?, '')
-`
-
-type GetNodeEgressBySelectorParams struct {
-	NodeID        string
-	Kind          string
-	Family        string
-	InterfaceName *string
-	SourceAddress *string
-}
-
-func (q *Queries) GetNodeEgressBySelector(ctx context.Context, arg GetNodeEgressBySelectorParams) (NetworkEgress, error) {
-	row := q.db.QueryRowContext(ctx, getNodeEgressBySelector,
-		arg.NodeID,
-		arg.Kind,
-		arg.Family,
-		arg.InterfaceName,
-		arg.SourceAddress,
-	)
-	var i NetworkEgress
-	err := row.Scan(
-		&i.ID,
-		&i.NodeID,
-		&i.Name,
-		&i.Kind,
-		&i.Family,
-		&i.InterfaceName,
-		&i.SourceAddress,
-		&i.ProxyID,
-		&i.Enabled,
-		&i.Available,
-		&i.Automatic,
-		&i.LightweightIntervalSeconds,
-		&i.ProbeOnAddressChange,
 		&i.CreatedAt,
 		&i.UpdatedAt,
 	)
@@ -1471,11 +1353,73 @@ func (q *Queries) GetNodeNetworkInventory(ctx context.Context, nodeID string) (N
 	return i, err
 }
 
+const getNodeNetworkProxy = `-- name: GetNodeNetworkProxy :one
+SELECT id, node_id, name, scheme, host, port, username, password_encrypted,
+       deletion_requested_at, created_at, updated_at
+FROM network_proxies
+WHERE node_id = ? AND id = ?
+`
+
+type GetNodeNetworkProxyParams struct {
+	NodeID string
+	ID     string
+}
+
+func (q *Queries) GetNodeNetworkProxy(ctx context.Context, arg GetNodeNetworkProxyParams) (NetworkProxy, error) {
+	row := q.db.QueryRowContext(ctx, getNodeNetworkProxy, arg.NodeID, arg.ID)
+	var i NetworkProxy
+	err := row.Scan(
+		&i.ID,
+		&i.NodeID,
+		&i.Name,
+		&i.Scheme,
+		&i.Host,
+		&i.Port,
+		&i.Username,
+		&i.PasswordEncrypted,
+		&i.DeletionRequestedAt,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+	)
+	return i, err
+}
+
+const getNodeNetworkProxyByName = `-- name: GetNodeNetworkProxyByName :one
+SELECT id, node_id, name, scheme, host, port, username, password_encrypted,
+       deletion_requested_at, created_at, updated_at
+FROM network_proxies
+WHERE node_id = ? AND name = ? COLLATE NOCASE
+`
+
+type GetNodeNetworkProxyByNameParams struct {
+	NodeID string
+	Name   string
+}
+
+func (q *Queries) GetNodeNetworkProxyByName(ctx context.Context, arg GetNodeNetworkProxyByNameParams) (NetworkProxy, error) {
+	row := q.db.QueryRowContext(ctx, getNodeNetworkProxyByName, arg.NodeID, arg.Name)
+	var i NetworkProxy
+	err := row.Scan(
+		&i.ID,
+		&i.NodeID,
+		&i.Name,
+		&i.Scheme,
+		&i.Host,
+		&i.Port,
+		&i.Username,
+		&i.PasswordEncrypted,
+		&i.DeletionRequestedAt,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+	)
+	return i, err
+}
+
 const getNodeProbeSettings = `-- name: GetNodeProbeSettings :one
 SELECT id, enabled, revoked_at, last_seen_at, applied_configuration_revision,
        desired_configuration_revision, physical_memory_bytes,
        probe_schedule_enabled, probe_schedule_cron, probe_schedule_timezone,
-       probe_low_memory_override
+       probe_low_memory_override, probe_on_new_address
 FROM nodes
 WHERE id = ?
 `
@@ -1492,6 +1436,7 @@ type GetNodeProbeSettingsRow struct {
 	ProbeScheduleCron            string
 	ProbeScheduleTimezone        string
 	ProbeLowMemoryOverride       int64
+	ProbeOnNewAddress            int64
 }
 
 func (q *Queries) GetNodeProbeSettings(ctx context.Context, id string) (GetNodeProbeSettingsRow, error) {
@@ -1509,6 +1454,7 @@ func (q *Queries) GetNodeProbeSettings(ctx context.Context, id string) (GetNodeP
 		&i.ProbeScheduleCron,
 		&i.ProbeScheduleTimezone,
 		&i.ProbeLowMemoryOverride,
+		&i.ProbeOnNewAddress,
 	)
 	return i, err
 }
@@ -1619,7 +1565,7 @@ func (q *Queries) GetPreferredPublicAddressPath(ctx context.Context, publicAddre
 }
 
 const getProbeTask = `-- name: GetProbeTask :one
-SELECT id, node_id, kind, status, created_at, expires_at, acknowledged_at, started_at, completed_at, run_id, rejection_reason, target_version, previous_version, result_version, failure_code, diagnostic, terminal_confirmed_at, "trigger", triggering_public_address_id
+SELECT id, node_id, kind, status, created_at, expires_at, acknowledged_at, started_at, completed_at, run_id, rejection_reason, target_version, previous_version, result_version, failure_code, diagnostic, terminal_confirmed_at, "trigger"
 FROM probe_tasks
 WHERE id = ? AND node_id = ?
 `
@@ -1651,13 +1597,12 @@ func (q *Queries) GetProbeTask(ctx context.Context, arg GetProbeTaskParams) (Pro
 		&i.Diagnostic,
 		&i.TerminalConfirmedAt,
 		&i.Trigger,
-		&i.TriggeringPublicAddressID,
 	)
 	return i, err
 }
 
 const getPublicAddressByAddress = `-- name: GetPublicAddressByAddress :one
-SELECT id, address, family, probe_enabled, probe_on_rediscovery,
+SELECT id, address, family, probe_enabled,
        selected_path_id, first_seen_at, last_seen_at, updated_at
 FROM public_addresses
 WHERE address = ?
@@ -1671,7 +1616,6 @@ func (q *Queries) GetPublicAddressByAddress(ctx context.Context, address string)
 		&i.Address,
 		&i.Family,
 		&i.ProbeEnabled,
-		&i.ProbeOnRediscovery,
 		&i.SelectedPathID,
 		&i.FirstSeenAt,
 		&i.LastSeenAt,
@@ -1681,7 +1625,7 @@ func (q *Queries) GetPublicAddressByAddress(ctx context.Context, address string)
 }
 
 const getPublicAddressByID = `-- name: GetPublicAddressByID :one
-SELECT id, address, family, probe_enabled, probe_on_rediscovery,
+SELECT id, address, family, probe_enabled,
        selected_path_id, first_seen_at, last_seen_at, updated_at
 FROM public_addresses
 WHERE id = ?
@@ -1695,7 +1639,6 @@ func (q *Queries) GetPublicAddressByID(ctx context.Context, id string) (PublicAd
 		&i.Address,
 		&i.Family,
 		&i.ProbeEnabled,
-		&i.ProbeOnRediscovery,
 		&i.SelectedPathID,
 		&i.FirstSeenAt,
 		&i.LastSeenAt,
@@ -1761,46 +1704,6 @@ func (q *Queries) GetPublicAddressPathForNode(ctx context.Context, arg GetPublic
 		&i.Available,
 		&i.LastCheckedAt,
 		&i.LastSucceededAt,
-	)
-	return i, err
-}
-
-const getReadyPublicAddressProbe = `-- name: GetReadyPublicAddressProbe :one
-SELECT pending.public_address_id, pending.node_id,
-       pending.required_configuration_revision, pending.created_at
-FROM pending_public_address_probes AS pending
-JOIN public_addresses AS address ON address.id = pending.public_address_id
-JOIN public_address_paths AS path ON path.path_id = address.selected_path_id
-WHERE pending.node_id = ?
-  AND pending.required_configuration_revision <= ?
-  AND address.probe_enabled = 1
-  AND address.probe_on_rediscovery = 1
-  AND path.node_id = pending.node_id
-  AND path.public_address_id = address.id
-  AND path.available = 1
-LIMIT 1
-`
-
-type GetReadyPublicAddressProbeParams struct {
-	NodeID                        string
-	RequiredConfigurationRevision int64
-}
-
-type GetReadyPublicAddressProbeRow struct {
-	PublicAddressID               string
-	NodeID                        string
-	RequiredConfigurationRevision int64
-	CreatedAt                     int64
-}
-
-func (q *Queries) GetReadyPublicAddressProbe(ctx context.Context, arg GetReadyPublicAddressProbeParams) (GetReadyPublicAddressProbeRow, error) {
-	row := q.db.QueryRowContext(ctx, getReadyPublicAddressProbe, arg.NodeID, arg.RequiredConfigurationRevision)
-	var i GetReadyPublicAddressProbeRow
-	err := row.Scan(
-		&i.PublicAddressID,
-		&i.NodeID,
-		&i.RequiredConfigurationRevision,
-		&i.CreatedAt,
 	)
 	return i, err
 }
@@ -1984,8 +1887,7 @@ func (q *Queries) ListActiveNodeEgressDeletions(ctx context.Context, nodeID stri
 const listActiveNodeEgresses = `-- name: ListActiveNodeEgresses :many
 SELECT e.id, e.node_id, e.name, e.kind, e.family, e.interface_name,
        e.source_address, e.proxy_id, e.enabled, e.available, e.automatic,
-       e.lightweight_interval_seconds, e.probe_on_address_change,
-       e.created_at, e.updated_at
+       e.lightweight_interval_seconds, e.created_at, e.updated_at
 FROM network_egresses e
 WHERE e.node_id = ?
   AND NOT EXISTS (
@@ -2018,7 +1920,49 @@ func (q *Queries) ListActiveNodeEgresses(ctx context.Context, nodeID string) ([]
 			&i.Available,
 			&i.Automatic,
 			&i.LightweightIntervalSeconds,
-			&i.ProbeOnAddressChange,
+			&i.CreatedAt,
+			&i.UpdatedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listActiveNodeNetworkProxies = `-- name: ListActiveNodeNetworkProxies :many
+SELECT id, node_id, name, scheme, host, port, username, password_encrypted,
+       deletion_requested_at, created_at, updated_at
+FROM network_proxies
+WHERE node_id = ? AND deletion_requested_at IS NULL
+ORDER BY name COLLATE NOCASE, id
+`
+
+func (q *Queries) ListActiveNodeNetworkProxies(ctx context.Context, nodeID string) ([]NetworkProxy, error) {
+	rows, err := q.db.QueryContext(ctx, listActiveNodeNetworkProxies, nodeID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []NetworkProxy{}
+	for rows.Next() {
+		var i NetworkProxy
+		if err := rows.Scan(
+			&i.ID,
+			&i.NodeID,
+			&i.Name,
+			&i.Scheme,
+			&i.Host,
+			&i.Port,
+			&i.Username,
+			&i.PasswordEncrypted,
+			&i.DeletionRequestedAt,
 			&i.CreatedAt,
 			&i.UpdatedAt,
 		); err != nil {
@@ -2090,7 +2034,7 @@ func (q *Queries) ListEnabledNotificationRules(ctx context.Context) ([]ListEnabl
 }
 
 const listLatestAgentUpdateTasks = `-- name: ListLatestAgentUpdateTasks :many
-SELECT task.id, task.node_id, task.kind, task.status, task.created_at, task.expires_at, task.acknowledged_at, task.started_at, task.completed_at, task.run_id, task.rejection_reason, task.target_version, task.previous_version, task.result_version, task.failure_code, task.diagnostic, task.terminal_confirmed_at, task."trigger", task.triggering_public_address_id
+SELECT task.id, task.node_id, task.kind, task.status, task.created_at, task.expires_at, task.acknowledged_at, task.started_at, task.completed_at, task.run_id, task.rejection_reason, task.target_version, task.previous_version, task.result_version, task.failure_code, task.diagnostic, task.terminal_confirmed_at, task."trigger"
 FROM probe_tasks AS task
 WHERE task.kind = 'agent-update'
   AND task.id = (
@@ -2132,7 +2076,6 @@ func (q *Queries) ListLatestAgentUpdateTasks(ctx context.Context) ([]ProbeTask, 
 			&i.Diagnostic,
 			&i.TerminalConfirmedAt,
 			&i.Trigger,
-			&i.TriggeringPublicAddressID,
 		); err != nil {
 			return nil, err
 		}
@@ -2147,32 +2090,29 @@ func (q *Queries) ListLatestAgentUpdateTasks(ctx context.Context) ([]ProbeTask, 
 	return items, nil
 }
 
-const listNetworkProxies = `-- name: ListNetworkProxies :many
-SELECT id, name, scheme, host, port, username, password_encrypted, created_at, updated_at
-FROM network_proxies
-ORDER BY name COLLATE NOCASE, id
+const listNodeAvailablePublicAddressProbeSettings = `-- name: ListNodeAvailablePublicAddressProbeSettings :many
+SELECT a.id, a.probe_enabled
+FROM public_addresses a
+JOIN public_address_paths p ON p.path_id = a.selected_path_id
+WHERE p.node_id = ? AND p.public_address_id = a.id AND p.available = 1
+ORDER BY a.family, a.address
 `
 
-func (q *Queries) ListNetworkProxies(ctx context.Context) ([]NetworkProxy, error) {
-	rows, err := q.db.QueryContext(ctx, listNetworkProxies)
+type ListNodeAvailablePublicAddressProbeSettingsRow struct {
+	ID           string
+	ProbeEnabled int64
+}
+
+func (q *Queries) ListNodeAvailablePublicAddressProbeSettings(ctx context.Context, nodeID string) ([]ListNodeAvailablePublicAddressProbeSettingsRow, error) {
+	rows, err := q.db.QueryContext(ctx, listNodeAvailablePublicAddressProbeSettings, nodeID)
 	if err != nil {
 		return nil, err
 	}
 	defer rows.Close()
-	items := []NetworkProxy{}
+	items := []ListNodeAvailablePublicAddressProbeSettingsRow{}
 	for rows.Next() {
-		var i NetworkProxy
-		if err := rows.Scan(
-			&i.ID,
-			&i.Name,
-			&i.Scheme,
-			&i.Host,
-			&i.Port,
-			&i.Username,
-			&i.PasswordEncrypted,
-			&i.CreatedAt,
-			&i.UpdatedAt,
-		); err != nil {
+		var i ListNodeAvailablePublicAddressProbeSettingsRow
+		if err := rows.Scan(&i.ID, &i.ProbeEnabled); err != nil {
 			return nil, err
 		}
 		items = append(items, i)
@@ -2218,7 +2158,7 @@ func (q *Queries) ListNodeCapabilities(ctx context.Context) ([]NodeCapability, e
 const listNodeEgresses = `-- name: ListNodeEgresses :many
 SELECT id, node_id, name, kind, family, interface_name, source_address, proxy_id,
        enabled, available, automatic, lightweight_interval_seconds,
-       probe_on_address_change, created_at, updated_at
+       created_at, updated_at
 FROM network_egresses
 WHERE node_id = ?
 ORDER BY family, kind, created_at, id
@@ -2246,7 +2186,6 @@ func (q *Queries) ListNodeEgresses(ctx context.Context, nodeID string) ([]Networ
 			&i.Available,
 			&i.Automatic,
 			&i.LightweightIntervalSeconds,
-			&i.ProbeOnAddressChange,
 			&i.CreatedAt,
 			&i.UpdatedAt,
 		); err != nil {
@@ -2263,26 +2202,48 @@ func (q *Queries) ListNodeEgresses(ctx context.Context, nodeID string) ([]Networ
 	return items, nil
 }
 
-const listNodeIDsReferencingNetworkProxy = `-- name: ListNodeIDsReferencingNetworkProxy :many
-SELECT DISTINCT node_id
+const listNodeEgressesByProxy = `-- name: ListNodeEgressesByProxy :many
+SELECT id, node_id, name, kind, family, interface_name, source_address, proxy_id,
+       enabled, available, automatic, lightweight_interval_seconds,
+       created_at, updated_at
 FROM network_egresses
-WHERE proxy_id = ?
-ORDER BY node_id
+WHERE node_id = ? AND proxy_id = ?
+ORDER BY family, id
 `
 
-func (q *Queries) ListNodeIDsReferencingNetworkProxy(ctx context.Context, proxyID *string) ([]string, error) {
-	rows, err := q.db.QueryContext(ctx, listNodeIDsReferencingNetworkProxy, proxyID)
+type ListNodeEgressesByProxyParams struct {
+	NodeID  string
+	ProxyID *string
+}
+
+func (q *Queries) ListNodeEgressesByProxy(ctx context.Context, arg ListNodeEgressesByProxyParams) ([]NetworkEgress, error) {
+	rows, err := q.db.QueryContext(ctx, listNodeEgressesByProxy, arg.NodeID, arg.ProxyID)
 	if err != nil {
 		return nil, err
 	}
 	defer rows.Close()
-	items := []string{}
+	items := []NetworkEgress{}
 	for rows.Next() {
-		var node_id string
-		if err := rows.Scan(&node_id); err != nil {
+		var i NetworkEgress
+		if err := rows.Scan(
+			&i.ID,
+			&i.NodeID,
+			&i.Name,
+			&i.Kind,
+			&i.Family,
+			&i.InterfaceName,
+			&i.SourceAddress,
+			&i.ProxyID,
+			&i.Enabled,
+			&i.Available,
+			&i.Automatic,
+			&i.LightweightIntervalSeconds,
+			&i.CreatedAt,
+			&i.UpdatedAt,
+		); err != nil {
 			return nil, err
 		}
-		items = append(items, node_id)
+		items = append(items, i)
 	}
 	if err := rows.Close(); err != nil {
 		return nil, err
@@ -2294,17 +2255,11 @@ func (q *Queries) ListNodeIDsReferencingNetworkProxy(ctx context.Context, proxyI
 }
 
 const listNodeNetworkProxies = `-- name: ListNodeNetworkProxies :many
-SELECT DISTINCT p.id, p.name, p.scheme, p.host, p.port, p.username,
-       p.password_encrypted, p.created_at, p.updated_at
-FROM network_proxies p
-JOIN network_egresses e ON e.proxy_id = p.id
-WHERE e.node_id = ?
-  AND NOT EXISTS (
-      SELECT 1
-      FROM egress_deletion_operations d
-      WHERE d.egress_id = e.id AND d.status IN ('pending', 'failed')
-  )
-ORDER BY p.name COLLATE NOCASE, p.id
+SELECT id, node_id, name, scheme, host, port, username, password_encrypted,
+       deletion_requested_at, created_at, updated_at
+FROM network_proxies
+WHERE node_id = ?
+ORDER BY name COLLATE NOCASE, id
 `
 
 func (q *Queries) ListNodeNetworkProxies(ctx context.Context, nodeID string) ([]NetworkProxy, error) {
@@ -2318,14 +2273,60 @@ func (q *Queries) ListNodeNetworkProxies(ctx context.Context, nodeID string) ([]
 		var i NetworkProxy
 		if err := rows.Scan(
 			&i.ID,
+			&i.NodeID,
 			&i.Name,
 			&i.Scheme,
 			&i.Host,
 			&i.Port,
 			&i.Username,
 			&i.PasswordEncrypted,
+			&i.DeletionRequestedAt,
 			&i.CreatedAt,
 			&i.UpdatedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listNodePublicAddressPaths = `-- name: ListNodePublicAddressPaths :many
+SELECT public_address_id, path_id, node_id, local_interface, local_address,
+       proxy_path, likely_nat, temporary, available, last_checked_at,
+       last_succeeded_at
+FROM public_address_paths
+WHERE node_id = ?
+ORDER BY path_id
+`
+
+func (q *Queries) ListNodePublicAddressPaths(ctx context.Context, nodeID string) ([]PublicAddressPath, error) {
+	rows, err := q.db.QueryContext(ctx, listNodePublicAddressPaths, nodeID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []PublicAddressPath{}
+	for rows.Next() {
+		var i PublicAddressPath
+		if err := rows.Scan(
+			&i.PublicAddressID,
+			&i.PathID,
+			&i.NodeID,
+			&i.LocalInterface,
+			&i.LocalAddress,
+			&i.ProxyPath,
+			&i.LikelyNat,
+			&i.Temporary,
+			&i.Available,
+			&i.LastCheckedAt,
+			&i.LastSucceededAt,
 		); err != nil {
 			return nil, err
 		}
@@ -2351,6 +2352,13 @@ SELECT n.node_id, a.id, a.address, a.family, a.probe_enabled,
        ) AS available
 FROM public_address_nodes n
 JOIN public_addresses a ON a.id = n.public_address_id
+WHERE EXISTS (
+    SELECT 1
+    FROM public_address_paths p
+    WHERE p.public_address_id = a.id
+      AND p.node_id = n.node_id
+      AND p.available = 1
+)
 ORDER BY n.node_id, a.family, a.address
 `
 
@@ -2395,11 +2403,10 @@ func (q *Queries) ListNodePublicAddressSummaries(ctx context.Context) ([]ListNod
 
 const listNodePublicAddresses = `-- name: ListNodePublicAddresses :many
 SELECT DISTINCT a.id, a.address, a.family, a.probe_enabled,
-       a.probe_on_rediscovery, a.selected_path_id,
-       a.first_seen_at, a.last_seen_at, a.updated_at
+       a.selected_path_id, a.first_seen_at, a.last_seen_at, a.updated_at
 FROM public_addresses a
-JOIN public_address_nodes n ON n.public_address_id = a.id
-WHERE n.node_id = ?
+JOIN public_address_paths p ON p.public_address_id = a.id
+WHERE p.node_id = ? AND p.available = 1
 ORDER BY a.family, a.address
 `
 
@@ -2417,7 +2424,6 @@ func (q *Queries) ListNodePublicAddresses(ctx context.Context, nodeID string) ([
 			&i.Address,
 			&i.Family,
 			&i.ProbeEnabled,
-			&i.ProbeOnRediscovery,
 			&i.SelectedPathID,
 			&i.FirstSeenAt,
 			&i.LastSeenAt,
@@ -2437,7 +2443,7 @@ func (q *Queries) ListNodePublicAddresses(ctx context.Context, nodeID string) ([
 }
 
 const listNodeSelectedPublicAddresses = `-- name: ListNodeSelectedPublicAddresses :many
-SELECT a.id, a.address, a.family, a.probe_enabled, a.probe_on_rediscovery,
+SELECT a.id, a.address, a.family, a.probe_enabled,
        a.selected_path_id, a.first_seen_at, a.last_seen_at, a.updated_at,
        e.node_id, e.name, e.kind, e.interface_name, e.source_address,
        e.proxy_id, e.lightweight_interval_seconds
@@ -2453,7 +2459,6 @@ type ListNodeSelectedPublicAddressesRow struct {
 	Address                    string
 	Family                     string
 	ProbeEnabled               int64
-	ProbeOnRediscovery         int64
 	SelectedPathID             *string
 	FirstSeenAt                int64
 	LastSeenAt                 int64
@@ -2481,7 +2486,6 @@ func (q *Queries) ListNodeSelectedPublicAddresses(ctx context.Context, nodeID st
 			&i.Address,
 			&i.Family,
 			&i.ProbeEnabled,
-			&i.ProbeOnRediscovery,
 			&i.SelectedPathID,
 			&i.FirstSeenAt,
 			&i.LastSeenAt,
@@ -2550,7 +2554,7 @@ SELECT id, name, hostname, credential_digest, enabled, revoked_at,
        configuration_error, registered_at, last_seen_at,
        configuration_error_revision, physical_memory_bytes,
        probe_schedule_enabled, probe_schedule_cron, probe_schedule_timezone,
-       probe_low_memory_override
+       probe_low_memory_override, probe_on_new_address
 FROM nodes
 ORDER BY name COLLATE NOCASE, id
 `
@@ -2577,6 +2581,7 @@ type ListNodesRow struct {
 	ProbeScheduleCron            string
 	ProbeScheduleTimezone        string
 	ProbeLowMemoryOverride       int64
+	ProbeOnNewAddress            int64
 }
 
 func (q *Queries) ListNodes(ctx context.Context) ([]ListNodesRow, error) {
@@ -2610,6 +2615,7 @@ func (q *Queries) ListNodes(ctx context.Context) ([]ListNodesRow, error) {
 			&i.ProbeScheduleCron,
 			&i.ProbeScheduleTimezone,
 			&i.ProbeLowMemoryOverride,
+			&i.ProbeOnNewAddress,
 		); err != nil {
 			return nil, err
 		}
@@ -2702,6 +2708,36 @@ func (q *Queries) ListNotificationSenders(ctx context.Context) ([]NotificationSe
 	return items, nil
 }
 
+const listProbeTaskPublicAddresses = `-- name: ListProbeTaskPublicAddresses :many
+SELECT public_address_id
+FROM probe_task_public_addresses
+WHERE task_id = ?
+ORDER BY ordinal
+`
+
+func (q *Queries) ListProbeTaskPublicAddresses(ctx context.Context, taskID string) ([]string, error) {
+	rows, err := q.db.QueryContext(ctx, listProbeTaskPublicAddresses, taskID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []string{}
+	for rows.Next() {
+		var public_address_id string
+		if err := rows.Scan(&public_address_id); err != nil {
+			return nil, err
+		}
+		items = append(items, public_address_id)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const listPublicAddressPaths = `-- name: ListPublicAddressPaths :many
 SELECT public_address_id, path_id, node_id, local_interface, local_address,
        proxy_path, likely_nat, temporary, available, last_checked_at,
@@ -2747,7 +2783,7 @@ func (q *Queries) ListPublicAddressPaths(ctx context.Context, publicAddressID st
 }
 
 const listPublicAddresses = `-- name: ListPublicAddresses :many
-SELECT id, address, family, probe_enabled, probe_on_rediscovery,
+SELECT id, address, family, probe_enabled,
        selected_path_id, first_seen_at, last_seen_at, updated_at
 FROM public_addresses
 ORDER BY family, address
@@ -2767,7 +2803,6 @@ func (q *Queries) ListPublicAddresses(ctx context.Context) ([]PublicAddress, err
 			&i.Address,
 			&i.Family,
 			&i.ProbeEnabled,
-			&i.ProbeOnRediscovery,
 			&i.SelectedPathID,
 			&i.FirstSeenAt,
 			&i.LastSeenAt,
@@ -2787,7 +2822,7 @@ func (q *Queries) ListPublicAddresses(ctx context.Context) ([]PublicAddress, err
 }
 
 const listPublicAddressesWithoutSelectedPath = `-- name: ListPublicAddressesWithoutSelectedPath :many
-SELECT id, address, family, probe_enabled, probe_on_rediscovery,
+SELECT id, address, family, probe_enabled,
        selected_path_id, first_seen_at, last_seen_at, updated_at
 FROM public_addresses
 WHERE selected_path_id IS NULL
@@ -2812,7 +2847,6 @@ func (q *Queries) ListPublicAddressesWithoutSelectedPath(ctx context.Context) ([
 			&i.Address,
 			&i.Family,
 			&i.ProbeEnabled,
-			&i.ProbeOnRediscovery,
 			&i.SelectedPathID,
 			&i.FirstSeenAt,
 			&i.LastSeenAt,
@@ -2829,6 +2863,82 @@ func (q *Queries) ListPublicAddressesWithoutSelectedPath(ctx context.Context) ([
 		return nil, err
 	}
 	return items, nil
+}
+
+const listReadyPublicAddressProbes = `-- name: ListReadyPublicAddressProbes :many
+SELECT pending.public_address_id, pending.node_id,
+       pending.required_configuration_revision, pending.created_at
+FROM pending_public_address_probes AS pending
+JOIN public_addresses AS address ON address.id = pending.public_address_id
+JOIN public_address_paths AS path ON path.path_id = address.selected_path_id
+WHERE pending.node_id = ?
+  AND pending.required_configuration_revision <= ?
+  AND address.probe_enabled = 1
+  AND path.node_id = pending.node_id
+  AND path.public_address_id = address.id
+  AND path.available = 1
+ORDER BY pending.created_at, pending.public_address_id
+LIMIT 64
+`
+
+type ListReadyPublicAddressProbesParams struct {
+	NodeID                        string
+	RequiredConfigurationRevision int64
+}
+
+type ListReadyPublicAddressProbesRow struct {
+	PublicAddressID               string
+	NodeID                        string
+	RequiredConfigurationRevision int64
+	CreatedAt                     int64
+}
+
+func (q *Queries) ListReadyPublicAddressProbes(ctx context.Context, arg ListReadyPublicAddressProbesParams) ([]ListReadyPublicAddressProbesRow, error) {
+	rows, err := q.db.QueryContext(ctx, listReadyPublicAddressProbes, arg.NodeID, arg.RequiredConfigurationRevision)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []ListReadyPublicAddressProbesRow{}
+	for rows.Next() {
+		var i ListReadyPublicAddressProbesRow
+		if err := rows.Scan(
+			&i.PublicAddressID,
+			&i.NodeID,
+			&i.RequiredConfigurationRevision,
+			&i.CreatedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const markNetworkProxyDeletion = `-- name: MarkNetworkProxyDeletion :execrows
+UPDATE network_proxies
+SET deletion_requested_at = COALESCE(deletion_requested_at, ?)
+WHERE node_id = ? AND id = ?
+`
+
+type MarkNetworkProxyDeletionParams struct {
+	DeletionRequestedAt *int64
+	NodeID              string
+	ID                  string
+}
+
+func (q *Queries) MarkNetworkProxyDeletion(ctx context.Context, arg MarkNetworkProxyDeletionParams) (int64, error) {
+	result, err := q.db.ExecContext(ctx, markNetworkProxyDeletion, arg.DeletionRequestedAt, arg.NodeID, arg.ID)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected()
 }
 
 const markNodePublicAddressPathsUnavailable = `-- name: MarkNodePublicAddressPathsUnavailable :exec
@@ -3144,6 +3254,30 @@ func (q *Queries) SetNodeEnabled(ctx context.Context, arg SetNodeEnabledParams) 
 	return result.RowsAffected()
 }
 
+const setNodeName = `-- name: SetNodeName :execrows
+UPDATE nodes
+SET name = ?
+WHERE id = ? AND name != ? AND revoked_at IS NULL
+  AND NOT EXISTS (
+      SELECT 1 FROM node_deletion_operations
+      WHERE node_id = nodes.id AND status != 'completed'
+  )
+`
+
+type SetNodeNameParams struct {
+	Name   string
+	ID     string
+	Name_2 string
+}
+
+func (q *Queries) SetNodeName(ctx context.Context, arg SetNodeNameParams) (int64, error) {
+	result, err := q.db.ExecContext(ctx, setNodeName, arg.Name, arg.ID, arg.Name_2)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected()
+}
+
 const setPendingHistoryGeneration = `-- name: SetPendingHistoryGeneration :exec
 UPDATE system_state
 SET pending_history_generation = ?
@@ -3157,29 +3291,23 @@ func (q *Queries) SetPendingHistoryGeneration(ctx context.Context, pendingHistor
 
 const setPublicAddressProbeSettings = `-- name: SetPublicAddressProbeSettings :execrows
 UPDATE public_addresses
-SET probe_enabled = ?, probe_on_rediscovery = ?, updated_at = ?
-WHERE id = ? AND (
-    probe_enabled != ? OR probe_on_rediscovery != ?
-)
+SET probe_enabled = ?, updated_at = ?
+WHERE id = ? AND probe_enabled != ?
 `
 
 type SetPublicAddressProbeSettingsParams struct {
-	ProbeEnabled         int64
-	ProbeOnRediscovery   int64
-	UpdatedAt            int64
-	ID                   string
-	ProbeEnabled_2       int64
-	ProbeOnRediscovery_2 int64
+	ProbeEnabled   int64
+	UpdatedAt      int64
+	ID             string
+	ProbeEnabled_2 int64
 }
 
 func (q *Queries) SetPublicAddressProbeSettings(ctx context.Context, arg SetPublicAddressProbeSettingsParams) (int64, error) {
 	result, err := q.db.ExecContext(ctx, setPublicAddressProbeSettings,
 		arg.ProbeEnabled,
-		arg.ProbeOnRediscovery,
 		arg.UpdatedAt,
 		arg.ID,
 		arg.ProbeEnabled_2,
-		arg.ProbeOnRediscovery_2,
 	)
 	if err != nil {
 		return 0, err
@@ -3312,7 +3440,7 @@ const updateNetworkProxy = `-- name: UpdateNetworkProxy :execrows
 UPDATE network_proxies
 SET name = ?, scheme = ?, host = ?, port = ?, username = ?,
     password_encrypted = ?, updated_at = ?
-WHERE id = ?
+WHERE node_id = ? AND id = ? AND deletion_requested_at IS NULL
 `
 
 type UpdateNetworkProxyParams struct {
@@ -3323,6 +3451,7 @@ type UpdateNetworkProxyParams struct {
 	Username          *string
 	PasswordEncrypted []byte
 	UpdatedAt         int64
+	NodeID            string
 	ID                string
 }
 
@@ -3335,48 +3464,8 @@ func (q *Queries) UpdateNetworkProxy(ctx context.Context, arg UpdateNetworkProxy
 		arg.Username,
 		arg.PasswordEncrypted,
 		arg.UpdatedAt,
-		arg.ID,
-	)
-	if err != nil {
-		return 0, err
-	}
-	return result.RowsAffected()
-}
-
-const updateNodeEgressSettings = `-- name: UpdateNodeEgressSettings :execrows
-UPDATE network_egresses
-SET enabled = ?, lightweight_interval_seconds = ?,
-    probe_on_address_change = ?, updated_at = ?
-WHERE id = ? AND node_id = ?
-  AND (
-      enabled != ? OR lightweight_interval_seconds != ? OR
-      probe_on_address_change != ?
-  )
-`
-
-type UpdateNodeEgressSettingsParams struct {
-	Enabled                      int64
-	LightweightIntervalSeconds   int64
-	ProbeOnAddressChange         int64
-	UpdatedAt                    int64
-	ID                           string
-	NodeID                       string
-	Enabled_2                    int64
-	LightweightIntervalSeconds_2 int64
-	ProbeOnAddressChange_2       int64
-}
-
-func (q *Queries) UpdateNodeEgressSettings(ctx context.Context, arg UpdateNodeEgressSettingsParams) (int64, error) {
-	result, err := q.db.ExecContext(ctx, updateNodeEgressSettings,
-		arg.Enabled,
-		arg.LightweightIntervalSeconds,
-		arg.ProbeOnAddressChange,
-		arg.UpdatedAt,
-		arg.ID,
 		arg.NodeID,
-		arg.Enabled_2,
-		arg.LightweightIntervalSeconds_2,
-		arg.ProbeOnAddressChange_2,
+		arg.ID,
 	)
 	if err != nil {
 		return 0, err
@@ -3447,6 +3536,7 @@ const updateNodeProbeSettings = `-- name: UpdateNodeProbeSettings :execrows
 UPDATE nodes
 SET probe_schedule_enabled = ?, probe_schedule_cron = ?,
     probe_schedule_timezone = ?, probe_low_memory_override = ?,
+    probe_on_new_address = ?,
     desired_configuration_revision = desired_configuration_revision + 1,
     configuration_error = NULL, configuration_error_revision = NULL
 WHERE id = ? AND revoked_at IS NULL
@@ -3461,6 +3551,7 @@ type UpdateNodeProbeSettingsParams struct {
 	ProbeScheduleCron      string
 	ProbeScheduleTimezone  string
 	ProbeLowMemoryOverride int64
+	ProbeOnNewAddress      int64
 	ID                     string
 }
 
@@ -3470,6 +3561,7 @@ func (q *Queries) UpdateNodeProbeSettings(ctx context.Context, arg UpdateNodePro
 		arg.ProbeScheduleCron,
 		arg.ProbeScheduleTimezone,
 		arg.ProbeLowMemoryOverride,
+		arg.ProbeOnNewAddress,
 		arg.ID,
 	)
 	if err != nil {
@@ -3596,26 +3688,30 @@ func (q *Queries) UpdateProbeTaskReport(ctx context.Context, arg UpdateProbeTask
 
 const upsertAgentEnrollmentKey = `-- name: UpsertAgentEnrollmentKey :exec
 INSERT INTO agent_enrollment (
-    id, enabled, key_digest, key_encrypted, created_at, rotated_at
-) VALUES (1, 1, ?, ?, ?, ?)
+    id, enabled, key_digest, key_encrypted, default_probe_timezone,
+    created_at, rotated_at
+) VALUES (1, 1, ?, ?, ?, ?, ?)
 ON CONFLICT (id) DO UPDATE SET
     enabled = 1,
     key_digest = excluded.key_digest,
     key_encrypted = excluded.key_encrypted,
+    default_probe_timezone = excluded.default_probe_timezone,
     rotated_at = excluded.rotated_at
 `
 
 type UpsertAgentEnrollmentKeyParams struct {
-	KeyDigest    []byte
-	KeyEncrypted []byte
-	CreatedAt    int64
-	RotatedAt    int64
+	KeyDigest            []byte
+	KeyEncrypted         []byte
+	DefaultProbeTimezone string
+	CreatedAt            int64
+	RotatedAt            int64
 }
 
 func (q *Queries) UpsertAgentEnrollmentKey(ctx context.Context, arg UpsertAgentEnrollmentKeyParams) error {
 	_, err := q.db.ExecContext(ctx, upsertAgentEnrollmentKey,
 		arg.KeyDigest,
 		arg.KeyEncrypted,
+		arg.DefaultProbeTimezone,
 		arg.CreatedAt,
 		arg.RotatedAt,
 	)
@@ -3737,8 +3833,7 @@ const upsertPendingPublicAddressProbe = `-- name: UpsertPendingPublicAddressProb
 INSERT INTO pending_public_address_probes (
     public_address_id, node_id, required_configuration_revision, created_at
 ) VALUES (?, ?, ?, ?)
-ON CONFLICT (node_id) DO UPDATE SET
-    public_address_id = excluded.public_address_id,
+ON CONFLICT (node_id, public_address_id) DO UPDATE SET
     required_configuration_revision = excluded.required_configuration_revision,
     created_at = excluded.created_at
 `
@@ -3762,9 +3857,8 @@ func (q *Queries) UpsertPendingPublicAddressProbe(ctx context.Context, arg Upser
 
 const upsertPublicAddress = `-- name: UpsertPublicAddress :exec
 INSERT INTO public_addresses (
-    id, address, family, probe_enabled, probe_on_rediscovery,
-    first_seen_at, last_seen_at, updated_at
-) VALUES (?, ?, ?, 0, 1, ?, ?, ?)
+    id, address, family, probe_enabled, first_seen_at, last_seen_at, updated_at
+) VALUES (?, ?, ?, 1, ?, ?, ?)
 ON CONFLICT (address) DO UPDATE SET
     family = excluded.family,
     last_seen_at = MAX(public_addresses.last_seen_at, excluded.last_seen_at),

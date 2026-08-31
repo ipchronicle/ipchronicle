@@ -296,15 +296,24 @@ func testRunner(t *testing.T, processes processState, script string) *Runner {
 	runner := NewRunner(processes)
 	runner.scriptURL = server.URL
 	runner.httpClient = func(executionPath, string) *http.Client { return server.Client() }
+	runner.verifyTarget = func(context.Context, state.Configuration, state.Egress, time.Time) error { return nil }
 	return runner
 }
 
 func probeTestConfiguration(kind, family string) (state.Configuration, state.Egress) {
-	egress := state.Egress{ID: uuid.NewString(), Kind: kind, Family: family, Enabled: true}
+	pathID := uuid.NewString()
+	publicAddress := "203.0.113.10"
+	if family == "ipv6" {
+		publicAddress = "2001:db8::10"
+	}
+	egress := state.Egress{
+		ID: uuid.NewString(), PathID: &pathID, PublicAddress: &publicAddress,
+		Kind: kind, Family: family, Enabled: true,
+	}
 	return state.Configuration{
-		SchemaVersion: 5, Revision: 1, Enabled: true,
+		SchemaVersion: 7, Revision: 1, Enabled: true,
 		HistoryGeneration: "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef",
-		Egresses:          []state.Egress{egress},
+		ProbeTargets:      []state.Egress{egress},
 	}, egress
 }
 

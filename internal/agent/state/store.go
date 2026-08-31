@@ -27,7 +27,7 @@ import (
 
 const (
 	masterKeySize         = 32
-	localSchemaVersion    = 6
+	localSchemaVersion    = 7
 	secretEnvelopeVersion = 1
 )
 
@@ -74,14 +74,12 @@ type Identity struct {
 }
 
 type Configuration struct {
-	SchemaVersion     int      `json:"schemaVersion"`
-	Revision          int64    `json:"revision"`
-	Enabled           bool     `json:"enabled"`
-	HistoryGeneration string   `json:"historyGeneration"`
-	DiscoveryPaths    []Egress `json:"discoveryPaths,omitempty"`
-	ProbeTargets      []Egress `json:"probeTargets,omitempty"`
-	// Egresses is only decoded from pre-v6 snapshots during Agent upgrades.
-	Egresses               []Egress          `json:"egresses,omitempty"`
+	SchemaVersion          int               `json:"schemaVersion"`
+	Revision               int64             `json:"revision"`
+	Enabled                bool              `json:"enabled"`
+	HistoryGeneration      string            `json:"historyGeneration"`
+	DiscoveryPaths         []Egress          `json:"discoveryPaths,omitempty"`
+	ProbeTargets           []Egress          `json:"probeTargets,omitempty"`
 	Proxies                []Proxy           `json:"proxies,omitempty"`
 	DiscoveryServices      DiscoveryServices `json:"discoveryServices"`
 	ProbeSchedule          ProbeSchedule     `json:"probeSchedule"`
@@ -110,7 +108,6 @@ type Egress struct {
 	ProxyID                    *string `json:"proxyId,omitempty"`
 	Enabled                    bool    `json:"enabled"`
 	LightweightIntervalSeconds int64   `json:"lightweightIntervalSeconds"`
-	ProbeOnAddressChange       bool    `json:"probeOnAddressChange"`
 }
 
 type Proxy struct {
@@ -129,7 +126,6 @@ type storedConfiguration struct {
 	HistoryGeneration      string            `json:"historyGeneration"`
 	DiscoveryPaths         []Egress          `json:"discoveryPaths,omitempty"`
 	ProbeTargets           []Egress          `json:"probeTargets,omitempty"`
-	Egresses               []Egress          `json:"egresses,omitempty"`
 	Proxies                []storedProxy     `json:"proxies,omitempty"`
 	DiscoveryServices      DiscoveryServices `json:"discoveryServices"`
 	ProbeSchedule          ProbeSchedule     `json:"probeSchedule"`
@@ -345,9 +341,6 @@ func (s *Store) ApplyConfiguration(configuration Configuration) error {
 	if err := validateConfiguration(configuration); err != nil {
 		return err
 	}
-	if configuration.SchemaVersion != 5 && configuration.SchemaVersion != 6 {
-		return errors.New("new Agent configuration must use schema version 5 or 6")
-	}
 	encoded, err := encodeStoredConfiguration(s.masterKey, configuration)
 	if err != nil {
 		return fmt.Errorf("encode Agent configuration: %w", err)
@@ -464,14 +457,8 @@ func (s *Store) initialize() error {
 			if err := meta.Put(schemaVersionKey, encoded); err != nil {
 				return err
 			}
-		} else if len(version) != 8 || binary.BigEndian.Uint64(version) > localSchemaVersion || binary.BigEndian.Uint64(version) < 1 {
-			return fmt.Errorf("unsupported Agent state schema version")
-		} else if binary.BigEndian.Uint64(version) < localSchemaVersion {
-			encoded := make([]byte, 8)
-			binary.BigEndian.PutUint64(encoded, localSchemaVersion)
-			if err := meta.Put(schemaVersionKey, encoded); err != nil {
-				return err
-			}
+		} else if len(version) != 8 || binary.BigEndian.Uint64(version) != localSchemaVersion {
+			return errors.New("unsupported Agent state schema version; purge the Agent state and enroll again")
 		}
 		if _, err = transaction.CreateBucketIfNotExists(identityBucket); err != nil {
 			return err
@@ -511,43 +498,20 @@ func (s *Store) validateCurrentConfiguration() error {
 }
 
 func validateConfiguration(configuration Configuration) error {
-	if (configuration.SchemaVersion < 1 || configuration.SchemaVersion > 6) || configuration.Revision < 1 {
+	if configuration.SchemaVersion != localSchemaVersion || configuration.Revision < 1 {
 		return errors.New("unsupported Agent configuration snapshot")
 	}
 	generation, err := hex.DecodeString(configuration.HistoryGeneration)
 	if err != nil || len(generation) != 32 || configuration.HistoryGeneration != strings.ToLower(configuration.HistoryGeneration) {
 		return errors.New("invalid Agent history generation")
 	}
-	if configuration.SchemaVersion == 1 {
-		if len(configuration.Egresses) != 0 || len(configuration.DiscoveryPaths) != 0 || len(configuration.ProbeTargets) != 0 || len(configuration.Proxies) != 0 {
-			return errors.New("schema version 1 configuration contains network egresses")
-		}
-		return nil
-	}
-	if configuration.SchemaVersion < 6 && (len(configuration.DiscoveryPaths) != 0 || len(configuration.ProbeTargets) != 0) {
-		return errors.New("older Agent configuration contains public-address discovery fields")
-	}
-	if configuration.SchemaVersion == 6 && len(configuration.Egresses) != 0 {
-		return errors.New("schema version 6 configuration contains legacy network egresses")
-	}
-	if configuration.SchemaVersion == 2 && len(configuration.Proxies) != 0 {
-		return errors.New("schema version 2 configuration contains network proxies")
-	}
-	if configuration.SchemaVersion < 4 {
-		if len(configuration.DiscoveryServices.IPv4) != 0 || len(configuration.DiscoveryServices.IPv6) != 0 {
-			return errors.New("older Agent configuration contains discovery services")
-		}
-	} else if !validDiscoveryServiceList(configuration.DiscoveryServices.IPv4) || !validDiscoveryServiceList(configuration.DiscoveryServices.IPv6) {
+	if !validDiscoveryServiceList(configuration.DiscoveryServices.IPv4) || !validDiscoveryServiceList(configuration.DiscoveryServices.IPv6) {
 		return errors.New("Agent configuration contains invalid discovery services")
 	}
-	if configuration.SchemaVersion < 5 {
-		if configuration.ProbeSchedule != (ProbeSchedule{}) || configuration.ProbeLowMemoryOverride {
-			return errors.New("older Agent configuration contains complete-probe settings")
-		}
-	} else if err := sharedschedule.ValidateProbe(configuration.ProbeSchedule.Cron, configuration.ProbeSchedule.Timezone); err != nil {
+	if err := sharedschedule.ValidateProbe(configuration.ProbeSchedule.Cron, configuration.ProbeSchedule.Timezone); err != nil {
 		return fmt.Errorf("Agent configuration contains an invalid complete-probe schedule: %w", err)
 	}
-	if len(configuration.discoveryPaths()) > 64 || len(configuration.probeTargets()) > 64 {
+	if len(configuration.DiscoveryPaths) > 64 || len(configuration.ProbeTargets) > 64 {
 		return errors.New("Agent configuration contains too many network egresses")
 	}
 	if len(configuration.Proxies) > 64 {
@@ -566,16 +530,13 @@ func validateConfiguration(configuration Configuration) error {
 		}
 		proxies[proxy.ID] = struct{}{}
 	}
-	discoveryPaths := configuration.discoveryPaths()
-	probeTargets := configuration.probeTargets()
+	discoveryPaths := configuration.DiscoveryPaths
+	probeTargets := configuration.ProbeTargets
 	seen := make(map[string]struct{}, len(discoveryPaths)+len(probeTargets))
 	referencedProxies := make(map[string]struct{}, len(configuration.Proxies))
-	allEgresses := slices.Clone(discoveryPaths)
-	if configuration.SchemaVersion >= 6 {
-		allEgresses = append(allEgresses, probeTargets...)
-	}
+	allEgresses := append(slices.Clone(discoveryPaths), probeTargets...)
 	for index, egress := range allEgresses {
-		probeTarget := configuration.SchemaVersion >= 6 && index >= len(discoveryPaths)
+		probeTarget := index >= len(discoveryPaths)
 		if _, err := uuid.Parse(egress.ID); err != nil ||
 			(egress.Kind != "default" && egress.Kind != "interface" && egress.Kind != "source" && egress.Kind != "proxy") ||
 			(egress.Family != "ipv4" && egress.Family != "ipv6") ||
@@ -624,7 +585,7 @@ func validateConfiguration(configuration Configuration) error {
 				return errors.New("source network egress contains an invalid address")
 			}
 		case "proxy":
-			if configuration.SchemaVersion < 3 || egress.InterfaceName != nil || egress.SourceAddress != nil || egress.ProxyID == nil {
+			if egress.InterfaceName != nil || egress.SourceAddress != nil || egress.ProxyID == nil {
 				return errors.New("proxy network egress contains an invalid selector")
 			}
 			if _, exists := proxies[*egress.ProxyID]; !exists {
@@ -698,7 +659,7 @@ func encodeStoredConfiguration(masterKey [masterKeySize]byte, configuration Conf
 		SchemaVersion: configuration.SchemaVersion, Revision: configuration.Revision,
 		Enabled: configuration.Enabled, HistoryGeneration: configuration.HistoryGeneration,
 		DiscoveryPaths: configuration.DiscoveryPaths, ProbeTargets: configuration.ProbeTargets,
-		Egresses: configuration.Egresses, Proxies: make([]storedProxy, 0, len(configuration.Proxies)),
+		Proxies:           make([]storedProxy, 0, len(configuration.Proxies)),
 		DiscoveryServices: configuration.DiscoveryServices, ProbeSchedule: configuration.ProbeSchedule,
 		ProbeLowMemoryOverride: configuration.ProbeLowMemoryOverride,
 	}
@@ -723,27 +684,14 @@ func encodeStoredConfiguration(masterKey [masterKeySize]byte, configuration Conf
 }
 
 func decodeStoredConfiguration(masterKey [masterKeySize]byte, encoded []byte) (Configuration, error) {
-	var header struct {
-		SchemaVersion int `json:"schemaVersion"`
-	}
-	if err := json.Unmarshal(encoded, &header); err != nil {
-		return Configuration{}, fmt.Errorf("decode Agent configuration: %w", err)
-	}
-	if header.SchemaVersion < 3 {
-		var configuration Configuration
-		if err := json.Unmarshal(encoded, &configuration); err != nil {
-			return Configuration{}, fmt.Errorf("decode Agent configuration: %w", err)
-		}
-		return configuration, nil
-	}
 	var stored storedConfiguration
-	if err := json.Unmarshal(encoded, &stored); err != nil {
-		return Configuration{}, fmt.Errorf("decode Agent configuration: %w", err)
+	if err := decodeJSON(encoded, &stored, "Agent configuration"); err != nil {
+		return Configuration{}, err
 	}
 	configuration := Configuration{
 		SchemaVersion: stored.SchemaVersion, Revision: stored.Revision, Enabled: stored.Enabled,
 		HistoryGeneration: stored.HistoryGeneration, DiscoveryPaths: stored.DiscoveryPaths,
-		ProbeTargets: stored.ProbeTargets, Egresses: stored.Egresses,
+		ProbeTargets:      stored.ProbeTargets,
 		DiscoveryServices: stored.DiscoveryServices, ProbeSchedule: stored.ProbeSchedule,
 		ProbeLowMemoryOverride: stored.ProbeLowMemoryOverride,
 	}
@@ -764,26 +712,12 @@ func decodeStoredConfiguration(masterKey [masterKeySize]byte, encoded []byte) (C
 	return configuration, nil
 }
 
-func (configuration Configuration) discoveryPaths() []Egress {
-	if configuration.SchemaVersion >= 6 {
-		return configuration.DiscoveryPaths
-	}
-	return configuration.Egresses
-}
-
-func (configuration Configuration) probeTargets() []Egress {
-	if configuration.SchemaVersion >= 6 {
-		return configuration.ProbeTargets
-	}
-	return configuration.Egresses
-}
-
 func (configuration Configuration) DiscoveryPathList() []Egress {
-	return configuration.discoveryPaths()
+	return configuration.DiscoveryPaths
 }
 
 func (configuration Configuration) ProbeTargetList() []Egress {
-	return configuration.probeTargets()
+	return configuration.ProbeTargets
 }
 
 func ensurePrivateDirectory(path string) error {

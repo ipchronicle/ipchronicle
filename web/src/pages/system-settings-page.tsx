@@ -107,7 +107,7 @@ export function SystemSettingsPage() {
   return (
     <div className="w-full min-w-0 px-4 py-10 sm:px-6 sm:py-14">
       <div className="max-w-2xl">
-        <p className="text-xs font-medium text-muted-foreground uppercase">
+        <p className="text-sm font-medium text-muted-foreground uppercase">
           {t("settings.section")}
         </p>
         <h1 className="mt-2 text-2xl font-semibold sm:text-3xl">
@@ -410,15 +410,19 @@ function ExternalOriginSettings({ csrfToken }: { csrfToken: string }) {
 
             <div className="flex items-center justify-between gap-4 rounded-md border p-4">
               <div className="min-w-0">
-                <Label htmlFor="external-origin-automatic">
+                <p
+                  id="external-origin-automatic-label"
+                  className="text-sm leading-none font-medium"
+                >
                   {t("systemSettings.externalOrigin.automatic")}
-                </Label>
+                </p>
                 <p className="mt-1 break-all text-sm text-muted-foreground">
                   {browserOrigin}
                 </p>
               </div>
               <Switch
                 id="external-origin-automatic"
+                aria-labelledby="external-origin-automatic-label"
                 checked={automatic}
                 disabled={saving}
                 onCheckedChange={(checked) => {
@@ -484,12 +488,12 @@ function ReleaseField({
 }) {
   return (
     <div className="min-w-0 bg-card p-4">
-      <dt className="flex items-center gap-2 text-xs font-medium text-muted-foreground [&_svg]:size-3.5">
+      <dt className="flex items-center gap-2 text-sm font-medium text-muted-foreground [&_svg]:size-3.5">
         {icon}
         {label}
       </dt>
       <dd
-        className={`mt-2 break-all text-sm font-medium ${mono ? "font-mono" : ""}`}
+        className={`mt-2 break-all text-base font-medium ${mono ? "font-mono" : ""}`}
       >
         {value}
       </dd>

@@ -5,6 +5,8 @@ import (
 	"path/filepath"
 	"testing"
 	"time"
+
+	"github.com/google/uuid"
 )
 
 const testHistoryGeneration = "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef"
@@ -16,8 +18,8 @@ func TestAddressTransitionsAndBoundedGapSurviveRestart(t *testing.T) {
 	local := "10.0.0.5"
 	interfaceName := "eth0"
 
-	record := func(index int, confirmed bool, publicAddress, failureReason string) bool {
-		changed, err := store.RecordAddressObservation(AddressObservation{
+	record := func(index int, confirmed bool, publicAddress, failureReason string) {
+		err := store.RecordAddressObservation(AddressObservation{
 			EgressID: egressID, ConfigurationRevision: 1, HistoryGeneration: testHistoryGeneration,
 			Family: "ipv4", Confirmed: confirmed, PublicAddress: publicAddress,
 			LocalInterface: &interfaceName, LocalAddress: &local, LikelyNAT: confirmed,
@@ -26,28 +28,21 @@ func TestAddressTransitionsAndBoundedGapSurviveRestart(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		return changed
 	}
 
-	if record(0, false, "", "no-valid-response") {
-		t.Fatal("failure unexpectedly reported an address change")
-	}
+	record(0, false, "", "no-valid-response")
 	record(1, false, "", "no-valid-response")
-	if record(2, true, "203.0.113.10", "") {
-		t.Fatal("first confirmed address unexpectedly reported a change")
-	}
+	record(2, true, "203.0.113.10", "")
 	record(3, true, "203.0.113.10", "")
-	if !record(4, true, "203.0.113.11", "") {
-		t.Fatal("confirmed address transition was not reported as a change")
-	}
+	record(4, true, "203.0.113.11", "")
 	upload, err := store.AddressUpload(64)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if len(upload.States) != 1 || len(upload.Events) != 4 || len(upload.Gaps) != 0 {
+	if len(upload.States) != 1 || len(upload.Events) != 5 || len(upload.Gaps) != 0 {
 		t.Fatalf("initial address upload = %#v", upload)
 	}
-	wantKinds := []string{"check-failure", "recovery", "first-observation", "address-change"}
+	wantKinds := []string{"check-failure", "recovery", "first-observation", "address-removed", "address-added"}
 	for index, event := range upload.Events {
 		if event.Kind != wantKinds[index] || event.Sequence != int64(index+1) {
 			t.Fatalf("event %d = %#v", index, event)
@@ -65,7 +60,7 @@ func TestAddressTransitionsAndBoundedGapSurviveRestart(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if len(upload.Events) != 30 || len(upload.Gaps) != 1 || upload.Gaps[0].DroppedCount != 9 || upload.States[0].Sequence != 39 {
+	if len(upload.Events) != 30 || len(upload.Gaps) != 1 || upload.Gaps[0].DroppedCount != 10 || upload.States[0].Sequence != 40 {
 		t.Fatalf("bounded address upload = %#v", upload)
 	}
 	oldGap := upload.Gaps[0]
@@ -101,7 +96,7 @@ func TestAddressTransitionsAndBoundedGapSurviveRestart(t *testing.T) {
 func TestHistoryGenerationChangeClearsAddressStateAndQueue(t *testing.T) {
 	store, egressID := openAddressTestStore(t, filepath.Join(t.TempDir(), "agent"))
 	defer store.Close()
-	if _, err := store.RecordAddressObservation(AddressObservation{
+	if err := store.RecordAddressObservation(AddressObservation{
 		EgressID: egressID, ConfigurationRevision: 1, HistoryGeneration: testHistoryGeneration,
 		Family: "ipv4", FailureReason: "selector-unavailable", CheckedAt: time.Now().UTC(),
 	}); err != nil {
@@ -125,6 +120,57 @@ func TestHistoryGenerationChangeClearsAddressStateAndQueue(t *testing.T) {
 	}
 }
 
+func TestAddressEventsRepresentDeduplicatedNodeSet(t *testing.T) {
+	store, firstPathID := openAddressTestStore(t, filepath.Join(t.TempDir(), "agent"))
+	defer store.Close()
+	configuration, err := store.Configuration()
+	if err != nil {
+		t.Fatal(err)
+	}
+	secondPath := configuration.DiscoveryPaths[0]
+	secondPath.ID = uuid.NewString()
+	configuration.Revision = 2
+	configuration.DiscoveryPaths = append(configuration.DiscoveryPaths, secondPath)
+	if err := store.ApplyConfiguration(configuration); err != nil {
+		t.Fatal(err)
+	}
+
+	start := time.Date(2026, 8, 9, 14, 0, 0, 0, time.UTC)
+	record := func(pathID string, index int, confirmed bool, address, failureReason string) {
+		t.Helper()
+		if err := store.RecordAddressObservation(AddressObservation{
+			EgressID: pathID, ConfigurationRevision: configuration.Revision,
+			HistoryGeneration: configuration.HistoryGeneration, Family: "ipv4",
+			Confirmed: confirmed, PublicAddress: address, FailureReason: failureReason,
+			CheckedAt: start.Add(time.Duration(index) * time.Minute),
+		}); err != nil {
+			t.Fatal(err)
+		}
+	}
+
+	record(firstPathID, 0, true, "203.0.113.10", "")
+	record(secondPath.ID, 1, true, "203.0.113.10", "")
+	record(firstPathID, 2, true, "203.0.113.11", "")
+	record(firstPathID, 3, false, "", "no-valid-response")
+	record(firstPathID, 4, true, "203.0.113.11", "")
+	record(secondPath.ID, 5, true, "203.0.113.11", "")
+
+	upload, err := store.AddressUpload(64)
+	if err != nil {
+		t.Fatal(err)
+	}
+	wantKinds := []string{"first-observation", "address-added", "check-failure", "recovery", "address-removed"}
+	wantAddresses := []string{"203.0.113.10", "203.0.113.11", "203.0.113.11", "203.0.113.11", "203.0.113.10"}
+	if len(upload.Events) != len(wantKinds) {
+		t.Fatalf("address events = %#v", upload.Events)
+	}
+	for index, event := range upload.Events {
+		if event.Kind != wantKinds[index] || event.PublicAddress == nil || *event.PublicAddress != wantAddresses[index] {
+			t.Fatalf("address event %d = %#v", index, event)
+		}
+	}
+}
+
 func openAddressTestStore(t *testing.T, directory string) (*Store, string) {
 	t.Helper()
 	store, err := Open(directory)
@@ -139,12 +185,12 @@ func openAddressTestStore(t *testing.T, directory string) (*Store, string) {
 	}
 	egressID := "c7b5eeac-903d-4b99-961d-190a8a4e5d2e"
 	if err := store.ApplyConfiguration(Configuration{
-		SchemaVersion: 5, Revision: 1, Enabled: true, HistoryGeneration: testHistoryGeneration,
-		ProbeSchedule:     ProbeSchedule{Enabled: true, Cron: "0 0 0 * * *", Timezone: "agent-local"},
+		SchemaVersion: 7, Revision: 1, Enabled: true, HistoryGeneration: testHistoryGeneration,
+		ProbeSchedule:     ProbeSchedule{Enabled: true, Cron: "0 0 0 * * *", Timezone: "UTC"},
 		DiscoveryServices: testDiscoveryServices(),
-		Egresses: []Egress{{
+		DiscoveryPaths: []Egress{{
 			ID: egressID, Kind: "default", Family: "ipv4", Enabled: true,
-			LightweightIntervalSeconds: 600, ProbeOnAddressChange: true,
+			LightweightIntervalSeconds: 600,
 		}},
 	}); err != nil {
 		t.Fatal(err)

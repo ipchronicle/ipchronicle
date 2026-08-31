@@ -4,7 +4,6 @@ import (
 	"bytes"
 	"encoding/json"
 	"errors"
-	"fmt"
 	"net/netip"
 	"slices"
 	"time"
@@ -45,7 +44,6 @@ type AddressEvent struct {
 	Sequence          int64     `json:"sequence"`
 	Kind              string    `json:"kind"`
 	Family            string    `json:"family"`
-	PreviousAddress   *string   `json:"previousAddress,omitempty"`
 	PublicAddress     *string   `json:"publicAddress,omitempty"`
 	LocalInterface    *string   `json:"localInterface,omitempty"`
 	LocalAddress      *string   `json:"localAddress,omitempty"`
@@ -113,12 +111,11 @@ func (s *Store) AddressState(egressID string) (AddressState, error) {
 	return result, err
 }
 
-func (s *Store) RecordAddressObservation(observation AddressObservation) (bool, error) {
+func (s *Store) RecordAddressObservation(observation AddressObservation) error {
 	if err := validateAddressObservation(observation); err != nil {
-		return false, err
+		return err
 	}
-	changed := false
-	err := s.database.Update(func(transaction *bolt.Tx) error {
+	return s.database.Update(func(transaction *bolt.Tx) error {
 		configuration, err := configurationFromTransaction(s.masterKey, transaction)
 		if err != nil {
 			return err
@@ -128,6 +125,10 @@ func (s *Store) RecordAddressObservation(observation AddressObservation) (bool, 
 			return ErrInvalidAddressObservation
 		}
 		currentBucket := transaction.Bucket(addressCurrentBucket)
+		confirmedAddresses, err := confirmedAddressCounts(currentBucket)
+		if err != nil {
+			return err
+		}
 		var previous *AddressState
 		if encoded := currentBucket.Get([]byte(observation.EgressID)); encoded != nil {
 			var value AddressState
@@ -136,8 +137,7 @@ func (s *Store) RecordAddressObservation(observation AddressObservation) (bool, 
 			}
 			previous = &value
 		}
-		state, events, didChange := transitionAddressState(previous, observation)
-		changed = didChange
+		state, events := transitionAddressState(previous, observation, confirmedAddresses)
 		encoded, err := json.Marshal(state)
 		if err != nil {
 			return err
@@ -152,7 +152,21 @@ func (s *Store) RecordAddressObservation(observation AddressObservation) (bool, 
 		}
 		return nil
 	})
-	return changed, err
+}
+
+func confirmedAddressCounts(bucket *bolt.Bucket) (map[string]int, error) {
+	counts := make(map[string]int)
+	err := bucket.ForEach(func(_, encoded []byte) error {
+		var state AddressState
+		if err := decodeAddressState(encoded, &state); err != nil {
+			return err
+		}
+		if state.PublicAddress != nil {
+			counts[*state.PublicAddress]++
+		}
+		return nil
+	})
+	return counts, err
 }
 
 func (s *Store) AddressUpload(maxEvents int) (AddressUpload, error) {
@@ -257,7 +271,7 @@ func (s *Store) AcknowledgeAddressUpload(receipt AddressUploadReceipt) error {
 	})
 }
 
-func transitionAddressState(previous *AddressState, observation AddressObservation) (AddressState, []AddressEvent, bool) {
+func transitionAddressState(previous *AddressState, observation AddressObservation, confirmedAddresses map[string]int) (AddressState, []AddressEvent) {
 	state := AddressState{
 		EgressID: observation.EgressID, HistoryGeneration: observation.HistoryGeneration,
 		Family: observation.Family, LastCheckedAt: observation.CheckedAt.UTC(),
@@ -282,12 +296,12 @@ func transitionAddressState(previous *AddressState, observation AddressObservati
 		}
 	}
 	var events []AddressEvent
-	appendEvent := func(kind string, previousAddress *string) {
+	appendEvent := func(kind string, publicAddress *string) {
 		state.Sequence++
 		events = append(events, AddressEvent{
 			ID: uuid.NewString(), EgressID: state.EgressID, HistoryGeneration: state.HistoryGeneration,
 			Sequence: state.Sequence, Kind: kind, Family: state.Family,
-			PreviousAddress: cloneString(previousAddress), PublicAddress: cloneString(state.PublicAddress),
+			PublicAddress:  cloneString(publicAddress),
 			LocalInterface: cloneString(state.LocalInterface), LocalAddress: cloneString(state.LocalAddress),
 			ProxyPath: state.ProxyPath, LikelyNAT: state.LikelyNAT, Temporary: state.Temporary,
 			FailureReason: cloneString(state.FailureReason), ObservedAt: state.LastCheckedAt,
@@ -300,7 +314,7 @@ func transitionAddressState(previous *AddressState, observation AddressObservati
 		if previous == nil || previous.Status != "failed" {
 			appendEvent("check-failure", state.PublicAddress)
 		}
-		return state, events, false
+		return state, events
 	}
 	publicAddress := observation.PublicAddress
 	oldAddress := cloneString(state.PublicAddress)
@@ -310,21 +324,27 @@ func transitionAddressState(previous *AddressState, observation AddressObservati
 	succeededAt := state.LastCheckedAt
 	state.LastSucceededAt = &succeededAt
 	if previous != nil && previous.Status == "failed" {
-		appendEvent("recovery", oldAddress)
+		appendEvent("recovery", state.PublicAddress)
 	}
 	if oldAddress == nil {
 		changedAt := state.LastCheckedAt
 		state.LastChangedAt = &changedAt
-		appendEvent("first-observation", nil)
-		return state, events, false
+		if confirmedAddresses[publicAddress] == 0 {
+			appendEvent("first-observation", state.PublicAddress)
+		}
+		return state, events
 	}
 	if *oldAddress != publicAddress {
 		changedAt := state.LastCheckedAt
 		state.LastChangedAt = &changedAt
-		appendEvent("address-change", oldAddress)
-		return state, events, true
+		if confirmedAddresses[*oldAddress] == 1 {
+			appendEvent("address-removed", oldAddress)
+		}
+		if confirmedAddresses[publicAddress] == 0 {
+			appendEvent("address-added", state.PublicAddress)
+		}
 	}
-	return state, events, false
+	return state, events
 }
 
 func enqueueAddressEvent(transaction *bolt.Tx, event AddressEvent) error {
@@ -403,7 +423,7 @@ func reconcileAddressBuckets(transaction *bolt.Tx, configuration Configuration, 
 		}
 		return discarded, nil
 	}
-	paths := configuration.discoveryPaths()
+	paths := configuration.DiscoveryPaths
 	retained := make(map[string]struct{}, len(paths))
 	for _, egress := range paths {
 		retained[egress.ID] = struct{}{}
@@ -463,7 +483,7 @@ func configurationFromTransaction(masterKey [masterKeySize]byte, transaction *bo
 }
 
 func configurationContainsEgress(configuration Configuration, egressID, family string) bool {
-	for _, egress := range configuration.discoveryPaths() {
+	for _, egress := range configuration.DiscoveryPaths {
 		if egress.ID == egressID && egress.Family == family && egress.Enabled && configuration.Enabled {
 			return true
 		}
@@ -507,24 +527,15 @@ func validAddressFailureReason(value string) bool {
 }
 
 func decodeAddressState(encoded []byte, target *AddressState) error {
-	if err := json.Unmarshal(encoded, target); err != nil {
-		return fmt.Errorf("decode retained address state: %w", err)
-	}
-	return nil
+	return decodeJSON(encoded, target, "address state")
 }
 
 func decodeAddressEvent(encoded []byte, target *AddressEvent) error {
-	if err := json.Unmarshal(encoded, target); err != nil {
-		return fmt.Errorf("decode queued address event: %w", err)
-	}
-	return nil
+	return decodeJSON(encoded, target, "address event")
 }
 
 func decodeAddressGap(encoded []byte, target *AddressGap) error {
-	if err := json.Unmarshal(encoded, target); err != nil {
-		return fmt.Errorf("decode queued address gap: %w", err)
-	}
-	return nil
+	return decodeJSON(encoded, target, "address gap")
 }
 
 func cloneString(value *string) *string {

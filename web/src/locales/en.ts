@@ -3,6 +3,7 @@ export const en = {
     appName: "IPChronicle",
     common: {
       cancel: "Cancel",
+      close: "Close",
     },
     navigation: {
       menu: "Primary navigation",
@@ -321,6 +322,10 @@ export const en = {
       section: "Managed node",
       back: "Back to nodes",
       identity: "{{hostname}} · Agent {{version}}",
+      header: {
+        agent: "Agent {{version}}",
+        lastSeen: "Last seen {{value}}",
+      },
       notFound: "The node does not exist or has been deleted",
       loadFailed: "The node could not be loaded",
       retry: "Retry",
@@ -335,6 +340,11 @@ export const en = {
       overview: {
         loadFailed: "The node overview could not be loaded",
         refresh: "Refresh overview",
+        attention: {
+          configurationTitle: "Node configuration is not current",
+          configurationDetail:
+            "{{status}} · applied revision {{applied}}, desired revision {{desired}}.",
+        },
         node: {
           title: "Node status",
           detail: "Agent identity and current control-plane state.",
@@ -355,11 +365,24 @@ export const en = {
           empty: "No confirmed public address has been reported.",
           nat: "{{count}} public IP(s) are reached through NAT.",
           open: "Manage public IPs",
+          probeEnabled: "Probe enabled",
+          probeDisabled: "Probe disabled",
+          lastSeen: "Last confirmed",
         },
         probe: {
           title: "Complete probes",
           detail: "Current schedule and most recent complete-probe state.",
           open: "Open probes",
+        },
+        activity: {
+          title: "Recent activity",
+          detail: "Latest complete probes and public-IP changes for this node.",
+          latestProbe: "Latest complete probe",
+          noProbe: "Not run yet",
+          currentTask: "Latest task",
+          noTask: "No active task",
+          empty: "No probe runs or public-IP activity yet.",
+          gap: "{{count}} address event(s) were discarded from the offline queue.",
         },
       },
       changes: {
@@ -368,6 +391,14 @@ export const en = {
       },
       settings: {
         saved: "Node availability was updated.",
+        basic: {
+          title: "Basic information",
+          detail:
+            "Change the node name shown by the Center and its enabled state.",
+          name: "Node name",
+          save: "Save changes",
+          saved: "Node information saved.",
+        },
         availability: {
           title: "Node availability",
           detail:
@@ -380,16 +411,53 @@ export const en = {
         agent: {
           title: "Agent",
           detail: "Review the installed Agent and apply an available release.",
+          registered: "Registered",
           platform: "Platform",
           source: "Source revision",
           capabilities: "Capabilities",
+          credential: "Credential status",
+          valid: "Valid",
+          revoked: "Revoked",
           current: "The installed Agent is current for the selected channel.",
           updateAccepted: "The Agent update task was accepted.",
+        },
+        discovery: {
+          title: "Discovery and probes",
+          detail:
+            "Configure node-level public-exit discovery and automatic probe policies.",
+          running: "Running",
+          loadFailed: "Node probe settings could not be loaded.",
+          save: "Save policies",
+          saved: "Node discovery and probe policies saved.",
+        },
+        removal: {
+          title: "Uninstall Agent",
+          detail:
+            "Copy a command and run it as root on this node. The Center does not remotely remove host software, and host uninstall does not delete node history.",
+          copied: "Uninstall command copied.",
+          copyFailed: "The uninstall command could not be copied.",
+          preserve: {
+            title: "Uninstall and preserve state",
+            detail:
+              "Remove Agent services and binaries while retaining the local identity, configuration, and pending uploads. Reinstallation reuses this node identity.",
+            action: "Copy uninstall command",
+          },
+          purge: {
+            title: "Complete uninstall",
+            detail:
+              "Permanently remove the local identity, configuration, credentials, and pending uploads as well. Reinstallation creates a new Center node.",
+            action: "Copy complete uninstall command",
+          },
         },
         danger: {
           title: "Danger zone",
           detail:
             "Credential revocation and permanent deletion have different, irreversible effects.",
+          revokeTitle: "Revoke Agent credential",
+          revokeDetail:
+            "The Agent can no longer connect. Node configuration and history are retained.",
+          deleteTitle: "Permanently delete node",
+          deleteDetail: "Delete node state and revoke the Agent identity.",
           revoked: "The Agent credential was revoked.",
           deletionQueued: "Permanent node deletion was queued.",
         },
@@ -399,12 +467,16 @@ export const en = {
       section: "Settings",
       title: "Network probes",
       detail:
-        "Manage reusable HTTP, HTTPS, and SOCKS5 proxies. Passwords can be replaced or cleared but are never shown again.",
+        "Manage public-address discovery services shared by every node. Configure node proxies from that node's Public IPs page.",
       refresh: "Refresh",
       retry: "Retry",
       loadFailed: "Network proxy settings could not be loaded",
       empty: "No centrally managed proxies are configured.",
       save: "Save settings",
+      edit: "Edit",
+      editTitle: "Edit proxy",
+      editDetail:
+        "After the connection is saved, the Agent rediscovers its IPv4 and IPv6 public exits. Leave the password empty to keep it unchanged.",
       discovery: {
         title: "Public address discovery",
         detail:
@@ -422,7 +494,7 @@ export const en = {
       create: {
         title: "Add proxy",
         detail:
-          "The Center sends credentials only to Agents with a proxy discovery path that references this proxy.",
+          "This proxy belongs only to the current node. After it is saved, the Agent automatically checks its IPv4 and IPv6 public exits.",
         submit: "Add proxy",
       },
       fields: {
@@ -441,13 +513,13 @@ export const en = {
         clear: "Clear password",
         clearTitle: "Clear the stored proxy password?",
         clearDetail:
-          "Agents referencing this proxy will receive a new configuration without the password.",
+          "This node's Agent will receive a new configuration without the password.",
       },
       delete: {
         action: "Delete proxy",
         title: "Delete this network proxy?",
         detail:
-          "A proxy referenced by a proxy discovery path cannot be deleted. Remove those paths first.",
+          "The current node will stop discovering public exits through ‘{{name}}’, and its credentials will be deleted after the Agent confirms cleanup. Discovered public IPs, reports, and address history are retained.",
         confirm: "Delete proxy",
       },
     },
@@ -469,6 +541,11 @@ export const en = {
         empty: "Waiting for the Agent's first public-address discovery.",
         available: "Available",
         unavailable: "Unavailable",
+        status: {
+          available: "Available",
+          "check-failed": "Check failed",
+          unavailable: "Unavailable",
+        },
         firstSeen: "First discovered",
         lastSeen: "Last discovered: {{value}}",
         executionNode: "Current execution node",
@@ -478,10 +555,14 @@ export const en = {
         probeEnabled: "Enable complete probe",
         probeEnabledDetail:
           "Only enabled public IPs are included in complete IPQuality probes.",
-        probeOnRediscovery: "Probe after rediscovery",
-        probeOnRediscoveryDetail:
-          "After this public IP returns from an unavailable state, run one complete probe once the Agent applies its latest configuration.",
         saving: "Saving public IP settings",
+        path: "Discovery path",
+        direct: "Direct from node",
+        latestReport: "Latest report",
+        noReport: "Not probed yet",
+        probeShort: "Complete probe",
+        openReport: "View result",
+        probeNow: "Probe now",
       },
       observation: {
         waiting: "Waiting for the first lightweight address observation.",
@@ -503,13 +584,14 @@ export const en = {
         },
       },
       addressHistory: {
-        title: "Address transitions",
+        title: "Public IP history",
         detail:
-          "First observations, confirmed changes, failure boundaries, and recoveries are retained by public IP; gaps that cannot be assigned to an IP remain node-level.",
-        empty: "No address transition has been reported.",
+          "Entries and exits from the node's confirmed public-IP set are retained independently, together with check failures and recoveries.",
+        empty: "No public-IP history has been reported.",
         kind: {
           "first-observation": "First observation",
-          "address-change": "Address changed",
+          "address-added": "Entered current set",
+          "address-removed": "Left current set",
           "check-failure": "Check failed",
           recovery: "Recovered",
         },
@@ -517,28 +599,33 @@ export const en = {
         nodeLevel: "Node-level",
         gapDetail:
           "{{count}} offline events were discarded (sequence {{first}} to {{last}}).",
-      },
-      proxyDiscovery: {
-        title: "Proxy discovery paths",
-        detail:
-          "A proxy cannot be inferred from node networking. Choose a stored proxy and address family so the Agent can discover its public IP.",
-        noProxies: "No reusable network proxy is configured.",
-        openSettings: "Configure network proxies",
-        proxy: "Network proxy",
-        selectProxy: "Select a proxy",
-        family: "Address family",
-        add: "Add discovery path",
-        empty: "This node has no proxy discovery path.",
-        available: "Available",
-        unavailable: "Unavailable",
-        deletion: { pending: "Deleting", failed: "Deletion failed" },
-        delete: {
-          action: "Delete",
-          title: "Delete this proxy discovery path?",
+        current: {
+          title: "Current set",
           detail:
-            "The node will stop using ‘{{name}}’ to discover public IPs. Previously discovered public IPs, reports, and address history are retained.",
-          confirm: "Delete path",
+            "Public IPs still available in the latest confirmed discovery.",
+          empty: "No public IP is currently confirmed as available.",
         },
+      },
+      proxies: {
+        title: "Network proxies",
+        detail:
+          "Proxies are used only by this node. After one is added or changed, the Agent automatically discovers its IPv4 and IPv6 public exits.",
+        empty: "This node has no network proxy.",
+        noAddress: "No public IP discovered",
+        lastChecked: "Checked {{value}}",
+        status: {
+          checking: "Checking",
+          "ipv4-only": "IPv4 only",
+          "ipv6-only": "IPv6 only",
+          "dual-stack": "Dual stack",
+          unavailable: "Unavailable",
+        },
+        familyStatus: {
+          checking: "Checking",
+          available: "Available",
+          unavailable: "Unavailable",
+        },
+        deletion: { pending: "Deleting", failed: "Deletion failed" },
       },
     },
     probe: {
@@ -552,6 +639,17 @@ export const en = {
       nodeNotFound: "The node does not exist or was deleted",
       notAvailable: "Not available",
       runNow: "Run complete probe",
+      targets: {
+        title: "Select public IPs",
+        detail:
+          "The selected public IPs are enabled and saved as the targets for this run.",
+        loading: "Loading public IPs",
+        loadFailed: "Public IPs could not be loaded.",
+        retry: "Retry",
+        empty: "This node has no available public IP to probe.",
+        selected: "{{selected}} of {{total}} public IPs selected",
+        confirm: "Save and run probe",
+      },
       lowMemory: {
         title: "Complete probes are paused for low memory",
         detail:
@@ -576,6 +674,11 @@ export const en = {
         last: "Last occurrence",
         trigger: "Trigger",
         memory: "Physical memory",
+        latestComplete: "Latest complete probe",
+        currentTask: "Current task",
+        noActiveTask: "No task is waiting or running",
+        scheduleEnabled: "Recurring schedule enabled",
+        scheduleDisabled: "Recurring schedule disabled",
         lastSkipped: "The last occurrence was skipped: {{reason}}",
         resetApplied:
           "History reset applied {{value}}; {{count}} queued item(s) were discarded.",
@@ -585,6 +688,7 @@ export const en = {
         detail:
           "Delivery and execution state for the latest administrator command.",
         empty: "No immediate complete-probe task has been created.",
+        emptyShort: "No active task",
         created: "The task is waiting for the Agent.",
         offline: "The task is still active, but the node is currently offline.",
         waiting: "Waiting for Agent",
@@ -599,17 +703,30 @@ export const en = {
         detail:
           "Node-level runs retain their frozen public-IP order and individual outcomes.",
         empty: "No complete probe has been run yet.",
+        emptyShort: "Not run yet",
         progress: "{{completed}} of {{total}} complete",
+        status: "Status",
+        completed: "Completed",
+        open: "View report",
+      },
+      schedule: {
+        title: "Recurring schedule",
+        detail:
+          "Runs in the selected time zone. Missed occurrences are not replayed.",
       },
       settings: {
         title: "Probe settings",
-        detail:
-          "The schedule runs locally on the Agent using a six-field Cron expression.",
+        detail: "Configure automatic complete probes for this node.",
+        probeOnNewAddress: "Probe newly discovered public IPs",
+        probeOnNewAddressDetail:
+          "When a public IP newly enters the node's current set, create one complete probe for that IP only. Establishing the initial discovery baseline does not trigger a probe.",
         scheduleEnabled: "Enable recurring probes",
         scheduleEnabledDetail:
           "Missed occurrences are skipped and are not run after restart.",
         cron: "Cron expression",
         timezone: "Time zone",
+        timezoneSearch: "Search time zones...",
+        timezoneEmpty: "No matching time zone",
         memoryOverride: "Allow probes below 256 MiB",
         memoryOverrideDetail:
           "Enabling this accepts possible probe failure or node resource exhaustion.",
@@ -618,7 +735,7 @@ export const en = {
       trigger: {
         manual: "Manual",
         schedule: "Schedule",
-        "address-change": "Address change",
+        "new-address": "New public IP",
       },
       state: {
         pending: "Waiting",
@@ -1419,7 +1536,7 @@ export const en = {
       invalid_egress_candidate: "This discovery path is currently unavailable.",
       egress_already_exists: "This proxy discovery path already exists.",
       egress_limit_reached:
-        "This node has reached the maximum of 64 proxy discovery paths.",
+        "This node has reached its managed public-exit limit.",
       egress_not_found:
         "The proxy discovery path does not exist or was deleted.",
       egress_deletion_pending:
@@ -1430,9 +1547,9 @@ export const en = {
       network_proxy_already_exists:
         "A network proxy with this name already exists.",
       network_proxy_limit_reached:
-        "The installation has reached the maximum of 64 network proxies.",
-      network_proxy_in_use:
-        "This proxy is still referenced by a proxy discovery path and cannot be deleted.",
+        "This node has reached the maximum of 64 network proxies.",
+      network_proxy_deletion_pending:
+        "This proxy is being deleted and cannot accept other changes.",
       invalid_observation_settings:
         "Use 2 to 8 valid HTTP or HTTPS URLs with distinct hosts for each address family.",
       invalid_probe_settings: "The Cron expression or time zone is invalid.",
@@ -1443,6 +1560,8 @@ export const en = {
         "A complete-probe run is already active on this node.",
       probe_paused_low_memory:
         "Complete probes are paused because this node reported less than 256 MiB of memory.",
+      probe_target_unavailable:
+        "A selected public IP is no longer available through this node. Reopen the probe dialog and choose again.",
       no_enabled_egress: "This node has no enabled public IP.",
       probe_run_not_found:
         "The complete-probe run does not exist or was removed.",
