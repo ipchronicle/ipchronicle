@@ -220,6 +220,57 @@ func TestNewAddressTaskFreezesOnlyRequestedTargets(t *testing.T) {
 	}
 }
 
+func TestProbeEnablementDependsOnTrigger(t *testing.T) {
+	t.Run("manual task includes a disabled target", func(t *testing.T) {
+		store, publicAddressIDs := openProbeTestStore(t, filepath.Join(t.TempDir(), "agent"), 2)
+		defer store.Close()
+		configuration, err := store.Configuration()
+		if err != nil {
+			t.Fatal(err)
+		}
+		configuration.Revision++
+		configuration.ProbeTargets[0].Enabled = false
+		if err := store.ApplyConfiguration(configuration); err != nil {
+			t.Fatal(err)
+		}
+		start := time.Date(2026, 8, 9, 13, 0, 0, 0, time.UTC)
+		task := ProbeTaskDelivery{
+			ID: uuid.NewString(), Trigger: "manual",
+			PublicAddressIDs: []string{publicAddressIDs[0]},
+			CreatedAt:        start, ExpiresAt: start.Add(2 * time.Minute),
+		}
+		run, err := store.StartProbeRun("manual", &task, start)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if len(run.Executions) != 1 || run.Executions[0].EgressID != publicAddressIDs[0] {
+			t.Fatalf("manual run executions = %#v", run.Executions)
+		}
+	})
+
+	t.Run("scheduled run excludes disabled targets", func(t *testing.T) {
+		store, publicAddressIDs := openProbeTestStore(t, filepath.Join(t.TempDir(), "agent"), 2)
+		defer store.Close()
+		configuration, err := store.Configuration()
+		if err != nil {
+			t.Fatal(err)
+		}
+		configuration.Revision++
+		configuration.ProbeTargets[0].Enabled = false
+		if err := store.ApplyConfiguration(configuration); err != nil {
+			t.Fatal(err)
+		}
+		start := time.Date(2026, 8, 9, 13, 0, 0, 0, time.UTC)
+		run, err := store.StartProbeRun("schedule", nil, start)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if len(run.Executions) != 1 || run.Executions[0].EgressID != publicAddressIDs[1] {
+			t.Fatalf("scheduled run executions = %#v", run.Executions)
+		}
+	})
+}
+
 func TestHistoryGenerationChangeDiscardsQueuedProbeArtifactsAndFinishesActiveRun(t *testing.T) {
 	directory := filepath.Join(t.TempDir(), "agent")
 	store, _ := openProbeTestStore(t, directory, 1)
@@ -378,7 +429,7 @@ func openProbeTestStore(t *testing.T, directory string, egressCount int) (*Store
 		t.Fatal(err)
 	}
 	configuration := Configuration{
-		SchemaVersion: 7, Revision: 1, Enabled: true, HistoryGeneration: testHistoryGeneration,
+		SchemaVersion: 8, Revision: 1, Enabled: true, HistoryGeneration: testHistoryGeneration,
 		ProbeSchedule:     ProbeSchedule{Enabled: true, Cron: "0 0 0 * * *", Timezone: "UTC"},
 		DiscoveryServices: testDiscoveryServices(),
 	}

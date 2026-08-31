@@ -311,7 +311,7 @@ func probeTestConfiguration(kind, family string) (state.Configuration, state.Egr
 		Kind: kind, Family: family, Enabled: true,
 	}
 	return state.Configuration{
-		SchemaVersion: 7, Revision: 1, Enabled: true,
+		SchemaVersion: 8, Revision: 1, Enabled: true,
 		HistoryGeneration: "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef",
 		ProbeTargets:      []state.Egress{egress},
 	}, egress

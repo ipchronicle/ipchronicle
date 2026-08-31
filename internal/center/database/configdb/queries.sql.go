@@ -2090,29 +2090,62 @@ func (q *Queries) ListLatestAgentUpdateTasks(ctx context.Context) ([]ProbeTask, 
 	return items, nil
 }
 
-const listNodeAvailablePublicAddressProbeSettings = `-- name: ListNodeAvailablePublicAddressProbeSettings :many
-SELECT a.id, a.probe_enabled
+const listNodeAvailablePublicAddressTargets = `-- name: ListNodeAvailablePublicAddressTargets :many
+SELECT a.id, a.address, a.family, a.probe_enabled,
+       a.selected_path_id, a.first_seen_at, a.last_seen_at, a.updated_at,
+       e.node_id, e.name, e.kind, e.interface_name, e.source_address,
+       e.proxy_id, e.lightweight_interval_seconds
 FROM public_addresses a
-JOIN public_address_paths p ON p.path_id = a.selected_path_id
-WHERE p.node_id = ? AND p.public_address_id = a.id AND p.available = 1
+JOIN network_egresses e ON e.id = a.selected_path_id
+JOIN public_address_paths p ON p.path_id = e.id AND p.public_address_id = a.id
+WHERE e.node_id = ? AND p.available = 1
 ORDER BY a.family, a.address
 `
 
-type ListNodeAvailablePublicAddressProbeSettingsRow struct {
-	ID           string
-	ProbeEnabled int64
+type ListNodeAvailablePublicAddressTargetsRow struct {
+	ID                         string
+	Address                    string
+	Family                     string
+	ProbeEnabled               int64
+	SelectedPathID             *string
+	FirstSeenAt                int64
+	LastSeenAt                 int64
+	UpdatedAt                  int64
+	NodeID                     string
+	Name                       string
+	Kind                       string
+	InterfaceName              *string
+	SourceAddress              *string
+	ProxyID                    *string
+	LightweightIntervalSeconds int64
 }
 
-func (q *Queries) ListNodeAvailablePublicAddressProbeSettings(ctx context.Context, nodeID string) ([]ListNodeAvailablePublicAddressProbeSettingsRow, error) {
-	rows, err := q.db.QueryContext(ctx, listNodeAvailablePublicAddressProbeSettings, nodeID)
+func (q *Queries) ListNodeAvailablePublicAddressTargets(ctx context.Context, nodeID string) ([]ListNodeAvailablePublicAddressTargetsRow, error) {
+	rows, err := q.db.QueryContext(ctx, listNodeAvailablePublicAddressTargets, nodeID)
 	if err != nil {
 		return nil, err
 	}
 	defer rows.Close()
-	items := []ListNodeAvailablePublicAddressProbeSettingsRow{}
+	items := []ListNodeAvailablePublicAddressTargetsRow{}
 	for rows.Next() {
-		var i ListNodeAvailablePublicAddressProbeSettingsRow
-		if err := rows.Scan(&i.ID, &i.ProbeEnabled); err != nil {
+		var i ListNodeAvailablePublicAddressTargetsRow
+		if err := rows.Scan(
+			&i.ID,
+			&i.Address,
+			&i.Family,
+			&i.ProbeEnabled,
+			&i.SelectedPathID,
+			&i.FirstSeenAt,
+			&i.LastSeenAt,
+			&i.UpdatedAt,
+			&i.NodeID,
+			&i.Name,
+			&i.Kind,
+			&i.InterfaceName,
+			&i.SourceAddress,
+			&i.ProxyID,
+			&i.LightweightIntervalSeconds,
+		); err != nil {
 			return nil, err
 		}
 		items = append(items, i)
@@ -2428,75 +2461,6 @@ func (q *Queries) ListNodePublicAddresses(ctx context.Context, nodeID string) ([
 			&i.FirstSeenAt,
 			&i.LastSeenAt,
 			&i.UpdatedAt,
-		); err != nil {
-			return nil, err
-		}
-		items = append(items, i)
-	}
-	if err := rows.Close(); err != nil {
-		return nil, err
-	}
-	if err := rows.Err(); err != nil {
-		return nil, err
-	}
-	return items, nil
-}
-
-const listNodeSelectedPublicAddresses = `-- name: ListNodeSelectedPublicAddresses :many
-SELECT a.id, a.address, a.family, a.probe_enabled,
-       a.selected_path_id, a.first_seen_at, a.last_seen_at, a.updated_at,
-       e.node_id, e.name, e.kind, e.interface_name, e.source_address,
-       e.proxy_id, e.lightweight_interval_seconds
-FROM public_addresses a
-JOIN network_egresses e ON e.id = a.selected_path_id
-JOIN public_address_paths p ON p.path_id = e.id AND p.public_address_id = a.id
-WHERE e.node_id = ? AND a.probe_enabled = 1 AND p.available = 1
-ORDER BY a.family, a.address
-`
-
-type ListNodeSelectedPublicAddressesRow struct {
-	ID                         string
-	Address                    string
-	Family                     string
-	ProbeEnabled               int64
-	SelectedPathID             *string
-	FirstSeenAt                int64
-	LastSeenAt                 int64
-	UpdatedAt                  int64
-	NodeID                     string
-	Name                       string
-	Kind                       string
-	InterfaceName              *string
-	SourceAddress              *string
-	ProxyID                    *string
-	LightweightIntervalSeconds int64
-}
-
-func (q *Queries) ListNodeSelectedPublicAddresses(ctx context.Context, nodeID string) ([]ListNodeSelectedPublicAddressesRow, error) {
-	rows, err := q.db.QueryContext(ctx, listNodeSelectedPublicAddresses, nodeID)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-	items := []ListNodeSelectedPublicAddressesRow{}
-	for rows.Next() {
-		var i ListNodeSelectedPublicAddressesRow
-		if err := rows.Scan(
-			&i.ID,
-			&i.Address,
-			&i.Family,
-			&i.ProbeEnabled,
-			&i.SelectedPathID,
-			&i.FirstSeenAt,
-			&i.LastSeenAt,
-			&i.UpdatedAt,
-			&i.NodeID,
-			&i.Name,
-			&i.Kind,
-			&i.InterfaceName,
-			&i.SourceAddress,
-			&i.ProxyID,
-			&i.LightweightIntervalSeconds,
 		); err != nil {
 			return nil, err
 		}

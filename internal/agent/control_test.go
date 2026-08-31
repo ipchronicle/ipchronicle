@@ -54,7 +54,7 @@ func TestConfigurationMapsV6TransportSemantics(t *testing.T) {
 		}
 		response.Header().Set("Content-Type", "application/json")
 		_ = json.NewEncoder(response).Encode(agentapi.AgentConfigurationSnapshot{
-			SchemaVersion: 7, Revision: 7, Enabled: true, HistoryGeneration: generation,
+			SchemaVersion: 8, Revision: 7, Enabled: true, HistoryGeneration: generation,
 			DiscoveryPaths: []agentapi.AgentDiscoveryPath{{
 				Id: discoveryID, Kind: agentapi.Source, Family: agentapi.Ipv4,
 				InterfaceName: pointer("eth0"), SourceAddress: pointer("10.0.0.2"),
@@ -63,7 +63,7 @@ func TestConfigurationMapsV6TransportSemantics(t *testing.T) {
 			ProbeTargets: []agentapi.AgentProbeTarget{{
 				Id: targetID, PathId: pathID, PublicAddress: "203.0.113.10",
 				Kind: agentapi.Proxy, Family: agentapi.Ipv4,
-				ProxyId: &proxyID,
+				ProxyId: &proxyID, Enabled: false,
 			}},
 			Proxies: []agentapi.AgentProxyConfiguration{{
 				Id: proxyID, Scheme: agentapi.NetworkProxySchemeSocks5, Host: "proxy.example", Port: 1080,
@@ -89,7 +89,7 @@ func TestConfigurationMapsV6TransportSemantics(t *testing.T) {
 		configuration.DiscoveryPaths[0].ID != discoveryID.String() || configuration.DiscoveryPaths[0].LightweightIntervalSeconds != 600 {
 		t.Fatalf("discovery paths = %#v", configuration.DiscoveryPaths)
 	}
-	if len(configuration.ProbeTargets) != 1 || !configuration.ProbeTargets[0].Enabled ||
+	if len(configuration.ProbeTargets) != 1 || configuration.ProbeTargets[0].Enabled ||
 		configuration.ProbeTargets[0].ID != targetID.String() || configuration.ProbeTargets[0].PathID == nil ||
 		*configuration.ProbeTargets[0].PathID != pathID.String() {
 		t.Fatalf("probe targets = %#v", configuration.ProbeTargets)

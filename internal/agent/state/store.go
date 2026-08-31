@@ -27,7 +27,7 @@ import (
 
 const (
 	masterKeySize         = 32
-	localSchemaVersion    = 7
+	localSchemaVersion    = 8
 	secretEnvelopeVersion = 1
 )
 

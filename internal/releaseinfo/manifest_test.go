@@ -13,7 +13,7 @@ func TestParseManifestAndSelectAgentArtifact(t *testing.T) {
       "channel":"rc",
       "revision":"0123456789abcdef0123456789abcdef01234567",
       "sourceUrl":"https://github.com/ipchronicle/ipchronicle/tree/v0.1.0-rc.1",
-      "agentCapabilities":["address-observation-v1","agent-update-v1","complete-probe-v1","configuration-v7","control-v1","network-inventory-v1","sync-wakeup-v1"],
+      "agentCapabilities":["address-observation-v1","agent-update-v1","complete-probe-v1","configuration-v8","control-v1","network-inventory-v1","sync-wakeup-v1"],
       "artifacts":[
         {"name":"ipchronicle-agent-linux-amd64","component":"agent","os":"linux","arch":"amd64","size":123,"sha256":"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"},
         {"name":"ipchronicle-agent-linux-arm64","component":"agent","os":"linux","arch":"arm64","size":124,"sha256":"bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"}
@@ -30,7 +30,7 @@ func TestParseManifestAndSelectAgentArtifact(t *testing.T) {
 }
 
 func TestManifestRejectsMismatchedAndUnknownData(t *testing.T) {
-	base := `{"schemaVersion":1,"version":"0.1.0","tag":"v0.1.0","channel":"stable","revision":"0123456789abcdef0123456789abcdef01234567","sourceUrl":"https://github.com/ipchronicle/ipchronicle/tree/v0.1.0","agentCapabilities":["address-observation-v1","agent-update-v1","complete-probe-v1","configuration-v7","control-v1","network-inventory-v1","sync-wakeup-v1"],"artifacts":[{"name":"ipchronicle-agent-linux-amd64","component":"agent","os":"linux","arch":"amd64","size":1,"sha256":"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"},{"name":"ipchronicle-agent-linux-arm64","component":"agent","os":"linux","arch":"arm64","size":1,"sha256":"bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"}]}`
+	base := `{"schemaVersion":1,"version":"0.1.0","tag":"v0.1.0","channel":"stable","revision":"0123456789abcdef0123456789abcdef01234567","sourceUrl":"https://github.com/ipchronicle/ipchronicle/tree/v0.1.0","agentCapabilities":["address-observation-v1","agent-update-v1","complete-probe-v1","configuration-v8","control-v1","network-inventory-v1","sync-wakeup-v1"],"artifacts":[{"name":"ipchronicle-agent-linux-amd64","component":"agent","os":"linux","arch":"amd64","size":1,"sha256":"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"},{"name":"ipchronicle-agent-linux-arm64","component":"agent","os":"linux","arch":"arm64","size":1,"sha256":"bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"}]}`
 	for _, input := range []string{
 		strings.Replace(base, `"channel":"stable"`, `"channel":"rc"`, 1),
 		strings.Replace(base, `"size":1`, `"size":0`, 1),

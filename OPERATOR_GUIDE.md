@@ -229,6 +229,12 @@ and occupies the node's single task slot. There is no task backlog. The page
 shows whether the Agent received the task and the progress or terminal state of
 each public-IP execution.
 
+The public-IP enablement switch controls recurring and automatic new-address
+probes. A node-level immediate command selects targets only for that run and
+does not change those switches. The immediate action on a public-IP row starts a
+single-IP task directly, including when recurring probing is disabled for that
+IP.
+
 For every attempted public IP the Agent downloads a fresh official IPQuality
 script, supervises its process tree as root, and validates bounded JSON output.
 IPChronicle does not pin or cache the upstream script. A missing known field is

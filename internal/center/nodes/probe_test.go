@@ -30,7 +30,7 @@ func newProbeServiceFixture(t *testing.T, physicalMemoryBytes int64) *probeServi
 		now: time.Date(2026, 8, 9, 12, 0, 0, 0, time.UTC),
 		metadata: Metadata{
 			Hostname: "probe.example", AgentVersion: "0.1.0", OperatingSystem: "linux", Architecture: "amd64",
-			Capabilities:        []string{"control-v1", "configuration-v7", "complete-probe-v1"},
+			Capabilities:        []string{"control-v1", "configuration-v8", "complete-probe-v1"},
 			PhysicalMemoryBytes: physicalMemoryBytes,
 		},
 	}
@@ -243,32 +243,68 @@ func TestProbeOnNewAddressSettingUpdatesIndependentlyAndClearsPending(t *testing
 	}
 }
 
-func TestCreateCompleteProbeTaskSavesTargetsAtomically(t *testing.T) {
-	t.Run("selected targets replace the enabled set", func(t *testing.T) {
+func TestCreateCompleteProbeTaskKeepsTargetSettings(t *testing.T) {
+	t.Run("a disabled target can be selected without enabling it", func(t *testing.T) {
 		fixture := newProbeServiceFixture(t, 512*1024*1024)
+		selected := fixture.egresses[0].ID
+		if _, err := fixture.service.UpdatePublicAddress(
+			fixture.ctx, fixture.registration.NodeID, selected,
+			PublicAddressUpdate{ProbeEnabled: false},
+		); err != nil {
+			t.Fatal(err)
+		}
+		if err := fixture.store.ConfigQueries.UpsertPendingPublicAddressProbe(
+			fixture.ctx, configdb.UpsertPendingPublicAddressProbeParams{
+				PublicAddressID:               fixture.egresses[1].ID.String(),
+				NodeID:                        fixture.registration.NodeID.String(),
+				RequiredConfigurationRevision: fixture.configuration.Revision,
+				CreatedAt:                     fixture.now.Unix(),
+			},
+		); err != nil {
+			t.Fatal(err)
+		}
 		before, err := fixture.store.ConfigQueries.GetNodeProbeSettings(fixture.ctx, fixture.registration.NodeID.String())
 		if err != nil {
 			t.Fatal(err)
 		}
-		selected := fixture.egresses[0].ID
-		if _, err := fixture.service.CreateCompleteProbeTask(
+		task, err := fixture.service.CreateCompleteProbeTask(
 			fixture.ctx, fixture.registration.NodeID, []uuid.UUID{selected},
-		); err != nil {
+		)
+		if err != nil {
 			t.Fatal(err)
 		}
 		after, err := fixture.store.ConfigQueries.GetNodeProbeSettings(fixture.ctx, fixture.registration.NodeID.String())
 		if err != nil {
 			t.Fatal(err)
 		}
-		if after.DesiredConfigurationRevision != before.DesiredConfigurationRevision+1 {
-			t.Fatalf("desired revision = %d, want %d", after.DesiredConfigurationRevision, before.DesiredConfigurationRevision+1)
+		if after.DesiredConfigurationRevision != before.DesiredConfigurationRevision {
+			t.Fatalf("desired revision changed from %d to %d", before.DesiredConfigurationRevision, after.DesiredConfigurationRevision)
 		}
 		configuration, err := fixture.service.Configuration(fixture.ctx, fixture.registration.Credential)
 		if err != nil {
 			t.Fatal(err)
 		}
-		if len(configuration.ProbeTargets) != 1 || configuration.ProbeTargets[0].ID != selected {
-			t.Fatalf("probe targets = %#v, want only %s", configuration.ProbeTargets, selected)
+		if len(configuration.ProbeTargets) != len(fixture.egresses) {
+			t.Fatalf("probe target count = %d, want %d", len(configuration.ProbeTargets), len(fixture.egresses))
+		}
+		selectedStillDisabled := false
+		for _, target := range configuration.ProbeTargets {
+			if target.ID == selected {
+				selectedStillDisabled = !target.Enabled
+			}
+		}
+		if !selectedStillDisabled {
+			t.Fatalf("selected target was enabled in configuration: %#v", configuration.ProbeTargets)
+		}
+		if len(task.PublicAddressIDs) != 1 || task.PublicAddressIDs[0] != selected {
+			t.Fatalf("manual task targets = %#v, want only %s", task.PublicAddressIDs, selected)
+		}
+		var pending int
+		if err := fixture.store.Config.QueryRowContext(
+			fixture.ctx, `SELECT count(*) FROM pending_public_address_probes WHERE node_id = ?`,
+			fixture.registration.NodeID.String(),
+		).Scan(&pending); err != nil || pending != 1 {
+			t.Fatalf("pending automatic probes after manual task = %d, %v", pending, err)
 		}
 	})
 

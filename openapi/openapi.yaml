@@ -1802,7 +1802,6 @@ components:
         - probe_already_running
         - probe_paused_low_memory
         - probe_target_unavailable
-        - no_enabled_egress
         - probe_run_not_found
         - probe_snapshot_not_found
         - snapshot_egress_mismatch
@@ -2465,7 +2464,7 @@ components:
     AgentProbeTarget:
       type: object
       additionalProperties: false
-      required: [id, pathId, publicAddress, kind, family]
+      required: [id, pathId, publicAddress, kind, family, enabled]
       properties:
         id:
           type: string
@@ -2481,6 +2480,8 @@ components:
           $ref: "#/components/schemas/NetworkEgressKind"
         family:
           $ref: "#/components/schemas/AddressFamily"
+        enabled:
+          type: boolean
         interfaceName:
           type: string
           minLength: 1

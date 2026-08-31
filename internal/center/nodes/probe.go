@@ -39,7 +39,6 @@ var (
 	ErrProbePausedLowMemory   = errors.New("complete probes are paused below the memory baseline")
 	ErrInvalidProbeTargets    = errors.New("complete-probe targets are invalid")
 	ErrProbeTargetUnavailable = errors.New("complete-probe target is unavailable")
-	ErrNoEnabledEgress        = errors.New("node has no enabled network egress")
 	ErrProbeRunNotFound       = errors.New("complete-probe run does not exist")
 	ErrProbeSnapshotNotFound  = errors.New("complete-probe snapshot does not exist")
 	ErrInvalidProbeArtifact   = errors.New("complete-probe artifact is invalid")
@@ -450,7 +449,7 @@ func (s *Service) CreateCompleteProbeTask(ctx context.Context, nodeID uuid.UUID,
 	} else if !errors.Is(err, sql.ErrNoRows) {
 		return Task{}, err
 	}
-	available, err := queries.ListNodeAvailablePublicAddressProbeSettings(ctx, nodeID.String())
+	available, err := queries.ListNodeAvailablePublicAddressTargets(ctx, nodeID.String())
 	if err != nil {
 		return Task{}, err
 	}
@@ -464,33 +463,6 @@ func (s *Service) CreateCompleteProbeTask(ctx context.Context, nodeID uuid.UUID,
 		}
 	}
 
-	configurationChanged := false
-	for _, address := range available {
-		_, enabled := requested[address.ID]
-		value := boolInteger(enabled)
-		changed, err := queries.SetPublicAddressProbeSettings(ctx, configdb.SetPublicAddressProbeSettingsParams{
-			ProbeEnabled: value, UpdatedAt: now.Unix(), ID: address.ID, ProbeEnabled_2: value,
-		})
-		if err != nil {
-			return Task{}, err
-		}
-		configurationChanged = configurationChanged || changed > 0
-		if err := queries.DeletePendingPublicAddressProbeByAddress(ctx, address.ID); err != nil {
-			return Task{}, err
-		}
-	}
-	if configurationChanged {
-		if err := incrementNodeConfiguration(ctx, queries, nodeID.String()); err != nil {
-			return Task{}, err
-		}
-	}
-	targets, err := queries.ListNodeSelectedPublicAddresses(ctx, nodeID.String())
-	if err != nil {
-		return Task{}, err
-	}
-	if len(targets) == 0 {
-		return Task{}, ErrNoEnabledEgress
-	}
 	id := uuid.New()
 	expiresAt := now.Add(probeTaskDeliveryWindow)
 	if err := queries.CreateProbeTask(ctx, configdb.CreateProbeTaskParams{
@@ -501,18 +473,14 @@ func (s *Service) CreateCompleteProbeTask(ctx context.Context, nodeID uuid.UUID,
 		}
 		return Task{}, err
 	}
-	targetIDs := make([]uuid.UUID, 0, len(targets))
-	for ordinal, target := range targets {
+	targetIDs := make([]uuid.UUID, 0, len(publicAddressIDs))
+	for ordinal, targetID := range publicAddressIDs {
 		if err := queries.CreateProbeTaskPublicAddress(ctx, configdb.CreateProbeTaskPublicAddressParams{
-			TaskID: id.String(), PublicAddressID: target.ID, Ordinal: int64(ordinal),
+			TaskID: id.String(), PublicAddressID: targetID.String(), Ordinal: int64(ordinal),
 		}); err != nil {
 			return Task{}, err
 		}
-		parsed, err := uuid.Parse(target.ID)
-		if err != nil {
-			return Task{}, err
-		}
-		targetIDs = append(targetIDs, parsed)
+		targetIDs = append(targetIDs, targetID)
 	}
 	if err := transaction.Commit(); err != nil {
 		return Task{}, err

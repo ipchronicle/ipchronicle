@@ -35,13 +35,11 @@ type AddressState =
 export function CompleteProbeDialog({
   nodeId,
   csrfToken,
-  initialPublicAddressId,
   children,
   onCreated,
 }: {
   nodeId: string;
   csrfToken: string;
-  initialPublicAddressId?: string;
   children: ReactNode;
   onCreated: (task: ProbeTask) => void;
 }) {
@@ -63,16 +61,11 @@ export function CompleteProbeDialog({
         const addresses = network.publicAddresses.filter(
           (address) => address.available && address.selectedNodeId === nodeId,
         );
-        const initialAddress = addresses.find(
-          (address) => address.id === initialPublicAddressId,
-        );
         setSelected(
           new Set(
-            initialAddress
-              ? [initialAddress.id]
-              : addresses
-                  .filter((address) => address.probeEnabled)
-                  .map((address) => address.id),
+            addresses
+              .filter((address) => address.probeEnabled)
+              .map((address) => address.id),
           ),
         );
         setState({ kind: "success", addresses });
@@ -83,7 +76,7 @@ export function CompleteProbeDialog({
         setState({ kind: "error" });
       });
     return () => controller.abort();
-  }, [initialPublicAddressId, loadRevision, nodeId, open]);
+  }, [loadRevision, nodeId, open]);
 
   function changeOpen(next: boolean) {
     if (submitting) return;

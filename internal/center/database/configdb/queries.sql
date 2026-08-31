@@ -713,7 +713,7 @@ WHERE public_address_id = ? AND available = 1
 ORDER BY last_succeeded_at DESC, last_checked_at DESC, path_id
 LIMIT 1;
 
--- name: ListNodeSelectedPublicAddresses :many
+-- name: ListNodeAvailablePublicAddressTargets :many
 SELECT a.id, a.address, a.family, a.probe_enabled,
        a.selected_path_id, a.first_seen_at, a.last_seen_at, a.updated_at,
        e.node_id, e.name, e.kind, e.interface_name, e.source_address,
@@ -721,14 +721,7 @@ SELECT a.id, a.address, a.family, a.probe_enabled,
 FROM public_addresses a
 JOIN network_egresses e ON e.id = a.selected_path_id
 JOIN public_address_paths p ON p.path_id = e.id AND p.public_address_id = a.id
-WHERE e.node_id = ? AND a.probe_enabled = 1 AND p.available = 1
-ORDER BY a.family, a.address;
-
--- name: ListNodeAvailablePublicAddressProbeSettings :many
-SELECT a.id, a.probe_enabled
-FROM public_addresses a
-JOIN public_address_paths p ON p.path_id = a.selected_path_id
-WHERE p.node_id = ? AND p.public_address_id = a.id AND p.available = 1
+WHERE e.node_id = ? AND p.available = 1
 ORDER BY a.family, a.address;
 
 -- name: PublicAddressBelongsToNode :one

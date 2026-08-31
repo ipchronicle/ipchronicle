@@ -56,6 +56,31 @@ func TestManagerRunsFrozenEgressesSequentiallyAndRejectsOverlaps(t *testing.T) {
 	}
 }
 
+func TestManagerAppliesProbeEnablementByTrigger(t *testing.T) {
+	store, configuration := openManagerTestStore(t, 1)
+	defer store.Close()
+	configuration.ProbeTargets[0].Enabled = false
+	manager := NewManager(store, minimumProbeMemoryBytes, nil)
+	now := time.Date(2026, 8, 9, 12, 0, 0, 0, time.UTC)
+	manual := state.ProbeTaskDelivery{
+		ID: uuid.NewString(), Trigger: "manual",
+		PublicAddressIDs: []string{configuration.ProbeTargets[0].ID},
+		CreatedAt:        now, ExpiresAt: now.Add(2 * time.Minute),
+	}
+	if reason := manager.ineligibleReason(configuration, &manual, now); reason != "" {
+		t.Fatalf("manual disabled-target reason = %q", reason)
+	}
+	newAddress := manual
+	newAddress.ID = uuid.NewString()
+	newAddress.Trigger = "new-address"
+	if reason := manager.ineligibleReason(configuration, &newAddress, now); reason != "no-egress" {
+		t.Fatalf("new-address disabled-target reason = %q, want no-egress", reason)
+	}
+	if reason := manager.ineligibleReason(configuration, nil, now); reason != "no-egress" {
+		t.Fatalf("scheduled disabled-target reason = %q, want no-egress", reason)
+	}
+}
+
 func TestManagerPausesLowMemoryUntilOverride(t *testing.T) {
 	store, configuration := openManagerTestStore(t, 1)
 	defer store.Close()
@@ -156,7 +181,7 @@ func openManagerTestStore(t *testing.T, egressCount int) (*state.Store, state.Co
 		t.Fatal(err)
 	}
 	configuration := state.Configuration{
-		SchemaVersion: 7, Revision: 1, Enabled: true,
+		SchemaVersion: 8, Revision: 1, Enabled: true,
 		HistoryGeneration: "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef",
 		ProbeSchedule:     state.ProbeSchedule{Enabled: true, Cron: "0 0 0 * * *", Timezone: "UTC"},
 		DiscoveryServices: state.DiscoveryServices{

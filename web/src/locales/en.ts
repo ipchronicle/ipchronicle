@@ -642,13 +642,13 @@ export const en = {
       targets: {
         title: "Select public IPs",
         detail:
-          "The selected public IPs are enabled and saved as the targets for this run.",
+          "This selection applies only to this run and does not change recurring probe settings.",
         loading: "Loading public IPs",
         loadFailed: "Public IPs could not be loaded.",
         retry: "Retry",
         empty: "This node has no available public IP to probe.",
         selected: "{{selected}} of {{total}} public IPs selected",
-        confirm: "Save and run probe",
+        confirm: "Run probe",
       },
       lowMemory: {
         title: "Complete probes are paused for low memory",
@@ -1562,7 +1562,6 @@ export const en = {
         "Complete probes are paused because this node reported less than 256 MiB of memory.",
       probe_target_unavailable:
         "A selected public IP is no longer available through this node. Reopen the probe dialog and choose again.",
-      no_enabled_egress: "This node has no enabled public IP.",
       probe_run_not_found:
         "The complete-probe run does not exist or was removed.",
       probe_snapshot_not_found:

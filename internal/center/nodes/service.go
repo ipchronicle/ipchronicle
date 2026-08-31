@@ -463,7 +463,7 @@ func (s *Service) Configuration(ctx context.Context, credential string) (Configu
 		egress.Enabled = true
 		discoveryPaths = append(discoveryPaths, egress)
 	}
-	targetRecords, err := s.queries.ListNodeSelectedPublicAddresses(ctx, node.ID)
+	targetRecords, err := s.queries.ListNodeAvailablePublicAddressTargets(ctx, node.ID)
 	if err != nil {
 		return Configuration{}, err
 	}
@@ -489,7 +489,7 @@ func (s *Service) Configuration(ctx context.Context, credential string) (Configu
 			ID: id, PathID: &pathID, PublicAddress: &record.Address,
 			NodeID: uuid.MustParse(record.NodeID), Name: record.Address,
 			Kind: record.Kind, Family: record.Family, InterfaceName: record.InterfaceName,
-			SourceAddress: record.SourceAddress, ProxyID: proxyID, Enabled: true, Available: true,
+			SourceAddress: record.SourceAddress, ProxyID: proxyID, Enabled: record.ProbeEnabled == 1, Available: true,
 			LightweightIntervalSeconds: record.LightweightIntervalSeconds,
 		})
 	}
@@ -521,7 +521,7 @@ func (s *Service) Configuration(ctx context.Context, credential string) (Configu
 		return Configuration{}, fmt.Errorf("read stored probe schedule: %w", err)
 	}
 	return Configuration{
-		SchemaVersion: 7, Revision: node.DesiredConfigurationRevision,
+		SchemaVersion: 8, Revision: node.DesiredConfigurationRevision,
 		Enabled: node.Enabled == 1, HistoryGeneration: state.HistoryGeneration,
 		DiscoveryPaths: discoveryPaths, ProbeTargets: probeTargets,
 		Proxies: proxies, DiscoveryServices: discoveryServices,

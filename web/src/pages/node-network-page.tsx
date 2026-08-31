@@ -24,9 +24,8 @@ import {
   type NetworkProxyCreate,
   type NetworkProxyUpdate,
 } from "@/api/proxies";
-import type { ProbeTask } from "@/api/probes";
+import { createCompleteProbeTask, type ProbeTask } from "@/api/probes";
 import { useAuth } from "@/auth-context";
-import { CompleteProbeDialog } from "@/components/complete-probe-dialog";
 import { useNodeDetail } from "@/components/node-detail-layout";
 import { NodeNetworkProxies } from "@/components/node-network-proxies";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
@@ -63,6 +62,7 @@ export function NodeNetworkPage() {
   const [state, setState] = useState<ViewState>({ kind: "loading" });
   const [refreshing, setRefreshing] = useState(false);
   const [saving, setSaving] = useState<Set<string>>(() => new Set());
+  const [probing, setProbing] = useState<Set<string>>(() => new Set());
   const [feedback, setFeedback] = useState<Feedback>();
 
   const load = useCallback(
@@ -152,6 +152,27 @@ export function NodeNetworkPage() {
 
   function probeCreated(_task: ProbeTask) {
     setFeedback({ kind: "success", message: t("probe.task.created") });
+  }
+
+  async function probeAddress(address: PublicAddress) {
+    setProbing((current) => new Set(current).add(address.id));
+    setFeedback(undefined);
+    try {
+      const task = await createCompleteProbeTask(
+        nodeId,
+        { publicAddressIds: [address.id] },
+        csrfToken,
+      );
+      probeCreated(task);
+    } catch (error) {
+      setFeedback({ kind: "error", message: formatAPIError(error, t) });
+    } finally {
+      setProbing((current) => {
+        const next = new Set(current);
+        next.delete(address.id);
+        return next;
+      });
+    }
   }
 
   async function createProxy(input: NetworkProxyCreate) {
@@ -298,18 +319,17 @@ export function NodeNetworkPage() {
                   {state.network.publicAddresses.map((address) => (
                     <PublicAddressRow
                       key={address.id}
-                      nodeId={nodeId}
                       address={address}
                       locale={i18n.resolvedLanguage}
                       saving={saving.has(address.id)}
+                      probing={probing.has(address.id)}
                       probeDisabled={
                         node.status !== "online" ||
                         !node.enabled ||
                         node.deletionStatus !== undefined
                       }
-                      csrfToken={csrfToken}
                       onChange={(enabled) => void saveAddress(address, enabled)}
-                      onProbeCreated={probeCreated}
+                      onProbe={() => void probeAddress(address)}
                     />
                   ))}
                 </div>
@@ -330,23 +350,21 @@ export function NodeNetworkPage() {
 }
 
 function PublicAddressRow({
-  nodeId,
   address,
   locale,
   saving,
+  probing,
   probeDisabled,
-  csrfToken,
   onChange,
-  onProbeCreated,
+  onProbe,
 }: {
-  nodeId: string;
   address: PublicAddress;
   locale: string | undefined;
   saving: boolean;
+  probing: boolean;
   probeDisabled: boolean;
-  csrfToken: string;
   onChange: (enabled: boolean) => void;
-  onProbeCreated: (task: ProbeTask) => void;
+  onProbe: () => void;
 }) {
   const { t } = useTranslation();
   const availability = publicAddressAvailability(address);
@@ -425,17 +443,22 @@ function PublicAddressRow({
             {t("network.publicAddresses.openReport")}
           </Button>
         )}
-        <CompleteProbeDialog
-          nodeId={nodeId}
-          csrfToken={csrfToken}
-          initialPublicAddressId={address.id}
-          onCreated={onProbeCreated}
+        <Button
+          size="sm"
+          disabled={probeDisabled || !address.available || probing}
+          onClick={onProbe}
         >
-          <Button size="sm" disabled={probeDisabled || !address.available}>
+          {probing ? (
+            <LoaderCircle
+              data-icon="inline-start"
+              aria-hidden="true"
+              className="animate-spin"
+            />
+          ) : (
             <Play data-icon="inline-start" aria-hidden="true" />
-            {t("network.publicAddresses.probeNow")}
-          </Button>
-        </CompleteProbeDialog>
+          )}
+          {t("network.publicAddresses.probeNow")}
+        </Button>
       </div>
     </div>
   );

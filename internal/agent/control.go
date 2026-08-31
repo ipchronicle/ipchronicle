@@ -641,7 +641,7 @@ func configurationFromAPI(snapshot agentapi.AgentConfigurationSnapshot) state.Co
 			ID: target.Id.String(), PathID: &pathID, PublicAddress: &publicAddress,
 			Kind: string(target.Kind), Family: string(target.Family),
 			InterfaceName: target.InterfaceName, SourceAddress: target.SourceAddress,
-			ProxyID: uuidString(target.ProxyId), Enabled: true,
+			ProxyID: uuidString(target.ProxyId), Enabled: target.Enabled,
 		})
 	}
 	for _, proxy := range snapshot.Proxies {
@@ -706,7 +706,7 @@ func currentMetadata(version string, updateCapable bool) (agentapi.AgentMetadata
 	if err != nil {
 		return agentapi.AgentMetadata{}, fmt.Errorf("read physical memory: %w", err)
 	}
-	capabilities := []string{controlCapability, "configuration-v7", "network-inventory-v1", "address-observation-v1", "complete-probe-v1", syncWakeCapability}
+	capabilities := []string{controlCapability, "configuration-v8", "network-inventory-v1", "address-observation-v1", "complete-probe-v1", syncWakeCapability}
 	if updateCapable {
 		capabilities = append(capabilities, "agent-update-v1")
 	}

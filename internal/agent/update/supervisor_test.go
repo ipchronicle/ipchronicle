@@ -224,7 +224,7 @@ func prepareSupervisorFixture(t *testing.T) supervisorFixture {
 	}
 	publicAddress := "203.0.113.20"
 	if err := store.ApplyConfiguration(state.Configuration{
-		SchemaVersion: 7, Revision: 1, Enabled: true,
+		SchemaVersion: 8, Revision: 1, Enabled: true,
 		HistoryGeneration: "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef",
 		DiscoveryServices: state.DiscoveryServices{
 			IPv4: []string{"https://one.example/ip", "https://two.example/ip"},

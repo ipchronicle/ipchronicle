@@ -420,7 +420,6 @@ const (
 	NetworkProxyLimitReached         ErrorCode = "network_proxy_limit_reached"
 	NetworkProxyNotFound             ErrorCode = "network_proxy_not_found"
 	NoAccountChange                  ErrorCode = "no_account_change"
-	NoEnabledEgress                  ErrorCode = "no_enabled_egress"
 	NodeDeletionPending              ErrorCode = "node_deletion_pending"
 	NodeDisabled                     ErrorCode = "node_disabled"
 	NodeNotFound                     ErrorCode = "node_not_found"
@@ -507,8 +506,6 @@ func (e ErrorCode) Valid() bool {
 	case NetworkProxyNotFound:
 		return true
 	case NoAccountChange:
-		return true
-	case NoEnabledEgress:
 		return true
 	case NodeDeletionPending:
 		return true
@@ -1587,6 +1584,7 @@ type AgentProbeStatus struct {
 
 // AgentProbeTarget defines model for AgentProbeTarget.
 type AgentProbeTarget struct {
+	Enabled       bool                `json:"enabled"`
 	Family        AddressFamily       `json:"family"`
 	Id            openapi_types.UUID  `json:"id"`
 	InterfaceName *string             `json:"interfaceName,omitempty"`

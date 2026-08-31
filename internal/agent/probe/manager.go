@@ -261,7 +261,7 @@ func (manager *Manager) ineligibleReason(
 		}
 	}
 	for _, egress := range configuration.ProbeTargetList() {
-		if !egress.Enabled {
+		if !egress.Enabled && (task == nil || task.Trigger != "manual") {
 			continue
 		}
 		if task != nil {

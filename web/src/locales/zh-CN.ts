@@ -605,13 +605,13 @@ export const zhCN = {
       runNow: "执行完整探测",
       targets: {
         title: "选择公网 IP",
-        detail: "所选公网 IP 将被启用，并作为本次完整探测的目标。",
+        detail: "选择仅用于本次完整探测，不会更改周期探测设置。",
         loading: "正在加载公网 IP",
         loadFailed: "无法加载公网 IP。",
         retry: "重试",
         empty: "此节点当前没有可探测的公网 IP。",
         selected: "已选择 {{selected}} / {{total}} 个公网 IP",
-        confirm: "保存并开始探测",
+        confirm: "开始探测",
       },
       lowMemory: {
         title: "内存不足，完整探测已暂停",
@@ -1421,7 +1421,6 @@ export const zhCN = {
       probe_paused_low_memory: "节点上报的内存少于 256 MiB，完整探测已暂停。",
       probe_target_unavailable:
         "所选公网 IP 已无法通过此节点执行，请重新打开探测弹窗后选择。",
-      no_enabled_egress: "此节点没有已启用的公网 IP。",
       probe_run_not_found: "完整探测运行不存在或已经删除。",
       probe_snapshot_not_found: "报告快照不存在或已经删除。",
       snapshot_egress_mismatch: "两份快照不属于同一公网 IP。",

@@ -606,8 +606,6 @@ func (s apiServer) CreateCompleteProbeTask(ctx context.Context, request api.Crea
 		return api.CreateCompleteProbeTask409JSONResponse{ConflictJSONResponse: conflict(api.ProbePausedLowMemory)}, nil
 	case errors.Is(err, nodes.ErrProbeTargetUnavailable):
 		return api.CreateCompleteProbeTask409JSONResponse{ConflictJSONResponse: conflict(api.ProbeTargetUnavailable)}, nil
-	case errors.Is(err, nodes.ErrNoEnabledEgress):
-		return api.CreateCompleteProbeTask409JSONResponse{ConflictJSONResponse: conflict(api.NoEnabledEgress)}, nil
 	case err != nil:
 		return nil, err
 	}
@@ -1241,6 +1239,7 @@ func (s apiServer) GetAgentConfiguration(ctx context.Context, _ api.GetAgentConf
 			Id: target.ID, PathId: *target.PathID, PublicAddress: *target.PublicAddress,
 			Kind: api.NetworkEgressKind(target.Kind), Family: api.AddressFamily(target.Family),
 			InterfaceName: target.InterfaceName, SourceAddress: target.SourceAddress, ProxyId: target.ProxyID,
+			Enabled: target.Enabled,
 		})
 	}
 	proxies := make([]api.AgentProxyConfiguration, 0, len(configuration.Proxies))

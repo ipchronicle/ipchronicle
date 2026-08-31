@@ -906,7 +906,9 @@ describe("administrator application", () => {
       within(probeDialog).getByRole("checkbox", { name: /203\.0\.113\.10/ }),
     ).toBeChecked();
     expect(screen.getByRole("alertdialog")).toBe(probeDialog);
-    fireEvent.click(screen.getByRole("button", { name: "Save and run probe" }));
+    fireEvent.click(
+      within(probeDialog).getByRole("button", { name: "Run probe" }),
+    );
     await waitFor(() =>
       expect(createProbeTaskMock).toHaveBeenCalledWith(
         "7289cfa3-a75d-4a3f-ac06-8f1074446a85",
@@ -1244,6 +1246,14 @@ describe("administrator application", () => {
       firstSeenAt: "2026-08-09T06:01:00Z",
       lastSeenAt: "2026-08-09T06:02:00Z",
     });
+    createProbeTaskMock.mockResolvedValue({
+      id: "669a846d-59ac-45cc-a520-86cbc5e69992",
+      nodeId: "7289cfa3-a75d-4a3f-ac06-8f1074446a85",
+      status: "pending",
+      createdAt: "2026-08-09T06:04:00Z",
+      expiresAt: "2026-08-09T06:06:00Z",
+      offline: false,
+    });
 
     renderApplication("/nodes/7289cfa3-a75d-4a3f-ac06-8f1074446a85/network");
 
@@ -1265,16 +1275,15 @@ describe("administrator application", () => {
     );
     expect(screen.getByRole("button", { name: "View result" })).toBeDisabled();
     fireEvent.click(screen.getAllByRole("button", { name: "Probe now" })[0]);
-    const targetDialog = await screen.findByRole("alertdialog");
-    expect(
-      within(targetDialog).getByRole("checkbox", { name: /8\.8\.8\.8/ }),
-    ).toBeChecked();
-    expect(
-      within(targetDialog).getByRole("checkbox", { name: /2001:db8::8/ }),
-    ).not.toBeChecked();
-    fireEvent.click(
-      within(targetDialog).getByRole("button", { name: "Cancel" }),
+    await waitFor(() =>
+      expect(createProbeTaskMock).toHaveBeenCalledWith(
+        "7289cfa3-a75d-4a3f-ac06-8f1074446a85",
+        { publicAddressIds: ["4a44d3d7-7b45-4a3e-9e5c-e70fdba46e72"] },
+        session.csrfToken,
+      ),
     );
+    expect(screen.queryByRole("alertdialog")).not.toBeInTheDocument();
+    expect(updatePublicAddressMock).not.toHaveBeenCalled();
     expect(screen.getByRole("button", { name: "Edit" })).toBeEnabled();
     expect(
       screen.queryByDisplayValue("retained-secret"),
@@ -1562,7 +1571,10 @@ describe("administrator application", () => {
     expect(
       await screen.findByRole("checkbox", { name: /8\.8\.8\.8/ }),
     ).toBeChecked();
-    fireEvent.click(screen.getByRole("button", { name: "Save and run probe" }));
+    const probeDialog = screen.getByRole("alertdialog");
+    fireEvent.click(
+      within(probeDialog).getByRole("button", { name: "Run probe" }),
+    );
     await waitFor(() =>
       expect(createProbeTaskMock).toHaveBeenCalledWith(
         probeTestNode.id,

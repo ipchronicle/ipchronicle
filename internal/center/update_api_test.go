@@ -200,7 +200,7 @@ func newUpdateHTTPFixture(t *testing.T) updateHTTPFixture {
 		OperatingSystem: "linux", Architecture: "amd64",
 		Capabilities: []string{
 			"address-observation-v1", centerupdates.AgentUpdateCapability, "complete-probe-v1",
-			"configuration-v7", "control-v1", "network-inventory-v1", "sync-wakeup-v1",
+			"configuration-v8", "control-v1", "network-inventory-v1", "sync-wakeup-v1",
 		},
 		PhysicalMemoryBytes: 512 * 1024 * 1024,
 	}

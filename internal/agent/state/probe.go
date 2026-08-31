@@ -217,7 +217,7 @@ func (s *Store) StartProbeRunAtRevision(
 			}
 		}
 		for _, egress := range configuration.ProbeTargets {
-			if !egress.Enabled {
+			if !egress.Enabled && trigger != "manual" {
 				continue
 			}
 			if task != nil {

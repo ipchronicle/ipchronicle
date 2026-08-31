@@ -98,7 +98,7 @@ func TestProxyCredentialsPersistEncryptedAcrossRestart(t *testing.T) {
 	proxyID := "6fc6d7e8-bc63-49e2-91fc-d4c58b43ac16"
 	password := "retained-proxy-password"
 	configuration := Configuration{
-		SchemaVersion: 7, Revision: 1, Enabled: true, DiscoveryServices: testDiscoveryServices(),
+		SchemaVersion: 8, Revision: 1, Enabled: true, DiscoveryServices: testDiscoveryServices(),
 		ProbeSchedule:     ProbeSchedule{Enabled: true, Cron: "0 0 0 * * *", Timezone: "UTC"},
 		HistoryGeneration: "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef",
 		DiscoveryPaths: []Egress{{
@@ -212,7 +212,7 @@ func TestConfigurationReplacementFailureAndRevocationPersist(t *testing.T) {
 		t.Fatal(err)
 	}
 	first := Configuration{
-		SchemaVersion: 7, Revision: 1, Enabled: true, DiscoveryServices: testDiscoveryServices(),
+		SchemaVersion: 8, Revision: 1, Enabled: true, DiscoveryServices: testDiscoveryServices(),
 		ProbeSchedule:     ProbeSchedule{Enabled: true, Cron: "0 0 0 * * *", Timezone: "UTC"},
 		HistoryGeneration: "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef",
 	}

@@ -317,7 +317,7 @@ test("generates an Agent installation command from the nodes page", async ({
         physicalMemoryBytes: 536870912,
         capabilities: [
           "control-v1",
-          "configuration-v7",
+          "configuration-v8",
           "complete-probe-v1",
           "network-inventory-v1",
           "sync-wakeup-v1",
@@ -360,7 +360,7 @@ test("generates an Agent installation command from the nodes page", async ({
         physicalMemoryBytes: 536870912,
         capabilities: [
           "control-v1",
-          "configuration-v7",
+          "configuration-v8",
           "complete-probe-v1",
           "network-inventory-v1",
           "sync-wakeup-v1",
@@ -442,7 +442,7 @@ test("generates an Agent installation command from the nodes page", async ({
         physicalMemoryBytes: 536870912,
         capabilities: [
           "control-v1",
-          "configuration-v7",
+          "configuration-v8",
           "network-inventory-v1",
           "address-observation-v1",
           "complete-probe-v1",
@@ -636,7 +636,10 @@ test("generates an Agent installation command from the nodes page", async ({
     path: testInfo.outputPath("probe-target-selection.png"),
     fullPage: true,
   });
-  await page.getByRole("button", { name: "Save and run probe" }).click();
+  await page
+    .getByRole("alertdialog")
+    .getByRole("button", { name: "Run probe" })
+    .click();
   await expect(
     page.getByText("The task is waiting for the Agent."),
   ).toBeVisible();
@@ -673,7 +676,7 @@ test("generates an Agent installation command from the nodes page", async ({
           physicalMemoryBytes: 536870912,
           capabilities: [
             "control-v1",
-            "configuration-v7",
+            "configuration-v8",
             "network-inventory-v1",
             "address-observation-v1",
             "complete-probe-v1",
@@ -708,7 +711,7 @@ test("generates an Agent installation command from the nodes page", async ({
         physicalMemoryBytes: 536870912,
         capabilities: [
           "control-v1",
-          "configuration-v7",
+          "configuration-v8",
           "network-inventory-v1",
           "address-observation-v1",
           "complete-probe-v1",
@@ -952,7 +955,7 @@ test("generates an Agent installation command from the nodes page", async ({
         physicalMemoryBytes: 536870912,
         capabilities: [
           "control-v1",
-          "configuration-v7",
+          "configuration-v8",
           "network-inventory-v1",
           "address-observation-v1",
           "complete-probe-v1",
@@ -1410,7 +1413,7 @@ test("updates one registered Agent and keeps the task phase visible", async ({
     operatingSystem: "linux",
     architecture: "amd64",
     physicalMemoryBytes: 536870912,
-    capabilities: ["control-v1", "configuration-v7", "agent-update-v1"],
+    capabilities: ["control-v1", "configuration-v8", "agent-update-v1"],
   } as const;
   const registration = await page.request.post("/api/v1/agent/enroll", {
     data: {

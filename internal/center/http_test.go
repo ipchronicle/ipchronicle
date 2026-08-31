@@ -1104,7 +1104,7 @@ func seedHTTPHistory(t *testing.T, service *nodes.Service) httpHistoryFixture {
 	now := time.Now().UTC().Truncate(time.Second)
 	metadata := nodes.Metadata{
 		Hostname: "history-edge", AgentVersion: "0.1.0", OperatingSystem: "linux", Architecture: "amd64",
-		Capabilities:        []string{"control-v1", "configuration-v7", "complete-probe-v1"},
+		Capabilities:        []string{"control-v1", "configuration-v8", "complete-probe-v1"},
 		PhysicalMemoryBytes: 512 * 1024 * 1024,
 	}
 	enrollment, err := service.RotateEnrollmentKey(ctx, "UTC")
