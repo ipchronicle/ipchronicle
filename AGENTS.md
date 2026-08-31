@@ -97,6 +97,10 @@ rules that would make this file ambiguous. Do not create empty rule files.
 - Run `make browser-test` when changing user-visible workflows.
 - Before finishing, inspect `git diff` for secrets, generated artifacts,
   unrelated edits, duplicate logic, and unmentioned behavior changes.
+- After a feature is complete and its risk-proportionate checks pass, create a
+  dedicated local commit for that feature. Do not accumulate multiple finished
+  features in the working tree; keep cross-repository commits aligned by
+  purpose while preserving each repository's independent history.
 
 Generated web assets, dependencies, local databases, `.env` files, coverage,
 and VM state are not committed. Generated OpenAPI bindings are committed and
