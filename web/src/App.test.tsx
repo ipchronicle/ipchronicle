@@ -427,6 +427,22 @@ describe("administrator application", () => {
     expect(
       screen.getByRole("navigation", { name: "Primary navigation" }),
     ).toBeInTheDocument();
+    const primaryGroup = screen
+      .getByText("Primary navigation")
+      .closest('[data-slot="sidebar-group"]') as HTMLElement;
+    const settingsGroup = screen
+      .getByText("Settings")
+      .closest('[data-slot="sidebar-group"]') as HTMLElement;
+    expect(
+      within(primaryGroup).queryByRole("link", {
+        name: /^System$/,
+      }),
+    ).not.toBeInTheDocument();
+    expect(
+      within(settingsGroup).getByRole("link", {
+        name: /^System$/,
+      }),
+    ).toHaveAttribute("href", "/settings/system");
     expect(screen.getByRole("link", { name: "System status" })).toHaveAttribute(
       "aria-current",
       "page",
