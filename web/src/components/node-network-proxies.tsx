@@ -1,5 +1,6 @@
 import { useEffect, useState, type FormEvent } from "react";
 import {
+  ArrowLeft,
   KeyRound,
   LoaderCircle,
   Network,
@@ -16,38 +17,16 @@ import type {
   NetworkProxyCreate,
   NetworkProxyUpdate,
 } from "@/api/proxies";
-import {
-  AlertDialog,
-  AlertDialogAction,
-  AlertDialogCancel,
-  AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogMedia,
-  AlertDialogTitle,
-  AlertDialogTrigger,
-} from "@/components/ui/alert-dialog";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
-  Card,
-  CardAction,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-} from "@/components/ui/card";
-import {
   Dialog,
-  DialogClose,
   DialogContent,
   DialogDescription,
   DialogFooter,
   DialogHeader,
   DialogTitle,
-  DialogTrigger,
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -67,144 +46,185 @@ const emptyCreate: NetworkProxyCreate = {
   port: 8080,
 };
 
-export function NodeNetworkProxies({
+type ProxyManagerView =
+  | { kind: "list" }
+  | { kind: "create" }
+  | { kind: "edit" | "clear-password" | "delete"; proxyId: string };
+
+export function networkProxyAttentionCount(proxies: NetworkProxy[]) {
+  return proxies.filter(
+    (proxy) =>
+      proxy.status === "unavailable" ||
+      proxy.deletionStatus === "failed" ||
+      Boolean(proxy.deletionError),
+  ).length;
+}
+
+export function NetworkProxyManagerButton({
   proxies,
+  onClick,
+}: {
+  proxies: NetworkProxy[];
+  onClick: () => void;
+}) {
+  const { t } = useTranslation();
+  const attentionCount = networkProxyAttentionCount(proxies);
+  return (
+    <Button
+      type="button"
+      variant="outline"
+      size="sm"
+      className={
+        attentionCount > 0
+          ? "border-amber-500/60 text-amber-800 dark:text-amber-300"
+          : undefined
+      }
+      onClick={onClick}
+    >
+      <Network data-icon="inline-start" aria-hidden="true" />
+      {t("network.proxies.manage")}
+      <Badge
+        variant={attentionCount > 0 ? "warning" : "secondary"}
+        aria-hidden="true"
+      >
+        {proxies.length}
+      </Badge>
+    </Button>
+  );
+}
+
+export function NodeNetworkProxies({
+  open,
+  proxies,
+  onOpenChange,
   onCreate,
   onUpdate,
   onDelete,
 }: {
+  open: boolean;
   proxies: NetworkProxy[];
+  onOpenChange: (open: boolean) => void;
   onCreate: (input: NetworkProxyCreate) => Promise<boolean>;
   onUpdate: (proxyId: string, input: NetworkProxyUpdate) => Promise<boolean>;
-  onDelete: (proxyId: string) => Promise<void>;
+  onDelete: (proxyId: string) => Promise<boolean>;
 }) {
   const { t } = useTranslation();
-  return (
-    <Card>
-      <CardHeader>
-        <CardTitle className="flex items-center gap-2">
-          <Network aria-hidden="true" className="size-4" />
-          {t("network.proxies.title")}
-        </CardTitle>
-        <CardDescription>{t("network.proxies.detail")}</CardDescription>
-        <CardAction className="flex items-center gap-2">
-          <Badge variant="info">{proxies.length}</Badge>
-          <CreateProxyDialog onCreate={onCreate} />
-        </CardAction>
-      </CardHeader>
-      <CardContent>
-        {proxies.length === 0 ? (
-          <p className="py-8 text-center text-sm text-muted-foreground">
-            {t("network.proxies.empty")}
-          </p>
-        ) : (
-          <div className="overflow-hidden rounded-lg border">
-            {proxies.map((proxy) => (
-              <ProxyRow
-                key={proxy.id}
-                proxy={proxy}
-                onUpdate={onUpdate}
-                onDelete={onDelete}
-              />
-            ))}
-          </div>
-        )}
-      </CardContent>
-    </Card>
-  );
-}
+  const [view, setView] = useState<ProxyManagerView>({ kind: "list" });
+  const selectedProxy =
+    "proxyId" in view
+      ? proxies.find((proxy) => proxy.id === view.proxyId)
+      : undefined;
 
-function CreateProxyDialog({
-  onCreate,
-}: {
-  onCreate: (input: NetworkProxyCreate) => Promise<boolean>;
-}) {
-  const { t } = useTranslation();
-  const [open, setOpen] = useState(false);
-  const [input, setInput] = useState<NetworkProxyCreate>(emptyCreate);
-  const [working, setWorking] = useState(false);
+  useEffect(() => {
+    if ("proxyId" in view && !selectedProxy) setView({ kind: "list" });
+  }, [selectedProxy, view]);
 
   function changeOpen(next: boolean) {
-    if (working) return;
-    setOpen(next);
-    if (!next) setInput(emptyCreate);
-  }
-
-  async function submit(event: FormEvent) {
-    event.preventDefault();
-    setWorking(true);
-    try {
-      const created = await onCreate({
-        ...input,
-        username: input.username || undefined,
-        password: input.password || undefined,
-      });
-      if (created) {
-        setInput(emptyCreate);
-        setOpen(false);
-      }
-    } finally {
-      setWorking(false);
-    }
+    onOpenChange(next);
+    if (!next) setView({ kind: "list" });
   }
 
   return (
     <Dialog open={open} onOpenChange={changeOpen}>
-      <DialogTrigger asChild>
-        <Button type="button" size="sm">
-          <Plus data-icon="inline-start" aria-hidden="true" />
-          {t("proxySettings.create.submit")}
-        </Button>
-      </DialogTrigger>
-      <DialogContent className="sm:max-w-xl" closeLabel={t("common.close")}>
-        <DialogHeader>
-          <DialogTitle>{t("proxySettings.create.title")}</DialogTitle>
-          <DialogDescription>
-            {t("proxySettings.create.detail")}
-          </DialogDescription>
-        </DialogHeader>
-        <form className="space-y-4" onSubmit={submit}>
-          <div className="grid gap-4 sm:grid-cols-2">
-            <ProxyFields input={input} onChange={setInput} prefix="create" />
-          </div>
-          <DialogFooter>
-            <DialogClose asChild>
-              <Button type="button" variant="outline" disabled={working}>
-                {t("common.cancel")}
-              </Button>
-            </DialogClose>
-            <Button type="submit" disabled={working}>
-              {working ? (
-                <LoaderCircle
-                  data-icon="inline-start"
-                  aria-hidden="true"
-                  className="animate-spin"
-                />
-              ) : (
-                <Plus data-icon="inline-start" aria-hidden="true" />
-              )}
-              {t("proxySettings.create.submit")}
-            </Button>
-          </DialogFooter>
-        </form>
+      <DialogContent className="sm:max-w-4xl" closeLabel={t("common.close")}>
+        {view.kind === "list" ? (
+          <ProxyManagerList
+            proxies={proxies}
+            onCreate={() => setView({ kind: "create" })}
+            onEdit={(proxyId) => setView({ kind: "edit", proxyId })}
+            onClearPassword={(proxyId) =>
+              setView({ kind: "clear-password", proxyId })
+            }
+            onDelete={(proxyId) => setView({ kind: "delete", proxyId })}
+          />
+        ) : view.kind === "create" ? (
+          <ProxyEditor
+            onCreate={onCreate}
+            onDone={() => setView({ kind: "list" })}
+          />
+        ) : selectedProxy && view.kind === "edit" ? (
+          <ProxyEditor
+            proxy={selectedProxy}
+            onUpdate={onUpdate}
+            onDone={() => setView({ kind: "list" })}
+          />
+        ) : selectedProxy &&
+          (view.kind === "clear-password" || view.kind === "delete") ? (
+          <ProxyConfirmation
+            kind={view.kind}
+            proxy={selectedProxy}
+            onUpdate={onUpdate}
+            onDelete={onDelete}
+            onDone={() => setView({ kind: "list" })}
+          />
+        ) : null}
       </DialogContent>
     </Dialog>
   );
 }
 
+function ProxyManagerList({
+  proxies,
+  onCreate,
+  onEdit,
+  onClearPassword,
+  onDelete,
+}: {
+  proxies: NetworkProxy[];
+  onCreate: () => void;
+  onEdit: (proxyId: string) => void;
+  onClearPassword: (proxyId: string) => void;
+  onDelete: (proxyId: string) => void;
+}) {
+  const { t } = useTranslation();
+  return (
+    <>
+      <div className="flex items-start justify-between gap-4 pr-8">
+        <DialogHeader>
+          <DialogTitle>{t("network.proxies.title")}</DialogTitle>
+          <DialogDescription>{t("network.proxies.detail")}</DialogDescription>
+        </DialogHeader>
+        <Button type="button" size="sm" onClick={onCreate}>
+          <Plus data-icon="inline-start" aria-hidden="true" />
+          {t("proxySettings.create.submit")}
+        </Button>
+      </div>
+      {proxies.length === 0 ? (
+        <p className="rounded-lg border border-dashed py-10 text-center text-sm text-muted-foreground">
+          {t("network.proxies.empty")}
+        </p>
+      ) : (
+        <div className="overflow-hidden rounded-lg border">
+          {proxies.map((proxy) => (
+            <ProxyRow
+              key={proxy.id}
+              proxy={proxy}
+              onEdit={() => onEdit(proxy.id)}
+              onClearPassword={() => onClearPassword(proxy.id)}
+              onDelete={() => onDelete(proxy.id)}
+            />
+          ))}
+        </div>
+      )}
+    </>
+  );
+}
+
 function ProxyRow({
   proxy,
-  onUpdate,
+  onEdit,
+  onClearPassword,
   onDelete,
 }: {
   proxy: NetworkProxy;
-  onUpdate: (proxyId: string, input: NetworkProxyUpdate) => Promise<boolean>;
-  onDelete: (proxyId: string) => Promise<void>;
+  onEdit: () => void;
+  onClearPassword: () => void;
+  onDelete: () => void;
 }) {
   const { t } = useTranslation();
   const deleting = proxy.deletionStatus === "pending";
   return (
-    <div className="grid min-w-0 gap-4 border-t p-4 first:border-t-0 lg:grid-cols-[minmax(190px,1fr)_minmax(260px,1.35fr)_auto] lg:items-center">
+    <div className="grid min-w-0 gap-4 border-t p-4 first:border-t-0 md:grid-cols-[minmax(180px,1fr)_minmax(260px,1.35fr)] md:items-center xl:grid-cols-[minmax(180px,1fr)_minmax(260px,1.35fr)_auto]">
       <div className="min-w-0">
         <div className="flex flex-wrap items-center gap-2">
           <p className="truncate font-medium">{proxy.name}</p>
@@ -226,129 +246,48 @@ function ProxyRow({
         <ProxyFamilyResult family="ipv6" result={proxy.ipv6} />
       </div>
 
-      <div className="flex flex-wrap gap-2 lg:justify-end">
-        <EditProxyDialog
-          proxy={proxy}
+      <div className="flex flex-wrap gap-2 md:col-span-2 xl:col-span-1 xl:justify-end">
+        <Button
+          type="button"
+          variant="outline"
+          size="sm"
           disabled={deleting}
-          onUpdate={onUpdate}
-        />
+          onClick={onEdit}
+        >
+          <Pencil data-icon="inline-start" aria-hidden="true" />
+          {t("proxySettings.edit")}
+        </Button>
         {proxy.passwordConfigured ? (
-          <ClearPasswordButton
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
             disabled={deleting}
-            onClear={() =>
-              void onUpdate(proxy.id, {
-                name: proxy.name,
-                scheme: proxy.scheme,
-                host: proxy.host,
-                port: proxy.port,
-                username: proxy.username,
-                passwordAction: "clear",
-              })
-            }
-          />
+            onClick={onClearPassword}
+          >
+            <KeyRound data-icon="inline-start" aria-hidden="true" />
+            {t("proxySettings.password.clear")}
+          </Button>
         ) : null}
-        <DeleteProxyButton
-          proxy={proxy}
+        <Button
+          type="button"
+          variant="destructive"
+          size="sm"
           disabled={deleting}
-          onDelete={() => void onDelete(proxy.id)}
-        />
+          onClick={onDelete}
+        >
+          <Trash2 data-icon="inline-start" aria-hidden="true" />
+          {t("proxySettings.delete.action")}
+        </Button>
       </div>
 
       {proxy.deletionError ? (
-        <Alert variant="destructive" className="lg:col-span-3">
+        <Alert variant="destructive" className="md:col-span-2 xl:col-span-3">
           <TriangleAlert aria-hidden="true" />
           <AlertDescription>{proxy.deletionError}</AlertDescription>
         </Alert>
       ) : null}
     </div>
-  );
-}
-
-function EditProxyDialog({
-  proxy,
-  disabled,
-  onUpdate,
-}: {
-  proxy: NetworkProxy;
-  disabled: boolean;
-  onUpdate: (proxyId: string, input: NetworkProxyUpdate) => Promise<boolean>;
-}) {
-  const { t } = useTranslation();
-  const [open, setOpen] = useState(false);
-  const [input, setInput] = useState<NetworkProxyCreate>(() =>
-    proxyInput(proxy),
-  );
-  const [working, setWorking] = useState(false);
-
-  useEffect(() => {
-    if (!open) setInput(proxyInput(proxy));
-  }, [open, proxy]);
-
-  async function submit(event: FormEvent) {
-    event.preventDefault();
-    setWorking(true);
-    try {
-      const replacePassword = Boolean(input.password);
-      const updated = await onUpdate(proxy.id, {
-        name: input.name,
-        scheme: input.scheme,
-        host: input.host,
-        port: input.port,
-        username: input.username || undefined,
-        passwordAction: replacePassword ? "replace" : "keep",
-        password: replacePassword ? input.password : undefined,
-      });
-      if (updated) setOpen(false);
-    } finally {
-      setWorking(false);
-    }
-  }
-
-  return (
-    <Dialog open={open} onOpenChange={(next) => !working && setOpen(next)}>
-      <DialogTrigger asChild>
-        <Button type="button" variant="outline" size="sm" disabled={disabled}>
-          <Pencil data-icon="inline-start" aria-hidden="true" />
-          {t("proxySettings.edit")}
-        </Button>
-      </DialogTrigger>
-      <DialogContent className="sm:max-w-xl" closeLabel={t("common.close")}>
-        <DialogHeader>
-          <DialogTitle>{t("proxySettings.editTitle")}</DialogTitle>
-          <DialogDescription>{t("proxySettings.editDetail")}</DialogDescription>
-        </DialogHeader>
-        <form className="space-y-4" onSubmit={submit}>
-          <div className="grid gap-4 sm:grid-cols-2">
-            <ProxyFields
-              input={input}
-              onChange={setInput}
-              prefix={`edit-${proxy.id}`}
-              retainedPassword
-              disabled={working}
-            />
-          </div>
-          <DialogFooter>
-            <DialogClose asChild>
-              <Button type="button" variant="outline" disabled={working}>
-                {t("common.cancel")}
-              </Button>
-            </DialogClose>
-            <Button type="submit" disabled={working}>
-              {working ? (
-                <LoaderCircle
-                  data-icon="inline-start"
-                  aria-hidden="true"
-                  className="animate-spin"
-                />
-              ) : (
-                <Save data-icon="inline-start" aria-hidden="true" />
-              )}
-              {t("proxySettings.save")}
-            </Button>
-          </DialogFooter>
-        </form>
-      </DialogContent>
-    </Dialog>
   );
 }
 
@@ -360,6 +299,227 @@ function proxyInput(proxy: NetworkProxy): NetworkProxyCreate {
     port: proxy.port,
     username: proxy.username,
   };
+}
+
+type ProxyEditorProps =
+  | {
+      proxy?: undefined;
+      onCreate: (input: NetworkProxyCreate) => Promise<boolean>;
+      onUpdate?: never;
+      onDone: () => void;
+    }
+  | {
+      proxy: NetworkProxy;
+      onCreate?: never;
+      onUpdate: (
+        proxyId: string,
+        input: NetworkProxyUpdate,
+      ) => Promise<boolean>;
+      onDone: () => void;
+    };
+
+function ProxyEditor({ proxy, onCreate, onUpdate, onDone }: ProxyEditorProps) {
+  const { t } = useTranslation();
+  const [input, setInput] = useState<NetworkProxyCreate>(() =>
+    proxy ? proxyInput(proxy) : emptyCreate,
+  );
+  const [working, setWorking] = useState(false);
+
+  async function submit(event: FormEvent) {
+    event.preventDefault();
+    setWorking(true);
+    try {
+      let saved: boolean;
+      if (proxy) {
+        const replacePassword = Boolean(input.password);
+        saved = await onUpdate(proxy.id, {
+          name: input.name,
+          scheme: input.scheme,
+          host: input.host,
+          port: input.port,
+          username: input.username || undefined,
+          passwordAction: replacePassword ? "replace" : "keep",
+          password: replacePassword ? input.password : undefined,
+        });
+      } else {
+        saved = await onCreate({
+          ...input,
+          username: input.username || undefined,
+          password: input.password || undefined,
+        });
+      }
+      if (saved) onDone();
+    } finally {
+      setWorking(false);
+    }
+  }
+
+  return (
+    <>
+      <div className="flex items-start gap-3 pr-8">
+        <Button
+          type="button"
+          variant="ghost"
+          size="icon-sm"
+          disabled={working}
+          aria-label={t("network.proxies.back")}
+          onClick={onDone}
+        >
+          <ArrowLeft aria-hidden="true" />
+        </Button>
+        <DialogHeader>
+          <DialogTitle>
+            {proxy
+              ? t("proxySettings.editTitle")
+              : t("proxySettings.create.title")}
+          </DialogTitle>
+          <DialogDescription>
+            {proxy
+              ? t("proxySettings.editDetail")
+              : t("proxySettings.create.detail")}
+          </DialogDescription>
+        </DialogHeader>
+      </div>
+      <form className="space-y-4" onSubmit={submit}>
+        <div className="grid gap-4 sm:grid-cols-2">
+          <ProxyFields
+            input={input}
+            onChange={setInput}
+            prefix={proxy ? `edit-${proxy.id}` : "create"}
+            retainedPassword={Boolean(proxy)}
+            disabled={working}
+          />
+        </div>
+        <DialogFooter>
+          <Button
+            type="button"
+            variant="outline"
+            disabled={working}
+            onClick={onDone}
+          >
+            {t("common.cancel")}
+          </Button>
+          <Button type="submit" disabled={working}>
+            {working ? (
+              <LoaderCircle
+                data-icon="inline-start"
+                aria-hidden="true"
+                className="animate-spin"
+              />
+            ) : proxy ? (
+              <Save data-icon="inline-start" aria-hidden="true" />
+            ) : (
+              <Plus data-icon="inline-start" aria-hidden="true" />
+            )}
+            {proxy ? t("proxySettings.save") : t("proxySettings.create.submit")}
+          </Button>
+        </DialogFooter>
+      </form>
+    </>
+  );
+}
+
+function ProxyConfirmation({
+  kind,
+  proxy,
+  onUpdate,
+  onDelete,
+  onDone,
+}: {
+  kind: "clear-password" | "delete";
+  proxy: NetworkProxy;
+  onUpdate: (proxyId: string, input: NetworkProxyUpdate) => Promise<boolean>;
+  onDelete: (proxyId: string) => Promise<boolean>;
+  onDone: () => void;
+}) {
+  const { t } = useTranslation();
+  const [working, setWorking] = useState(false);
+  const deleting = kind === "delete";
+
+  async function confirm() {
+    setWorking(true);
+    try {
+      const succeeded = deleting
+        ? await onDelete(proxy.id)
+        : await onUpdate(proxy.id, {
+            name: proxy.name,
+            scheme: proxy.scheme,
+            host: proxy.host,
+            port: proxy.port,
+            username: proxy.username,
+            passwordAction: "clear",
+          });
+      if (succeeded) onDone();
+    } finally {
+      setWorking(false);
+    }
+  }
+
+  return (
+    <>
+      <div className="flex items-start gap-3 pr-8">
+        <Button
+          type="button"
+          variant="ghost"
+          size="icon-sm"
+          disabled={working}
+          aria-label={t("network.proxies.back")}
+          onClick={onDone}
+        >
+          <ArrowLeft aria-hidden="true" />
+        </Button>
+        <DialogHeader>
+          <DialogTitle>
+            {deleting
+              ? t("proxySettings.delete.title")
+              : t("proxySettings.password.clearTitle")}
+          </DialogTitle>
+          <DialogDescription>
+            {deleting
+              ? t("proxySettings.delete.detail", { name: proxy.name })
+              : t("proxySettings.password.clearDetail")}
+          </DialogDescription>
+        </DialogHeader>
+      </div>
+      <div className="rounded-lg border bg-muted/30 p-4">
+        <p className="font-medium">{proxy.name}</p>
+        <p className="mt-1 break-all text-sm text-muted-foreground">
+          {proxy.scheme.toUpperCase()} · {proxy.host}:{proxy.port}
+        </p>
+      </div>
+      <DialogFooter>
+        <Button
+          type="button"
+          variant="outline"
+          disabled={working}
+          onClick={onDone}
+        >
+          {t("common.cancel")}
+        </Button>
+        <Button
+          type="button"
+          variant={deleting ? "destructive" : "default"}
+          disabled={working}
+          onClick={() => void confirm()}
+        >
+          {working ? (
+            <LoaderCircle
+              data-icon="inline-start"
+              aria-hidden="true"
+              className="animate-spin"
+            />
+          ) : deleting ? (
+            <Trash2 data-icon="inline-start" aria-hidden="true" />
+          ) : (
+            <KeyRound data-icon="inline-start" aria-hidden="true" />
+          )}
+          {deleting
+            ? t("proxySettings.delete.confirm")
+            : t("proxySettings.password.clear")}
+        </Button>
+      </DialogFooter>
+    </>
+  );
 }
 
 function ProxyStatusBadge({ proxy }: { proxy: NetworkProxy }) {
@@ -432,89 +592,6 @@ function ProxyFamilyResult({
         </p>
       ) : null}
     </div>
-  );
-}
-
-function ClearPasswordButton({
-  disabled,
-  onClear,
-}: {
-  disabled: boolean;
-  onClear: () => void;
-}) {
-  const { t } = useTranslation();
-  return (
-    <AlertDialog>
-      <AlertDialogTrigger asChild>
-        <Button type="button" variant="outline" size="sm" disabled={disabled}>
-          <KeyRound data-icon="inline-start" aria-hidden="true" />
-          {t("proxySettings.password.clear")}
-        </Button>
-      </AlertDialogTrigger>
-      <AlertDialogContent>
-        <AlertDialogHeader>
-          <AlertDialogMedia>
-            <KeyRound aria-hidden="true" />
-          </AlertDialogMedia>
-          <AlertDialogTitle>
-            {t("proxySettings.password.clearTitle")}
-          </AlertDialogTitle>
-          <AlertDialogDescription>
-            {t("proxySettings.password.clearDetail")}
-          </AlertDialogDescription>
-        </AlertDialogHeader>
-        <AlertDialogFooter>
-          <AlertDialogCancel>{t("common.cancel")}</AlertDialogCancel>
-          <AlertDialogAction onClick={onClear}>
-            {t("proxySettings.password.clear")}
-          </AlertDialogAction>
-        </AlertDialogFooter>
-      </AlertDialogContent>
-    </AlertDialog>
-  );
-}
-
-function DeleteProxyButton({
-  proxy,
-  disabled,
-  onDelete,
-}: {
-  proxy: NetworkProxy;
-  disabled: boolean;
-  onDelete: () => void;
-}) {
-  const { t } = useTranslation();
-  return (
-    <AlertDialog>
-      <AlertDialogTrigger asChild>
-        <Button
-          type="button"
-          variant="destructive"
-          size="sm"
-          disabled={disabled}
-        >
-          <Trash2 data-icon="inline-start" aria-hidden="true" />
-          {t("proxySettings.delete.action")}
-        </Button>
-      </AlertDialogTrigger>
-      <AlertDialogContent>
-        <AlertDialogHeader>
-          <AlertDialogMedia>
-            <TriangleAlert aria-hidden="true" />
-          </AlertDialogMedia>
-          <AlertDialogTitle>{t("proxySettings.delete.title")}</AlertDialogTitle>
-          <AlertDialogDescription>
-            {t("proxySettings.delete.detail", { name: proxy.name })}
-          </AlertDialogDescription>
-        </AlertDialogHeader>
-        <AlertDialogFooter>
-          <AlertDialogCancel>{t("common.cancel")}</AlertDialogCancel>
-          <AlertDialogAction variant="destructive" onClick={onDelete}>
-            {t("proxySettings.delete.confirm")}
-          </AlertDialogAction>
-        </AlertDialogFooter>
-      </AlertDialogContent>
-    </AlertDialog>
   );
 }
 

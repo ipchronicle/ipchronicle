@@ -1446,12 +1446,24 @@ describe("administrator application", () => {
     expect(screen.getByText("Historical")).toBeInTheDocument();
     expect(screen.getByText("Reached through NAT")).toBeInTheDocument();
     expect(screen.queryByText("eth0")).not.toBeInTheDocument();
-    expect(screen.getByText("Primary proxy")).toBeInTheDocument();
-    expect(screen.getByText("IPv4 only")).toBeInTheDocument();
-    expect(screen.getByText("198.51.100.20")).toBeInTheDocument();
-    expect(screen.getByText("No public IP discovered")).toBeInTheDocument();
+    expect(screen.queryByText("Primary proxy")).not.toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Manage proxies" }));
+    const proxyManager = screen.getByRole("dialog", {
+      name: "Network proxies",
+    });
+    expect(within(proxyManager).getByText("Primary proxy")).toBeInTheDocument();
+    expect(within(proxyManager).getByText("IPv4 only")).toBeInTheDocument();
+    expect(within(proxyManager).getByText("198.51.100.20")).toBeInTheDocument();
+    expect(
+      within(proxyManager).getByText("No public IP discovered"),
+    ).toBeInTheDocument();
     expect(screen.queryByLabelText("Address family")).not.toBeInTheDocument();
-    expect(screen.getByText("Password configured")).toBeInTheDocument();
+    expect(
+      within(proxyManager).getByText("Password configured"),
+    ).toBeInTheDocument();
+    fireEvent.click(
+      within(proxyManager).getByRole("button", { name: "Close" }),
+    );
     expect(screen.getAllByRole("link", { name: "View result" })).toHaveLength(
       2,
     );
@@ -1480,6 +1492,7 @@ describe("administrator application", () => {
     );
     expect(screen.queryByRole("alertdialog")).not.toBeInTheDocument();
     expect(updatePublicAddressMock).not.toHaveBeenCalled();
+    fireEvent.click(screen.getByRole("button", { name: "Manage proxies" }));
     expect(screen.getByRole("button", { name: "Edit" })).toBeEnabled();
     expect(
       screen.queryByDisplayValue("retained-secret"),
@@ -1487,7 +1500,15 @@ describe("administrator application", () => {
     fireEvent.click(screen.getByRole("button", { name: "Edit" }));
     const editDialog = screen.getByRole("dialog", { name: "Edit proxy" });
     expect(within(editDialog).getByLabelText("Password")).toHaveValue("");
-    fireEvent.click(within(editDialog).getByRole("button", { name: "Cancel" }));
+    fireEvent.click(
+      within(editDialog).getByRole("button", { name: "Back to proxy list" }),
+    );
+    fireEvent.click(
+      within(screen.getByRole("dialog", { name: "Network proxies" })).getByRole(
+        "button",
+        { name: "Close" },
+      ),
+    );
     fireEvent.click(
       screen.getAllByRole("switch", { name: "Enable complete probe" })[0],
     );
@@ -1516,6 +1537,7 @@ describe("administrator application", () => {
       createdAt: "2026-08-09T06:00:00Z",
       updatedAt: "2026-08-09T06:03:00Z",
     });
+    fireEvent.click(screen.getByRole("button", { name: "Manage proxies" }));
     fireEvent.click(screen.getByRole("button", { name: "Delete proxy" }));
     expect(
       await screen.findByText(
@@ -1524,7 +1546,9 @@ describe("administrator application", () => {
       ),
     ).toBeInTheDocument();
     fireEvent.click(
-      within(screen.getByRole("alertdialog")).getByRole("button", {
+      within(
+        screen.getByRole("dialog", { name: "Delete this network proxy?" }),
+      ).getByRole("button", {
         name: "Delete proxy",
       }),
     );
@@ -1580,6 +1604,13 @@ describe("administrator application", () => {
 
     renderApplication("/nodes/7289cfa3-a75d-4a3f-ac06-8f1074446a85/network");
 
+    expect(
+      await screen.findByRole("button", { name: "Manage proxies" }),
+    ).toBeInTheDocument();
+    expect(
+      screen.queryByText("This node has no network proxy."),
+    ).not.toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Manage proxies" }));
     expect(
       await screen.findByText("This node has no network proxy."),
     ).toBeInTheDocument();

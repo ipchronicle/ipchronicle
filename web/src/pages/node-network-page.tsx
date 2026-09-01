@@ -28,8 +28,17 @@ import {
 import { createCompleteProbeTask, type ProbeTask } from "@/api/probes";
 import { useAuth } from "@/auth-context";
 import { useNodeDetail } from "@/components/node-detail-layout";
-import { NodeNetworkProxies } from "@/components/node-network-proxies";
-import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
+import {
+  networkProxyAttentionCount,
+  NetworkProxyManagerButton,
+  NodeNetworkProxies,
+} from "@/components/node-network-proxies";
+import {
+  Alert,
+  AlertAction,
+  AlertDescription,
+  AlertTitle,
+} from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
@@ -64,6 +73,7 @@ export function NodeNetworkPage() {
   const [refreshing, setRefreshing] = useState(false);
   const [saving, setSaving] = useState<Set<string>>(() => new Set());
   const [probing, setProbing] = useState<Set<string>>(() => new Set());
+  const [proxyManagerOpen, setProxyManagerOpen] = useState(false);
   const [feedback, setFeedback] = useState<Feedback>();
 
   const load = useCallback(
@@ -124,6 +134,10 @@ export function NodeNetworkPage() {
     state.kind === "success"
       ? state.network.publicAddresses.filter((address) => !address.available)
       : [];
+  const proxyAttentionCount =
+    state.kind === "success"
+      ? networkProxyAttentionCount(state.network.networkProxies)
+      : 0;
 
   async function saveAddress(address: PublicAddress, probeEnabled: boolean) {
     setSaving((current) => new Set(current).add(address.id));
@@ -252,8 +266,10 @@ export function NodeNetworkPage() {
             }
           : current,
       );
+      return true;
     } catch (error) {
       setFeedback({ kind: "error", message: formatAPIError(error, t) });
+      return false;
     }
   }
 
@@ -299,9 +315,10 @@ export function NodeNetworkPage() {
                 {t("network.publicAddresses.detail")}
               </CardDescription>
               <CardAction className="flex items-center gap-2">
-                <Badge variant="info">
-                  {state.network.publicAddresses.length}
-                </Badge>
+                <NetworkProxyManagerButton
+                  proxies={state.network.networkProxies}
+                  onClick={() => setProxyManagerOpen(true)}
+                />
                 <Button
                   variant="outline"
                   size="sm"
@@ -318,6 +335,29 @@ export function NodeNetworkPage() {
               </CardAction>
             </CardHeader>
             <CardContent>
+              {proxyAttentionCount > 0 ? (
+                <Alert className="mb-6 border-amber-500/40 bg-amber-500/5 pr-24 text-amber-900 dark:text-amber-200">
+                  <TriangleAlert aria-hidden="true" />
+                  <AlertTitle>
+                    {t("network.proxies.attention.title", {
+                      count: proxyAttentionCount,
+                    })}
+                  </AlertTitle>
+                  <AlertDescription>
+                    {t("network.proxies.attention.detail")}
+                  </AlertDescription>
+                  <AlertAction>
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      onClick={() => setProxyManagerOpen(true)}
+                    >
+                      {t("network.proxies.attention.action")}
+                    </Button>
+                  </AlertAction>
+                </Alert>
+              ) : null}
               {state.network.publicAddresses.length === 0 ? (
                 <div className="py-10 text-center text-sm text-muted-foreground">
                   <Route aria-hidden="true" className="mx-auto mb-3 size-8" />
@@ -383,7 +423,9 @@ export function NodeNetworkPage() {
           </Card>
 
           <NodeNetworkProxies
+            open={proxyManagerOpen}
             proxies={state.network.networkProxies}
+            onOpenChange={setProxyManagerOpen}
             onCreate={createProxy}
             onUpdate={updateProxy}
             onDelete={deleteProxy}

@@ -752,9 +752,17 @@ export const en = {
       },
       proxies: {
         title: "Network proxies",
+        manage: "Manage proxies",
+        back: "Back to proxy list",
         detail:
           "Proxies are used only by this node. After one is added or changed, the Agent automatically discovers its IPv4 and IPv6 public exits.",
         empty: "This node has no network proxy.",
+        attention: {
+          title: "Network proxy issues ({{count}})",
+          detail:
+            "A proxy is unavailable or could not be deleted, so public-exit discovery may be incomplete.",
+          action: "Manage",
+        },
         noAddress: "No public IP discovered",
         lastChecked: "Checked {{value}}",
         status: {

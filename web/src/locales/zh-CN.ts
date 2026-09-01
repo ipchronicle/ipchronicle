@@ -704,9 +704,16 @@ export const zhCN = {
       },
       proxies: {
         title: "网络代理",
+        manage: "管理代理",
+        back: "返回代理列表",
         detail:
           "代理只在当前节点使用。添加或修改后，Agent 会自动发现 IPv4 和 IPv6 公网出口。",
         empty: "此节点尚未配置网络代理。",
+        attention: {
+          title: "网络代理异常（{{count}}）",
+          detail: "代理当前不可用或删除失败，公网出口发现可能不完整。",
+          action: "管理",
+        },
         noAddress: "尚未发现公网 IP",
         lastChecked: "检查于 {{value}}",
         status: {
