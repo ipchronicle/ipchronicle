@@ -2211,6 +2211,178 @@ func (q *Queries) ListNotificationDeliveries(ctx context.Context, arg ListNotifi
 	return items, nil
 }
 
+const listOverviewCurrentProbeStates = `-- name: ListOverviewCurrentProbeStates :many
+SELECT identity.egress_id, current.snapshot_id, current.observed_at,
+       format.status AS format_status,
+       outcome.status AS latest_probe_outcome,
+       outcome.last_observed_at AS latest_probe_at,
+       outcome_execution.run_id AS latest_probe_run_id
+FROM (
+    SELECT egress_id FROM current_probe_snapshots
+    UNION
+    SELECT egress_id FROM probe_outcome_states
+) identity
+LEFT JOIN current_probe_snapshots current ON current.egress_id = identity.egress_id
+LEFT JOIN probe_format_states format ON format.egress_id = identity.egress_id
+LEFT JOIN probe_outcome_states outcome ON outcome.egress_id = identity.egress_id
+LEFT JOIN probe_executions outcome_execution ON outcome_execution.id = outcome.execution_id
+ORDER BY identity.egress_id
+`
+
+type ListOverviewCurrentProbeStatesRow struct {
+	EgressID           string
+	SnapshotID         *string
+	ObservedAt         *int64
+	FormatStatus       *string
+	LatestProbeOutcome *string
+	LatestProbeAt      *int64
+	LatestProbeRunID   *string
+}
+
+func (q *Queries) ListOverviewCurrentProbeStates(ctx context.Context) ([]ListOverviewCurrentProbeStatesRow, error) {
+	rows, err := q.db.QueryContext(ctx, listOverviewCurrentProbeStates)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []ListOverviewCurrentProbeStatesRow{}
+	for rows.Next() {
+		var i ListOverviewCurrentProbeStatesRow
+		if err := rows.Scan(
+			&i.EgressID,
+			&i.SnapshotID,
+			&i.ObservedAt,
+			&i.FormatStatus,
+			&i.LatestProbeOutcome,
+			&i.LatestProbeAt,
+			&i.LatestProbeRunID,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listOverviewLatestNodeProbeRuns = `-- name: ListOverviewLatestNodeProbeRuns :many
+SELECT run.id, run.node_id, run.trigger, run.started_at, run.completed_at,
+       run.status, run.expected_executions,
+       CAST(SUM(CASE WHEN execution.status NOT IN('pending', 'running') THEN 1 ELSE 0 END) AS INTEGER) AS completed_executions
+FROM probe_runs run
+LEFT JOIN probe_executions execution ON execution.run_id = run.id
+WHERE NOT EXISTS (
+    SELECT 1
+    FROM probe_runs newer
+    WHERE newer.node_id = run.node_id
+      AND(newer.started_at > run.started_at OR(newer.started_at = run.started_at AND newer.id > run.id))
+)
+GROUP BY run.id
+ORDER BY run.node_id
+`
+
+type ListOverviewLatestNodeProbeRunsRow struct {
+	ID                  string
+	NodeID              string
+	Trigger             string
+	StartedAt           int64
+	CompletedAt         *int64
+	Status              string
+	ExpectedExecutions  int64
+	CompletedExecutions int64
+}
+
+func (q *Queries) ListOverviewLatestNodeProbeRuns(ctx context.Context) ([]ListOverviewLatestNodeProbeRunsRow, error) {
+	rows, err := q.db.QueryContext(ctx, listOverviewLatestNodeProbeRuns)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []ListOverviewLatestNodeProbeRunsRow{}
+	for rows.Next() {
+		var i ListOverviewLatestNodeProbeRunsRow
+		if err := rows.Scan(
+			&i.ID,
+			&i.NodeID,
+			&i.Trigger,
+			&i.StartedAt,
+			&i.CompletedAt,
+			&i.Status,
+			&i.ExpectedExecutions,
+			&i.CompletedExecutions,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listOverviewRecentProbeRuns = `-- name: ListOverviewRecentProbeRuns :many
+SELECT run.id, run.node_id, run.trigger, run.started_at, run.completed_at,
+       run.status, run.expected_executions,
+       CAST(SUM(CASE WHEN execution.status NOT IN('pending', 'running') THEN 1 ELSE 0 END) AS INTEGER) AS completed_executions
+FROM probe_runs run
+LEFT JOIN probe_executions execution ON execution.run_id = run.id
+GROUP BY run.id
+ORDER BY run.started_at DESC, run.id DESC
+LIMIT 8
+`
+
+type ListOverviewRecentProbeRunsRow struct {
+	ID                  string
+	NodeID              string
+	Trigger             string
+	StartedAt           int64
+	CompletedAt         *int64
+	Status              string
+	ExpectedExecutions  int64
+	CompletedExecutions int64
+}
+
+func (q *Queries) ListOverviewRecentProbeRuns(ctx context.Context) ([]ListOverviewRecentProbeRunsRow, error) {
+	rows, err := q.db.QueryContext(ctx, listOverviewRecentProbeRuns)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []ListOverviewRecentProbeRunsRow{}
+	for rows.Next() {
+		var i ListOverviewRecentProbeRunsRow
+		if err := rows.Scan(
+			&i.ID,
+			&i.NodeID,
+			&i.Trigger,
+			&i.StartedAt,
+			&i.CompletedAt,
+			&i.Status,
+			&i.ExpectedExecutions,
+			&i.CompletedExecutions,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const listPendingNotificationEvents = `-- name: ListPendingNotificationEvents :many
 SELECT id, event_type, source_kind, source_id, node_id, egress_id,
        payload_json, observed_at, recorded_at, processed_at

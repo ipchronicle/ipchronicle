@@ -4,7 +4,7 @@ import { readFile } from "node:fs/promises";
 import { expect, test } from "@playwright/test";
 
 async function signIn(page: import("@playwright/test").Page) {
-  await page.goto("/system/status");
+  await page.goto("/");
   await expect(page).toHaveURL(/\/login$/);
   await page.getByLabel("Username").fill("admin");
   await page.getByLabel("Password").fill("admin");
@@ -14,9 +14,7 @@ async function signIn(page: import("@playwright/test").Page) {
   if (await switchToEnglish.isVisible()) {
     await switchToEnglish.click();
   }
-  await expect(
-    page.getByRole("heading", { name: "System status" }),
-  ).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Overview" })).toBeVisible();
 }
 
 async function expectNoPageOverflow(page: import("@playwright/test").Page) {
@@ -142,14 +140,15 @@ async function uploadSucceededProbeSnapshot(
   expect(executionUpload.status()).toBe(200);
 }
 
-test("authenticates and shows status warnings in both languages", async ({
+test("authenticates and shows overview warnings in both languages", async ({
   page,
 }, testInfo) => {
   await page.emulateMedia({ colorScheme: "light" });
   await signIn(page);
 
-  await expect(page.getByText("Operational")).toBeVisible();
-  await expect(page.getByText("ipchronicle-center")).toBeVisible();
+  if (testInfo.project.name === "desktop-chromium") {
+    await expect(page.getByText("Connect the first node")).toBeVisible();
+  }
   await expect(
     page.getByText("Default credentials are still active"),
   ).toBeVisible();
@@ -158,20 +157,20 @@ test("authenticates and shows status warnings in both languages", async ({
   await page
     .getByRole("button", { name: "Switch to Simplified Chinese" })
     .click();
-  await expect(page.getByRole("heading", { name: "系统状态" })).toBeVisible();
-  await expect(page.getByText("运行正常")).toBeVisible();
+  await expect(page.getByRole("heading", { name: "总览" })).toBeVisible();
+  if (testInfo.project.name === "desktop-chromium") {
+    await expect(page.getByText("连接第一个节点")).toBeVisible();
+  }
   await expect(page.getByText("仍在使用默认凭据")).toBeVisible();
   await expect(page.getByText("浏览器正在使用 HTTP 连接")).toBeVisible();
 
   await page.screenshot({
-    path: testInfo.outputPath("system-status.png"),
+    path: testInfo.outputPath("overview-empty.png"),
     fullPage: true,
   });
 
   await page.getByRole("button", { name: "切换到英文" }).click();
-  await expect(
-    page.getByRole("heading", { name: "System status" }),
-  ).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Overview" })).toBeVisible();
 });
 
 test("changes theme immediately", async ({ page }) => {
@@ -338,7 +337,11 @@ test("generates an Agent installation command from the nodes page", async ({
       : items.first();
   };
   await expect(responsiveItem(nodeName)).toBeVisible({ timeout: 8_000 });
-  await responsiveItem("Offline").click();
+  await page
+    .getByRole("link", { name: nodeName, exact: true })
+    .filter({ visible: true })
+    .first()
+    .click();
   await expect(page.getByRole("tab", { name: "Overview" })).toHaveAttribute(
     "data-state",
     "active",
@@ -1142,6 +1145,26 @@ test("generates an Agent installation command from the nodes page", async ({
   await expect(page.locator("pre")).toContainText(`"IP": "${publicAddress}"`);
   await expect(page.locator("pre")).toContainText('"Region": null');
   await expectNoPageOverflow(page);
+
+  const overviewLink = page.getByRole("link", {
+    name: "Overview",
+    exact: true,
+  });
+  if (!(await overviewLink.isVisible())) {
+    await page.getByRole("button", { name: "Toggle sidebar" }).click();
+  }
+  await overviewLink.click();
+  await expect(page.getByRole("heading", { name: "Overview" })).toBeVisible();
+  await expect(
+    page.getByText(publicAddress, { exact: true }).first(),
+  ).toBeVisible();
+  await expect(page.getByText(nodeName, { exact: true }).first()).toBeVisible();
+  await expect(page.getByText("Current public IPs").first()).toBeVisible();
+  await expectNoPageOverflow(page);
+  await page.screenshot({
+    path: testInfo.outputPath("overview-populated.png"),
+    fullPage: true,
+  });
 
   const historyLink = page.getByRole("link", {
     name: "History",

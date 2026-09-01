@@ -22,6 +22,7 @@ import {
   getSystemStatus,
   updateSystemSettings,
 } from "@/api/system";
+import { getOverview } from "@/api/overview";
 import {
   createAgentUpdateTasks,
   getAgentUpdateState,
@@ -104,6 +105,10 @@ vi.mock("@/api/system", () => ({
   updateSystemSettings: vi.fn(),
 }));
 
+vi.mock("@/api/overview", () => ({
+  getOverview: vi.fn(),
+}));
+
 vi.mock("@/api/updates", () => ({
   createAgentUpdateTasks: vi.fn(),
   getAgentUpdateState: vi.fn(),
@@ -178,6 +183,7 @@ const loginMock = vi.mocked(login);
 const logoutMock = vi.mocked(logout);
 const updateLocaleMock = vi.mocked(updateAccountLocale);
 const getSystemSettingsMock = vi.mocked(getSystemSettings);
+const getOverviewMock = vi.mocked(getOverview);
 const getSystemStatusMock = vi.mocked(getSystemStatus);
 const updateSystemSettingsMock = vi.mocked(updateSystemSettings);
 const createAgentUpdateTasksMock = vi.mocked(createAgentUpdateTasks);
@@ -254,6 +260,28 @@ const healthyStatus = {
   trustedProxyConfigured: false,
 };
 
+const healthyOverview = {
+  checkedAt: "2026-08-10T08:00:00Z",
+  historyOverBudget: false,
+  nodes: [
+    {
+      id: "7289cfa3-a75d-4a3f-ac06-8f1074446a85",
+      name: "edge-1",
+      status: "online" as const,
+      configurationStatus: "current" as const,
+      desiredConfigurationRevision: 2,
+      appliedConfigurationRevision: 2,
+      lastSeenAt: "2026-08-10T08:00:00Z",
+      pausedLowMemory: false,
+      nextScheduledAt: "2026-08-11T00:00:00Z",
+      publicAddresses: [],
+    },
+  ],
+  activeTasks: [],
+  recentProbeRuns: [],
+  recentAddressEvents: [],
+};
+
 const agentUpdateState = {
   channel: "stable" as const,
   currentVersion: "0.1.0",
@@ -313,6 +341,9 @@ describe("administrator application", () => {
       effectiveOrigin: window.location.origin,
     });
     getSystemStatusMock.mockReset();
+    getSystemStatusMock.mockResolvedValue(healthyStatus);
+    getOverviewMock.mockReset();
+    getOverviewMock.mockResolvedValue(healthyOverview);
     updateSystemSettingsMock.mockReset();
     createAgentUpdateTasksMock.mockReset();
     getAgentUpdateStateMock.mockReset();
@@ -410,7 +441,7 @@ describe("administrator application", () => {
     expect(screen.getByLabelText("Password")).toBeInTheDocument();
   });
 
-  it("authenticates and renders persisted system status", async () => {
+  it("authenticates and renders the global overview", async () => {
     getSessionMock.mockResolvedValue(null);
     loginMock.mockResolvedValue(session);
     getSystemStatusMock.mockResolvedValue(healthyStatus);
@@ -422,7 +453,7 @@ describe("administrator application", () => {
     fireEvent.click(screen.getByRole("button", { name: "Sign in" }));
 
     expect(
-      await screen.findByRole("heading", { name: "System status" }),
+      await screen.findByRole("heading", { name: "Overview" }),
     ).toBeInTheDocument();
     expect(
       screen.getByRole("navigation", { name: "Primary navigation" }),
@@ -443,7 +474,7 @@ describe("administrator application", () => {
         name: /^System$/,
       }),
     ).toHaveAttribute("href", "/settings/system");
-    expect(screen.getByRole("link", { name: "System status" })).toHaveAttribute(
+    expect(screen.getByRole("link", { name: "Overview" })).toHaveAttribute(
       "aria-current",
       "page",
     );
@@ -451,7 +482,9 @@ describe("administrator application", () => {
     expect(sidebar).toHaveAttribute("data-state", "expanded");
     fireEvent.click(screen.getByRole("button", { name: "Toggle sidebar" }));
     expect(sidebar).toHaveAttribute("data-state", "collapsed");
-    expect(await screen.findByText("Operational")).toBeInTheDocument();
+    expect(
+      await screen.findByText("No current issues need attention"),
+    ).toBeInTheDocument();
     expect(
       screen.getByText("Default credentials are still active"),
     ).toBeInTheDocument();
@@ -460,7 +493,7 @@ describe("administrator application", () => {
     ).toBeInTheDocument();
   });
 
-  it("shows a recoverable status API failure", async () => {
+  it("shows a recoverable overview API failure", async () => {
     getSessionMock.mockResolvedValue(session);
     getSystemStatusMock
       .mockRejectedValueOnce(new Error("offline"))
@@ -468,7 +501,81 @@ describe("administrator application", () => {
     renderApplication("/");
 
     fireEvent.click(await screen.findByRole("button", { name: "Retry" }));
-    expect(await screen.findByText("Operational")).toBeInTheDocument();
+    expect(
+      await screen.findByText("No current issues need attention"),
+    ).toBeInTheDocument();
+  });
+
+  it("prioritizes current probe and node issues with drill-down links", async () => {
+    getSessionMock.mockResolvedValue(session);
+    getOverviewMock.mockResolvedValue({
+      ...healthyOverview,
+      nodes: [
+        {
+          ...healthyOverview.nodes[0],
+          status: "offline",
+          configurationStatus: "failed",
+          appliedConfigurationRevision: 1,
+          pausedLowMemory: true,
+          publicAddresses: [
+            {
+              id: "6b15a701-8f23-40dd-a1b2-13982dba217f",
+              address: "203.0.113.10",
+              family: "ipv4",
+              probeEnabled: true,
+              likelyNat: true,
+              proxyPath: false,
+              lastSeenAt: "2026-08-10T07:50:00Z",
+              latestProbeAt: "2026-08-10T07:55:00Z",
+              latestProbeRunId: "84e7d535-e04e-47f9-8374-1585a5dce6c9",
+              latestProbeOutcome: "failed",
+              formatStatus: "mismatch",
+            },
+          ],
+        },
+      ],
+    });
+    renderApplication("/");
+
+    expect(
+      await screen.findByText("The latest probe for 203.0.113.10 failed"),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByRole("link", {
+        name: /The latest probe for 203\.0\.113\.10 failed/,
+      }),
+    ).toHaveAttribute(
+      "href",
+      "/probe-runs/84e7d535-e04e-47f9-8374-1585a5dce6c9",
+    );
+    expect(screen.getByText("edge-1 is offline")).toBeInTheDocument();
+    expect(
+      screen.getByText("Complete probes are paused on edge-1"),
+    ).toBeInTheDocument();
+  });
+
+  it("shows the Agent command directly on an empty overview", async () => {
+    getSessionMock.mockResolvedValue(session);
+    getOverviewMock.mockResolvedValue({
+      ...healthyOverview,
+      nodes: [],
+    });
+    getEnrollmentMock.mockResolvedValue({
+      enabled: true,
+      hasKey: true,
+      registrationKey: "ipc_reg_test",
+      defaultProbeTimezone: "UTC",
+      rotatedAt: "2026-08-10T07:00:00Z",
+    });
+    renderApplication("/");
+
+    expect(
+      await screen.findByText("Connect the first node"),
+    ).toBeInTheDocument();
+    expect(await screen.findByText(/ipc_reg_test/)).toBeInTheDocument();
+    expect(
+      screen.getByRole("button", { name: "Copy command" }),
+    ).toBeInTheDocument();
   });
 
   it("shows release metadata and switches the unified release channel", async () => {
@@ -675,7 +782,7 @@ describe("administrator application", () => {
     updateLocaleMock.mockResolvedValue({ ...session.account, locale: "zh-CN" });
     renderApplication("/");
 
-    await screen.findByRole("heading", { name: "System status" });
+    await screen.findByRole("heading", { name: "Overview" });
     fireEvent.click(
       await screen.findByRole("button", {
         name: "Switch to Simplified Chinese",
@@ -683,7 +790,7 @@ describe("administrator application", () => {
     );
     await waitFor(() => expect(updateLocaleMock).toHaveBeenCalledWith("zh-CN"));
     expect(
-      await screen.findByRole("heading", { name: "系统状态" }),
+      await screen.findByRole("heading", { name: "总览" }),
     ).toBeInTheDocument();
     fireEvent.click(screen.getByRole("button", { name: "使用深色主题" }));
     expect(document.documentElement).toHaveClass("dark");

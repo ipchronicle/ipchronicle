@@ -159,6 +159,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/overview": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Read the administrator overview */
+        get: operations["getOverview"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/system/settings": {
         parameters: {
             query?: never;
@@ -910,6 +927,83 @@ export interface components {
             /** @enum {string} */
             externalOriginMode: "automatic" | "custom";
             trustedProxyConfigured: boolean;
+        };
+        Overview: {
+            /** Format: date-time */
+            checkedAt: string;
+            historyOverBudget: boolean;
+            nodes: components["schemas"]["OverviewNode"][];
+            activeTasks: components["schemas"]["OverviewTask"][];
+            recentProbeRuns: components["schemas"]["ProbeRunSummary"][];
+            recentAddressEvents: components["schemas"]["OverviewAddressEvent"][];
+        };
+        OverviewNode: {
+            /** Format: uuid */
+            id: string;
+            name: string;
+            status: components["schemas"]["NodeStatus"];
+            configurationStatus: components["schemas"]["NodeConfigurationStatus"];
+            /** Format: int64 */
+            desiredConfigurationRevision: number;
+            /** Format: int64 */
+            appliedConfigurationRevision: number;
+            /** Format: date-time */
+            lastSeenAt?: string;
+            pausedLowMemory: boolean;
+            /** Format: date-time */
+            nextScheduledAt?: string;
+            latestProbeRun?: components["schemas"]["ProbeRunSummary"];
+            publicAddresses: components["schemas"]["OverviewPublicAddress"][];
+        };
+        OverviewPublicAddress: {
+            /** Format: uuid */
+            id: string;
+            address: string;
+            family: components["schemas"]["AddressFamily"];
+            probeEnabled: boolean;
+            likelyNat: boolean;
+            proxyPath: boolean;
+            /** Format: date-time */
+            lastSeenAt: string;
+            /** Format: uuid */
+            latestSnapshotId?: string;
+            /** Format: date-time */
+            latestProbeAt?: string;
+            /** Format: uuid */
+            latestProbeRunId?: string;
+            /** @enum {string} */
+            latestProbeOutcome?: "healthy" | "failed";
+            formatStatus?: components["schemas"]["ProbeFormatStatus"];
+        };
+        OverviewTask: {
+            /** Format: uuid */
+            id: string;
+            /** Format: uuid */
+            nodeId: string;
+            /** @enum {string} */
+            kind: "complete-probe" | "agent-update";
+            /** @enum {string} */
+            status: "pending" | "acknowledged" | "running" | "verifying" | "installing" | "restarting";
+            /** Format: date-time */
+            createdAt: string;
+            /** Format: date-time */
+            expiresAt: string;
+            /** Format: uuid */
+            runId?: string;
+        };
+        OverviewAddressEvent: {
+            /** Format: uuid */
+            id: string;
+            /** Format: uuid */
+            nodeId: string;
+            /** Format: uuid */
+            publicAddressId: string;
+            kind: components["schemas"]["AddressEventKind"];
+            family: components["schemas"]["AddressFamily"];
+            publicAddress?: string;
+            failureReason?: components["schemas"]["AddressFailureReason"];
+            /** Format: date-time */
+            observedAt: string;
         };
         SystemSettings: {
             automatic: boolean;
@@ -2433,6 +2527,27 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["SystemStatus"];
+                };
+            };
+            401: components["responses"]["Unauthorized"];
+        };
+    };
+    getOverview: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Current cross-node health, activity, and schedule state. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Overview"];
                 };
             };
             401: components["responses"]["Unauthorized"];

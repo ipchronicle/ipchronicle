@@ -2375,7 +2375,7 @@ func (q *Queries) ListNodePublicAddressPaths(ctx context.Context, nodeID string)
 }
 
 const listNodePublicAddressSummaries = `-- name: ListNodePublicAddressSummaries :many
-SELECT n.node_id, a.id, a.address, a.family, a.probe_enabled,
+SELECT n.node_id, a.id, a.address, a.family, a.probe_enabled, a.last_seen_at,
        EXISTS (
            SELECT 1
            FROM public_address_paths p
@@ -2401,6 +2401,7 @@ type ListNodePublicAddressSummariesRow struct {
 	Address      string
 	Family       string
 	ProbeEnabled int64
+	LastSeenAt   int64
 	Available    bool
 }
 
@@ -2419,6 +2420,7 @@ func (q *Queries) ListNodePublicAddressSummaries(ctx context.Context) ([]ListNod
 			&i.Address,
 			&i.Family,
 			&i.ProbeEnabled,
+			&i.LastSeenAt,
 			&i.Available,
 		); err != nil {
 			return nil, err
@@ -2658,6 +2660,142 @@ func (q *Queries) ListNotificationSenders(ctx context.Context) ([]NotificationSe
 			&i.ConfigurationEncrypted,
 			&i.CreatedAt,
 			&i.UpdatedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listOverviewActiveTasks = `-- name: ListOverviewActiveTasks :many
+SELECT id, node_id, kind, status, created_at, expires_at, run_id
+FROM probe_tasks
+WHERE status IN('pending', 'acknowledged', 'running', 'verifying', 'installing', 'restarting')
+ORDER BY created_at, id
+`
+
+type ListOverviewActiveTasksRow struct {
+	ID        string
+	NodeID    string
+	Kind      string
+	Status    string
+	CreatedAt int64
+	ExpiresAt int64
+	RunID     *string
+}
+
+func (q *Queries) ListOverviewActiveTasks(ctx context.Context) ([]ListOverviewActiveTasksRow, error) {
+	rows, err := q.db.QueryContext(ctx, listOverviewActiveTasks)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []ListOverviewActiveTasksRow{}
+	for rows.Next() {
+		var i ListOverviewActiveTasksRow
+		if err := rows.Scan(
+			&i.ID,
+			&i.NodeID,
+			&i.Kind,
+			&i.Status,
+			&i.CreatedAt,
+			&i.ExpiresAt,
+			&i.RunID,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listOverviewNodeProbeDetails = `-- name: ListOverviewNodeProbeDetails :many
+SELECT n.id AS node_id, n.physical_memory_bytes, n.probe_low_memory_override,
+       s.next_scheduled_at
+FROM nodes n
+LEFT JOIN node_probe_status s ON s.node_id = n.id
+ORDER BY n.name COLLATE NOCASE, n.id
+`
+
+type ListOverviewNodeProbeDetailsRow struct {
+	NodeID                 string
+	PhysicalMemoryBytes    *int64
+	ProbeLowMemoryOverride int64
+	NextScheduledAt        *int64
+}
+
+func (q *Queries) ListOverviewNodeProbeDetails(ctx context.Context) ([]ListOverviewNodeProbeDetailsRow, error) {
+	rows, err := q.db.QueryContext(ctx, listOverviewNodeProbeDetails)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []ListOverviewNodeProbeDetailsRow{}
+	for rows.Next() {
+		var i ListOverviewNodeProbeDetailsRow
+		if err := rows.Scan(
+			&i.NodeID,
+			&i.PhysicalMemoryBytes,
+			&i.ProbeLowMemoryOverride,
+			&i.NextScheduledAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listOverviewPublicAddressTraits = `-- name: ListOverviewPublicAddressTraits :many
+SELECT p.node_id, p.public_address_id,
+       CAST(MAX(p.likely_nat) AS INTEGER) AS likely_nat,
+       CAST(MAX(p.proxy_path) AS INTEGER) AS proxy_path
+FROM public_address_paths p
+WHERE p.available = 1
+GROUP BY p.node_id, p.public_address_id
+ORDER BY p.node_id, p.public_address_id
+`
+
+type ListOverviewPublicAddressTraitsRow struct {
+	NodeID          string
+	PublicAddressID string
+	LikelyNat       int64
+	ProxyPath       int64
+}
+
+func (q *Queries) ListOverviewPublicAddressTraits(ctx context.Context) ([]ListOverviewPublicAddressTraitsRow, error) {
+	rows, err := q.db.QueryContext(ctx, listOverviewPublicAddressTraits)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []ListOverviewPublicAddressTraitsRow{}
+	for rows.Next() {
+		var i ListOverviewPublicAddressTraitsRow
+		if err := rows.Scan(
+			&i.NodeID,
+			&i.PublicAddressID,
+			&i.LikelyNat,
+			&i.ProxyPath,
 		); err != nil {
 			return nil, err
 		}

@@ -320,6 +320,21 @@ func (s apiServer) GetSystemStatus(ctx context.Context, _ api.GetSystemStatusReq
 	}, nil
 }
 
+func (s apiServer) GetOverview(ctx context.Context, _ api.GetOverviewRequestObject) (api.GetOverviewResponseObject, error) {
+	_, failure, err := s.authorize(ctx, false, "")
+	if err != nil {
+		return nil, err
+	}
+	if failure != "" {
+		return api.GetOverview401JSONResponse{UnauthorizedJSONResponse: unauthorized(failure)}, nil
+	}
+	overview, err := s.nodes.Overview(ctx)
+	if err != nil {
+		return nil, err
+	}
+	return api.GetOverview200JSONResponse(overviewResponse(overview)), nil
+}
+
 func (s apiServer) GetSystemSettings(ctx context.Context, _ api.GetSystemSettingsRequestObject) (api.GetSystemSettingsResponseObject, error) {
 	_, failure, err := s.authorize(ctx, false, "")
 	if err != nil {
@@ -1444,6 +1459,73 @@ func nodeResponse(node nodes.Node) api.Node {
 	return response
 }
 
+func overviewResponse(overview nodes.Overview) api.Overview {
+	response := api.Overview{
+		CheckedAt: overview.CheckedAt, HistoryOverBudget: overview.HistoryOverBudget,
+		Nodes:               make([]api.OverviewNode, 0, len(overview.Nodes)),
+		ActiveTasks:         make([]api.OverviewTask, 0, len(overview.ActiveTasks)),
+		RecentProbeRuns:     make([]api.ProbeRunSummary, 0, len(overview.RecentProbeRuns)),
+		RecentAddressEvents: make([]api.OverviewAddressEvent, 0, len(overview.RecentAddressEvents)),
+	}
+	for _, node := range overview.Nodes {
+		item := api.OverviewNode{
+			Id: node.ID, Name: node.Name, Status: api.NodeStatus(node.Status),
+			ConfigurationStatus:          api.NodeConfigurationStatus(node.ConfigurationStatus),
+			DesiredConfigurationRevision: node.DesiredConfigurationRevision,
+			AppliedConfigurationRevision: node.AppliedConfigurationRevision,
+			LastSeenAt:                   node.LastSeenAt, PausedLowMemory: node.PausedLowMemory,
+			NextScheduledAt: node.NextScheduledAt,
+			PublicAddresses: make([]api.OverviewPublicAddress, 0, len(node.PublicAddresses)),
+		}
+		if node.LatestProbeRun != nil {
+			latest := probeRunSummaryResponse(*node.LatestProbeRun)
+			item.LatestProbeRun = &latest
+		}
+		for _, address := range node.PublicAddresses {
+			publicAddress := api.OverviewPublicAddress{
+				Id: address.ID, Address: address.Address, Family: api.AddressFamily(address.Family),
+				ProbeEnabled: address.ProbeEnabled, LikelyNat: address.LikelyNAT,
+				ProxyPath: address.ProxyPath, LastSeenAt: address.LastSeenAt,
+				LatestSnapshotId: address.LatestSnapshotID, LatestProbeAt: address.LatestProbeAt,
+				LatestProbeRunId: address.LatestProbeRunID,
+			}
+			if address.LatestProbeOutcome != nil {
+				value := api.OverviewPublicAddressLatestProbeOutcome(*address.LatestProbeOutcome)
+				publicAddress.LatestProbeOutcome = &value
+			}
+			if address.FormatStatus != nil {
+				value := api.ProbeFormatStatus(*address.FormatStatus)
+				publicAddress.FormatStatus = &value
+			}
+			item.PublicAddresses = append(item.PublicAddresses, publicAddress)
+		}
+		response.Nodes = append(response.Nodes, item)
+	}
+	for _, task := range overview.ActiveTasks {
+		response.ActiveTasks = append(response.ActiveTasks, api.OverviewTask{
+			Id: task.ID, NodeId: task.NodeID, Kind: api.OverviewTaskKind(task.Kind),
+			Status: api.OverviewTaskStatus(task.Status), CreatedAt: task.CreatedAt,
+			ExpiresAt: task.ExpiresAt, RunId: task.RunID,
+		})
+	}
+	for _, run := range overview.RecentProbeRuns {
+		response.RecentProbeRuns = append(response.RecentProbeRuns, probeRunSummaryResponse(run))
+	}
+	for _, event := range overview.RecentAddressEvents {
+		item := api.OverviewAddressEvent{
+			Id: event.ID, NodeId: event.NodeID, PublicAddressId: event.PublicAddressID,
+			Kind: api.AddressEventKind(event.Kind), Family: api.AddressFamily(event.Family),
+			PublicAddress: event.PublicAddress, ObservedAt: event.ObservedAt,
+		}
+		if event.FailureReason != nil {
+			value := api.AddressFailureReason(*event.FailureReason)
+			item.FailureReason = &value
+		}
+		response.RecentAddressEvents = append(response.RecentAddressEvents, item)
+	}
+	return response
+}
+
 func probeStateResponse(state nodes.ProbeState) api.NodeProbeState {
 	response := api.NodeProbeState{
 		NodeId: state.NodeID,
@@ -1463,13 +1545,17 @@ func probeStateResponse(state nodes.ProbeState) api.NodeProbeState {
 		response.Task = &task
 	}
 	for _, run := range state.RecentRuns {
-		response.RecentRuns = append(response.RecentRuns, api.ProbeRunSummary{
-			Id: run.ID, NodeId: run.NodeID, Trigger: api.ProbeTrigger(run.Trigger),
-			StartedAt: run.StartedAt, CompletedAt: run.CompletedAt, Status: api.ProbeRunStatus(run.Status),
-			ExpectedExecutions: int(run.ExpectedExecutions), CompletedExecutions: int(run.CompletedExecutions),
-		})
+		response.RecentRuns = append(response.RecentRuns, probeRunSummaryResponse(run))
 	}
 	return response
+}
+
+func probeRunSummaryResponse(run nodes.ProbeRunSummary) api.ProbeRunSummary {
+	return api.ProbeRunSummary{
+		Id: run.ID, NodeId: run.NodeID, Trigger: api.ProbeTrigger(run.Trigger),
+		StartedAt: run.StartedAt, CompletedAt: run.CompletedAt, Status: api.ProbeRunStatus(run.Status),
+		ExpectedExecutions: int(run.ExpectedExecutions), CompletedExecutions: int(run.CompletedExecutions),
+	}
 }
 
 func probeStatusResponse(status nodes.ProbeStatus) *api.AgentProbeStatus {

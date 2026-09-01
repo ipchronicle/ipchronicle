@@ -231,6 +231,48 @@ SELECT egress_id, snapshot_id, observed_at
 FROM current_probe_snapshots
 ORDER BY egress_id;
 
+-- name: ListOverviewCurrentProbeStates :many
+SELECT identity.egress_id, current.snapshot_id, current.observed_at,
+       format.status AS format_status,
+       outcome.status AS latest_probe_outcome,
+       outcome.last_observed_at AS latest_probe_at,
+       outcome_execution.run_id AS latest_probe_run_id
+FROM (
+    SELECT egress_id FROM current_probe_snapshots
+    UNION
+    SELECT egress_id FROM probe_outcome_states
+) identity
+LEFT JOIN current_probe_snapshots current ON current.egress_id = identity.egress_id
+LEFT JOIN probe_format_states format ON format.egress_id = identity.egress_id
+LEFT JOIN probe_outcome_states outcome ON outcome.egress_id = identity.egress_id
+LEFT JOIN probe_executions outcome_execution ON outcome_execution.id = outcome.execution_id
+ORDER BY identity.egress_id;
+
+-- name: ListOverviewLatestNodeProbeRuns :many
+SELECT run.id, run.node_id, run.trigger, run.started_at, run.completed_at,
+       run.status, run.expected_executions,
+       CAST(SUM(CASE WHEN execution.status NOT IN('pending', 'running') THEN 1 ELSE 0 END) AS INTEGER) AS completed_executions
+FROM probe_runs run
+LEFT JOIN probe_executions execution ON execution.run_id = run.id
+WHERE NOT EXISTS (
+    SELECT 1
+    FROM probe_runs newer
+    WHERE newer.node_id = run.node_id
+      AND(newer.started_at > run.started_at OR(newer.started_at = run.started_at AND newer.id > run.id))
+)
+GROUP BY run.id
+ORDER BY run.node_id;
+
+-- name: ListOverviewRecentProbeRuns :many
+SELECT run.id, run.node_id, run.trigger, run.started_at, run.completed_at,
+       run.status, run.expected_executions,
+       CAST(SUM(CASE WHEN execution.status NOT IN('pending', 'running') THEN 1 ELSE 0 END) AS INTEGER) AS completed_executions
+FROM probe_runs run
+LEFT JOIN probe_executions execution ON execution.run_id = run.id
+GROUP BY run.id
+ORDER BY run.started_at DESC, run.id DESC
+LIMIT 8;
+
 -- name: UpsertProbeComparisonProgress :exec
 INSERT INTO probe_comparison_progress (
     egress_id, node_id, history_generation, next_sequence,

@@ -55,7 +55,6 @@ function App() {
         <AppHeader withSidebar />
         <Routes>
           <Route path="/" element={<SystemStatusPage />} />
-          <Route path="/system/status" element={<SystemStatusPage />} />
           <Route path="/nodes" element={<NodesPage />} />
           <Route path="/nodes/:nodeId" element={<NodeDetailLayout />}>
             <Route index element={<NodeOverviewPage />} />

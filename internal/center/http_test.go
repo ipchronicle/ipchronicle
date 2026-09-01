@@ -38,6 +38,8 @@ func TestAdministratorLoginStatusAndLogout(t *testing.T) {
 	handler := newTestHTTPHandler(t, nil)
 	unauthenticated := performRequest(handler, http.MethodGet, "/api/v1/system/status", nil, "", nil)
 	assertErrorCode(t, unauthenticated, http.StatusUnauthorized, api.Unauthenticated)
+	unauthenticatedOverview := performRequest(handler, http.MethodGet, "/api/v1/overview", nil, "", nil)
+	assertErrorCode(t, unauthenticatedOverview, http.StatusUnauthorized, api.Unauthenticated)
 
 	missingOrigin := performRequest(handler, http.MethodPost, "/api/v1/auth/login", loginBody(), "", nil)
 	assertErrorCode(t, missingOrigin, http.StatusForbidden, api.OriginNotAllowed)
@@ -73,6 +75,17 @@ func TestAdministratorLoginStatusAndLogout(t *testing.T) {
 	if status.Service != api.IpchronicleCenter || status.Status != api.Ok || status.SourceRevision != "test-revision" ||
 		!status.TransportWarning || status.ConfigSchemaVersion != 1 || status.HistorySchemaVersion != 1 {
 		t.Fatalf("unexpected status response: %#v", status)
+	}
+	overviewResponse := performRequest(handler, http.MethodGet, "/api/v1/overview", nil, "", cookie)
+	if overviewResponse.Code != http.StatusOK {
+		t.Fatalf("overview status = %d, body = %s", overviewResponse.Code, overviewResponse.Body.String())
+	}
+	var overview api.Overview
+	if err := json.NewDecoder(overviewResponse.Body).Decode(&overview); err != nil {
+		t.Fatal(err)
+	}
+	if len(overview.Nodes) != 0 || len(overview.ActiveTasks) != 0 || overview.CheckedAt.IsZero() {
+		t.Fatalf("unexpected empty overview: %#v", overview)
 	}
 
 	missingCSRF := performRequest(handler, http.MethodPost, "/api/v1/auth/logout", nil, "http://example.test", cookie)

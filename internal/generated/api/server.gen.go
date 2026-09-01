@@ -965,6 +965,72 @@ func (e NotificationSenderKind) Valid() bool {
 	}
 }
 
+// Defines values for OverviewPublicAddressLatestProbeOutcome.
+const (
+	OverviewPublicAddressLatestProbeOutcomeFailed  OverviewPublicAddressLatestProbeOutcome = "failed"
+	OverviewPublicAddressLatestProbeOutcomeHealthy OverviewPublicAddressLatestProbeOutcome = "healthy"
+)
+
+// Valid indicates whether the value is a known member of the OverviewPublicAddressLatestProbeOutcome enum.
+func (e OverviewPublicAddressLatestProbeOutcome) Valid() bool {
+	switch e {
+	case OverviewPublicAddressLatestProbeOutcomeFailed:
+		return true
+	case OverviewPublicAddressLatestProbeOutcomeHealthy:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for OverviewTaskKind.
+const (
+	OverviewTaskKindAgentUpdate   OverviewTaskKind = "agent-update"
+	OverviewTaskKindCompleteProbe OverviewTaskKind = "complete-probe"
+)
+
+// Valid indicates whether the value is a known member of the OverviewTaskKind enum.
+func (e OverviewTaskKind) Valid() bool {
+	switch e {
+	case OverviewTaskKindAgentUpdate:
+		return true
+	case OverviewTaskKindCompleteProbe:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for OverviewTaskStatus.
+const (
+	OverviewTaskStatusAcknowledged OverviewTaskStatus = "acknowledged"
+	OverviewTaskStatusInstalling   OverviewTaskStatus = "installing"
+	OverviewTaskStatusPending      OverviewTaskStatus = "pending"
+	OverviewTaskStatusRestarting   OverviewTaskStatus = "restarting"
+	OverviewTaskStatusRunning      OverviewTaskStatus = "running"
+	OverviewTaskStatusVerifying    OverviewTaskStatus = "verifying"
+)
+
+// Valid indicates whether the value is a known member of the OverviewTaskStatus enum.
+func (e OverviewTaskStatus) Valid() bool {
+	switch e {
+	case OverviewTaskStatusAcknowledged:
+		return true
+	case OverviewTaskStatusInstalling:
+		return true
+	case OverviewTaskStatusPending:
+		return true
+	case OverviewTaskStatusRestarting:
+		return true
+	case OverviewTaskStatusRunning:
+		return true
+	case OverviewTaskStatusVerifying:
+		return true
+	default:
+		return false
+	}
+}
+
 // Defines values for ProbeExecutionStatus.
 const (
 	ProbeExecutionStatusFailed      ProbeExecutionStatus = "failed"
@@ -2205,6 +2271,79 @@ type NotificationSenderUpdate struct {
 	Webhook    *WebhookSenderUpdate           `json:"webhook,omitempty"`
 }
 
+// Overview defines model for Overview.
+type Overview struct {
+	ActiveTasks         []OverviewTask         `json:"activeTasks"`
+	CheckedAt           time.Time              `json:"checkedAt"`
+	HistoryOverBudget   bool                   `json:"historyOverBudget"`
+	Nodes               []OverviewNode         `json:"nodes"`
+	RecentAddressEvents []OverviewAddressEvent `json:"recentAddressEvents"`
+	RecentProbeRuns     []ProbeRunSummary      `json:"recentProbeRuns"`
+}
+
+// OverviewAddressEvent defines model for OverviewAddressEvent.
+type OverviewAddressEvent struct {
+	FailureReason   *AddressFailureReason `json:"failureReason,omitempty"`
+	Family          AddressFamily         `json:"family"`
+	Id              openapi_types.UUID    `json:"id"`
+	Kind            AddressEventKind      `json:"kind"`
+	NodeId          openapi_types.UUID    `json:"nodeId"`
+	ObservedAt      time.Time             `json:"observedAt"`
+	PublicAddress   *string               `json:"publicAddress,omitempty"`
+	PublicAddressId openapi_types.UUID    `json:"publicAddressId"`
+}
+
+// OverviewNode defines model for OverviewNode.
+type OverviewNode struct {
+	AppliedConfigurationRevision int64                   `json:"appliedConfigurationRevision"`
+	ConfigurationStatus          NodeConfigurationStatus `json:"configurationStatus"`
+	DesiredConfigurationRevision int64                   `json:"desiredConfigurationRevision"`
+	Id                           openapi_types.UUID      `json:"id"`
+	LastSeenAt                   *time.Time              `json:"lastSeenAt,omitempty"`
+	LatestProbeRun               *ProbeRunSummary        `json:"latestProbeRun,omitempty"`
+	Name                         string                  `json:"name"`
+	NextScheduledAt              *time.Time              `json:"nextScheduledAt,omitempty"`
+	PausedLowMemory              bool                    `json:"pausedLowMemory"`
+	PublicAddresses              []OverviewPublicAddress `json:"publicAddresses"`
+	Status                       NodeStatus              `json:"status"`
+}
+
+// OverviewPublicAddress defines model for OverviewPublicAddress.
+type OverviewPublicAddress struct {
+	Address            string                                   `json:"address"`
+	Family             AddressFamily                            `json:"family"`
+	FormatStatus       *ProbeFormatStatus                       `json:"formatStatus,omitempty"`
+	Id                 openapi_types.UUID                       `json:"id"`
+	LastSeenAt         time.Time                                `json:"lastSeenAt"`
+	LatestProbeAt      *time.Time                               `json:"latestProbeAt,omitempty"`
+	LatestProbeOutcome *OverviewPublicAddressLatestProbeOutcome `json:"latestProbeOutcome,omitempty"`
+	LatestProbeRunId   *openapi_types.UUID                      `json:"latestProbeRunId,omitempty"`
+	LatestSnapshotId   *openapi_types.UUID                      `json:"latestSnapshotId,omitempty"`
+	LikelyNat          bool                                     `json:"likelyNat"`
+	ProbeEnabled       bool                                     `json:"probeEnabled"`
+	ProxyPath          bool                                     `json:"proxyPath"`
+}
+
+// OverviewPublicAddressLatestProbeOutcome defines model for OverviewPublicAddress.LatestProbeOutcome.
+type OverviewPublicAddressLatestProbeOutcome string
+
+// OverviewTask defines model for OverviewTask.
+type OverviewTask struct {
+	CreatedAt time.Time           `json:"createdAt"`
+	ExpiresAt time.Time           `json:"expiresAt"`
+	Id        openapi_types.UUID  `json:"id"`
+	Kind      OverviewTaskKind    `json:"kind"`
+	NodeId    openapi_types.UUID  `json:"nodeId"`
+	RunId     *openapi_types.UUID `json:"runId,omitempty"`
+	Status    OverviewTaskStatus  `json:"status"`
+}
+
+// OverviewTaskKind defines model for OverviewTask.Kind.
+type OverviewTaskKind string
+
+// OverviewTaskStatus defines model for OverviewTask.Status.
+type OverviewTaskStatus string
+
 // ProbeExecution defines model for ProbeExecution.
 type ProbeExecution struct {
 	CompletedAt  *time.Time           `json:"completedAt,omitempty"`
@@ -3128,6 +3267,9 @@ type ServerInterface interface {
 	// CreateNotificationTestDelivery Queue a real-path test delivery for one sender
 	// (POST /api/v1/notification-senders/{senderId}/test-deliveries)
 	CreateNotificationTestDelivery(w http.ResponseWriter, r *http.Request, senderId SenderId, params CreateNotificationTestDeliveryParams)
+	// GetOverview Read the administrator overview
+	// (GET /api/v1/overview)
+	GetOverview(w http.ResponseWriter, r *http.Request)
 	// GetProbeRun Read one complete-probe run and its frozen egress executions
 	// (GET /api/v1/probe-runs/{runId})
 	GetProbeRun(w http.ResponseWriter, r *http.Request, runId RunId)
@@ -3488,6 +3630,12 @@ func (_ Unimplemented) UpdateNotificationSender(w http.ResponseWriter, r *http.R
 // CreateNotificationTestDelivery Queue a real-path test delivery for one sender
 // (POST /api/v1/notification-senders/{senderId}/test-deliveries)
 func (_ Unimplemented) CreateNotificationTestDelivery(w http.ResponseWriter, r *http.Request, senderId SenderId, params CreateNotificationTestDeliveryParams) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
+// GetOverview Read the administrator overview
+// (GET /api/v1/overview)
+func (_ Unimplemented) GetOverview(w http.ResponseWriter, r *http.Request) {
 	w.WriteHeader(http.StatusNotImplemented)
 }
 
@@ -5941,6 +6089,20 @@ func (siw *ServerInterfaceWrapper) CreateNotificationTestDelivery(w http.Respons
 	handler.ServeHTTP(w, r)
 }
 
+// GetOverview operation middleware
+func (siw *ServerInterfaceWrapper) GetOverview(w http.ResponseWriter, r *http.Request) {
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.GetOverview(w, r)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
 // GetProbeRun operation middleware
 func (siw *ServerInterfaceWrapper) GetProbeRun(w http.ResponseWriter, r *http.Request) {
 
@@ -6307,6 +6469,9 @@ func HandlerWithOptions(si ServerInterface, options ChiServerOptions) http.Handl
 	})
 	r.Group(func(r chi.Router) {
 		r.Get(options.BaseURL+"/api/v1/system/status", wrapper.GetSystemStatus)
+	})
+	r.Group(func(r chi.Router) {
+		r.Get(options.BaseURL+"/api/v1/overview", wrapper.GetOverview)
 	})
 	r.Group(func(r chi.Router) {
 		r.Get(options.BaseURL+"/api/v1/system/settings", wrapper.GetSystemSettings)
@@ -9998,6 +10163,41 @@ func (response CreateNotificationTestDelivery404JSONResponse) VisitCreateNotific
 	return err
 }
 
+type GetOverviewRequestObject struct {
+}
+
+type GetOverviewResponseObject interface {
+	VisitGetOverviewResponse(w http.ResponseWriter) error
+}
+
+type GetOverview200JSONResponse Overview
+
+func (response GetOverview200JSONResponse) VisitGetOverviewResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type GetOverview401JSONResponse struct{ UnauthorizedJSONResponse }
+
+func (response GetOverview401JSONResponse) VisitGetOverviewResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(401)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
 type GetProbeRunRequestObject struct {
 	RunId RunId `json:"runId"`
 }
@@ -10533,6 +10733,9 @@ type StrictServerInterface interface {
 	// CreateNotificationTestDelivery Queue a real-path test delivery for one sender
 	// (POST /api/v1/notification-senders/{senderId}/test-deliveries)
 	CreateNotificationTestDelivery(ctx context.Context, request CreateNotificationTestDeliveryRequestObject) (CreateNotificationTestDeliveryResponseObject, error)
+	// GetOverview Read the administrator overview
+	// (GET /api/v1/overview)
+	GetOverview(ctx context.Context, request GetOverviewRequestObject) (GetOverviewResponseObject, error)
 	// GetProbeRun Read one complete-probe run and its frozen egress executions
 	// (GET /api/v1/probe-runs/{runId})
 	GetProbeRun(ctx context.Context, request GetProbeRunRequestObject) (GetProbeRunResponseObject, error)
@@ -12210,6 +12413,30 @@ func (sh *strictHandler) CreateNotificationTestDelivery(w http.ResponseWriter, r
 		sh.options.ResponseErrorHandlerFunc(w, r, err)
 	} else if validResponse, ok := response.(CreateNotificationTestDeliveryResponseObject); ok {
 		if err := validResponse.VisitCreateNotificationTestDeliveryResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// GetOverview operation middleware
+func (sh *strictHandler) GetOverview(w http.ResponseWriter, r *http.Request) {
+	var request GetOverviewRequestObject
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.GetOverview(ctx, request.(GetOverviewRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "GetOverview")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(GetOverviewResponseObject); ok {
+		if err := validResponse.VisitGetOverviewResponse(w); err != nil {
 			sh.options.ResponseErrorHandlerFunc(w, r, err)
 		}
 	} else if response != nil {

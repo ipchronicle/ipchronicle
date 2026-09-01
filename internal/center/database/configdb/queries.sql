@@ -207,7 +207,7 @@ FROM nodes
 ORDER BY name COLLATE NOCASE, id;
 
 -- name: ListNodePublicAddressSummaries :many
-SELECT n.node_id, a.id, a.address, a.family, a.probe_enabled,
+SELECT n.node_id, a.id, a.address, a.family, a.probe_enabled, a.last_seen_at,
        EXISTS (
            SELECT 1
            FROM public_address_paths p
@@ -225,6 +225,28 @@ WHERE EXISTS (
       AND p.available = 1
 )
 ORDER BY n.node_id, a.family, a.address;
+
+-- name: ListOverviewNodeProbeDetails :many
+SELECT n.id AS node_id, n.physical_memory_bytes, n.probe_low_memory_override,
+       s.next_scheduled_at
+FROM nodes n
+LEFT JOIN node_probe_status s ON s.node_id = n.id
+ORDER BY n.name COLLATE NOCASE, n.id;
+
+-- name: ListOverviewPublicAddressTraits :many
+SELECT p.node_id, p.public_address_id,
+       CAST(MAX(p.likely_nat) AS INTEGER) AS likely_nat,
+       CAST(MAX(p.proxy_path) AS INTEGER) AS proxy_path
+FROM public_address_paths p
+WHERE p.available = 1
+GROUP BY p.node_id, p.public_address_id
+ORDER BY p.node_id, p.public_address_id;
+
+-- name: ListOverviewActiveTasks :many
+SELECT id, node_id, kind, status, created_at, expires_at, run_id
+FROM probe_tasks
+WHERE status IN('pending', 'acknowledged', 'running', 'verifying', 'installing', 'restarting')
+ORDER BY created_at, id;
 
 -- name: SetNodeEnabled :execrows
 UPDATE nodes

@@ -64,19 +64,13 @@ export function AppSidebar() {
                 <SidebarMenuItem>
                   <SidebarMenuButton
                     asChild
-                    isActive={
-                      location.pathname === "/" ||
-                      location.pathname === "/system/status"
-                    }
+                    isActive={location.pathname === "/"}
                     tooltip={t("navigation.systemStatus")}
                   >
                     <SidebarLink
                       to="/"
                       aria-current={
-                        location.pathname === "/" ||
-                        location.pathname === "/system/status"
-                          ? "page"
-                          : undefined
+                        location.pathname === "/" ? "page" : undefined
                       }
                     >
                       <Gauge aria-hidden="true" />

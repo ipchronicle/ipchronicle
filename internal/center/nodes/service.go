@@ -166,6 +166,7 @@ type NodePublicAddressSummary struct {
 	Family       string
 	Available    bool
 	ProbeEnabled bool
+	LastSeenAt   time.Time
 }
 
 func NewService(database, history *sql.DB, queries *configdb.Queries, masterKey [32]byte, syncConnections SyncConnections) *Service {
@@ -547,6 +548,7 @@ func (s *Service) List(ctx context.Context) ([]Node, error) {
 		publicAddresses[record.NodeID] = append(publicAddresses[record.NodeID], NodePublicAddressSummary{
 			ID: id, Address: record.Address, Family: record.Family,
 			Available: record.Available, ProbeEnabled: record.ProbeEnabled == 1,
+			LastSeenAt: time.Unix(record.LastSeenAt, 0).UTC(),
 		})
 	}
 	capabilityRecords, err := s.queries.ListNodeCapabilities(ctx)

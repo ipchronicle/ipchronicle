@@ -260,6 +260,20 @@ paths:
                 $ref: "#/components/schemas/SystemStatus"
         "401":
           $ref: "#/components/responses/Unauthorized"
+  /api/v1/overview:
+    get:
+      operationId: getOverview
+      summary: Read the administrator overview
+      tags: [system]
+      responses:
+        "200":
+          description: Current cross-node health, activity, and schedule state.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Overview"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
   /api/v1/system/settings:
     get:
       operationId: getSystemSettings
@@ -1872,6 +1886,175 @@ components:
           enum: [automatic, custom]
         trustedProxyConfigured:
           type: boolean
+    Overview:
+      type: object
+      additionalProperties: false
+      required:
+        [checkedAt, historyOverBudget, nodes, activeTasks, recentProbeRuns, recentAddressEvents]
+      properties:
+        checkedAt:
+          type: string
+          format: date-time
+        historyOverBudget:
+          type: boolean
+        nodes:
+          type: array
+          maxItems: 70
+          items:
+            $ref: "#/components/schemas/OverviewNode"
+        activeTasks:
+          type: array
+          maxItems: 70
+          items:
+            $ref: "#/components/schemas/OverviewTask"
+        recentProbeRuns:
+          type: array
+          maxItems: 8
+          items:
+            $ref: "#/components/schemas/ProbeRunSummary"
+        recentAddressEvents:
+          type: array
+          maxItems: 8
+          items:
+            $ref: "#/components/schemas/OverviewAddressEvent"
+    OverviewNode:
+      type: object
+      additionalProperties: false
+      required:
+        - id
+        - name
+        - status
+        - configurationStatus
+        - desiredConfigurationRevision
+        - appliedConfigurationRevision
+        - pausedLowMemory
+        - publicAddresses
+      properties:
+        id:
+          type: string
+          format: uuid
+        name:
+          type: string
+          minLength: 1
+          maxLength: 64
+        status:
+          $ref: "#/components/schemas/NodeStatus"
+        configurationStatus:
+          $ref: "#/components/schemas/NodeConfigurationStatus"
+        desiredConfigurationRevision:
+          type: integer
+          format: int64
+          minimum: 0
+        appliedConfigurationRevision:
+          type: integer
+          format: int64
+          minimum: 0
+        lastSeenAt:
+          type: string
+          format: date-time
+        pausedLowMemory:
+          type: boolean
+        nextScheduledAt:
+          type: string
+          format: date-time
+        latestProbeRun:
+          $ref: "#/components/schemas/ProbeRunSummary"
+        publicAddresses:
+          type: array
+          maxItems: 64
+          items:
+            $ref: "#/components/schemas/OverviewPublicAddress"
+    OverviewPublicAddress:
+      type: object
+      additionalProperties: false
+      required:
+        [id, address, family, probeEnabled, likelyNat, proxyPath, lastSeenAt]
+      properties:
+        id:
+          type: string
+          format: uuid
+        address:
+          type: string
+          minLength: 2
+          maxLength: 45
+        family:
+          $ref: "#/components/schemas/AddressFamily"
+        probeEnabled:
+          type: boolean
+        likelyNat:
+          type: boolean
+        proxyPath:
+          type: boolean
+        lastSeenAt:
+          type: string
+          format: date-time
+        latestSnapshotId:
+          type: string
+          format: uuid
+        latestProbeAt:
+          type: string
+          format: date-time
+        latestProbeRunId:
+          type: string
+          format: uuid
+        latestProbeOutcome:
+          type: string
+          enum: [healthy, failed]
+        formatStatus:
+          $ref: "#/components/schemas/ProbeFormatStatus"
+    OverviewTask:
+      type: object
+      additionalProperties: false
+      required: [id, nodeId, kind, status, createdAt, expiresAt]
+      properties:
+        id:
+          type: string
+          format: uuid
+        nodeId:
+          type: string
+          format: uuid
+        kind:
+          type: string
+          enum: [complete-probe, agent-update]
+        status:
+          type: string
+          enum: [pending, acknowledged, running, verifying, installing, restarting]
+        createdAt:
+          type: string
+          format: date-time
+        expiresAt:
+          type: string
+          format: date-time
+        runId:
+          type: string
+          format: uuid
+    OverviewAddressEvent:
+      type: object
+      additionalProperties: false
+      required: [id, nodeId, publicAddressId, kind, family, observedAt]
+      properties:
+        id:
+          type: string
+          format: uuid
+        nodeId:
+          type: string
+          format: uuid
+        publicAddressId:
+          type: string
+          format: uuid
+        kind:
+          $ref: "#/components/schemas/AddressEventKind"
+        family:
+          $ref: "#/components/schemas/AddressFamily"
+        publicAddress:
+          type: string
+          minLength: 2
+          maxLength: 45
+        failureReason:
+          $ref: "#/components/schemas/AddressFailureReason"
+        observedAt:
+          type: string
+          format: date-time
     SystemSettings:
       type: object
       additionalProperties: false

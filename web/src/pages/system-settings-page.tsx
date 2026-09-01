@@ -7,6 +7,7 @@ import {
 } from "react";
 import {
   CalendarClock,
+  Database,
   GitCommitHorizontal,
   Globe2,
   LoaderCircle,
@@ -14,11 +15,13 @@ import {
   RefreshCw,
   Save,
   ServerCog,
+  ShieldCheck,
   TriangleAlert,
 } from "lucide-react";
 import { useTranslation } from "react-i18next";
 
 import {
+  getSystemStatus,
   getSystemSettings,
   updateSystemSettings,
   type SystemSettings,
@@ -273,7 +276,138 @@ export function SystemSettingsPage() {
           ) : null}
         </CardContent>
       </Card>
+
+      <RuntimeInformation />
     </div>
+  );
+}
+
+type RuntimeViewState =
+  | { kind: "loading" }
+  | {
+      kind: "success";
+      value: Awaited<ReturnType<typeof getSystemStatus>>;
+      checkedAt: Date;
+    }
+  | { kind: "error" };
+
+function RuntimeInformation() {
+  const { i18n, t } = useTranslation();
+  const [state, setState] = useState<RuntimeViewState>({ kind: "loading" });
+
+  const load = useCallback((signal?: AbortSignal) => {
+    setState({ kind: "loading" });
+    void getSystemStatus(signal)
+      .then((value) =>
+        setState({ kind: "success", value, checkedAt: new Date() }),
+      )
+      .catch((error: unknown) => {
+        if (error instanceof DOMException && error.name === "AbortError") {
+          return;
+        }
+        setState({ kind: "error" });
+      });
+  }, []);
+
+  useEffect(() => {
+    const controller = new AbortController();
+    load(controller.signal);
+    return () => controller.abort();
+  }, [load]);
+
+  return (
+    <Card className="mt-8" aria-live="polite">
+      <CardHeader>
+        <CardTitle className="flex items-center gap-2">
+          <ServerCog aria-hidden="true" className="size-4" />
+          {t("systemSettings.runtime.title")}
+        </CardTitle>
+        <CardDescription>{t("systemSettings.runtime.detail")}</CardDescription>
+        {state.kind === "success" ? (
+          <CardAction>
+            <Badge variant="success">
+              {t("systemSettings.runtime.operational")}
+            </Badge>
+          </CardAction>
+        ) : null}
+      </CardHeader>
+      <CardContent>
+        {state.kind === "loading" ? (
+          <Skeleton className="h-36 w-full" aria-busy="true" />
+        ) : null}
+        {state.kind === "error" ? (
+          <Alert variant="destructive">
+            <TriangleAlert aria-hidden="true" />
+            <AlertTitle>{t("systemSettings.runtime.loadFailed")}</AlertTitle>
+            <AlertDescription>
+              <Button
+                className="mt-3"
+                variant="outline"
+                size="sm"
+                onClick={() => load()}
+              >
+                <RefreshCw data-icon="inline-start" aria-hidden="true" />
+                {t("systemSettings.runtime.retry")}
+              </Button>
+            </AlertDescription>
+          </Alert>
+        ) : null}
+        {state.kind === "success" ? (
+          <dl className="grid gap-px overflow-hidden rounded-md border bg-border sm:grid-cols-2 lg:grid-cols-4">
+            <ReleaseField
+              icon={<ServerCog aria-hidden="true" />}
+              label={t("systemSettings.runtime.service")}
+              value={state.value.service}
+            />
+            <ReleaseField
+              icon={<Database aria-hidden="true" />}
+              label={t("systemSettings.runtime.configSchema")}
+              value={String(state.value.configSchemaVersion)}
+            />
+            <ReleaseField
+              icon={<Database aria-hidden="true" />}
+              label={t("systemSettings.runtime.historySchema")}
+              value={String(state.value.historySchemaVersion)}
+            />
+            <ReleaseField
+              icon={<ShieldCheck aria-hidden="true" />}
+              label={t("systemSettings.runtime.transport")}
+              value={state.value.transportSecurity.toUpperCase()}
+            />
+            <ReleaseField
+              icon={<Globe2 aria-hidden="true" />}
+              label={t("systemSettings.runtime.externalOrigin")}
+              value={t(
+                `systemSettings.runtime.originMode.${state.value.externalOriginMode}`,
+              )}
+            />
+            <ReleaseField
+              icon={<ShieldCheck aria-hidden="true" />}
+              label={t("systemSettings.runtime.trustedProxy")}
+              value={t(
+                state.value.trustedProxyConfigured
+                  ? "systemSettings.runtime.configured"
+                  : "systemSettings.runtime.notConfigured",
+              )}
+            />
+            <ReleaseField
+              icon={<GitCommitHorizontal aria-hidden="true" />}
+              label={t("systemSettings.runtime.sourceRevision")}
+              value={state.value.sourceRevision}
+              mono
+            />
+            <ReleaseField
+              icon={<CalendarClock aria-hidden="true" />}
+              label={t("systemSettings.runtime.checkedAt")}
+              value={new Intl.DateTimeFormat(i18n.resolvedLanguage, {
+                dateStyle: "medium",
+                timeStyle: "short",
+              }).format(state.checkedAt)}
+            />
+          </dl>
+        ) : null}
+      </CardContent>
+    </Card>
   );
 }
 

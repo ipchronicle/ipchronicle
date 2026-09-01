@@ -9,7 +9,7 @@ export const en = {
       menu: "Primary navigation",
       mobileDescription: "Browse IPChronicle sections.",
       toggleSidebar: "Toggle sidebar",
-      systemStatus: "System status",
+      systemStatus: "Overview",
       systemSettings: "System",
       nodes: "Nodes",
       history: "History",
@@ -102,10 +102,142 @@ export const en = {
       httpWarningDetail:
         "Credentials, TOTP codes, and sessions are not protected from network interception.",
     },
+    overview: {
+      section: "IP monitoring",
+      title: "Overview",
+      detail:
+        "Review current public IPs, probe health, active work, and recent changes across every node.",
+      refresh: "Refresh",
+      retry: "Retry",
+      loadFailed: "The overview could not be loaded",
+      notAvailable: "Not scheduled",
+      checkedAt: "Automatically refreshed · Updated {{value}}",
+      historyBudget: {
+        title: "History storage is over its configured budget",
+        detail:
+          "Protected or current records may prevent automatic cleanup from reaching the limit.",
+        open: "Review storage",
+      },
+      summary: {
+        nodes: "Nodes online",
+        offlineNodes: "{{count}} offline",
+        publicAddresses: "Current public IPs",
+        addressFamilies: "IPv4 {{ipv4}} · IPv6 {{ipv6}}",
+        unprobed: "Without a report",
+        unprobedDetail: "Current IPs with no successful snapshot",
+        probeIssues: "Probe issues",
+        probeIssuesDetail: "Failed outcomes or format mismatches",
+        activeTasks: "Active tasks",
+        activeTasksDetail: "Waiting for or running on Agents",
+        nextSchedule: "Next scheduled probe",
+        nextScheduleDetail: "Earliest reported node schedule",
+      },
+      attention: {
+        title: "Needs attention",
+        detail:
+          "Current conditions that may require an administrator decision.",
+        healthy: "No current issues need attention",
+        healthyDetail:
+          "Nodes, public IPs, and latest probe states are healthy.",
+        more: "{{count}} more items are available from their node or history pages.",
+        configurationTitle: "{{node}} has not applied its configuration",
+        configurationDetail:
+          "{{status}} · applied revision {{applied}}, desired revision {{desired}}",
+        offlineTitle: "{{node}} is offline",
+        offlineDetail: "Last contact: {{time}}. Current data may be stale.",
+        memoryTitle: "Complete probes are paused on {{node}}",
+        memoryDetail:
+          "The Agent reported less than 256 MiB of physical memory.",
+        probeTitle: "The latest probe for {{address}} failed",
+        probeDetail: "Open the run from {{node}} to review its failure stage.",
+        formatTitle: "{{address}} has an upstream format mismatch",
+        formatDetail:
+          "Some expected IPQuality fields could not be read with their expected types.",
+        unprobedTitle: "{{address}} has no complete report",
+        unprobedDetail:
+          "The IP is currently available from {{node}} and can be probed manually.",
+        natTitle: "{{address}} is likely reached through NAT",
+        natDetail:
+          "The upstream probe on {{node}} may route some non-HTTP checks through its default path.",
+      },
+      nodes: {
+        title: "Nodes and current public IPs",
+        detail: "A compact view of the latest state reported by each Agent.",
+        openAll: "Open nodes",
+        node: "Node",
+        addresses: "Current public IPs",
+        latestProbe: "Latest probe",
+        nextSchedule: "Next schedule",
+        noAddresses: "Waiting for public IP discovery",
+        notProbed: "Not probed yet",
+      },
+      tasks: {
+        title: "Active tasks",
+        detail: "Center-issued work that has not reached a terminal state.",
+        empty: "No task is waiting or running.",
+        kind: {
+          "complete-probe": "Complete probe",
+          "agent-update": "Agent update",
+        },
+        status: {
+          pending: "Waiting for Agent",
+          acknowledged: "Received",
+          running: "Running",
+          verifying: "Verifying",
+          installing: "Installing",
+          restarting: "Restarting",
+        },
+      },
+      activity: {
+        title: "Recent activity",
+        detail: "Latest public IP changes and complete-probe runs.",
+        empty: "No address or probe activity has been recorded.",
+        probe: "{{node}} probe: {{status}}",
+        address: "{{node}}: {{event}}",
+      },
+      empty: {
+        title: "Connect the first node",
+        detail:
+          "Install the root Agent on a Linux node you manage. It will register automatically and report its public IPs.",
+        badge: "No nodes",
+        loadFailed: "Installation settings could not be loaded",
+        generateTitle: "Create a registration key",
+        generateDetail:
+          "The key enables automatic registration and is included in the installation command.",
+        generate: "Generate command",
+        command: "Agent installation command",
+        commandDetail: "Run this command as root on a supported Linux node.",
+        copy: "Copy command",
+        copied: "Installation command copied.",
+        enrollmentDisabled: "Automatic registration is disabled",
+        enrollmentDisabledDetail:
+          "Enable registration from Nodes before running this command on a new host.",
+        openNodes: "Open node management",
+      },
+    },
     systemSettings: {
       title: "System",
       detail:
         "Manage the external address and review product release metadata.",
+      runtime: {
+        title: "Runtime information",
+        detail:
+          "Center, database, browser transport, and reverse-proxy diagnostics for the server operator.",
+        operational: "Operational",
+        loadFailed: "Runtime information could not be loaded",
+        retry: "Retry",
+        service: "Service",
+        configSchema: "Configuration schema",
+        historySchema: "History schema",
+        transport: "Browser transport",
+        externalOrigin: "External origin",
+        originMode: { automatic: "Automatic", custom: "Custom" },
+        trustedProxy: "Trusted proxy",
+        configured: "Configured",
+        notConfigured: "Not configured",
+        sourceRevision: "Source revision",
+        checkedAt: "Checked",
+      },
       externalOrigin: {
         title: "External address",
         detail:
