@@ -482,6 +482,48 @@ func TestProbeArtifactsAcceptParentChildArrivalOrders(t *testing.T) {
 	}
 }
 
+func TestRetainedProbeRunKeepsNodeAndPublicAddressAfterNodeDeletion(t *testing.T) {
+	fixture := newProbeServiceFixture(t, 512*1024*1024)
+	nodeName := "retired-edge"
+	if _, err := fixture.service.Update(
+		fixture.ctx, fixture.registration.NodeID, &nodeName, true,
+	); err != nil {
+		t.Fatal(err)
+	}
+	running, terminal, executions := probeArtifacts(fixture, []string{"succeeded"})
+	uploadProbeRun(t, fixture, running)
+	uploadProbeExecution(t, fixture, running, executions[0])
+	uploadProbeRun(t, fixture, terminal)
+
+	deletion, err := fixture.service.Delete(fixture.ctx, fixture.registration.NodeID)
+	if err != nil || deletion.Status != "pending" {
+		t.Fatalf("queued deletion = %#v, %v", deletion, err)
+	}
+	if err := fixture.service.processDeletions(fixture.ctx, 1); err != nil {
+		t.Fatal(err)
+	}
+
+	run, err := fixture.service.ProbeRun(fixture.ctx, terminal.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if run.Owner.NodeName == nil || *run.Owner.NodeName != nodeName || !run.Owner.NodeDeleted {
+		t.Fatalf("retained run owner = %#v", run.Owner)
+	}
+	if len(run.Executions) != 1 || run.Executions[0].PublicAddress == nil ||
+		*run.Executions[0].PublicAddress != fixture.egresses[0].Name {
+		t.Fatalf("retained run executions = %#v", run.Executions)
+	}
+	overview, err := fixture.service.Overview(fixture.ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(overview.RecentProbeRuns) != 1 || overview.RecentProbeRuns[0].Owner.NodeName == nil ||
+		*overview.RecentProbeRuns[0].Owner.NodeName != nodeName || !overview.RecentProbeRuns[0].Owner.NodeDeleted {
+		t.Fatalf("retained overview run = %#v", overview.RecentProbeRuns)
+	}
+}
+
 func TestProbeRunSummaryMustMatchExecutionOutcomes(t *testing.T) {
 	tests := []struct {
 		name     string

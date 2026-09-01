@@ -77,8 +77,9 @@ type HistoryFilter struct {
 }
 
 type HistoryOwner struct {
-	NodeName   *string
-	EgressName *string
+	NodeName    *string
+	EgressName  *string
+	NodeDeleted bool
 }
 
 type ProbeSnapshotSummary struct {
@@ -614,6 +615,9 @@ func (s *Service) cleanupHistoryBatch(
 	if err := queries.DeleteEmptyProbeRuns(ctx); err != nil {
 		return 0, 0, err
 	}
+	if err := queries.DeleteOrphanHistoryNodes(ctx); err != nil {
+		return 0, 0, err
+	}
 	if err := transaction.Commit(); err != nil {
 		return 0, 0, err
 	}
@@ -755,8 +759,19 @@ func (s *Service) historyOwner(ctx context.Context, nodeID, egressID string) (Hi
 	node, err := s.queries.GetNodeByID(ctx, nodeID)
 	if err == nil {
 		owner.NodeName = &node.Name
-	} else if !errors.Is(err, sql.ErrNoRows) {
+	} else if errors.Is(err, sql.ErrNoRows) {
+		owner.NodeDeleted = true
+		historicalNode, historyErr := s.historyQueries.GetHistoryNode(ctx, nodeID)
+		if historyErr == nil {
+			owner.NodeName = &historicalNode.NodeName
+		} else if !errors.Is(historyErr, sql.ErrNoRows) {
+			return HistoryOwner{}, historyErr
+		}
+	} else {
 		return HistoryOwner{}, err
+	}
+	if egressID == "" {
+		return owner, nil
 	}
 	egress, err := s.queries.GetPublicAddressByID(ctx, egressID)
 	if err == nil {
@@ -765,6 +780,18 @@ func (s *Service) historyOwner(ctx context.Context, nodeID, egressID string) (Hi
 		return HistoryOwner{}, err
 	}
 	return owner, nil
+}
+
+func recordHistoryNode(
+	ctx context.Context,
+	queries *historydb.Queries,
+	nodeID string,
+	nodeName string,
+	recordedAt int64,
+) error {
+	return queries.UpsertHistoryNode(ctx, historydb.UpsertHistoryNodeParams{
+		NodeID: nodeID, NodeName: nodeName, RecordedAt: recordedAt,
+	})
 }
 
 func parseHistoryIDs(values ...string) (uuid.UUID, uuid.UUID, uuid.UUID, uuid.UUID, uuid.UUID, error) {

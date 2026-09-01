@@ -302,7 +302,11 @@ function timelineSnapshot(
     runId: "84e7d535-e04e-47f9-8374-1585a5dce6c9",
     nodeId: probeTestNode.id,
     egressId,
-    owner: { nodeName: "edge-1", egressName: "Default IPv4" },
+    owner: {
+      nodeName: "edge-1",
+      egressName: "Default IPv4",
+      nodeDeleted: false,
+    },
     sequence,
     trigger: "manual" as const,
     runStatus: "succeeded" as const,
@@ -552,6 +556,36 @@ describe("administrator application", () => {
     expect(
       screen.getByText("Complete probes are paused on edge-1"),
     ).toBeInTheDocument();
+  });
+
+  it("uses the retained node name for deleted-node overview activity", async () => {
+    getSessionMock.mockResolvedValue(session);
+    getOverviewMock.mockResolvedValue({
+      ...healthyOverview,
+      recentProbeRuns: [
+        {
+          id: "84e7d535-e04e-47f9-8374-1585a5dce6c9",
+          nodeId: "cf6e7da4-4072-4ca5-a048-91ccfebeb537",
+          owner: { nodeName: "retired-edge", nodeDeleted: true },
+          trigger: "manual",
+          startedAt: "2026-08-09T11:59:00Z",
+          completedAt: "2026-08-09T12:00:00Z",
+          status: "succeeded",
+          expectedExecutions: 1,
+          completedExecutions: 1,
+        },
+      ],
+    });
+
+    renderApplication("/");
+
+    expect(
+      await screen.findByText("retired-edge probe: Succeeded"),
+    ).toBeInTheDocument();
+    expect(screen.getByText("Node deleted")).toBeInTheDocument();
+    expect(
+      screen.queryByText("cf6e7da4-4072-4ca5-a048-91ccfebeb537"),
+    ).not.toBeInTheDocument();
   });
 
   it("shows the Agent command directly on an empty overview", async () => {
@@ -1716,6 +1750,7 @@ describe("administrator application", () => {
     getProbeRunMock.mockResolvedValue({
       id: "84e7d535-e04e-47f9-8374-1585a5dce6c9",
       nodeId: probeTestNode.id,
+      owner: { nodeName: probeTestNode.name, nodeDeleted: false },
       configurationRevision: 2,
       historyGeneration: "a".repeat(64),
       trigger: "schedule",
@@ -1728,6 +1763,7 @@ describe("administrator application", () => {
           id: "cd6233d2-a600-443b-9cf5-a0bc3c241ea5",
           runId: "84e7d535-e04e-47f9-8374-1585a5dce6c9",
           egressId: "a6a2f052-f9c4-4f37-88d5-4dc4c95d68d9",
+          publicAddress: "8.8.8.8",
           ordinal: 0,
           sequence: 1,
           status: "succeeded",
@@ -1739,6 +1775,7 @@ describe("administrator application", () => {
           id: "ea79d052-545b-46f2-926c-b82be60647e8",
           runId: "84e7d535-e04e-47f9-8374-1585a5dce6c9",
           egressId: "da1a3999-e0bd-4649-85ae-aa9a4a9d6961",
+          publicAddress: "2001:4860:4860::8888",
           ordinal: 1,
           sequence: 1,
           status: "failed",
@@ -1775,7 +1812,7 @@ describe("administrator application", () => {
       await screen.findByText("This run completed with partial success"),
     ).toBeInTheDocument();
     expect(screen.getByText("8.8.8.8")).toBeInTheDocument();
-    expect(screen.getByText("Public IP unavailable")).toBeInTheDocument();
+    expect(screen.getByText("2001:4860:4860::8888")).toBeInTheDocument();
     expect(
       screen.queryByText("da1a3999-e0bd-4649-85ae-aa9a4a9d6961"),
     ).not.toBeInTheDocument();
@@ -1786,6 +1823,47 @@ describe("administrator application", () => {
       "href",
       "/probe-snapshots/cd6233d2-a600-443b-9cf5-a0bc3c241ea5?runId=84e7d535-e04e-47f9-8374-1585a5dce6c9",
     );
+  });
+
+  it("opens a retained probe run after its node was deleted", async () => {
+    getSessionMock.mockResolvedValue(session);
+    getProbeRunMock.mockResolvedValue({
+      id: "84e7d535-e04e-47f9-8374-1585a5dce6c9",
+      nodeId: "cf6e7da4-4072-4ca5-a048-91ccfebeb537",
+      owner: { nodeName: "retired-edge", nodeDeleted: true },
+      configurationRevision: 2,
+      historyGeneration: "a".repeat(64),
+      trigger: "manual",
+      startedAt: "2026-08-09T11:59:00Z",
+      completedAt: "2026-08-09T12:00:00Z",
+      status: "succeeded",
+      expectedExecutions: 1,
+      executions: [
+        {
+          id: "cd6233d2-a600-443b-9cf5-a0bc3c241ea5",
+          runId: "84e7d535-e04e-47f9-8374-1585a5dce6c9",
+          egressId: "a6a2f052-f9c4-4f37-88d5-4dc4c95d68d9",
+          publicAddress: "8.8.8.8",
+          ordinal: 0,
+          sequence: 1,
+          status: "succeeded",
+          startedAt: "2026-08-09T11:59:01Z",
+          completedAt: "2026-08-09T11:59:20Z",
+          snapshotId: "cd6233d2-a600-443b-9cf5-a0bc3c241ea5",
+        },
+      ],
+    });
+
+    renderApplication("/probe-runs/84e7d535-e04e-47f9-8374-1585a5dce6c9");
+
+    expect(await screen.findByText("retired-edge")).toBeInTheDocument();
+    expect(screen.getByText("Node deleted")).toBeInTheDocument();
+    expect(screen.getByText("8.8.8.8")).toBeInTheDocument();
+    expect(
+      screen.getByRole("link", { name: "Back to history" }),
+    ).toHaveAttribute("href", "/history?tab=reports");
+    expect(listNodesMock).not.toHaveBeenCalled();
+    expect(getNodeNetworkMock).not.toHaveBeenCalled();
   });
 
   it("renders the exact decoded probe JSON", async () => {
@@ -2029,7 +2107,11 @@ describe("administrator application", () => {
           runId: "84e7d535-e04e-47f9-8374-1585a5dce6c9",
           nodeId: probeTestNode.id,
           egressId: "a6a2f052-f9c4-4f37-88d5-4dc4c95d68d9",
-          owner: { nodeName: "edge-1", egressName: "Default IPv4" },
+          owner: {
+            nodeName: "edge-1",
+            egressName: "Default IPv4",
+            nodeDeleted: false,
+          },
           sequence: 2,
           trigger: "manual",
           runStatus: "succeeded",
@@ -2090,7 +2172,11 @@ describe("administrator application", () => {
       events: [
         {
           nodeId: probeTestNode.id,
-          owner: { nodeName: "edge-1", egressName: "203.0.113.10" },
+          owner: {
+            nodeName: "edge-1",
+            egressName: "203.0.113.10",
+            nodeDeleted: false,
+          },
           event: {
             id: "758db6d8-d8cd-44c5-a18d-ab7713012ec8",
             sequence: 3,
@@ -2140,7 +2226,11 @@ describe("administrator application", () => {
           id: "b52f3131-f684-4c28-bdf0-1be6498d79f8",
           nodeId: probeTestNode.id,
           egressId: "a6a2f052-f9c4-4f37-88d5-4dc4c95d68d9",
-          owner: { nodeName: "edge-1", egressName: "Default IPv4" },
+          owner: {
+            nodeName: "edge-1",
+            egressName: "Default IPv4",
+            nodeDeleted: false,
+          },
           droppedCount: 1,
           firstSequence: 4,
           lastSequence: 4,
@@ -2158,7 +2248,11 @@ describe("administrator application", () => {
           egressId: "a6a2f052-f9c4-4f37-88d5-4dc4c95d68d9",
           executionId: "6a88f1ee-4e4c-4d25-9edb-c0a508afeb56",
           snapshotId: "cd6233d2-a600-443b-9cf5-a0bc3c241ea5",
-          owner: { nodeName: "edge-1", egressName: "Default IPv4" },
+          owner: {
+            nodeName: "edge-1",
+            egressName: "Default IPv4",
+            nodeDeleted: false,
+          },
           sequence: 4,
           kind: "mismatch",
           issues: [],

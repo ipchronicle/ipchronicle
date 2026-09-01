@@ -26,6 +26,7 @@ import {
 } from "@/api/history";
 import { getNodeNetwork, type PublicAddress } from "@/api/network";
 import { listNodes, type Node } from "@/api/nodes";
+import { HistoricalNodeName } from "@/components/historical-node-name";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -713,9 +714,7 @@ function Owner({ snapshot }: { snapshot: Snapshot }) {
             aria-label={t("history.starred")}
           />
         ) : null}
-        <span className="truncate">
-          {snapshot.owner.nodeName ?? shortID(snapshot.nodeId)}
-        </span>
+        <HistoricalNodeName owner={snapshot.owner} />
       </div>
       <div className="truncate text-sm text-muted-foreground">
         {historyEgressName(snapshot.owner.egressName, t)} · #{snapshot.sequence}
@@ -843,7 +842,7 @@ function AddressRow({
     <TableRow>
       <TableCell>
         <div className="font-medium">
-          {item.owner.nodeName ?? shortID(item.nodeId)}
+          <HistoricalNodeName owner={item.owner} />
         </div>
         <div className="text-sm text-muted-foreground">
           {addressEventOwner(item, t)}
@@ -873,7 +872,9 @@ function AddressMobileCard({
   return (
     <Card size="sm">
       <CardHeader>
-        <CardTitle>{item.owner.nodeName ?? shortID(item.nodeId)}</CardTitle>
+        <CardTitle>
+          <HistoricalNodeName owner={item.owner} />
+        </CardTitle>
         <CardDescription>
           {addressEventOwner(item, t)} ·{" "}
           {formatTime(item.event.observedAt, language, t("probe.notAvailable"))}
@@ -941,9 +942,9 @@ function ProbeGapCard({
       <CardContent className="space-y-3">
         {gaps.map((gap) => (
           <div key={gap.id} className="rounded-md border p-3">
-            <div className="font-medium">
-              {gap.owner.nodeName ?? shortID(gap.nodeId)} ·{" "}
-              {historyEgressName(gap.owner.egressName, t)}
+            <div className="flex flex-wrap items-center gap-1 font-medium">
+              <HistoricalNodeName owner={gap.owner} />
+              <span>· {historyEgressName(gap.owner.egressName, t)}</span>
             </div>
             <div className="mt-1 text-sm text-muted-foreground">
               {t("history.gaps.probeItem", {
@@ -989,9 +990,9 @@ function FormatEventCard({
             className="flex flex-wrap items-center justify-between gap-3 rounded-md border p-3"
           >
             <div>
-              <div className="font-medium">
-                {event.owner.nodeName ?? shortID(event.nodeId)} ·{" "}
-                {historyEgressName(event.owner.egressName, t)}
+              <div className="flex flex-wrap items-center gap-1 font-medium">
+                <HistoricalNodeName owner={event.owner} />
+                <span>· {historyEgressName(event.owner.egressName, t)}</span>
               </div>
               <div className="mt-1 text-sm text-muted-foreground">
                 {t(`history.formatEvents.kind.${event.kind}`)} ·{" "}
@@ -1038,8 +1039,8 @@ function AddressGapCard({
       <CardContent className="space-y-3">
         {gaps.map((item) => (
           <div key={item.gap.id} className="rounded-md border p-3">
-            <div className="font-medium">
-              {item.owner.nodeName ?? shortID(item.nodeId)}
+            <div className="flex flex-wrap items-center gap-1 font-medium">
+              <HistoricalNodeName owner={item.owner} />
               <Badge variant="secondary" className="ml-2">
                 {t("history.gaps.nodeLevel")}
               </Badge>
@@ -1169,10 +1170,6 @@ function toISO(raw?: string) {
   if (!raw) return undefined;
   const date = new Date(raw);
   return Number.isNaN(date.getTime()) ? undefined : date.toISOString();
-}
-
-function shortID(id: string) {
-  return id.slice(0, 8);
 }
 
 function historyEgressName(

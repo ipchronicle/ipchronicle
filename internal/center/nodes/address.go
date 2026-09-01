@@ -108,6 +108,14 @@ func (s *Service) ingestAddressUpload(ctx context.Context, nodeID string, upload
 		}
 		egresses[egress.ID] = egress
 	}
+	nodeName := ""
+	if len(egresses) > 0 && (len(upload.States) > 0 || len(upload.Events) > 0 || len(upload.Gaps) > 0) {
+		node, err := s.queries.GetNodeByID(ctx, nodeID)
+		if err != nil {
+			return receipt, err
+		}
+		nodeName = node.Name
+	}
 	upload, err = normalizeAddressUpload(upload)
 	if err != nil {
 		return receipt, ErrInvalidMetadata
@@ -126,6 +134,11 @@ func (s *Service) ingestAddressUpload(ctx context.Context, nodeID string, upload
 	}
 	defer transaction.Rollback()
 	queries := s.historyQueries.WithTx(transaction)
+	if nodeName != "" {
+		if err := recordHistoryNode(ctx, queries, nodeID, nodeName, receivedAt); err != nil {
+			return receipt, err
+		}
+	}
 	for _, item := range upload.States {
 		if item.HistoryGeneration != systemState.HistoryGeneration {
 			continue

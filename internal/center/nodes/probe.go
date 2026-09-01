@@ -111,6 +111,7 @@ type ProbeState struct {
 type ProbeRunSummary struct {
 	ID                  uuid.UUID
 	NodeID              uuid.UUID
+	Owner               HistoryOwner
 	Trigger             string
 	StartedAt           time.Time
 	CompletedAt         *time.Time
@@ -122,6 +123,7 @@ type ProbeRunSummary struct {
 type ProbeRun struct {
 	ID                    uuid.UUID
 	NodeID                uuid.UUID
+	Owner                 HistoryOwner
 	ConfigurationRevision int64
 	HistoryGeneration     string
 	Trigger               string
@@ -134,17 +136,18 @@ type ProbeRun struct {
 }
 
 type ProbeExecution struct {
-	ID           uuid.UUID
-	RunID        uuid.UUID
-	EgressID     uuid.UUID
-	Ordinal      int64
-	Sequence     int64
-	Status       string
-	StartedAt    *time.Time
-	CompletedAt  *time.Time
-	FailureStage *string
-	Diagnostic   *string
-	SnapshotID   *uuid.UUID
+	ID            uuid.UUID
+	RunID         uuid.UUID
+	EgressID      uuid.UUID
+	PublicAddress *string
+	Ordinal       int64
+	Sequence      int64
+	Status        string
+	StartedAt     *time.Time
+	CompletedAt   *time.Time
+	FailureStage  *string
+	Diagnostic    *string
+	SnapshotID    *uuid.UUID
 }
 
 type ProbeSnapshot struct {
@@ -544,6 +547,10 @@ func (s *Service) Probe(ctx context.Context, nodeID uuid.UUID) (ProbeState, erro
 		if err != nil {
 			return ProbeState{}, err
 		}
+		summary.Owner, err = s.historyOwner(ctx, record.NodeID, "")
+		if err != nil {
+			return ProbeState{}, err
+		}
 		state.RecentRuns = append(state.RecentRuns, summary)
 	}
 	return state, nil
@@ -628,6 +635,9 @@ func (s *Service) UploadProbeArtifact(ctx context.Context, credential string, ar
 		}
 		defer transaction.Rollback()
 		queries := s.historyQueries.WithTx(transaction)
+		if err := recordHistoryNode(ctx, queries, node.ID, node.Name, s.now().UTC().Unix()); err != nil {
+			return ProbeArtifactReceipt{}, err
+		}
 		changed, err := queries.UpsertProbeGap(ctx, historydb.UpsertProbeGapParams{
 			ID: artifact.Gap.ID.String(), EgressID: artifact.Gap.EgressID.String(), NodeID: node.ID,
 			HistoryGeneration: artifact.Gap.HistoryGeneration, DroppedCount: artifact.Gap.DroppedCount,
@@ -691,6 +701,9 @@ func (s *Service) UploadProbeArtifact(ctx context.Context, credential string, ar
 	}
 	defer transaction.Rollback()
 	queries := s.historyQueries.WithTx(transaction)
+	if err := recordHistoryNode(ctx, queries, node.ID, node.Name, s.now().UTC().Unix()); err != nil {
+		return ProbeArtifactReceipt{}, err
+	}
 	if err := ingestProbeRun(ctx, queries, node.ID, *artifact.Run, s.now().UTC().Unix()); err != nil {
 		return ProbeArtifactReceipt{}, err
 	}
@@ -732,12 +745,21 @@ func (s *Service) ProbeRun(ctx context.Context, id uuid.UUID) (ProbeRun, error) 
 	if err != nil {
 		return ProbeRun{}, err
 	}
+	run.Owner, err = s.historyOwner(ctx, record.NodeID, "")
+	if err != nil {
+		return ProbeRun{}, err
+	}
 	run.Executions = make([]ProbeExecution, 0, len(executionRecords))
 	for _, executionRecord := range executionRecords {
 		execution, err := probeExecutionFromRecord(executionRecord)
 		if err != nil {
 			return ProbeRun{}, err
 		}
+		owner, err := s.historyOwner(ctx, record.NodeID, executionRecord.EgressID)
+		if err != nil {
+			return ProbeRun{}, err
+		}
+		execution.PublicAddress = owner.EgressName
 		if snapshot, snapshotErr := s.historyQueries.GetProbeSnapshotByExecution(ctx, executionRecord.ID); snapshotErr == nil {
 			snapshotID, err := uuid.Parse(snapshot.ID)
 			if err != nil {
@@ -863,6 +885,7 @@ func (s *Service) ResetHistory(ctx context.Context) (HistoryState, error) {
 		historyQueries.ResetProbeHistory, historyQueries.ResetProbeGaps,
 		historyQueries.ResetAddressHistory, historyQueries.ResetAddressStates, historyQueries.ResetAddressGaps,
 		historyQueries.ResetProbeComparisonProgress, historyQueries.ResetNotificationHistory,
+		historyQueries.ResetHistoryNodes,
 	} {
 		if err := reset(ctx); err != nil {
 			_ = historyTransaction.Rollback()

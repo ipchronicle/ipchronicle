@@ -62,6 +62,7 @@ type OverviewTask struct {
 type OverviewAddressEvent struct {
 	ID              uuid.UUID
 	NodeID          uuid.UUID
+	Owner           HistoryOwner
 	PublicAddressID uuid.UUID
 	Kind            string
 	Family          string
@@ -166,6 +167,10 @@ func (s *Service) Overview(ctx context.Context) (Overview, error) {
 		if err != nil {
 			return Overview{}, err
 		}
+		run.Owner, err = s.historyOwner(ctx, record.NodeID, "")
+		if err != nil {
+			return Overview{}, err
+		}
 		result.Nodes[index].LatestProbeRun = &run
 	}
 
@@ -205,6 +210,10 @@ func (s *Service) Overview(ctx context.Context) (Overview, error) {
 		if err != nil {
 			return Overview{}, err
 		}
+		run.Owner, err = s.historyOwner(ctx, record.NodeID, "")
+		if err != nil {
+			return Overview{}, err
+		}
 		result.RecentProbeRuns = append(result.RecentProbeRuns, run)
 	}
 
@@ -219,8 +228,12 @@ func (s *Service) Overview(ctx context.Context) (Overview, error) {
 		if err != nil {
 			return Overview{}, err
 		}
+		owner, err := s.historyOwner(ctx, record.NodeID, record.PublicAddressID)
+		if err != nil {
+			return Overview{}, err
+		}
 		result.RecentAddressEvents = append(result.RecentAddressEvents, OverviewAddressEvent{
-			ID: id, NodeID: nodeID, PublicAddressID: publicAddressID,
+			ID: id, NodeID: nodeID, Owner: owner, PublicAddressID: publicAddressID,
 			Kind: record.Kind, Family: record.Family, PublicAddress: record.PublicAddress,
 			FailureReason: record.FailureReason, ObservedAt: time.Unix(record.ObservedAt, 0).UTC(),
 		})

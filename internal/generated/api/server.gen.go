@@ -1863,8 +1863,9 @@ type HistoryCleanupResult struct {
 
 // HistoryOwner defines model for HistoryOwner.
 type HistoryOwner struct {
-	EgressName *string `json:"egressName,omitempty"`
-	NodeName   *string `json:"nodeName,omitempty"`
+	EgressName  *string `json:"egressName,omitempty"`
+	NodeDeleted bool    `json:"nodeDeleted"`
+	NodeName    *string `json:"nodeName,omitempty"`
 }
 
 // HistoryRetentionMode defines model for HistoryRetentionMode.
@@ -2289,6 +2290,7 @@ type OverviewAddressEvent struct {
 	Kind            AddressEventKind      `json:"kind"`
 	NodeId          openapi_types.UUID    `json:"nodeId"`
 	ObservedAt      time.Time             `json:"observedAt"`
+	Owner           HistoryOwner          `json:"owner"`
 	PublicAddress   *string               `json:"publicAddress,omitempty"`
 	PublicAddressId openapi_types.UUID    `json:"publicAddressId"`
 }
@@ -2346,17 +2348,18 @@ type OverviewTaskStatus string
 
 // ProbeExecution defines model for ProbeExecution.
 type ProbeExecution struct {
-	CompletedAt  *time.Time           `json:"completedAt,omitempty"`
-	Diagnostic   *string              `json:"diagnostic,omitempty"`
-	EgressId     openapi_types.UUID   `json:"egressId"`
-	FailureStage *ProbeFailureStage   `json:"failureStage,omitempty"`
-	Id           openapi_types.UUID   `json:"id"`
-	Ordinal      int                  `json:"ordinal"`
-	RunId        openapi_types.UUID   `json:"runId"`
-	Sequence     int64                `json:"sequence"`
-	SnapshotId   *openapi_types.UUID  `json:"snapshotId,omitempty"`
-	StartedAt    *time.Time           `json:"startedAt,omitempty"`
-	Status       ProbeExecutionStatus `json:"status"`
+	CompletedAt   *time.Time           `json:"completedAt,omitempty"`
+	Diagnostic    *string              `json:"diagnostic,omitempty"`
+	EgressId      openapi_types.UUID   `json:"egressId"`
+	FailureStage  *ProbeFailureStage   `json:"failureStage,omitempty"`
+	Id            openapi_types.UUID   `json:"id"`
+	Ordinal       int                  `json:"ordinal"`
+	PublicAddress *string              `json:"publicAddress,omitempty"`
+	RunId         openapi_types.UUID   `json:"runId"`
+	Sequence      int64                `json:"sequence"`
+	SnapshotId    *openapi_types.UUID  `json:"snapshotId,omitempty"`
+	StartedAt     *time.Time           `json:"startedAt,omitempty"`
+	Status        ProbeExecutionStatus `json:"status"`
 }
 
 // ProbeExecutionStatus defines model for ProbeExecutionStatus.
@@ -2444,6 +2447,7 @@ type ProbeRun struct {
 	HistoryGeneration     string              `json:"historyGeneration"`
 	Id                    openapi_types.UUID  `json:"id"`
 	NodeId                openapi_types.UUID  `json:"nodeId"`
+	Owner                 HistoryOwner        `json:"owner"`
 	StartedAt             time.Time           `json:"startedAt"`
 	Status                ProbeRunStatus      `json:"status"`
 	TaskId                *openapi_types.UUID `json:"taskId,omitempty"`
@@ -2460,6 +2464,7 @@ type ProbeRunSummary struct {
 	ExpectedExecutions  int                `json:"expectedExecutions"`
 	Id                  openapi_types.UUID `json:"id"`
 	NodeId              openapi_types.UUID `json:"nodeId"`
+	Owner               HistoryOwner       `json:"owner"`
 	StartedAt           time.Time          `json:"startedAt"`
 	Status              ProbeRunStatus     `json:"status"`
 	Trigger             ProbeTrigger       `json:"trigger"`

@@ -41,6 +41,7 @@ import {
 import { getSystemSettings, getSystemStatus } from "@/api/system";
 import { getAgentUpdateState, type ReleaseChannel } from "@/api/updates";
 import { useAuth } from "@/auth-context";
+import { historicalNodeName } from "@/components/historical-node-name";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -346,11 +347,7 @@ function OverviewContent({
             nodeNames={nodeNames}
             locale={locale}
           />
-          <RecentActivityCard
-            activity={activity}
-            nodeNames={nodeNames}
-            locale={locale}
-          />
+          <RecentActivityCard activity={activity} locale={locale} />
         </div>
       </div>
 
@@ -667,11 +664,9 @@ function ActiveTasksCard({
 
 function RecentActivityCard({
   activity,
-  nodeNames,
   locale,
 }: {
   activity: ActivityItem[];
-  nodeNames: Map<string, string>;
   locale?: string;
 }) {
   const { t } = useTranslation();
@@ -692,12 +687,14 @@ function RecentActivityCard({
         ) : (
           <div className="divide-y overflow-hidden rounded-md border">
             {activity.map((item) => {
-              const nodeID =
-                item.kind === "probe" ? item.run.nodeId : item.event.nodeId;
+              const owner =
+                item.kind === "probe" ? item.run.owner : item.event.owner;
               const to =
                 item.kind === "probe"
                   ? `/probe-runs/${item.run.id}`
-                  : `/history?tab=addresses&nodeId=${item.event.nodeId}&egressId=${item.event.publicAddressId}`;
+                  : owner.nodeDeleted
+                    ? `/history?tab=addresses&egressId=${item.event.publicAddressId}`
+                    : `/history?tab=addresses&nodeId=${item.event.nodeId}&egressId=${item.event.publicAddressId}`;
               return (
                 <Link
                   key={`${item.kind}-${item.id}`}
@@ -719,18 +716,31 @@ function RecentActivityCard({
                       }`}
                     />
                     <div className="min-w-0">
-                      <p className="text-sm font-medium">
-                        {item.kind === "probe"
-                          ? t("overview.activity.probe", {
-                              node: nodeNames.get(nodeID) ?? nodeID,
-                              status: t(`probe.state.${item.run.status}`),
-                            })
-                          : t("overview.activity.address", {
-                              node: nodeNames.get(nodeID) ?? nodeID,
-                              event: t(
-                                `network.addressHistory.kind.${item.event.kind}`,
-                              ),
-                            })}
+                      <p className="flex flex-wrap items-center gap-1.5 text-sm font-medium">
+                        <span>
+                          {item.kind === "probe"
+                            ? t("overview.activity.probe", {
+                                node: historicalNodeName(
+                                  owner,
+                                  t("history.nodeUnavailable"),
+                                ),
+                                status: t(`probe.state.${item.run.status}`),
+                              })
+                            : t("overview.activity.address", {
+                                node: historicalNodeName(
+                                  owner,
+                                  t("history.nodeUnavailable"),
+                                ),
+                                event: t(
+                                  `network.addressHistory.kind.${item.event.kind}`,
+                                ),
+                              })}
+                        </span>
+                        {owner.nodeDeleted ? (
+                          <Badge variant="secondary">
+                            {t("history.nodeDeleted")}
+                          </Badge>
+                        ) : null}
                       </p>
                       {item.kind === "address" &&
                       item.event.publicAddress !== undefined ? (

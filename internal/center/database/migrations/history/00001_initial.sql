@@ -4,6 +4,11 @@ CREATE TABLE history_metadata(
   generation TEXT NOT NULL UNIQUE CHECK(length(generation) = 64),
   created_at INTEGER NOT NULL
 );
+CREATE TABLE history_nodes(
+  node_id TEXT PRIMARY KEY CHECK(length(node_id) = 36),
+  node_name TEXT NOT NULL CHECK(length(node_name) BETWEEN 1 AND 128),
+  recorded_at INTEGER NOT NULL
+);
 CREATE TABLE address_states(
   egress_id TEXT PRIMARY KEY,
   node_id TEXT NOT NULL,

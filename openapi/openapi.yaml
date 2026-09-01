@@ -2031,7 +2031,7 @@ components:
     OverviewAddressEvent:
       type: object
       additionalProperties: false
-      required: [id, nodeId, publicAddressId, kind, family, observedAt]
+      required: [id, nodeId, owner, publicAddressId, kind, family, observedAt]
       properties:
         id:
           type: string
@@ -2039,6 +2039,8 @@ components:
         nodeId:
           type: string
           format: uuid
+        owner:
+          $ref: "#/components/schemas/HistoryOwner"
         publicAddressId:
           type: string
           format: uuid
@@ -3709,6 +3711,10 @@ components:
         egressId:
           type: string
           format: uuid
+        publicAddress:
+          type: string
+          minLength: 2
+          maxLength: 45
         ordinal:
           type: integer
           minimum: 0
@@ -3738,6 +3744,7 @@ components:
         [
           id,
           nodeId,
+          owner,
           configurationRevision,
           historyGeneration,
           trigger,
@@ -3753,6 +3760,8 @@ components:
         nodeId:
           type: string
           format: uuid
+        owner:
+          $ref: "#/components/schemas/HistoryOwner"
         configurationRevision:
           type: integer
           format: int64
@@ -3786,6 +3795,7 @@ components:
         [
           id,
           nodeId,
+          owner,
           trigger,
           startedAt,
           status,
@@ -3799,6 +3809,8 @@ components:
         nodeId:
           type: string
           format: uuid
+        owner:
+          $ref: "#/components/schemas/HistoryOwner"
         trigger:
           $ref: "#/components/schemas/ProbeTrigger"
         startedAt:
@@ -3998,6 +4010,7 @@ components:
     HistoryOwner:
       type: object
       additionalProperties: false
+      required: [nodeDeleted]
       properties:
         nodeName:
           type: string
@@ -4007,6 +4020,8 @@ components:
           type: string
           minLength: 1
           maxLength: 128
+        nodeDeleted:
+          type: boolean
     ProbeFormatStatus:
       type: string
       enum: [compatible, mismatch]

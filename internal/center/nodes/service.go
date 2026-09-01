@@ -1018,6 +1018,10 @@ func (s *Service) processEgressDeletions(ctx context.Context, limit int64) error
 }
 
 func (s *Service) deleteNodeHistory(ctx context.Context, nodeID string) error {
+	node, err := s.queries.GetNodeByID(ctx, nodeID)
+	if err != nil {
+		return err
+	}
 	s.historyMu.Lock()
 	defer s.historyMu.Unlock()
 	transaction, err := s.history.BeginTx(ctx, nil)
@@ -1026,6 +1030,9 @@ func (s *Service) deleteNodeHistory(ctx context.Context, nodeID string) error {
 	}
 	defer transaction.Rollback()
 	queries := s.historyQueries.WithTx(transaction)
+	if err := recordHistoryNode(ctx, queries, nodeID, node.Name, s.now().UTC().Unix()); err != nil {
+		return err
+	}
 	if err := queries.DeleteNodeAddressNotificationHistory(ctx, &nodeID); err != nil {
 		return err
 	}
@@ -1033,6 +1040,9 @@ func (s *Service) deleteNodeHistory(ctx context.Context, nodeID string) error {
 		return err
 	}
 	if err := queries.DeleteNodeAddressGaps(ctx, nodeID); err != nil {
+		return err
+	}
+	if err := queries.DeleteOrphanHistoryNodes(ctx); err != nil {
 		return err
 	}
 	return transaction.Commit()
@@ -1058,6 +1068,7 @@ func (s *Service) deleteDiscoveryPathHistory(ctx context.Context, pathID string)
 
 type authenticatedNode struct {
 	ID                           string
+	Name                         string
 	Enabled                      int64
 	RevokedAt                    *int64
 	AgentVersion                 string
@@ -1074,6 +1085,7 @@ func (s *Service) authenticateAgent(ctx context.Context, credential string) (aut
 		}
 		return authenticatedNode{
 			ID:                           node.ID,
+			Name:                         node.Name,
 			Enabled:                      node.Enabled,
 			RevokedAt:                    node.RevokedAt,
 			AgentVersion:                 node.AgentVersion,

@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import {
   ArrowLeft,
   CheckCircle2,
@@ -11,9 +11,8 @@ import {
 import { useTranslation } from "react-i18next";
 import { Link, useParams } from "react-router";
 
-import { getNodeNetwork, type PublicAddress } from "@/api/network";
-import { listNodes, type Node } from "@/api/nodes";
 import { getProbeRun, type ProbeExecution, type ProbeRun } from "@/api/probes";
+import { HistoricalNodeName } from "@/components/historical-node-name";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -33,8 +32,6 @@ type ViewState =
   | {
       kind: "success";
       run: ProbeRun;
-      node?: Node;
-      publicAddresses: PublicAddress[];
     }
   | { kind: "not-found" }
   | { kind: "error" };
@@ -51,16 +48,7 @@ export function ProbeRunPage() {
       else if (!quiet) setRefreshing(true);
       try {
         const run = await getProbeRun(runId, signal);
-        const [nodes, network] = await Promise.all([
-          listNodes(signal),
-          getNodeNetwork(run.nodeId, signal),
-        ]);
-        setState({
-          kind: "success",
-          run,
-          node: nodes.find((node) => node.id === run.nodeId),
-          publicAddresses: network.publicAddresses,
-        });
+        setState({ kind: "success", run });
       } catch (error) {
         if (error instanceof DOMException && error.name === "AbortError")
           return;
@@ -93,18 +81,9 @@ export function ProbeRunPage() {
   }, [load, running]);
 
   const backTarget =
-    state.kind === "success" ? `/nodes/${state.run.nodeId}/probe` : "/nodes";
-  const addressNames = useMemo(
-    () =>
-      new Map(
-        state.kind === "success"
-          ? state.publicAddresses.map(
-              (address) => [address.id, address.address] as const,
-            )
-          : [],
-      ),
-    [state],
-  );
+    state.kind === "success" && !state.run.owner.nodeDeleted
+      ? `/nodes/${state.run.nodeId}/probe`
+      : "/history?tab=reports";
 
   return (
     <main className="w-full min-w-0 px-4 py-10 sm:px-6 sm:py-14">
@@ -113,7 +92,9 @@ export function ProbeRunPage() {
           <Button variant="ghost" size="sm" asChild className="mb-3 -ml-3">
             <Link to={backTarget}>
               <ArrowLeft data-icon="inline-start" aria-hidden="true" />
-              {t("probeRun.back")}
+              {state.kind === "success" && state.run.owner.nodeDeleted
+                ? t("probeRun.backHistory")
+                : t("probeRun.back")}
             </Link>
           </Button>
           <p className="text-sm font-medium text-muted-foreground uppercase">
@@ -183,7 +164,7 @@ export function ProbeRunPage() {
                   {t("probeRun.summary.title")}
                 </CardTitle>
                 <CardDescription>
-                  {state.node?.name ?? state.run.nodeId}
+                  <HistoricalNodeName owner={state.run.owner} />
                 </CardDescription>
                 <CardAction>
                   <ProbeStatusBadge status={state.run.status} />
@@ -247,7 +228,7 @@ export function ProbeRunPage() {
                     run={state.run}
                     execution={execution}
                     name={
-                      addressNames.get(execution.egressId) ??
+                      execution.publicAddress ??
                       t("probeRun.executions.addressUnavailable")
                     }
                   />

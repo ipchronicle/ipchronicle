@@ -839,6 +839,23 @@ func (q *Queries) DeleteNodeProbeOutcomeStates(ctx context.Context, nodeID strin
 	return err
 }
 
+const deleteOrphanHistoryNodes = `-- name: DeleteOrphanHistoryNodes :exec
+DELETE FROM history_nodes
+WHERE NOT EXISTS(SELECT 1 FROM address_states WHERE node_id = history_nodes.node_id)
+  AND NOT EXISTS(SELECT 1 FROM address_events WHERE node_id = history_nodes.node_id)
+  AND NOT EXISTS(SELECT 1 FROM history_gaps WHERE node_id = history_nodes.node_id)
+  AND NOT EXISTS(SELECT 1 FROM probe_runs WHERE node_id = history_nodes.node_id)
+  AND NOT EXISTS(SELECT 1 FROM probe_gaps WHERE node_id = history_nodes.node_id)
+  AND NOT EXISTS(SELECT 1 FROM probe_comparison_progress WHERE node_id = history_nodes.node_id)
+  AND NOT EXISTS(SELECT 1 FROM probe_outcome_states WHERE node_id = history_nodes.node_id)
+  AND NOT EXISTS(SELECT 1 FROM notification_events WHERE node_id = history_nodes.node_id)
+`
+
+func (q *Queries) DeleteOrphanHistoryNodes(ctx context.Context) error {
+	_, err := q.db.ExecContext(ctx, deleteOrphanHistoryNodes)
+	return err
+}
+
 const deleteProbeOutcomeState = `-- name: DeleteProbeOutcomeState :exec
 DELETE FROM probe_outcome_states WHERE egress_id = ?
 `
@@ -1118,6 +1135,19 @@ func (q *Queries) GetHistoryMetadata(ctx context.Context) (HistoryMetadatum, err
 	row := q.db.QueryRowContext(ctx, getHistoryMetadata)
 	var i HistoryMetadatum
 	err := row.Scan(&i.ID, &i.Generation, &i.CreatedAt)
+	return i, err
+}
+
+const getHistoryNode = `-- name: GetHistoryNode :one
+SELECT node_id, node_name, recorded_at
+FROM history_nodes
+WHERE node_id = ?
+`
+
+func (q *Queries) GetHistoryNode(ctx context.Context, nodeID string) (HistoryNode, error) {
+	row := q.db.QueryRowContext(ctx, getHistoryNode, nodeID)
+	var i HistoryNode
+	err := row.Scan(&i.NodeID, &i.NodeName, &i.RecordedAt)
 	return i, err
 }
 
@@ -2930,6 +2960,15 @@ func (q *Queries) ResetAddressStates(ctx context.Context) error {
 	return err
 }
 
+const resetHistoryNodes = `-- name: ResetHistoryNodes :exec
+DELETE FROM history_nodes
+`
+
+func (q *Queries) ResetHistoryNodes(ctx context.Context) error {
+	_, err := q.db.ExecContext(ctx, resetHistoryNodes)
+	return err
+}
+
 const resetNotificationHistory = `-- name: ResetNotificationHistory :exec
 DELETE FROM notification_events
 `
@@ -3225,6 +3264,26 @@ func (q *Queries) UpsertCurrentProbeSnapshot(ctx context.Context, arg UpsertCurr
 		arg.ObservedAt,
 		arg.ReceivedAt,
 	)
+	return err
+}
+
+const upsertHistoryNode = `-- name: UpsertHistoryNode :exec
+INSERT INTO history_nodes (node_id, node_name, recorded_at)
+VALUES (?, ?, ?)
+ON CONFLICT (node_id) DO UPDATE SET
+    node_name = excluded.node_name,
+    recorded_at = excluded.recorded_at
+WHERE history_nodes.node_name != excluded.node_name
+`
+
+type UpsertHistoryNodeParams struct {
+	NodeID     string
+	NodeName   string
+	RecordedAt int64
+}
+
+func (q *Queries) UpsertHistoryNode(ctx context.Context, arg UpsertHistoryNodeParams) error {
+	_, err := q.db.ExecContext(ctx, upsertHistoryNode, arg.NodeID, arg.NodeName, arg.RecordedAt)
 	return err
 }
 

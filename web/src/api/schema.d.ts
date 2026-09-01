@@ -996,6 +996,7 @@ export interface components {
             id: string;
             /** Format: uuid */
             nodeId: string;
+            owner: components["schemas"]["HistoryOwner"];
             /** Format: uuid */
             publicAddressId: string;
             kind: components["schemas"]["AddressEventKind"];
@@ -1638,6 +1639,7 @@ export interface components {
             runId: string;
             /** Format: uuid */
             egressId: string;
+            publicAddress?: string;
             ordinal: number;
             /** Format: int64 */
             sequence: number;
@@ -1656,6 +1658,7 @@ export interface components {
             id: string;
             /** Format: uuid */
             nodeId: string;
+            owner: components["schemas"]["HistoryOwner"];
             /** Format: int64 */
             configurationRevision: number;
             historyGeneration: string;
@@ -1675,6 +1678,7 @@ export interface components {
             id: string;
             /** Format: uuid */
             nodeId: string;
+            owner: components["schemas"]["HistoryOwner"];
             trigger: components["schemas"]["ProbeTrigger"];
             /** Format: date-time */
             startedAt: string;
@@ -1753,6 +1757,7 @@ export interface components {
         HistoryOwner: {
             nodeName?: string;
             egressName?: string;
+            nodeDeleted: boolean;
         };
         /** @enum {string} */
         ProbeFormatStatus: "compatible" | "mismatch";

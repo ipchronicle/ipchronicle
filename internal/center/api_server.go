@@ -1513,7 +1513,7 @@ func overviewResponse(overview nodes.Overview) api.Overview {
 	}
 	for _, event := range overview.RecentAddressEvents {
 		item := api.OverviewAddressEvent{
-			Id: event.ID, NodeId: event.NodeID, PublicAddressId: event.PublicAddressID,
+			Id: event.ID, NodeId: event.NodeID, Owner: historyOwnerResponse(event.Owner), PublicAddressId: event.PublicAddressID,
 			Kind: api.AddressEventKind(event.Kind), Family: api.AddressFamily(event.Family),
 			PublicAddress: event.PublicAddress, ObservedAt: event.ObservedAt,
 		}
@@ -1552,7 +1552,7 @@ func probeStateResponse(state nodes.ProbeState) api.NodeProbeState {
 
 func probeRunSummaryResponse(run nodes.ProbeRunSummary) api.ProbeRunSummary {
 	return api.ProbeRunSummary{
-		Id: run.ID, NodeId: run.NodeID, Trigger: api.ProbeTrigger(run.Trigger),
+		Id: run.ID, NodeId: run.NodeID, Owner: historyOwnerResponse(run.Owner), Trigger: api.ProbeTrigger(run.Trigger),
 		StartedAt: run.StartedAt, CompletedAt: run.CompletedAt, Status: api.ProbeRunStatus(run.Status),
 		ExpectedExecutions: int(run.ExpectedExecutions), CompletedExecutions: int(run.CompletedExecutions),
 	}
@@ -1597,7 +1597,7 @@ func probeTaskResponse(task nodes.Task) api.ProbeTask {
 
 func probeRunResponse(run nodes.ProbeRun) api.ProbeRun {
 	response := api.ProbeRun{
-		Id: run.ID, NodeId: run.NodeID, ConfigurationRevision: run.ConfigurationRevision,
+		Id: run.ID, NodeId: run.NodeID, Owner: historyOwnerResponse(run.Owner), ConfigurationRevision: run.ConfigurationRevision,
 		HistoryGeneration: run.HistoryGeneration, Trigger: api.ProbeTrigger(run.Trigger),
 		TaskId:    run.TaskID,
 		StartedAt: run.StartedAt, CompletedAt: run.CompletedAt, Status: api.ProbeRunStatus(run.Status),
@@ -1606,7 +1606,8 @@ func probeRunResponse(run nodes.ProbeRun) api.ProbeRun {
 	for _, execution := range run.Executions {
 		item := api.ProbeExecution{
 			Id: execution.ID, RunId: execution.RunID, EgressId: execution.EgressID,
-			Ordinal: int(execution.Ordinal), Sequence: execution.Sequence,
+			PublicAddress: execution.PublicAddress,
+			Ordinal:       int(execution.Ordinal), Sequence: execution.Sequence,
 			Status: api.ProbeExecutionStatus(execution.Status), StartedAt: execution.StartedAt,
 			CompletedAt: execution.CompletedAt, Diagnostic: execution.Diagnostic, SnapshotId: execution.SnapshotID,
 		}
@@ -1734,7 +1735,9 @@ func historyFilter(
 }
 
 func historyOwnerResponse(owner nodes.HistoryOwner) api.HistoryOwner {
-	return api.HistoryOwner{NodeName: owner.NodeName, EgressName: owner.EgressName}
+	return api.HistoryOwner{
+		NodeName: owner.NodeName, EgressName: owner.EgressName, NodeDeleted: owner.NodeDeleted,
+	}
 }
 
 func probeSnapshotHistoryPageResponse(page nodes.ProbeSnapshotPage) api.ProbeSnapshotHistoryPage {

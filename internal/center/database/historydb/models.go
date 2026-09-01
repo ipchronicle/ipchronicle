@@ -73,6 +73,12 @@ type HistoryMetadatum struct {
 	CreatedAt  int64
 }
 
+type HistoryNode struct {
+	NodeID     string
+	NodeName   string
+	RecordedAt int64
+}
+
 type NotificationDelivery struct {
 	ID                 string
 	EventID            string

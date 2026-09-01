@@ -903,6 +903,7 @@ export const en = {
       title: "Complete-probe run",
       detail: "Run details",
       back: "Back to node probes",
+      backHistory: "Back to history",
       refresh: "Refresh",
       retry: "Retry",
       notFound: "The probe run does not exist or its history was removed",
@@ -939,6 +940,8 @@ export const en = {
       retry: "Retry",
       loadFailed: "History could not be loaded",
       addressUnavailable: "Public IP unavailable",
+      nodeUnavailable: "Former node",
+      nodeDeleted: "Node deleted",
       tabs: {
         label: "History type",
         reports: "Probe reports",

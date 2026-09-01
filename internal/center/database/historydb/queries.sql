@@ -7,6 +7,19 @@ WHERE id = 1;
 INSERT INTO history_metadata (id, generation, created_at)
 VALUES (1, ?, ?);
 
+-- name: UpsertHistoryNode :exec
+INSERT INTO history_nodes (node_id, node_name, recorded_at)
+VALUES (?, ?, ?)
+ON CONFLICT (node_id) DO UPDATE SET
+    node_name = excluded.node_name,
+    recorded_at = excluded.recorded_at
+WHERE history_nodes.node_name != excluded.node_name;
+
+-- name: GetHistoryNode :one
+SELECT node_id, node_name, recorded_at
+FROM history_nodes
+WHERE node_id = ?;
+
 -- name: UpsertAddressState :exec
 INSERT INTO address_states (
     egress_id, node_id, history_generation, family, status, sequence,
@@ -834,6 +847,9 @@ WHERE NOT EXISTS (
 -- name: ResetProbeHistory :exec
 DELETE FROM probe_runs;
 
+-- name: ResetHistoryNodes :exec
+DELETE FROM history_nodes;
+
 -- name: ResetProbeGaps :exec
 DELETE FROM probe_gaps;
 
@@ -848,6 +864,17 @@ DELETE FROM history_gaps;
 
 -- name: ResetNotificationHistory :exec
 DELETE FROM notification_events;
+
+-- name: DeleteOrphanHistoryNodes :exec
+DELETE FROM history_nodes
+WHERE NOT EXISTS(SELECT 1 FROM address_states WHERE node_id = history_nodes.node_id)
+  AND NOT EXISTS(SELECT 1 FROM address_events WHERE node_id = history_nodes.node_id)
+  AND NOT EXISTS(SELECT 1 FROM history_gaps WHERE node_id = history_nodes.node_id)
+  AND NOT EXISTS(SELECT 1 FROM probe_runs WHERE node_id = history_nodes.node_id)
+  AND NOT EXISTS(SELECT 1 FROM probe_gaps WHERE node_id = history_nodes.node_id)
+  AND NOT EXISTS(SELECT 1 FROM probe_comparison_progress WHERE node_id = history_nodes.node_id)
+  AND NOT EXISTS(SELECT 1 FROM probe_outcome_states WHERE node_id = history_nodes.node_id)
+  AND NOT EXISTS(SELECT 1 FROM notification_events WHERE node_id = history_nodes.node_id);
 
 -- name: GetProbeOutcomeState :one
 SELECT egress_id, node_id, history_generation, execution_id, sequence,

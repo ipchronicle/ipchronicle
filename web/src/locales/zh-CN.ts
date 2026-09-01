@@ -848,6 +848,7 @@ export const zhCN = {
       title: "完整探测运行",
       detail: "运行详情",
       back: "返回节点探测",
+      backHistory: "返回历史记录",
       refresh: "刷新",
       retry: "重试",
       notFound: "探测运行不存在或其历史已经删除",
@@ -883,6 +884,8 @@ export const zhCN = {
       retry: "重试",
       loadFailed: "无法加载历史记录",
       addressUnavailable: "公网 IP 不可用",
+      nodeUnavailable: "原节点",
+      nodeDeleted: "节点已删除",
       tabs: { label: "历史类型", reports: "探测报告", addresses: "地址变化" },
       filters: {
         title: "筛选",

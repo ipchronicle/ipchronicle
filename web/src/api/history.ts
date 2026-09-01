@@ -32,6 +32,7 @@ export type ProbeFormatEventPage =
   components["schemas"]["ProbeFormatEventPage"];
 export type ProbeSnapshotComparison =
   components["schemas"]["ProbeSnapshotComparison"];
+export type HistoryOwner = components["schemas"]["HistoryOwner"];
 export type HistoryRetentionUpdate =
   components["schemas"]["HistoryRetentionUpdate"];
 
