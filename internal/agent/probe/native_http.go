@@ -23,8 +23,13 @@ const (
 	providerResponseLimit  = 4 * 1024 * 1024
 )
 
-const browserUserAgent = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) " +
-	"AppleWebKit/537.36 (KHTML, like Gecko) Chrome/151.0.0.0 Safari/537.36"
+const (
+	curlUserAgent    = "curl/8.0.0"
+	browserUserAgent = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) " +
+		"AppleWebKit/537.36 (KHTML, like Gecko) Chrome/145.0.0.0 Safari/537.36"
+	openAIUserAgent = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) " +
+		"AppleWebKit/537.36 (KHTML, like Gecko) Chrome/119.0.0.0 Safari/537.36 Edg/119.0.0.0"
+)
 
 type probeHTTP struct {
 	client *http.Client
@@ -53,7 +58,11 @@ func (client probeHTTP) do(
 	if err != nil {
 		return probeHTTPResponse{}, err
 	}
-	request.Header.Set("User-Agent", browserUserAgent)
+	if headers.Get("User-Agent") == "" {
+		// The upstream probe uses curl's default UA except where it explicitly
+		// selects a browser UA. check.place rejects browser and Go client UAs.
+		request.Header.Set("User-Agent", curlUserAgent)
+	}
 	for name, values := range headers {
 		for _, value := range values {
 			request.Header.Add(name, value)
@@ -74,6 +83,12 @@ func (client probeHTTP) do(
 	return probeHTTPResponse{
 		StatusCode: response.StatusCode, Body: contents, FinalURL: response.Request.URL.String(),
 	}, nil
+}
+
+func headersWithUserAgent(userAgent string) http.Header {
+	headers := make(http.Header)
+	headers.Set("User-Agent", userAgent)
+	return headers
 }
 
 func (client probeHTTP) json(

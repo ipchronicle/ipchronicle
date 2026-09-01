@@ -49,12 +49,13 @@ func (engine *nativeEngine) probeMedia(ctx context.Context) map[string]mediaFind
 
 func (engine *nativeEngine) probeTikTok(ctx context.Context) mediaFinding {
 	typeValue := mediaUnlockType(ctx, "tiktok.com")
-	response, err := engine.http.get(ctx, "https://www.tiktok.com/", nil)
+	headers := headersWithUserAgent(browserUserAgent)
+	response, err := engine.http.get(ctx, "https://www.tiktok.com/", headers)
 	if err != nil {
 		return mediaFinding{Status: "屏蔽"}
 	}
 	if strings.Contains(string(response.Body), "Please wait...") {
-		response, err = engine.http.get(ctx, "https://www.tiktok.com/explore", nil)
+		response, err = engine.http.get(ctx, "https://www.tiktok.com/explore", headers)
 		if err != nil {
 			return mediaFinding{Status: "屏蔽"}
 		}
@@ -62,7 +63,6 @@ func (engine *nativeEngine) probeTikTok(ctx context.Context) mediaFinding {
 	if region := firstPattern(response.Body, `"region"\s*:\s*"([^"]+)"`); region != "" {
 		return mediaFinding{Status: "解锁", Region: region, Type: typeValue}
 	}
-	headers := make(http.Header)
 	headers.Set("Accept-Language", "en")
 	response, err = engine.http.get(ctx, "https://www.tiktok.com/", headers)
 	if err != nil {
@@ -76,7 +76,7 @@ func (engine *nativeEngine) probeTikTok(ctx context.Context) mediaFinding {
 
 func (engine *nativeEngine) probeDisneyPlus(ctx context.Context) mediaFinding {
 	typeValue := mediaUnlockType(ctx, "disneyplus.com")
-	headers := make(http.Header)
+	headers := headersWithUserAgent(browserUserAgent)
 	headers.Set("Authorization", "Bearer "+disneyAuthorization)
 	headers.Set("Content-Type", "application/json; charset=UTF-8")
 	device := engine.http.json(ctx, http.MethodPost, "https://disney.api.edge.bamgrid.com/devices", headers,
@@ -118,8 +118,9 @@ func (engine *nativeEngine) probeDisneyPlus(ctx context.Context) mediaFinding {
 
 func (engine *nativeEngine) probeNetflix(ctx context.Context) mediaFinding {
 	typeValue := mediaUnlockType(ctx, "netflix.com")
-	first, firstErr := engine.http.get(ctx, "https://www.netflix.com/title/81280792", nil)
-	second, secondErr := engine.http.get(ctx, "https://www.netflix.com/title/70143836", nil)
+	headers := headersWithUserAgent(browserUserAgent)
+	first, firstErr := engine.http.get(ctx, "https://www.netflix.com/title/81280792", headers)
+	second, secondErr := engine.http.get(ctx, "https://www.netflix.com/title/70143836", headers)
 	if firstErr != nil || secondErr != nil || len(first.Body) == 0 || len(second.Body) == 0 {
 		return mediaFinding{Status: "失败"}
 	}
@@ -163,7 +164,7 @@ func (engine *nativeEngine) probeYouTube(ctx context.Context) mediaFinding {
 
 func (engine *nativeEngine) probePrimeVideo(ctx context.Context) mediaFinding {
 	typeValue := mediaUnlockType(ctx, "www.primevideo.com")
-	response, err := engine.http.get(ctx, "https://www.primevideo.com", nil)
+	response, err := engine.http.get(ctx, "https://www.primevideo.com", headersWithUserAgent(browserUserAgent))
 	if err != nil {
 		return mediaFinding{Status: "失败"}
 	}
@@ -176,7 +177,8 @@ func (engine *nativeEngine) probePrimeVideo(ctx context.Context) mediaFinding {
 
 func (engine *nativeEngine) probeReddit(ctx context.Context) mediaFinding {
 	typeValue := mediaUnlockType(ctx, "reddit.com")
-	response, err := engine.http.get(ctx, "https://www.reddit.com/svc/shreddit/reddit-chat", nil)
+	response, err := engine.http.get(ctx, "https://www.reddit.com/svc/shreddit/reddit-chat",
+		headersWithUserAgent(browserUserAgent))
 	if err != nil {
 		return mediaFinding{Status: "失败"}
 	}
@@ -192,15 +194,16 @@ func (engine *nativeEngine) probeReddit(ctx context.Context) mediaFinding {
 
 func (engine *nativeEngine) probeChatGPT(ctx context.Context) mediaFinding {
 	typeValue := mediaUnlockType(ctx, "chat.openai.com", "ios.chat.openai.com", "api.openai.com")
-	headers := make(http.Header)
-	headers.Set("Authorization", "Bearer null")
-	headers.Set("Origin", "https://platform.openai.com")
-	apiResponse, apiErr := engine.http.get(ctx, "https://api.openai.com/compliance/cookie_requirements", headers)
-	appResponse, appErr := engine.http.get(ctx, "https://ios.chat.openai.com/", nil)
+	apiHeaders := headersWithUserAgent(openAIUserAgent)
+	apiHeaders.Set("Authorization", "Bearer null")
+	apiHeaders.Set("Origin", "https://platform.openai.com")
+	apiResponse, apiErr := engine.http.get(ctx, "https://api.openai.com/compliance/cookie_requirements", apiHeaders)
+	appHeaders := headersWithUserAgent(openAIUserAgent)
+	appResponse, appErr := engine.http.get(ctx, "https://ios.chat.openai.com/", appHeaders)
 	apiBlocked := apiErr == nil && strings.Contains(string(apiResponse.Body), "unsupported_country")
 	appBlocked := appErr == nil && strings.Contains(string(appResponse.Body), "VPN")
 	if apiBlocked {
-		favicon, err := engine.http.get(ctx, "https://chatgpt.com/favicon.ico", nil)
+		favicon, err := engine.http.get(ctx, "https://chatgpt.com/favicon.ico", apiHeaders)
 		if err == nil && favicon.StatusCode != http.StatusForbidden {
 			apiBlocked = false
 		}

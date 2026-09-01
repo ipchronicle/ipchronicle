@@ -155,14 +155,14 @@ func (engine *nativeEngine) probeScamalytics(ctx context.Context) providerFindin
 
 func (engine *nativeEngine) probeIPRegistry(ctx context.Context) providerFinding {
 	key := "sb69ksjcajfs4c"
-	response, err := engine.http.get(ctx, "https://ipregistry.co", nil)
+	headers := headersWithUserAgent(browserUserAgent)
+	response, err := engine.http.get(ctx, "https://ipregistry.co", headers)
 	if err == nil {
 		match := regexp.MustCompile(`apiKey="([a-zA-Z0-9]+)"`).FindSubmatch(response.Body)
 		if len(match) == 2 {
 			key = string(match[1])
 		}
 	}
-	headers := make(http.Header)
 	headers.Set("Origin", "https://ipregistry.co")
 	headers.Set("Referer", "https://ipregistry.co/")
 	document := engine.http.json(ctx, http.MethodGet, "https://api.ipregistry.co/"+
@@ -180,10 +180,8 @@ func (engine *nativeEngine) probeIPRegistry(ctx context.Context) providerFinding
 }
 
 func (engine *nativeEngine) probeIPAPI(ctx context.Context) providerFinding {
-	headers := make(http.Header)
-	headers.Set("Origin", "https://ipapi.is")
 	document := engine.http.json(ctx, http.MethodGet, "https://api.ipapi.is/?q="+
-		queryEscapeAddress(engine.input.Target), headers, nil)
+		queryEscapeAddress(engine.input.Target), nil, nil)
 	score := documentString(document, "company", "abuser_score")
 	if score == "" {
 		score = documentString(document, "abuser_score")

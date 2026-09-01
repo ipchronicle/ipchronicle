@@ -98,6 +98,32 @@ func TestNativeProviderParsersMapUpstreamFields(t *testing.T) {
 	}
 }
 
+func TestNativeRequestUserAgentsMatchUpstreamRequestClasses(t *testing.T) {
+	var requests []*http.Request
+	client := probeHTTP{client: &http.Client{Transport: roundTripFunc(func(request *http.Request) (*http.Response, error) {
+		requests = append(requests, request)
+		return &http.Response{
+			StatusCode: http.StatusOK, Body: io.NopCloser(strings.NewReader(`{}`)),
+			Header: make(http.Header), Request: request,
+		}, nil
+	})}}
+
+	if _, err := client.get(context.Background(), "https://ipinfo.check.place/203.0.113.10?db=ip2location", nil); err != nil {
+		t.Fatal(err)
+	}
+	browserHeaders := headersWithUserAgent(browserUserAgent)
+	if _, err := client.get(context.Background(), "https://www.netflix.com/title/81280792", browserHeaders); err != nil {
+		t.Fatal(err)
+	}
+
+	if got := requests[0].UserAgent(); got != curlUserAgent {
+		t.Fatalf("ordinary provider User-Agent = %q", got)
+	}
+	if got := requests[1].UserAgent(); got != browserUserAgent {
+		t.Fatalf("browser provider User-Agent = %q", got)
+	}
+}
+
 func TestNativeMediaAndDNSBlacklistHelpers(t *testing.T) {
 	if region := mediaRegion([]byte(`{"countryOfSignup":"jp"}`)); region != "JP" {
 		t.Fatalf("media region = %q", region)
