@@ -483,24 +483,21 @@ func TestFailedAddressCheckKeepsConfirmedBaselineCurrent(t *testing.T) {
 
 func TestNewAddressProbeTaskContainsOnlyNewlyCurrentAddresses(t *testing.T) {
 	fixture := newProbeServiceFixture(t, 512*1024*1024)
-	var defaultIPv4, sourceIPv4, defaultIPv6 NetworkEgress
+	var defaultIPv4, defaultIPv6 NetworkEgress
 	for _, path := range fixture.configuration.DiscoveryPaths {
 		switch {
 		case path.Kind == "default" && path.Family == "ipv4":
 			defaultIPv4 = path
-		case path.Kind == "source" && path.Family == "ipv4":
-			sourceIPv4 = path
 		case path.Kind == "default" && path.Family == "ipv6":
 			defaultIPv6 = path
 		}
 	}
-	if defaultIPv4.ID == uuid.Nil || sourceIPv4.ID == uuid.Nil || defaultIPv6.ID == uuid.Nil {
+	if defaultIPv4.ID == uuid.Nil || defaultIPv6.ID == uuid.Nil {
 		t.Fatalf("required discovery paths = %#v", fixture.configuration.DiscoveryPaths)
 	}
 	states := func(at time.Time, ipv4, ipv6 string) []AddressState {
 		return []AddressState{
 			confirmedAddressState(defaultIPv4.ID, fixture.configuration.HistoryGeneration, "ipv4", ipv4, "eth0", "10.0.0.5", at),
-			confirmedAddressState(sourceIPv4.ID, fixture.configuration.HistoryGeneration, "ipv4", "9.9.9.9", "eth0", "10.0.0.5", at),
 			confirmedAddressState(defaultIPv6.ID, fixture.configuration.HistoryGeneration, "ipv6", ipv6, "eth0", "fd00::5", at),
 		}
 	}
@@ -542,7 +539,7 @@ func TestNewAddressProbeTaskContainsOnlyNewlyCurrentAddresses(t *testing.T) {
 			want[address.ID] = struct{}{}
 		}
 	}
-	if len(want) != 2 || !containsAvailablePublicAddress(network.PublicAddresses, "9.9.9.9") {
+	if len(want) != 2 {
 		t.Fatalf("current public addresses = %#v", network.PublicAddresses)
 	}
 
@@ -563,6 +560,84 @@ func TestNewAddressProbeTaskContainsOnlyNewlyCurrentAddresses(t *testing.T) {
 	if len(want) != 0 {
 		t.Fatalf("new public addresses missing from task: %#v", want)
 	}
+}
+
+func TestFirstProxyObservationProbesNewAddressAfterNodeBaseline(t *testing.T) {
+	fixture := newProbeServiceFixture(t, 512*1024*1024)
+	proxy, err := fixture.service.CreateNetworkProxy(fixture.ctx, fixture.registration.NodeID, NetworkProxyCreate{
+		Name: "New exit", Scheme: "socks5", Host: "proxy.example.test", Port: 1080,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	configuration, err := fixture.service.Configuration(fixture.ctx, fixture.registration.Credential)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var directIPv4, directIPv6, proxyIPv4 NetworkEgress
+	for _, path := range configuration.DiscoveryPaths {
+		switch {
+		case path.Kind == "default" && path.Family == "ipv4":
+			directIPv4 = path
+		case path.Kind == "default" && path.Family == "ipv6":
+			directIPv6 = path
+		case path.ProxyID != nil && *path.ProxyID == proxy.ID && path.Family == "ipv4":
+			proxyIPv4 = path
+		}
+	}
+	if directIPv4.ID == uuid.Nil || directIPv6.ID == uuid.Nil || proxyIPv4.ID == uuid.Nil {
+		t.Fatalf("required discovery paths = %#v", configuration.DiscoveryPaths)
+	}
+
+	fixture.now = fixture.now.Add(time.Minute)
+	proxyAddress := "1.1.1.1"
+	proxyCheckedAt := fixture.now
+	proxyState := AddressState{
+		EgressID: proxyIPv4.ID, HistoryGeneration: configuration.HistoryGeneration,
+		Family: "ipv4", Status: "confirmed", PublicAddress: &proxyAddress, ProxyPath: true,
+		LastCheckedAt: proxyCheckedAt, LastSucceededAt: &proxyCheckedAt, LastChangedAt: &proxyCheckedAt,
+	}
+	poll, err := fixture.service.Poll(
+		fixture.ctx, fixture.registration.Credential, fixture.metadata,
+		configuration.Revision, nil, nil, nil, nil,
+		AddressUpload{States: []AddressState{
+			confirmedAddressState(directIPv4.ID, configuration.HistoryGeneration, "ipv4", "8.8.8.8", "eth0", "10.0.0.5", fixture.now),
+			confirmedAddressState(directIPv6.ID, configuration.HistoryGeneration, "ipv6", "2001:4860:4860::8888", "eth0", "fd00::5", fixture.now),
+			proxyState,
+		}},
+	)
+	if err != nil || poll.Task != nil {
+		t.Fatalf("first proxy observation poll = %#v, %v", poll, err)
+	}
+	changedConfiguration, err := fixture.service.Configuration(fixture.ctx, fixture.registration.Credential)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if changedConfiguration.Revision <= configuration.Revision {
+		t.Fatalf("new proxy address did not advance configuration: before=%d after=%d", configuration.Revision, changedConfiguration.Revision)
+	}
+
+	fixture.now = fixture.now.Add(time.Second)
+	delivery, err := fixture.service.Poll(
+		fixture.ctx, fixture.registration.Credential, fixture.metadata,
+		changedConfiguration.Revision, nil, nil, nil, nil,
+	)
+	if err != nil || delivery.Task == nil || delivery.Task.Trigger != "new-address" || len(delivery.Task.PublicAddressIDs) != 1 {
+		t.Fatalf("new proxy address task = %#v, %v", delivery.Task, err)
+	}
+	network, err := fixture.service.Network(fixture.ctx, fixture.registration.NodeID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, address := range network.PublicAddresses {
+		if address.Address == proxyAddress {
+			if delivery.Task.PublicAddressIDs[0] != address.ID {
+				t.Fatalf("task target = %s, want %s", delivery.Task.PublicAddressIDs[0], address.ID)
+			}
+			return
+		}
+	}
+	t.Fatalf("proxy address missing from network state: %#v", network.PublicAddresses)
 }
 
 func containsAvailablePublicAddress(addresses []PublicAddress, value string) bool {

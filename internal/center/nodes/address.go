@@ -243,14 +243,13 @@ func (s *Service) reconcilePublicAddresses(
 	if err != nil {
 		return err
 	}
-	priorPathByID := make(map[string]configdb.PublicAddressPath, len(priorPaths))
 	priorAddresses := make(map[string]struct{}, len(priorPaths))
 	for _, path := range priorPaths {
-		priorPathByID[path.PathID] = path
 		if path.Available == 1 {
 			priorAddresses[path.PublicAddressID] = struct{}{}
 		}
 	}
+	hadConfirmedBaseline := len(priorAddresses) > 0
 	newAddressCandidates := make(map[string]struct{})
 	if err := queries.MarkNodePublicAddressPathsUnavailable(ctx, nodeID); err != nil {
 		return err
@@ -297,9 +296,8 @@ func (s *Service) reconcilePublicAddresses(
 		}); err != nil {
 			return err
 		}
-		priorPath, established := priorPathByID[state.EgressID.String()]
 		_, alreadyCurrent := priorAddresses[publicAddress.ID]
-		if established && priorPath.PublicAddressID != publicAddress.ID && !alreadyCurrent {
+		if hadConfirmedBaseline && !alreadyCurrent {
 			newAddressCandidates[publicAddress.ID] = struct{}{}
 		}
 	}
