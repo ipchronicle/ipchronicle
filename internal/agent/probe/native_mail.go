@@ -76,13 +76,11 @@ func (engine *nativeEngine) mailServiceAvailable(ctx context.Context, domain str
 		}
 		return records[left].Host < records[right].Host
 	})
-	for _, record := range records {
-		host := strings.TrimSuffix(record.Host, ".")
-		if engine.smtpAvailable(ctx, net.JoinHostPort(host, "25")) {
-			return true
-		}
+	if len(records) == 0 {
+		return false
 	}
-	return false
+	host := strings.TrimSuffix(records[0].Host, ".")
+	return engine.smtpAvailable(ctx, net.JoinHostPort(host, "25"))
 }
 
 func (engine *nativeEngine) smtpAvailable(ctx context.Context, address string) bool {

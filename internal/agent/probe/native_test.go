@@ -55,6 +55,9 @@ func TestNativeReportMatchesCenterFieldContract(t *testing.T) {
 	if report.Head["IP"] != "203.0.*.*" || report.Head["Version"] != nativeProbeVersion {
 		t.Fatalf("head = %#v", report.Head)
 	}
+	if masked := maskAddress(netip.MustParseAddr("2001:db8:1234::10")); masked != "2001:db8:1234:*:*:*:*:*" {
+		t.Fatalf("masked IPv6 = %q", masked)
+	}
 }
 
 func TestNativeProviderParsersMapUpstreamFields(t *testing.T) {
@@ -77,7 +80,7 @@ func TestNativeProviderParsersMapUpstreamFields(t *testing.T) {
 	})}
 	engine := nativeEngine{
 		input: nativeProbeInput{Target: "203.0.113.10"},
-		http:  probeHTTP{client: client},
+		http:  probeHTTP{client: client}, explicitLookupHTTP: probeHTTP{client: client},
 	}
 	ipinfo := engine.probeIPInfo(context.Background())
 	if ipinfo.CountryCode != "US" || ipinfo.Usage != "hosting" || !boolValue(ipinfo.Proxy) || !boolValue(ipinfo.VPN) {
@@ -95,6 +98,41 @@ func TestNativeProviderParsersMapUpstreamFields(t *testing.T) {
 	ipqs := engine.probeIPQS(context.Background())
 	if ipqs.Score != "73" || !boolValue(ipqs.Robot) {
 		t.Fatalf("IPQS = %#v", ipqs)
+	}
+}
+
+func TestNativeIPv6ProviderRequestsUseRawPathsAndExplicitLookupClient(t *testing.T) {
+	var pathRequests, lookupRequests []*http.Request
+	response := func(request *http.Request) (*http.Response, error) {
+		return &http.Response{
+			StatusCode: http.StatusOK, Body: io.NopCloser(strings.NewReader(`{}`)),
+			Header: make(http.Header), Request: request,
+		}, nil
+	}
+	engine := nativeEngine{
+		input: nativeProbeInput{Target: "2001:db8:1234::10"},
+		http: probeHTTP{client: &http.Client{Transport: roundTripFunc(func(request *http.Request) (*http.Response, error) {
+			pathRequests = append(pathRequests, request)
+			return response(request)
+		})}},
+		explicitLookupHTTP: probeHTTP{client: &http.Client{Transport: roundTripFunc(func(request *http.Request) (*http.Response, error) {
+			lookupRequests = append(lookupRequests, request)
+			return response(request)
+		})}},
+	}
+
+	_ = engine.probeBasic(context.Background())
+	_ = engine.probeIPInfo(context.Background())
+	_ = engine.probeIPAPI(context.Background())
+
+	if len(pathRequests) != 2 || pathRequests[0].URL.Path != "/2001:db8:1234::10" ||
+		pathRequests[0].URL.RawPath != "" || pathRequests[0].URL.Query().Get("lang") != "cn" {
+		t.Fatalf("path requests = %#v", pathRequests)
+	}
+	if len(lookupRequests) != 2 || lookupRequests[0].URL.Host != "ipinfo.io" ||
+		lookupRequests[0].URL.Path != "/widget/demo/2001:db8:1234::10" ||
+		lookupRequests[1].URL.Query().Get("q") != "2001:db8:1234::10" {
+		t.Fatalf("explicit lookup requests = %#v", lookupRequests)
 	}
 }
 
@@ -180,12 +218,51 @@ func TestBasicIPInfoFallbackIncludesEmbeddedCountryNames(t *testing.T) {
 	})}
 	engine := nativeEngine{
 		input: nativeProbeInput{Target: "203.0.113.10"},
-		http:  probeHTTP{client: client},
+		http:  probeHTTP{client: client}, explicitLookupHTTP: probeHTTP{client: client},
 	}
 	finding := engine.basicFromIPInfo(context.Background())
 	if finding.RegionName != "United States of America" || finding.ContinentName != "Americas" ||
 		finding.RegisteredRegionName != "Canada" {
 		t.Fatalf("IPinfo fallback = %#v", finding)
+	}
+}
+
+func TestDisneyForbiddenLocationResponseIsBlocked(t *testing.T) {
+	client := &http.Client{Transport: roundTripFunc(func(request *http.Request) (*http.Response, error) {
+		status := http.StatusCreated
+		body := `{"assertion":"test-assertion"}`
+		if request.URL.Path == "/token" {
+			status = http.StatusBadRequest
+			body = `{"error":"unauthorized_client","error_description":"forbidden-location"}`
+		}
+		return &http.Response{
+			StatusCode: status, Body: io.NopCloser(strings.NewReader(body)),
+			Header: make(http.Header), Request: request,
+		}, nil
+	})}
+	engine := nativeEngine{http: probeHTTP{client: client}}
+
+	finding := engine.probeDisneyPlus(context.Background())
+	if finding.Status != "屏蔽" || finding.Region != "" || finding.Type != "" {
+		t.Fatalf("Disney+ finding = %#v", finding)
+	}
+}
+
+func TestOverrideDialHostKeepsTLSHostnameOutOfTheDialAddress(t *testing.T) {
+	var receivedNetwork, receivedAddress string
+	wantError := errors.New("dial stopped")
+	dialContext := overrideDialHost(
+		func(_ context.Context, network, address string) (net.Conn, error) {
+			receivedNetwork, receivedAddress = network, address
+			return nil, wantError
+		},
+		"www.reddit.com",
+		netip.MustParseAddr("2001:db8::10"),
+	)
+
+	_, err := dialContext(context.Background(), "tcp6", "www.reddit.com:443")
+	if !errors.Is(err, wantError) || receivedNetwork != "tcp6" || receivedAddress != "[2001:db8::10]:443" {
+		t.Fatalf("dial = (%q, %q, %v)", receivedNetwork, receivedAddress, err)
 	}
 }
 

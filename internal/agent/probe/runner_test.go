@@ -20,7 +20,8 @@ import (
 
 func TestRunnerExecutesOneBoundedJSONProbe(t *testing.T) {
 	runner := testRunner(t, func(_ context.Context, input nativeProbeInput) ([]byte, error) {
-		if input.Target != "203.0.113.10" || input.Family != "ipv4" || input.HTTPClient == nil || input.DialContext == nil {
+		if input.Target != "203.0.113.10" || input.Family != "ipv4" || input.HTTPClient == nil ||
+			input.ExplicitLookupHTTPClient == nil || input.DialContext == nil {
 			t.Fatalf("native input = %#v", input)
 		}
 		return []byte(`{"field":{"value":1}}`), nil

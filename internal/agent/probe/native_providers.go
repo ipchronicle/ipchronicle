@@ -81,8 +81,8 @@ func (engine *nativeEngine) probeBasic(ctx context.Context) basicFinding {
 }
 
 func (engine *nativeEngine) basicFromIPInfo(ctx context.Context) basicFinding {
-	document := engine.http.json(ctx, http.MethodGet,
-		"https://ipinfo.io/widget/demo/"+queryEscapeAddress(engine.input.Target), nil, nil)
+	document := engine.explicitLookupHTTP.json(ctx, http.MethodGet,
+		"https://ipinfo.io/widget/demo/"+engine.input.Target, nil, nil)
 	location := strings.Split(documentString(document, "data", "loc"), ",")
 	latitude, longitude := "", ""
 	if len(location) == 2 {
@@ -122,8 +122,8 @@ func (engine *nativeEngine) probeProviders(ctx context.Context) map[string]provi
 }
 
 func (engine *nativeEngine) probeIPInfo(ctx context.Context) providerFinding {
-	document := engine.http.json(ctx, http.MethodGet,
-		"https://ipinfo.io/widget/demo/"+queryEscapeAddress(engine.input.Target), nil, nil)
+	document := engine.explicitLookupHTTP.json(ctx, http.MethodGet,
+		"https://ipinfo.io/widget/demo/"+engine.input.Target, nil, nil)
 	return providerFinding{
 		CountryCode: documentString(document, "data", "country"),
 		Proxy:       documentBool(document, "data", "privacy", "proxy"),
@@ -166,7 +166,7 @@ func (engine *nativeEngine) probeIPRegistry(ctx context.Context) providerFinding
 	headers.Set("Origin", "https://ipregistry.co")
 	headers.Set("Referer", "https://ipregistry.co/")
 	document := engine.http.json(ctx, http.MethodGet, "https://api.ipregistry.co/"+
-		queryEscapeAddress(engine.input.Target)+"?hostname=true&key="+key, headers, nil)
+		engine.input.Target+"?hostname=true&key="+key, headers, nil)
 	return providerFinding{
 		CountryCode: documentString(document, "location", "country", "code"),
 		Proxy:       documentBool(document, "security", "is_proxy"),
@@ -180,7 +180,7 @@ func (engine *nativeEngine) probeIPRegistry(ctx context.Context) providerFinding
 }
 
 func (engine *nativeEngine) probeIPAPI(ctx context.Context) providerFinding {
-	document := engine.http.json(ctx, http.MethodGet, "https://api.ipapi.is/?q="+
+	document := engine.explicitLookupHTTP.json(ctx, http.MethodGet, "https://api.ipapi.is/?q="+
 		queryEscapeAddress(engine.input.Target), nil, nil)
 	score := documentString(document, "company", "abuser_score")
 	if score == "" {
@@ -236,7 +236,7 @@ func (engine *nativeEngine) probeIP2Location(ctx context.Context) providerFindin
 }
 
 func (engine *nativeEngine) probeDBIP(ctx context.Context) providerFinding {
-	response, err := engine.http.get(ctx, "https://db-ip.com/api/core/", nil)
+	response, err := engine.explicitLookupHTTP.get(ctx, "https://db-ip.com/api/core/", nil)
 	if err != nil || response.StatusCode < 200 || response.StatusCode >= 300 {
 		return providerFinding{}
 	}
@@ -248,7 +248,7 @@ func (engine *nativeEngine) probeDBIP(ctx context.Context) providerFinding {
 	headers.Set("Content-Type", "text/plain;charset=UTF-8")
 	headers.Set("Origin", "https://db-ip.com")
 	headers.Set("Referer", "https://db-ip.com/")
-	document := engine.http.json(ctx, http.MethodPost, "https://api.db-ip.com/v2/"+
+	document := engine.explicitLookupHTTP.json(ctx, http.MethodPost, "https://api.db-ip.com/v2/"+
 		string(match[1])+"/self?convertCurrencies", headers,
 		[]byte(`[["11.49","EUR"],["139.90","EUR"],["699.90","EUR"]]`))
 	level := strings.ToLower(documentString(document, "threatLevel"))
@@ -294,7 +294,7 @@ func (engine *nativeEngine) checkPlaceDocument(ctx context.Context, database str
 }
 
 func (engine *nativeEngine) checkPlaceURL(query string) string {
-	return "https://ipinfo.check.place/" + queryEscapeAddress(engine.input.Target) + "?" + query
+	return "https://ipinfo.check.place/" + engine.input.Target + "?" + query
 }
 
 func firstArrayDocumentString(primary, fallback map[string]any, object, array, field string) string {

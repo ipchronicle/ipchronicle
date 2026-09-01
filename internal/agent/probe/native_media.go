@@ -53,12 +53,12 @@ func (engine *nativeEngine) probeTikTok(ctx context.Context) mediaFinding {
 	headers := headersWithUserAgent(browserUserAgent)
 	response, err := engine.http.get(ctx, "https://www.tiktok.com/", headers)
 	if err != nil {
-		return mediaFinding{Status: "屏蔽"}
+		return mediaFinding{Status: "失败"}
 	}
 	if strings.Contains(string(response.Body), "Please wait...") {
 		response, err = engine.http.get(ctx, "https://www.tiktok.com/explore", headers)
 		if err != nil {
-			return mediaFinding{Status: "屏蔽"}
+			return mediaFinding{Status: "失败"}
 		}
 	}
 	if region := firstPattern(response.Body, `"region"\s*:\s*"([^"]+)"`); region != "" {
@@ -76,7 +76,6 @@ func (engine *nativeEngine) probeTikTok(ctx context.Context) mediaFinding {
 }
 
 func (engine *nativeEngine) probeDisneyPlus(ctx context.Context) mediaFinding {
-	typeValue := mediaUnlockType(ctx, "disneyplus.com")
 	headers := headersWithUserAgent(browserUserAgent)
 	headers.Set("Authorization", "Bearer "+disneyAuthorization)
 	headers.Set("Content-Type", "application/json; charset=UTF-8")
@@ -87,10 +86,21 @@ func (engine *nativeEngine) probeDisneyPlus(ctx context.Context) mediaFinding {
 		return mediaFinding{Status: "失败"}
 	}
 	headers.Set("Content-Type", "application/x-www-form-urlencoded")
-	token := engine.http.json(ctx, http.MethodPost, "https://disney.api.edge.bamgrid.com/token", headers,
+	tokenResponse, err := engine.http.do(ctx, http.MethodPost, "https://disney.api.edge.bamgrid.com/token", headers,
 		[]byte(strings.Replace(disneyTokenForm, "DISNEYASSERTION", assertion, 1)))
-	if documentString(token, "error_description") == "forbidden-location" {
+	if err != nil {
+		return mediaFinding{Status: "失败"}
+	}
+	var token map[string]any
+	if json.Unmarshal(tokenResponse.Body, &token) != nil {
+		return mediaFinding{Status: "失败"}
+	}
+	if documentString(token, "error_description") == "forbidden-location" ||
+		strings.Contains(string(tokenResponse.Body), "403 ERROR") {
 		return mediaFinding{Status: "屏蔽"}
+	}
+	if tokenResponse.StatusCode < 200 || tokenResponse.StatusCode >= 300 {
+		return mediaFinding{Status: "失败"}
 	}
 	refreshToken := documentString(token, "refresh_token")
 	if refreshToken == "" {
@@ -106,6 +116,7 @@ func (engine *nativeEngine) probeDisneyPlus(ctx context.Context) mediaFinding {
 	if region == "" {
 		return mediaFinding{Status: "屏蔽"}
 	}
+	typeValue := mediaUnlockType(ctx, "disneyplus.com")
 	preview, _ := engine.http.get(ctx, "https://disneyplus.com", nil)
 	unavailable := strings.Contains(preview.FinalURL, "unavailable")
 	if region == "JP" || supported != nil && *supported {
@@ -179,7 +190,11 @@ func (engine *nativeEngine) probePrimeVideo(ctx context.Context) mediaFinding {
 
 func (engine *nativeEngine) probeReddit(ctx context.Context) mediaFinding {
 	typeValue := redditUnlockType(ctx)
-	response, err := engine.http.get(ctx, "https://www.reddit.com/svc/shreddit/reddit-chat",
+	client, ok := engine.redditHTTPClient(ctx)
+	if !ok {
+		return mediaFinding{Status: "失败"}
+	}
+	response, err := client.get(ctx, "https://www.reddit.com/svc/shreddit/reddit-chat",
 		headersWithUserAgent(browserUserAgent))
 	if err != nil {
 		return mediaFinding{Status: "失败"}
@@ -191,6 +206,35 @@ func (engine *nativeEngine) probeReddit(ctx context.Context) mediaFinding {
 		return mediaFinding{Status: "屏蔽"}
 	default:
 		return mediaFinding{Status: "失败"}
+	}
+}
+
+func (engine *nativeEngine) redditHTTPClient(ctx context.Context) (probeHTTP, bool) {
+	if engine.input.Family != "ipv6" || engine.input.ProxyAdapterURL != "" || engine.input.DialContext == nil {
+		return engine.http, true
+	}
+	for _, hostname := range []string{"reddit.com", "dualstack.reddit.map.fastly.net"} {
+		addresses, err := net.DefaultResolver.LookupNetIP(ctx, "ip6", hostname)
+		if err != nil || len(addresses) == 0 {
+			continue
+		}
+		dialContext := overrideDialHost(engine.input.DialContext, "www.reddit.com", addresses[0])
+		return probeHTTP{client: probeHTTPClient(dialContext, "")}, true
+	}
+	return probeHTTP{}, false
+}
+
+func overrideDialHost(
+	dialContext func(context.Context, string, string) (net.Conn, error),
+	hostname string,
+	address netip.Addr,
+) func(context.Context, string, string) (net.Conn, error) {
+	return func(ctx context.Context, network, endpoint string) (net.Conn, error) {
+		host, port, err := net.SplitHostPort(endpoint)
+		if err == nil && strings.EqualFold(host, hostname) {
+			endpoint = net.JoinHostPort(address.String(), port)
+		}
+		return dialContext(ctx, network, endpoint)
 	}
 }
 

@@ -23,12 +23,13 @@ import (
 const defaultProbeTimeout = 15 * time.Minute
 
 type nativeProbeInput struct {
-	Target          string
-	Family          string
-	HTTPClient      *http.Client
-	DialContext     func(context.Context, string, string) (net.Conn, error)
-	ProxyAdapterURL string
-	StartedAt       time.Time
+	Target                   string
+	Family                   string
+	HTTPClient               *http.Client
+	ExplicitLookupHTTPClient *http.Client
+	DialContext              func(context.Context, string, string) (net.Conn, error)
+	ProxyAdapterURL          string
+	StartedAt                time.Time
 }
 
 type Runner struct {
@@ -36,6 +37,7 @@ type Runner struct {
 	now          func() time.Time
 	timeout      time.Duration
 	httpClient   func(executionPath, string) *http.Client
+	lookupClient func(executionPath, string) *http.Client
 	verifyTarget func(context.Context, state.Configuration, state.Egress, time.Time) error
 	execute      func(context.Context, nativeProbeInput) ([]byte, error)
 }
@@ -44,7 +46,8 @@ func NewRunner() *Runner {
 	checker := observation.NewChecker()
 	return &Runner{
 		discover: agentnetwork.Discover, now: time.Now, timeout: defaultProbeTimeout,
-		httpClient: pathHTTPClient, verifyTarget: checker.VerifyTarget, execute: runNativeProbe,
+		httpClient: pathHTTPClient, lookupClient: explicitLookupHTTPClient,
+		verifyTarget: checker.VerifyTarget, execute: runNativeProbe,
 	}
 }
 
@@ -100,8 +103,10 @@ func (runner *Runner) Run(
 	defer cancel()
 	raw, err := runner.execute(executionContext, nativeProbeInput{
 		Target: *egress.PublicAddress, Family: egress.Family,
-		HTTPClient: runner.httpClient(path, adapterURL), DialContext: pathDialContext(path),
-		ProxyAdapterURL: adapterURL, StartedAt: startedAt,
+		HTTPClient:               runner.httpClient(path, adapterURL),
+		ExplicitLookupHTTPClient: runner.lookupClient(path, adapterURL),
+		DialContext:              pathDialContext(path),
+		ProxyAdapterURL:          adapterURL, StartedAt: startedAt,
 	})
 	if err != nil {
 		if errors.Is(executionContext.Err(), context.DeadlineExceeded) {
@@ -127,6 +132,21 @@ func (runner *Runner) Run(
 }
 
 func pathHTTPClient(path executionPath, adapterURL string) *http.Client {
+	return probeHTTPClient(pathDialContext(path), adapterURL)
+}
+
+func explicitLookupHTTPClient(path executionPath, adapterURL string) *http.Client {
+	if adapterURL != "" || path.egress.Family != "ipv6" {
+		return pathHTTPClient(path, adapterURL)
+	}
+	dialer := &net.Dialer{Timeout: 15 * time.Second, KeepAlive: -1}
+	return probeHTTPClient(dialer.DialContext, "")
+}
+
+func probeHTTPClient(
+	dialContext func(context.Context, string, string) (net.Conn, error),
+	adapterURL string,
+) *http.Client {
 	transport := &http.Transport{
 		DisableKeepAlives:     true,
 		ForceAttemptHTTP2:     true,
@@ -138,7 +158,7 @@ func pathHTTPClient(path executionPath, adapterURL string) *http.Client {
 		proxyURL, _ := url.Parse(adapterURL)
 		transport.Proxy = http.ProxyURL(proxyURL)
 	} else {
-		transport.DialContext = pathDialContext(path)
+		transport.DialContext = dialContext
 	}
 	return &http.Client{
 		Transport: transport,

@@ -22,8 +22,9 @@ import (
 const nativeProbeVersion = "native-0ee5f19"
 
 type nativeEngine struct {
-	input nativeProbeInput
-	http  probeHTTP
+	input              nativeProbeInput
+	http               probeHTTP
+	explicitLookupHTTP probeHTTP
 }
 
 type nativeReport struct {
@@ -71,7 +72,14 @@ func runNativeProbe(ctx context.Context, input nativeProbeInput) ([]byte, error)
 	if err != nil || (input.Family == "ipv4") != target.Is4() {
 		return nil, errors.New("native probe target does not match its address family")
 	}
-	engine := &nativeEngine{input: input, http: probeHTTP{client: input.HTTPClient}}
+	lookupClient := input.ExplicitLookupHTTPClient
+	if lookupClient == nil {
+		lookupClient = input.HTTPClient
+	}
+	engine := &nativeEngine{
+		input: input, http: probeHTTP{client: input.HTTPClient},
+		explicitLookupHTTP: probeHTTP{client: lookupClient},
+	}
 	basic := engine.probeBasic(ctx)
 	if err := ctx.Err(); err != nil {
 		return nil, err
@@ -224,17 +232,11 @@ func maskAddress(address netip.Addr) string {
 		parts := strings.Split(address.String(), ".")
 		return parts[0] + "." + parts[1] + ".*.*"
 	}
-	parts := strings.Split(address.String(), ":")
-	retained := make([]string, 0, 8)
-	for _, part := range parts {
-		if part != "" {
-			retained = append(retained, part)
-		}
-	}
-	for len(retained) < 2 {
-		retained = append(retained, "0")
-	}
-	return retained[0] + ":" + retained[1] + ":*:*:*:*:*:*"
+	value := address.As16()
+	first := uint16(value[0])<<8 | uint16(value[1])
+	second := uint16(value[2])<<8 | uint16(value[3])
+	third := uint16(value[4])<<8 | uint16(value[5])
+	return fmt.Sprintf("%x:%x:%x:*:*:*:*:*", first, second, third)
 }
 
 func optionalText(value string) any {
