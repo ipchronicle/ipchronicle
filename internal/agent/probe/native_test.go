@@ -128,6 +128,23 @@ func TestNativeMediaAndDNSBlacklistHelpers(t *testing.T) {
 	if region := mediaRegion([]byte(`{"countryOfSignup":"jp"}`)); region != "JP" {
 		t.Fatalf("media region = %q", region)
 	}
+	if region := mediaRegion([]byte(
+		`{"requestCountry":{"id":"US","countryName":"United\\x20States"}}`,
+	)); region != "US" {
+		t.Fatalf("Netflix request-country region = %q", region)
+	}
+	if region := firstPattern(normalizeEmbeddedMediaBody([]byte(
+		`{&#34;currentTerritory&#34;:&#34;US&#34;}`,
+	)), `"currentTerritory"\s*:\s*"([A-Za-z]{2})"`); region != "US" {
+		t.Fatalf("Prime Video HTML-encoded region = %q", region)
+	}
+	publicAddresses := []net.IPAddr{{IP: net.ParseIP("151.101.1.140")}}
+	if result := redditUnlockTypeFromDNS(publicAddresses, 4); result != "原生" {
+		t.Fatalf("Reddit multi-answer unlock type = %q", result)
+	}
+	if result := redditUnlockTypeFromDNS(publicAddresses, 2); result != "DNS" {
+		t.Fatalf("Reddit short-answer unlock type = %q", result)
+	}
 	zones := uniqueDNSBlacklistZones("b.example\na.example\nb.example\n\n")
 	if strings.Join(zones, ",") != "a.example,b.example" {
 		t.Fatalf("DNSBL zones = %q", zones)

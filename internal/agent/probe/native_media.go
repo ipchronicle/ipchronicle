@@ -7,6 +7,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"html"
 	"net"
 	"net/http"
 	"net/netip"
@@ -168,7 +169,8 @@ func (engine *nativeEngine) probePrimeVideo(ctx context.Context) mediaFinding {
 	if err != nil {
 		return mediaFinding{Status: "失败"}
 	}
-	region := firstPattern(response.Body, `"currentTerritory"\s*:\s*"([^"]+)"`)
+	region := firstPattern(normalizeEmbeddedMediaBody(response.Body),
+		`"currentTerritory"\s*:\s*"([A-Za-z]{2})"`)
 	if region == "" {
 		return mediaFinding{Status: "屏蔽"}
 	}
@@ -176,7 +178,7 @@ func (engine *nativeEngine) probePrimeVideo(ctx context.Context) mediaFinding {
 }
 
 func (engine *nativeEngine) probeReddit(ctx context.Context) mediaFinding {
-	typeValue := mediaUnlockType(ctx, "reddit.com")
+	typeValue := redditUnlockType(ctx)
 	response, err := engine.http.get(ctx, "https://www.reddit.com/svc/shreddit/reddit-chat",
 		headersWithUserAgent(browserUserAgent))
 	if err != nil {
@@ -255,6 +257,26 @@ func mediaUnlockType(ctx context.Context, domains ...string) string {
 	return "原生"
 }
 
+func redditUnlockType(ctx context.Context) string {
+	resolver := net.DefaultResolver
+	addresses, err := resolver.LookupIPAddr(ctx, "reddit.com")
+	if err != nil {
+		return "DNS"
+	}
+	ipv4, err := resolver.LookupNetIP(ctx, "ip4", "reddit.com")
+	if err != nil {
+		return "DNS"
+	}
+	return redditUnlockTypeFromDNS(addresses, len(ipv4))
+}
+
+func redditUnlockTypeFromDNS(addresses []net.IPAddr, ipv4AnswerCount int) string {
+	if !containsPublicAddress(addresses) || ipv4AnswerCount <= 2 {
+		return "DNS"
+	}
+	return "原生"
+}
+
 func containsPublicAddress(addresses []net.IPAddr) bool {
 	for _, address := range addresses {
 		parsed, ok := netip.AddrFromSlice(address.IP)
@@ -274,10 +296,12 @@ func firstPattern(body []byte, expression string) string {
 }
 
 func mediaRegion(body []byte) string {
+	body = normalizeEmbeddedMediaBody(body)
 	for _, expression := range []string{
 		`"countryOfSignup"\s*:\s*"([A-Za-z]{2})"`,
 		`"contentRegion"\s*:\s*"([A-Za-z]{2})"`,
 		`"countryCode"\s*:\s*"([A-Za-z]{2})"`,
+		`"id"\s*:\s*"([A-Za-z]{2})"\s*,\s*"countryName"\s*:`,
 	} {
 		if value := firstPattern(body, expression); value != "" {
 			return strings.ToUpper(value)
@@ -288,4 +312,10 @@ func mediaRegion(body []byte) string {
 		return strings.ToUpper(documentString(document, "country"))
 	}
 	return ""
+}
+
+func normalizeEmbeddedMediaBody(body []byte) []byte {
+	value := html.UnescapeString(string(body))
+	value = strings.ReplaceAll(value, `\"`, `"`)
+	return []byte(value)
 }
