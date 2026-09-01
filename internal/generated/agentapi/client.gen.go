@@ -2480,6 +2480,11 @@ type ProbeSchedule struct {
 	Timezone string `json:"timezone"`
 }
 
+// ProbeSchedulePreview defines model for ProbeSchedulePreview.
+type ProbeSchedulePreview struct {
+	NextScheduledAt time.Time `json:"nextScheduledAt"`
+}
+
 // ProbeSnapshot defines model for ProbeSnapshot.
 type ProbeSnapshot struct {
 	Baseline           *bool               `json:"baseline,omitempty"`
@@ -3008,6 +3013,12 @@ type UpdateNotificationSenderParams struct {
 // CreateNotificationTestDeliveryParams defines parameters for CreateNotificationTestDelivery.
 type CreateNotificationTestDeliveryParams struct {
 	XCSRFToken *CSRFToken `json:"X-CSRF-Token,omitempty"`
+}
+
+// PreviewProbeScheduleParams defines parameters for PreviewProbeSchedule.
+type PreviewProbeScheduleParams struct {
+	Cron     string `form:"cron" json:"cron"`
+	Timezone string `form:"timezone" json:"timezone"`
 }
 
 // UnstarProbeSnapshotParams defines parameters for UnstarProbeSnapshot.
@@ -3691,6 +3702,11 @@ type ClientInterface interface {
 	//
 	// Corresponds with GET /api/v1/probe-runs/{runId} (the `GetProbeRun` operationId).
 	GetProbeRun(ctx context.Context, runId RunId, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// PreviewProbeSchedule Calculate the next occurrence of a complete-probe schedule without saving it
+	//
+	// Corresponds with GET /api/v1/probe-schedules/preview (the `PreviewProbeSchedule` operationId).
+	PreviewProbeSchedule(ctx context.Context, params *PreviewProbeScheduleParams, reqEditors ...RequestEditorFn) (*http.Response, error)
 
 	// GetProbeSnapshot Read one retained complete-probe source snapshot
 	//
@@ -5067,6 +5083,21 @@ func (c *Client) GetOverview(ctx context.Context, reqEditors ...RequestEditorFn)
 // Corresponds with GET /api/v1/probe-runs/{runId} (the `GetProbeRun` operationId).
 func (c *Client) GetProbeRun(ctx context.Context, runId RunId, reqEditors ...RequestEditorFn) (*http.Response, error) {
 	req, err := NewGetProbeRunRequest(c.Server, runId)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+// PreviewProbeSchedule Calculate the next occurrence of a complete-probe schedule without saving it
+//
+// Corresponds with GET /api/v1/probe-schedules/preview (the `PreviewProbeSchedule` operationId).
+func (c *Client) PreviewProbeSchedule(ctx context.Context, params *PreviewProbeScheduleParams, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewPreviewProbeScheduleRequest(c.Server, params)
 	if err != nil {
 		return nil, err
 	}
@@ -8259,6 +8290,64 @@ func NewGetProbeRunRequest(server string, runId RunId) (*http.Request, error) {
 	return req, nil
 }
 
+// NewPreviewProbeScheduleRequest constructs an http.Request for the PreviewProbeSchedule method
+func NewPreviewProbeScheduleRequest(server string, params *PreviewProbeScheduleParams) (*http.Request, error) {
+	var err error
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/api/v1/probe-schedules/preview")
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	if params != nil {
+		// queryValues collects non-styled parameters (passthrough, JSON)
+		// that are safe to round-trip through url.Values.Encode().
+		queryValues := queryURL.Query()
+		// rawQueryFragments collects pre-encoded query fragments from
+		// styled parameters, preserving literal commas as delimiters
+		// per the OpenAPI spec (e.g. "color=blue,black,brown").
+		var rawQueryFragments []string
+
+		if queryFrag, err := runtime.StyleParamWithOptions("form", true, "cron", params.Cron, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationQuery, Type: "string", Format: ""}); err != nil {
+			return nil, err
+		} else {
+			for _, qp := range strings.Split(queryFrag, "&") {
+				rawQueryFragments = append(rawQueryFragments, qp)
+			}
+		}
+
+		if queryFrag, err := runtime.StyleParamWithOptions("form", true, "timezone", params.Timezone, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationQuery, Type: "string", Format: ""}); err != nil {
+			return nil, err
+		} else {
+			for _, qp := range strings.Split(queryFrag, "&") {
+				rawQueryFragments = append(rawQueryFragments, qp)
+			}
+		}
+
+		if encoded := queryValues.Encode(); encoded != "" {
+			rawQueryFragments = append(rawQueryFragments, encoded)
+		}
+		queryURL.RawQuery = strings.Join(rawQueryFragments, "&")
+	}
+
+	req, err := http.NewRequest(http.MethodGet, queryURL.String(), nil)
+	if err != nil {
+		return nil, err
+	}
+
+	return req, nil
+}
+
 // NewGetProbeSnapshotRequest constructs an http.Request for the GetProbeSnapshot method
 func NewGetProbeSnapshotRequest(server string, snapshotId SnapshotId) (*http.Request, error) {
 	var err error
@@ -9124,6 +9213,13 @@ type ClientWithResponsesInterface interface {
 	//
 	// Corresponds with GET /api/v1/probe-runs/{runId} (the `GetProbeRun` operationId).
 	GetProbeRunWithResponse(ctx context.Context, runId RunId, reqEditors ...RequestEditorFn) (*GetProbeRunResponse, error)
+
+	// PreviewProbeScheduleWithResponse Calculate the next occurrence of a complete-probe schedule without saving it
+	//
+	// Returns a wrapper object for the known response body format(s).
+	//
+	// Corresponds with GET /api/v1/probe-schedules/preview (the `PreviewProbeSchedule` operationId).
+	PreviewProbeScheduleWithResponse(ctx context.Context, params *PreviewProbeScheduleParams, reqEditors ...RequestEditorFn) (*PreviewProbeScheduleResponse, error)
 
 	// GetProbeSnapshotWithResponse Read one retained complete-probe source snapshot
 	//
@@ -12694,6 +12790,61 @@ func (r GetProbeRunResponse) ContentType() string {
 	return ""
 }
 
+type PreviewProbeScheduleResponse struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	// JSON200 the response for an HTTP 200 `application/json` response
+	JSON200 *ProbeSchedulePreview
+	// JSON400 the response for an HTTP 400 `application/json` response
+	JSON400 *BadRequest
+	// JSON401 the response for an HTTP 401 `application/json` response
+	JSON401 *Unauthorized
+}
+
+// GetJSON200 returns the response for an HTTP 200 `application/json` response
+func (r PreviewProbeScheduleResponse) GetJSON200() *ProbeSchedulePreview {
+	return r.JSON200
+}
+
+// GetJSON400 returns the response for an HTTP 400 `application/json` response
+func (r PreviewProbeScheduleResponse) GetJSON400() *BadRequest {
+	return r.JSON400
+}
+
+// GetJSON401 returns the response for an HTTP 401 `application/json` response
+func (r PreviewProbeScheduleResponse) GetJSON401() *Unauthorized {
+	return r.JSON401
+}
+
+// GetBody returns the raw response body bytes
+func (r PreviewProbeScheduleResponse) GetBody() []byte {
+	return r.Body
+}
+
+// Status returns HTTPResponse.Status
+func (r PreviewProbeScheduleResponse) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r PreviewProbeScheduleResponse) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+// ContentType is a convenience method to retrieve the Content-Type value from the HTTP response headers
+func (r PreviewProbeScheduleResponse) ContentType() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Header.Get("Content-Type")
+	}
+	return ""
+}
+
 type GetProbeSnapshotResponse struct {
 	Body         []byte
 	HTTPResponse *http.Response
@@ -14108,6 +14259,19 @@ func (c *ClientWithResponses) GetProbeRunWithResponse(ctx context.Context, runId
 		return nil, err
 	}
 	return ParseGetProbeRunResponse(rsp)
+}
+
+// PreviewProbeScheduleWithResponse Calculate the next occurrence of a complete-probe schedule without saving it
+//
+// Returns a wrapper object for the known response body format(s).
+//
+// Corresponds with GET /api/v1/probe-schedules/preview (the `PreviewProbeSchedule` operationId).
+func (c *ClientWithResponses) PreviewProbeScheduleWithResponse(ctx context.Context, params *PreviewProbeScheduleParams, reqEditors ...RequestEditorFn) (*PreviewProbeScheduleResponse, error) {
+	rsp, err := c.PreviewProbeSchedule(ctx, params, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParsePreviewProbeScheduleResponse(rsp)
 }
 
 // GetProbeSnapshotWithResponse Read one retained complete-probe source snapshot
@@ -16889,6 +17053,46 @@ func ParseGetProbeRunResponse(rsp *http.Response) (*GetProbeRunResponse, error) 
 			return nil, err
 		}
 		response.JSON404 = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParsePreviewProbeScheduleResponse parses an HTTP response from a PreviewProbeScheduleWithResponse call
+func ParsePreviewProbeScheduleResponse(rsp *http.Response) (*PreviewProbeScheduleResponse, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &PreviewProbeScheduleResponse{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest ProbeSchedulePreview
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 400:
+		var dest BadRequest
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON400 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 401:
+		var dest Unauthorized
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON401 = &dest
 
 	}
 

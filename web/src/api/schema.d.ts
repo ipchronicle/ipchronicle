@@ -309,6 +309,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/probe-schedules/preview": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Calculate the next occurrence of a complete-probe schedule without saving it */
+        get: operations["previewProbeSchedule"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/agent-updates": {
         parameters: {
             query?: never;
@@ -1404,6 +1421,10 @@ export interface components {
             cron: string;
             /** @description An explicit IANA time zone name. */
             timezone: string;
+        };
+        ProbeSchedulePreview: {
+            /** Format: date-time */
+            nextScheduledAt: string;
         };
         NodeProbeSettingsUpdate: {
             schedule: components["schemas"]["ProbeSchedule"];
@@ -2860,6 +2881,31 @@ export interface operations {
             403: components["responses"]["Forbidden"];
             404: components["responses"]["NotFound"];
             409: components["responses"]["Conflict"];
+        };
+    };
+    previewProbeSchedule: {
+        parameters: {
+            query: {
+                cron: string;
+                timezone: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The next matching schedule occurrence. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProbeSchedulePreview"];
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            401: components["responses"]["Unauthorized"];
         };
     };
     getAgentUpdateState: {

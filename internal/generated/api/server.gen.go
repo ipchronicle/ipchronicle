@@ -2479,6 +2479,11 @@ type ProbeSchedule struct {
 	Timezone string `json:"timezone"`
 }
 
+// ProbeSchedulePreview defines model for ProbeSchedulePreview.
+type ProbeSchedulePreview struct {
+	NextScheduledAt time.Time `json:"nextScheduledAt"`
+}
+
 // ProbeSnapshot defines model for ProbeSnapshot.
 type ProbeSnapshot struct {
 	Baseline           *bool               `json:"baseline,omitempty"`
@@ -3009,6 +3014,12 @@ type CreateNotificationTestDeliveryParams struct {
 	XCSRFToken *CSRFToken `json:"X-CSRF-Token,omitempty"`
 }
 
+// PreviewProbeScheduleParams defines parameters for PreviewProbeSchedule.
+type PreviewProbeScheduleParams struct {
+	Cron     string `form:"cron" json:"cron"`
+	Timezone string `form:"timezone" json:"timezone"`
+}
+
 // UnstarProbeSnapshotParams defines parameters for UnstarProbeSnapshot.
 type UnstarProbeSnapshotParams struct {
 	XCSRFToken *CSRFToken `json:"X-CSRF-Token,omitempty"`
@@ -3278,6 +3289,9 @@ type ServerInterface interface {
 	// GetProbeRun Read one complete-probe run and its frozen egress executions
 	// (GET /api/v1/probe-runs/{runId})
 	GetProbeRun(w http.ResponseWriter, r *http.Request, runId RunId)
+	// PreviewProbeSchedule Calculate the next occurrence of a complete-probe schedule without saving it
+	// (GET /api/v1/probe-schedules/preview)
+	PreviewProbeSchedule(w http.ResponseWriter, r *http.Request, params PreviewProbeScheduleParams)
 	// GetProbeSnapshot Read one retained complete-probe source snapshot
 	// (GET /api/v1/probe-snapshots/{snapshotId})
 	GetProbeSnapshot(w http.ResponseWriter, r *http.Request, snapshotId SnapshotId)
@@ -3647,6 +3661,12 @@ func (_ Unimplemented) GetOverview(w http.ResponseWriter, r *http.Request) {
 // GetProbeRun Read one complete-probe run and its frozen egress executions
 // (GET /api/v1/probe-runs/{runId})
 func (_ Unimplemented) GetProbeRun(w http.ResponseWriter, r *http.Request, runId RunId) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
+// PreviewProbeSchedule Calculate the next occurrence of a complete-probe schedule without saving it
+// (GET /api/v1/probe-schedules/preview)
+func (_ Unimplemented) PreviewProbeSchedule(w http.ResponseWriter, r *http.Request, params PreviewProbeScheduleParams) {
 	w.WriteHeader(http.StatusNotImplemented)
 }
 
@@ -6134,6 +6154,52 @@ func (siw *ServerInterfaceWrapper) GetProbeRun(w http.ResponseWriter, r *http.Re
 	handler.ServeHTTP(w, r)
 }
 
+// PreviewProbeSchedule operation middleware
+func (siw *ServerInterfaceWrapper) PreviewProbeSchedule(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	// Parameter object where we will unmarshal all parameters from the context
+	var params PreviewProbeScheduleParams
+
+	// ------------- Required query parameter "cron" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, true, "cron", r.URL.Query(), &params.Cron, runtime.BindQueryParameterOptions{Type: "string", Format: ""})
+	if err != nil {
+		var requiredError *runtime.RequiredParameterError
+		if errors.As(err, &requiredError) {
+			siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "cron"})
+		} else {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "cron", Err: err})
+		}
+		return
+	}
+
+	// ------------- Required query parameter "timezone" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, true, "timezone", r.URL.Query(), &params.Timezone, runtime.BindQueryParameterOptions{Type: "string", Format: ""})
+	if err != nil {
+		var requiredError *runtime.RequiredParameterError
+		if errors.As(err, &requiredError) {
+			siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "timezone"})
+		} else {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "timezone", Err: err})
+		}
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.PreviewProbeSchedule(w, r, params)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
 // GetProbeSnapshot operation middleware
 func (siw *ServerInterfaceWrapper) GetProbeSnapshot(w http.ResponseWriter, r *http.Request) {
 
@@ -6510,6 +6576,9 @@ func HandlerWithOptions(si ServerInterface, options ChiServerOptions) http.Handl
 	})
 	r.Group(func(r chi.Router) {
 		r.Post(options.BaseURL+"/api/v1/nodes/{nodeId}/probe/tasks", wrapper.CreateCompleteProbeTask)
+	})
+	r.Group(func(r chi.Router) {
+		r.Get(options.BaseURL+"/api/v1/probe-schedules/preview", wrapper.PreviewProbeSchedule)
 	})
 	r.Group(func(r chi.Router) {
 		r.Get(options.BaseURL+"/api/v1/agent-updates", wrapper.GetAgentUpdateState)
@@ -10253,6 +10322,56 @@ func (response GetProbeRun404JSONResponse) VisitGetProbeRunResponse(w http.Respo
 	return err
 }
 
+type PreviewProbeScheduleRequestObject struct {
+	Params PreviewProbeScheduleParams
+}
+
+type PreviewProbeScheduleResponseObject interface {
+	VisitPreviewProbeScheduleResponse(w http.ResponseWriter) error
+}
+
+type PreviewProbeSchedule200JSONResponse ProbeSchedulePreview
+
+func (response PreviewProbeSchedule200JSONResponse) VisitPreviewProbeScheduleResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type PreviewProbeSchedule400JSONResponse struct{ BadRequestJSONResponse }
+
+func (response PreviewProbeSchedule400JSONResponse) VisitPreviewProbeScheduleResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(400)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type PreviewProbeSchedule401JSONResponse struct{ UnauthorizedJSONResponse }
+
+func (response PreviewProbeSchedule401JSONResponse) VisitPreviewProbeScheduleResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(401)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
 type GetProbeSnapshotRequestObject struct {
 	SnapshotId SnapshotId `json:"snapshotId"`
 }
@@ -10744,6 +10863,9 @@ type StrictServerInterface interface {
 	// GetProbeRun Read one complete-probe run and its frozen egress executions
 	// (GET /api/v1/probe-runs/{runId})
 	GetProbeRun(ctx context.Context, request GetProbeRunRequestObject) (GetProbeRunResponseObject, error)
+	// PreviewProbeSchedule Calculate the next occurrence of a complete-probe schedule without saving it
+	// (GET /api/v1/probe-schedules/preview)
+	PreviewProbeSchedule(ctx context.Context, request PreviewProbeScheduleRequestObject) (PreviewProbeScheduleResponseObject, error)
 	// GetProbeSnapshot Read one retained complete-probe source snapshot
 	// (GET /api/v1/probe-snapshots/{snapshotId})
 	GetProbeSnapshot(ctx context.Context, request GetProbeSnapshotRequestObject) (GetProbeSnapshotResponseObject, error)
@@ -12468,6 +12590,32 @@ func (sh *strictHandler) GetProbeRun(w http.ResponseWriter, r *http.Request, run
 		sh.options.ResponseErrorHandlerFunc(w, r, err)
 	} else if validResponse, ok := response.(GetProbeRunResponseObject); ok {
 		if err := validResponse.VisitGetProbeRunResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// PreviewProbeSchedule operation middleware
+func (sh *strictHandler) PreviewProbeSchedule(w http.ResponseWriter, r *http.Request, params PreviewProbeScheduleParams) {
+	var request PreviewProbeScheduleRequestObject
+
+	request.Params = params
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.PreviewProbeSchedule(ctx, request.(PreviewProbeScheduleRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "PreviewProbeSchedule")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(PreviewProbeScheduleResponseObject); ok {
+		if err := validResponse.VisitPreviewProbeScheduleResponse(w); err != nil {
 			sh.options.ResponseErrorHandlerFunc(w, r, err)
 		}
 	} else if response != nil {

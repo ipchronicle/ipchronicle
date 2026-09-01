@@ -14,6 +14,22 @@ export type ProbeExecution = components["schemas"]["ProbeExecution"];
 export type ProbeSnapshot = components["schemas"]["ProbeSnapshot"];
 export type HistoryState = components["schemas"]["HistoryState"];
 
+export async function previewProbeSchedule(
+  cron: string,
+  timezone: string,
+  signal?: AbortSignal,
+) {
+  const result = await apiClient.GET("/api/v1/probe-schedules/preview", {
+    params: { query: { cron, timezone } },
+    signal,
+    cache: "no-store",
+  });
+  if (!result.response.ok || result.data === undefined) {
+    throwAPIError(result.response, result.error);
+  }
+  return result.data;
+}
+
 export async function getNodeProbe(nodeId: string, signal?: AbortSignal) {
   const result = await apiClient.GET("/api/v1/nodes/{nodeId}/probe", {
     params: { path: { nodeId } },

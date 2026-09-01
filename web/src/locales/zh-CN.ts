@@ -792,6 +792,13 @@ export const zhCN = {
       schedule: {
         title: "周期计划",
         detail: "按所选时区执行；错过的计划不会补跑。",
+        next: "下次执行时间",
+        preview: {
+          loading: "正在计算...",
+          disabled: "周期计划已关闭",
+          invalid: "Cron 表达式或时区无效",
+          error: "暂时无法计算下次执行时间",
+        },
       },
       settings: {
         title: "探测设置",

@@ -27,3 +27,12 @@ func TestProbeScheduleUsesSixFieldsAndExplicitTimezone(t *testing.T) {
 		t.Fatalf("next occurrence = %s, want %s", next, want)
 	}
 }
+
+func TestProbeScheduleRejectsExpressionThatNeverMatches(t *testing.T) {
+	if err := ValidateProbe("0 0 0 30 2 *", "UTC"); err == nil {
+		t.Fatal("impossible calendar date was accepted")
+	}
+	if _, err := NextProbe("0 0 0 30 2 *", "UTC", time.Now()); err == nil {
+		t.Fatal("impossible calendar date produced a next occurrence")
+	}
+}

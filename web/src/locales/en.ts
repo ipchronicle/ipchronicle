@@ -845,6 +845,13 @@ export const en = {
         title: "Recurring schedule",
         detail:
           "Runs in the selected time zone. Missed occurrences are not replayed.",
+        next: "Next run",
+        preview: {
+          loading: "Calculating...",
+          disabled: "Recurring schedule is disabled",
+          invalid: "The Cron expression or time zone is invalid",
+          error: "The next run cannot be calculated right now",
+        },
       },
       settings: {
         title: "Probe settings",

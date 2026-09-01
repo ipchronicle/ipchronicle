@@ -524,6 +524,37 @@ paths:
           $ref: "#/components/responses/NotFound"
         "409":
           $ref: "#/components/responses/Conflict"
+  /api/v1/probe-schedules/preview:
+    get:
+      operationId: previewProbeSchedule
+      summary: Calculate the next occurrence of a complete-probe schedule without saving it
+      tags: [probes]
+      parameters:
+        - name: cron
+          in: query
+          required: true
+          schema:
+            type: string
+            minLength: 9
+            maxLength: 128
+        - name: timezone
+          in: query
+          required: true
+          schema:
+            type: string
+            minLength: 1
+            maxLength: 128
+      responses:
+        "200":
+          description: The next matching schedule occurrence.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ProbeSchedulePreview"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
   /api/v1/agent-updates:
     get:
       operationId: getAgentUpdateState
@@ -3161,6 +3192,14 @@ components:
           minLength: 1
           maxLength: 128
           description: An explicit IANA time zone name.
+    ProbeSchedulePreview:
+      type: object
+      additionalProperties: false
+      required: [nextScheduledAt]
+      properties:
+        nextScheduledAt:
+          type: string
+          format: date-time
     NodeProbeSettingsUpdate:
       type: object
       additionalProperties: false

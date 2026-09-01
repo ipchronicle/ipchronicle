@@ -17,6 +17,7 @@ import (
 	"github.com/ipchronicle/ipchronicle/internal/center/systemsettings"
 	centerupdates "github.com/ipchronicle/ipchronicle/internal/center/updates"
 	"github.com/ipchronicle/ipchronicle/internal/generated/api"
+	sharedschedule "github.com/ipchronicle/ipchronicle/internal/schedule"
 )
 
 type apiServer struct {
@@ -585,6 +586,21 @@ func (s apiServer) UpdateNodeProbeSettings(ctx context.Context, request api.Upda
 		return nil, err
 	}
 	return api.UpdateNodeProbeSettings200JSONResponse(probeStateResponse(state)), nil
+}
+
+func (s apiServer) PreviewProbeSchedule(ctx context.Context, request api.PreviewProbeScheduleRequestObject) (api.PreviewProbeScheduleResponseObject, error) {
+	_, failure, err := s.authorize(ctx, false, "")
+	if err != nil {
+		return nil, err
+	}
+	if failure != "" {
+		return api.PreviewProbeSchedule401JSONResponse{UnauthorizedJSONResponse: unauthorized(failure)}, nil
+	}
+	next, err := sharedschedule.NextProbe(request.Params.Cron, request.Params.Timezone, time.Now().UTC())
+	if err != nil {
+		return api.PreviewProbeSchedule400JSONResponse{BadRequestJSONResponse: badRequest(api.InvalidProbeSettings)}, nil
+	}
+	return api.PreviewProbeSchedule200JSONResponse{NextScheduledAt: next}, nil
 }
 
 func (s apiServer) CreateCompleteProbeTask(ctx context.Context, request api.CreateCompleteProbeTaskRequestObject) (api.CreateCompleteProbeTaskResponseObject, error) {

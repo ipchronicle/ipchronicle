@@ -939,6 +939,45 @@ func TestAdministratorEnrollmentAndAgentCredentialBoundaries(t *testing.T) {
 	assertErrorCode(t, pollAfterRevoke, http.StatusForbidden, api.AgentRevoked)
 }
 
+func TestProbeSchedulePreviewUsesSharedScheduleSemantics(t *testing.T) {
+	handler := newTestHTTPHandler(t, nil)
+	query := url.Values{
+		"cron":     {"0 0 0 * * *"},
+		"timezone": {"Asia/Shanghai"},
+	}
+	path := "/api/v1/probe-schedules/preview?" + query.Encode()
+	unauthenticated := performRequest(handler, http.MethodGet, path, nil, "", nil)
+	assertErrorCode(t, unauthenticated, http.StatusUnauthorized, api.Unauthenticated)
+
+	cookie, _ := loginTestAdministrator(t, handler)
+	before := time.Now().UTC()
+	response := performRequest(handler, http.MethodGet, path, nil, "", cookie)
+	after := time.Now().UTC()
+	if response.Code != http.StatusOK {
+		t.Fatalf("schedule preview = %d %s", response.Code, response.Body.String())
+	}
+	var preview api.ProbeSchedulePreview
+	if err := json.NewDecoder(response.Body).Decode(&preview); err != nil {
+		t.Fatal(err)
+	}
+	location, err := time.LoadLocation("Asia/Shanghai")
+	if err != nil {
+		t.Fatal(err)
+	}
+	local := preview.NextScheduledAt.In(location)
+	if local.Hour() != 0 || local.Minute() != 0 || local.Second() != 0 ||
+		!preview.NextScheduledAt.After(before) || preview.NextScheduledAt.After(after.Add(24*time.Hour)) {
+		t.Fatalf("unexpected schedule preview: %s", preview.NextScheduledAt)
+	}
+
+	invalidQuery := url.Values{"cron": {"0 0 0 * *"}, "timezone": {"Asia/Shanghai"}}
+	invalid := performRequest(
+		handler, http.MethodGet,
+		"/api/v1/probe-schedules/preview?"+invalidQuery.Encode(), nil, "", cookie,
+	)
+	assertErrorCode(t, invalid, http.StatusBadRequest, api.InvalidProbeSettings)
+}
+
 func TestTemporarySyncWebSocketAuthenticationWakeAndStop(t *testing.T) {
 	ctx := context.Background()
 	handler, nodeService, syncHub := newTestHTTPHandlerWithNodes(t, nil)

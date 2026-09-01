@@ -17,10 +17,21 @@ func ValidateProbe(expression, timezone string) error {
 	if strings.TrimSpace(expression) != expression || len(expression) < 9 || len(expression) > 128 {
 		return errors.New("probe Cron expression must be trimmed and between 9 and 128 bytes")
 	}
-	if _, err := probeParser.Parse(expression); err != nil {
+	parsed, err := probeParser.Parse(expression)
+	if err != nil {
 		return fmt.Errorf("parse six-field probe Cron expression: %w", err)
 	}
-	return ValidateTimezone(timezone)
+	if err := ValidateTimezone(timezone); err != nil {
+		return err
+	}
+	location, err := time.LoadLocation(timezone)
+	if err != nil {
+		return err
+	}
+	if parsed.Next(time.Now().In(location)).IsZero() {
+		return errors.New("probe Cron expression never matches a real date")
+	}
+	return nil
 }
 
 func ValidateTimezone(timezone string) error {
@@ -46,5 +57,9 @@ func NextProbe(expression, timezone string, after time.Time) (time.Time, error) 
 	if err != nil {
 		return time.Time{}, err
 	}
-	return parsed.Next(after.In(location)).UTC(), nil
+	next := parsed.Next(after.In(location))
+	if next.IsZero() {
+		return time.Time{}, errors.New("probe Cron expression has no next occurrence")
+	}
+	return next.UTC(), nil
 }

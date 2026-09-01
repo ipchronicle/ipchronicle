@@ -18,11 +18,13 @@ import { Link, useParams } from "react-router";
 import type { Node } from "@/api/nodes";
 import {
   getNodeProbe,
+  previewProbeSchedule,
   updateNodeProbeSettings,
   type NodeProbeState,
   type ProbeRunSummary,
   type ProbeTask,
 } from "@/api/probes";
+import { APIError } from "@/api/errors";
 import { useAuth } from "@/auth-context";
 import { CompleteProbeDialog } from "@/components/complete-probe-dialog";
 import { useNodeDetail } from "@/components/node-detail-layout";
@@ -48,6 +50,11 @@ type ViewState =
   | { kind: "loading" }
   | { kind: "success"; probe: NodeProbeState }
   | { kind: "error" };
+
+type SchedulePreviewState =
+  | { kind: "loading" }
+  | { kind: "success"; nextScheduledAt: string }
+  | { kind: "disabled" | "invalid" | "error" };
 
 const activeTaskStatuses = new Set(["pending", "acknowledged", "running"]);
 
@@ -551,10 +558,55 @@ function ProbeScheduleCard({
   csrfToken: string;
   onChange: (value: NodeProbeState) => void;
 }) {
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
   const [schedule, setSchedule] = useState({ ...probe.schedule });
   const [saving, setSaving] = useState(false);
   const [feedback, setFeedback] = useState<string>();
+  const [preview, setPreview] = useState<SchedulePreviewState>({
+    kind: schedule.enabled ? "loading" : "disabled",
+  });
+
+  useEffect(() => {
+    if (!schedule.enabled) {
+      setPreview({ kind: "disabled" });
+      return;
+    }
+
+    const controller = new AbortController();
+    let active = true;
+    setPreview({ kind: "loading" });
+    const timeout = window.setTimeout(() => {
+      previewProbeSchedule(schedule.cron, schedule.timezone, controller.signal)
+        .then((result) => {
+          if (active) {
+            setPreview({
+              kind: "success",
+              nextScheduledAt: result.nextScheduledAt,
+            });
+          }
+        })
+        .catch((error: unknown) => {
+          if (
+            !active ||
+            (error instanceof DOMException && error.name === "AbortError")
+          ) {
+            return;
+          }
+          setPreview({
+            kind:
+              error instanceof APIError && error.status === 400
+                ? "invalid"
+                : "error",
+          });
+        });
+    }, 250);
+
+    return () => {
+      active = false;
+      window.clearTimeout(timeout);
+      controller.abort();
+    };
+  }, [schedule.cron, schedule.enabled, schedule.timezone]);
 
   async function submit(event: FormEvent) {
     event.preventDefault();
@@ -637,6 +689,36 @@ function ProbeScheduleCard({
               }
             />
           </div>
+          <div
+            className="flex min-h-16 items-center gap-3 rounded-md border bg-muted/30 px-3 py-2"
+            aria-live="polite"
+          >
+            {preview.kind === "loading" ? (
+              <LoaderCircle
+                aria-hidden="true"
+                className="size-4 shrink-0 animate-spin text-muted-foreground"
+              />
+            ) : (
+              <Clock3
+                aria-hidden="true"
+                className={`size-4 shrink-0 ${preview.kind === "invalid" || preview.kind === "error" ? "text-destructive" : "text-muted-foreground"}`}
+              />
+            )}
+            <div className="min-w-0">
+              <p className="text-sm font-medium">{t("probe.schedule.next")}</p>
+              <p
+                className={`mt-0.5 text-sm ${preview.kind === "invalid" || preview.kind === "error" ? "text-destructive" : "text-muted-foreground"}`}
+              >
+                {preview.kind === "success"
+                  ? formatScheduleTime(
+                      preview.nextScheduledAt,
+                      schedule.timezone,
+                      i18n.resolvedLanguage,
+                    )
+                  : t(`probe.schedule.preview.${preview.kind}`)}
+              </p>
+            </div>
+          </div>
           <Button type="submit" size="sm" disabled={saving}>
             {saving ? (
               <LoaderCircle
@@ -699,6 +781,23 @@ export function formatTime(
   return new Intl.DateTimeFormat(locale, {
     dateStyle: "medium",
     timeStyle: "short",
+  }).format(new Date(value));
+}
+
+function formatScheduleTime(
+  value: string,
+  timezone: string,
+  locale: string | undefined,
+) {
+  return new Intl.DateTimeFormat(locale, {
+    timeZone: timezone,
+    year: "numeric",
+    month: "short",
+    day: "numeric",
+    hour: "2-digit",
+    minute: "2-digit",
+    second: "2-digit",
+    timeZoneName: "short",
   }).format(new Date(value));
 }
 

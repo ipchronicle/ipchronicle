@@ -78,9 +78,11 @@ import {
   getNodeProbe,
   getProbeRun,
   getProbeSnapshot,
+  previewProbeSchedule,
   resetHistory,
   updateNodeProbeSettings,
 } from "@/api/probes";
+import { APIError } from "@/api/errors";
 import App from "@/App";
 import { AuthProvider } from "@/auth-context";
 import { TooltipProvider } from "@/components/ui/tooltip";
@@ -170,6 +172,7 @@ vi.mock("@/api/probes", () => ({
   getNodeProbe: vi.fn(),
   getProbeRun: vi.fn(),
   getProbeSnapshot: vi.fn(),
+  previewProbeSchedule: vi.fn(),
   resetHistory: vi.fn(),
   updateNodeProbeSettings: vi.fn(),
 }));
@@ -232,6 +235,7 @@ const getHistoryStateMock = vi.mocked(getHistoryState);
 const getNodeProbeMock = vi.mocked(getNodeProbe);
 const getProbeRunMock = vi.mocked(getProbeRun);
 const getProbeSnapshotMock = vi.mocked(getProbeSnapshot);
+const previewProbeScheduleMock = vi.mocked(previewProbeSchedule);
 const resetHistoryMock = vi.mocked(resetHistory);
 const updateProbeSettingsMock = vi.mocked(updateNodeProbeSettings);
 const toBlobMock = vi.mocked(toBlob);
@@ -429,6 +433,10 @@ describe("administrator application", () => {
     });
     getProbeRunMock.mockReset();
     getProbeSnapshotMock.mockReset();
+    previewProbeScheduleMock.mockReset();
+    previewProbeScheduleMock.mockResolvedValue({
+      nextScheduledAt: "2026-08-11T00:00:00Z",
+    });
     resetHistoryMock.mockReset();
     updateProbeSettingsMock.mockReset();
     toBlobMock.mockReset();
@@ -1633,6 +1641,49 @@ describe("administrator application", () => {
         session.csrfToken,
       ),
     );
+  });
+
+  it("previews the next scheduled run while editing the Cron expression", async () => {
+    getSessionMock.mockResolvedValue(session);
+    listNodesMock.mockResolvedValue([probeTestNode]);
+    getNodeProbeMock.mockResolvedValue({
+      nodeId: probeTestNode.id,
+      schedule: { enabled: true, cron: "0 0 0 * * *", timezone: "UTC" },
+      lowMemoryOverride: false,
+      probeOnNewAddress: true,
+      pausedLowMemory: false,
+      recentRuns: [],
+    });
+    previewProbeScheduleMock.mockReset();
+    previewProbeScheduleMock
+      .mockResolvedValueOnce({ nextScheduledAt: "2026-08-11T00:00:00Z" })
+      .mockResolvedValueOnce({ nextScheduledAt: "2026-08-11T00:30:00Z" })
+      .mockRejectedValueOnce(
+        new APIError(400, { code: "invalid_probe_settings" }),
+      );
+
+    renderApplication(`/nodes/${probeTestNode.id}/probe`);
+
+    expect(
+      await screen.findByText(/Aug 11, 2026.*12:00:00 AM.*UTC/),
+    ).toBeInTheDocument();
+    const cron = screen.getByLabelText("Cron expression");
+    fireEvent.change(cron, { target: { value: "0 30 0 * * *" } });
+    expect(
+      await screen.findByText(/Aug 11, 2026.*12:30:00 AM.*UTC/),
+    ).toBeInTheDocument();
+    await waitFor(() =>
+      expect(previewProbeScheduleMock).toHaveBeenLastCalledWith(
+        "0 30 0 * * *",
+        "UTC",
+        expect.any(AbortSignal),
+      ),
+    );
+
+    fireEvent.change(cron, { target: { value: "0 0 0 * *" } });
+    expect(
+      await screen.findByText("The Cron expression or time zone is invalid"),
+    ).toBeInTheDocument();
   });
 
   it("configures a low-memory node and creates an immediate probe task", async () => {
