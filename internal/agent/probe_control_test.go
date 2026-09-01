@@ -184,7 +184,7 @@ func TestProbeUploaderSurvivesCenterOutageAndRetransmitsWithoutExecuting(t *test
 	}
 }
 
-const minimumTestMemory = 256 * 1024 * 1024
+const minimumTestMemory = 64 * 1024 * 1024
 
 func openProbeControlTestStore(t *testing.T, centerURL string) (*state.Store, state.Identity, state.Configuration) {
 	t.Helper()

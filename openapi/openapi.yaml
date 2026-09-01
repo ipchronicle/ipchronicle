@@ -803,7 +803,7 @@ paths:
   /api/v1/history/format-events:
     get:
       operationId: listHistoryFormatEvents
-      summary: List upstream complete-report format events
+      summary: List complete-report format events
       tags: [history]
       parameters:
         - $ref: "#/components/parameters/HistoryNodeFilter"
@@ -3162,7 +3162,7 @@ components:
       enum: [pending, running, succeeded, failed, interrupted, skipped]
     ProbeFailureStage:
       type: string
-      enum: [download, selector, adapter, process, timeout, output, restart]
+      enum: [selector, adapter, process, timeout, output, restart]
     ProbeTaskStatus:
       type: string
       enum:
@@ -3968,7 +3968,7 @@ components:
       type: string
       description: >-
         available contains a compatible value; unavailable is an explicit JSON
-        null with no upstream result; missing and incompatible are format issues.
+        null with no provider result; missing and incompatible are format issues.
       enum: [available, unavailable, missing, incompatible]
     KnownProbeField:
       type: object

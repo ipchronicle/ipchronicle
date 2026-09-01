@@ -85,7 +85,7 @@ func TestManagerPausesLowMemoryUntilOverride(t *testing.T) {
 	store, configuration := openManagerTestStore(t, 1)
 	defer store.Close()
 	runner := &blockingRunner{started: make(chan string, 1), release: make(chan struct{}, 1)}
-	manager := NewManager(store, 64*1024*1024, nil)
+	manager := NewManager(store, minimumProbeMemoryBytes-1, nil)
 	manager.runner = runner
 	now := time.Date(2026, 8, 9, 12, 0, 0, 0, time.UTC)
 	manager.now = func() time.Time { return now }

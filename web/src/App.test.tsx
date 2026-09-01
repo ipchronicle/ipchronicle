@@ -1752,7 +1752,7 @@ describe("administrator application", () => {
     fireEvent.click(screen.getByRole("tab", { name: "Settings" }));
     fireEvent.click(
       await screen.findByRole("switch", {
-        name: "Allow probes below 256 MiB",
+        name: "Allow probes below 64 MiB",
       }),
     );
     fireEvent.click(screen.getByRole("button", { name: "Save policies" }));

@@ -495,7 +495,7 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** List upstream complete-report format events */
+        /** List complete-report format events */
         get: operations["listHistoryFormatEvents"];
         put?: never;
         post?: never;
@@ -1413,7 +1413,7 @@ export interface components {
         /** @enum {string} */
         ProbeExecutionStatus: "pending" | "running" | "succeeded" | "failed" | "interrupted" | "skipped";
         /** @enum {string} */
-        ProbeFailureStage: "download" | "selector" | "adapter" | "process" | "timeout" | "output" | "restart";
+        ProbeFailureStage: "selector" | "adapter" | "process" | "timeout" | "output" | "restart";
         /** @enum {string} */
         ProbeTaskStatus: "pending" | "acknowledged" | "running" | "succeeded" | "partial" | "failed" | "rejected" | "expired";
         ProbeSchedule: {
@@ -1746,7 +1746,7 @@ export interface components {
         /** @enum {string} */
         ProbeJSONType: "string" | "number" | "boolean" | "null" | "object" | "array";
         /**
-         * @description available contains a compatible value; unavailable is an explicit JSON null with no upstream result; missing and incompatible are format issues.
+         * @description available contains a compatible value; unavailable is an explicit JSON null with no provider result; missing and incompatible are format issues.
          * @enum {string}
          */
         KnownProbeFieldStatus: "available" | "unavailable" | "missing" | "incompatible";

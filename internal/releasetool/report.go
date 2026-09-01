@@ -81,7 +81,7 @@ Final candidate validation completed on **%s**.
   and after this evidence was applied.
 - Required release gates: **passed**. Candidate verification, deterministic
   failure tests, all 34 distribution/architecture lifecycle jobs, both native
-  resource jobs, and live official IPQuality execution completed successfully.
+  resource jobs, and live built-in complete-probe execution completed successfully.
 %s`, reportEvidenceStart, options.ValidationDate, summary.Revision,
 		options.CIRunURL, options.RCRunURL, reportEvidenceEnd)
 	contents = contents[:start] + evidence + contents[end+len(reportEvidenceEnd):]

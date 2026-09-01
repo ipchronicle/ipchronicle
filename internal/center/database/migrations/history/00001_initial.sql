@@ -112,7 +112,7 @@ CREATE TABLE probe_executions(
   started_at INTEGER,
   completed_at INTEGER,
   failure_stage TEXT CHECK(failure_stage IS NULL OR
-failure_stage IN('download', 'selector', 'adapter', 'process', 'timeout', 'output', 'restart')),
+failure_stage IN('selector', 'adapter', 'process', 'timeout', 'output', 'restart')),
   diagnostic TEXT CHECK(diagnostic IS NULL OR length(CAST(diagnostic AS BLOB)) <= 65536),
   received_at INTEGER NOT NULL,
   UNIQUE(run_id, ordinal),

@@ -122,7 +122,7 @@ export const zhCN = {
         unprobed: "尚无报告",
         unprobedDetail: "当前 IP 中尚无成功快照的数量",
         probeIssues: "探测异常",
-        probeIssuesDetail: "最近失败或上游格式不匹配",
+        probeIssuesDetail: "最近失败或报告格式不匹配",
         activeTasks: "活动任务",
         activeTasksDetail: "等待 Agent 接收或正在执行",
         nextSchedule: "下次计划探测",
@@ -140,16 +140,15 @@ export const zhCN = {
         offlineTitle: "{{node}} 已离线",
         offlineDetail: "最后联系：{{time}}。当前数据可能已经过期。",
         memoryTitle: "{{node}} 的完整探测已暂停",
-        memoryDetail: "Agent 上报的物理内存少于 256 MiB。",
+        memoryDetail: "Agent 上报的物理内存少于 64 MiB。",
         probeTitle: "{{address}} 的最近探测失败",
         probeDetail: "打开 {{node}} 的运行记录查看失败阶段。",
-        formatTitle: "{{address}} 的上游字段格式不匹配",
-        formatDetail: "部分 IPQuality 预期字段无法按预期数据类型读取。",
+        formatTitle: "{{address}} 的报告字段格式不匹配",
+        formatDetail: "部分完整探测字段无法按预期数据类型读取。",
         unprobedTitle: "{{address}} 尚无完整报告",
         unprobedDetail: "该 IP 当前可从 {{node}} 到达，可以手动执行探测。",
         natTitle: "{{address}} 疑似经 NAT 到达",
-        natDetail:
-          "{{node}} 上的上游脚本可能让部分非 HTTP 检查走默认网络路径。",
+        natDetail: "{{node}} 上的探测可能让 DNS 检查走默认网络路径。",
       },
       nodes: {
         title: "节点与当前公网 IP",
@@ -644,7 +643,7 @@ export const zhCN = {
         nat: "经 NAT 到达",
         proxy: "经代理到达",
         probeEnabled: "启用完整探测",
-        probeEnabledDetail: "仅启用的公网 IP 会进入 IPQuality 完整探测。",
+        probeEnabledDetail: "仅启用的公网 IP 会进入周期完整探测。",
         saving: "正在保存公网 IP 设置",
         path: "发现路径",
         direct: "节点直连",
@@ -661,7 +660,7 @@ export const zhCN = {
         nat: "疑似 NAT",
         temporary: "临时 IPv6 源地址",
         natDetail:
-          "本地源地址与观察到的公网地址不同。上游部分 DNS 或原始邮件连通性检查可能使用默认路由或无法绑定。",
+          "本地源地址与观察到的公网地址不同。DNS 检查使用节点解析器，可能走默认路由。",
         status: { confirmed: "已确认", failed: "检查失败" },
         failure: {
           "selector-unavailable": "配置的本地选择器当前不可用。",
@@ -717,7 +716,7 @@ export const zhCN = {
     probe: {
       section: "节点探测",
       title: "完整探测",
-      detail: "管理此节点的 IPQuality 完整探测计划并查看运行结果。",
+      detail: "管理此节点的完整探测计划并查看运行结果。",
       back: "返回节点",
       refresh: "刷新",
       retry: "重试",
@@ -738,7 +737,7 @@ export const zhCN = {
       lowMemory: {
         title: "内存不足，完整探测已暂停",
         detail:
-          "Agent 上报的物理内存少于 256 MiB。地址检查会继续；管理员可以在探测设置中自行接受风险。",
+          "Agent 上报的物理内存少于 64 MiB。地址检查会继续；管理员可以在探测设置中自行接受风险。",
       },
       unavailable: {
         offline: "节点当前离线，无法下发即时任务。",
@@ -812,7 +811,7 @@ export const zhCN = {
         timezone: "时区",
         timezoneSearch: "搜索时区...",
         timezoneEmpty: "没有匹配的时区",
-        memoryOverride: "允许在低于 256 MiB 时探测",
+        memoryOverride: "允许在低于 64 MiB 时探测",
         memoryOverrideDetail: "启用表示接受探测失败或节点资源耗尽的可能。",
         save: "保存探测设置",
       },
@@ -841,10 +840,9 @@ export const zhCN = {
         missed: "错过触发时间",
       },
       failure: {
-        download: "脚本下载",
         selector: "网络路径选择器",
         adapter: "代理适配器",
-        process: "探测进程",
+        process: "探测执行",
         timeout: "执行超时",
         output: "JSON 输出",
         restart: "Agent 重启",
@@ -913,7 +911,7 @@ export const zhCN = {
         allChanges: "全部",
         changed: "有变化",
         unchanged: "无变化",
-        format: "上游格式",
+        format: "报告格式",
         allFormats: "全部格式",
         eventKind: "事件类型",
         allEvents: "全部事件",
@@ -956,7 +954,7 @@ export const zhCN = {
         nodeLevel: "节点级",
       },
       formatEvents: {
-        title: "上游格式事件",
+        title: "报告格式事件",
         detail: "固定字段目录发现的格式异常、变化和恢复。",
         issueCount: "{{count}} 项问题",
         kind: {
@@ -1031,7 +1029,7 @@ export const zhCN = {
         compatible: "格式兼容",
       },
       format: {
-        title: "上游输出格式异常",
+        title: "探测报告格式异常",
         detail: "不兼容字段不做类型转换；未知字段仍保留在原始 JSON 中。",
         expected: "预期类型：{{expected}}",
       },
@@ -1046,12 +1044,12 @@ export const zhCN = {
         overview: {
           unknownAddress: "IP 地址不可用",
           detail: "公网 IP 序号 {{sequence}} · {{value}}",
-          version: "上游脚本版本",
-          upstreamTime: "上游报告时间",
+          version: "探测版本",
+          upstreamTime: "报告时间",
         },
         basic: {
           title: "基础信息",
-          detail: "MaxMind 数据库返回的地址归属与地理信息。",
+          detail: "可用数据库返回的地址归属与地理信息。",
           asn: "ASN",
           organization: "组织",
           location: "所在地",
@@ -1103,7 +1101,7 @@ export const zhCN = {
         },
         media: {
           title: "流媒体与 AI",
-          detail: "服务可用性、识别地区和上游结果类型。",
+          detail: "服务可用性、识别地区和探测结果类型。",
           item: "项目",
           status: "状态",
           region: "地区",
@@ -1140,11 +1138,11 @@ export const zhCN = {
       },
       changes: { title: "本次变化", detail: "仅显示两侧类型兼容的语义变化。" },
       fieldCatalog: {
-        unmappedDescription: "尚未提供本地化说明的已知上游字段。",
+        unmappedDescription: "尚未提供本地化说明的已知探测字段。",
         groups: {
           head: {
             name: "报告元数据",
-            description: "上游报告的标识与生成信息。",
+            description: "探测报告的标识与生成信息。",
           },
           info: {
             name: "IP 信息",
@@ -1175,18 +1173,21 @@ export const zhCN = {
           head: {
             ip: {
               name: "IP 地址",
-              description: "上游探测报告的公网 IP 地址。",
+              description: "探测报告记录的公网 IP 地址。",
             },
             command: {
               name: "探测命令",
-              description: "上游探测记录的执行命令。",
+              description: "探测报告记录的执行标识。",
             },
             github: {
-              name: "上游来源",
-              description: "上游探测记录的源码引用。",
+              name: "探测来源",
+              description: "探测报告记录的源码引用。",
             },
-            time: { name: "报告时间", description: "上游报告记录的生成时间。" },
-            version: { name: "探测版本", description: "上游探测报告的版本。" },
+            time: { name: "报告时间", description: "报告记录的生成时间。" },
+            version: {
+              name: "探测版本",
+              description: "生成该报告的探测版本。",
+            },
           },
           info: {
             asn: {
@@ -1202,7 +1203,7 @@ export const zhCN = {
             },
             map: {
               name: "地图引用",
-              description: "上游提供的报告位置地图引用。",
+              description: "数据源提供的报告位置地图引用。",
             },
             timeZone: { name: "时区", description: "与该地址关联的时区。" },
             cityName: { name: "城市", description: "报告的城市或地区名称。" },
@@ -1235,7 +1236,7 @@ export const zhCN = {
             },
             type: {
               name: "地址类型",
-              description: "上游报告的网络或地址类型。",
+              description: "探测报告的网络或地址类型。",
             },
           },
           classification: {
@@ -1323,7 +1324,7 @@ export const zhCN = {
         },
       },
       raw: {
-        title: "IPQuality JSON",
+        title: "完整探测 JSON",
         detail: "公网 IP 序号 {{sequence}}，观察时间 {{value}}",
         wrap: "切换自动换行",
         copy: "复制 JSON",
@@ -1462,7 +1463,7 @@ export const zhCN = {
         sender: "发送器",
         event: "事件",
         field: "已知字段 ID",
-        fieldPlaceholder: "IPQuality.ipinfo.CountryCode",
+        fieldPlaceholder: "Factor.CountryCode.IPinfo",
         node: "节点",
         egress: "公网 IP",
         allNodes: "全部节点",
@@ -1551,7 +1552,7 @@ export const zhCN = {
       node_offline: "节点当前离线，无法接收即时任务。",
       probe_task_slot_occupied: "此节点已有等待接收或执行中的即时任务。",
       probe_already_running: "此节点已有完整探测正在运行。",
-      probe_paused_low_memory: "节点上报的内存少于 256 MiB，完整探测已暂停。",
+      probe_paused_low_memory: "节点上报的内存少于 64 MiB，完整探测已暂停。",
       probe_target_unavailable:
         "所选公网 IP 已无法通过此节点执行，请重新打开探测弹窗后选择。",
       probe_run_not_found: "完整探测运行不存在或已经删除。",

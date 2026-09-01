@@ -164,7 +164,7 @@ func TestAgeRetentionProtectsCurrentProbeOutcomeState(t *testing.T) {
 		INSERT INTO probe_executions (
 			id, run_id, egress_id, ordinal, sequence, status,
 			started_at, completed_at, failure_stage, received_at
-		) VALUES (?, ?, ?, 0, 1, 'failed', ?, ?, 'download', ?)
+		) VALUES (?, ?, ?, 0, 1, 'failed', ?, ?, 'process', ?)
 	`, executionID, runID, egressID, observedAt.Add(-time.Second).Unix(),
 		observedAt.Unix(), observedAt.Add(time.Second).Unix()); err != nil {
 		t.Fatal(err)

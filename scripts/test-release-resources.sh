@@ -162,13 +162,13 @@ fi
 
 docker run --detach --name "$agent_name" --hostname "release-$architecture" \
   --platform "linux/$architecture" --network "$network_name" \
-  --memory 256m --memory-swap 256m --cpus 1 --pids-limit 512 \
+  --memory 64m --memory-swap 64m --cpus 1 --pids-limit 512 \
   --env CENTER_URL=http://center:8080 --env REGISTRATION_KEY="$registration_key" \
   --env "AGENT_PATH=/release/ipchronicle-agent-linux-$architecture" \
   --volume "$release_directory:/release:ro" \
   --volume "$scratch_directory/agent-state:/var/lib/ipchronicle-agent" \
   --entrypoint /bin/sh "$ALPINE_IMAGE" -ceu \
-  'apk add --no-cache bash curl jq bc netcat-openbsd bind-tools iproute2 ca-certificates
+  'apk add --no-cache curl jq ca-certificates
    "$AGENT_PATH" enroll \
      --center-url "$CENTER_URL" --registration-key "$REGISTRATION_KEY"
    exec "$AGENT_PATH" run' >/dev/null
@@ -249,7 +249,7 @@ probe_succeeded=false
 run_id=""
 for _ in $(seq 1 240); do
   if ! docker container inspect "$agent_name" --format '{{.State.Running}}' | grep -Fx true >/dev/null; then
-    echo "Agent stopped while the live IPQuality probe was running" >&2
+    echo "Agent stopped while the live complete probe was running" >&2
     exit 1
   fi
   curl --fail --silent --show-error --cookie "$cookie_file" \
@@ -262,7 +262,7 @@ for _ in $(seq 1 240); do
       break
       ;;
     partial|failed|rejected|expired)
-      echo "live IPQuality task reached terminal status $task_status" >&2
+      echo "live complete-probe task reached terminal status $task_status" >&2
       jq '{task, recentRuns}' "$response_file" >&2
       failed_run_id=$(jq -r --arg task "$task_id" '.task | select(.id == $task) | .runId // empty' "$response_file")
       if [[ -n $failed_run_id ]] && curl --fail --silent --show-error --cookie "$cookie_file" \
@@ -276,7 +276,7 @@ for _ in $(seq 1 240); do
   sleep 5
 done
 if [[ $probe_succeeded != true ]]; then
-  echo "live IPQuality task did not complete within 20 minutes" >&2
+  echo "live complete-probe task did not complete within 20 minutes" >&2
   exit 1
 fi
 
@@ -296,8 +296,8 @@ if [[ $agent_oom_kills != 0 || $center_oom_kills != 0 ]]; then
   echo "resource gate observed OOM kills: Agent=$agent_oom_kills Center=$center_oom_kills" >&2
   exit 1
 fi
-if [[ ! $agent_memory_peak =~ ^[0-9]+$ || $agent_memory_peak -gt 268435456 ]]; then
-  echo "Agent cgroup peak is outside the 256 MiB limit: $agent_memory_peak" >&2
+if [[ ! $agent_memory_peak =~ ^[0-9]+$ || $agent_memory_peak -gt 67108864 ]]; then
+  echo "Agent cgroup peak is outside the 64 MiB limit: $agent_memory_peak" >&2
   exit 1
 fi
 if [[ ! $center_memory_peak =~ ^[0-9]+$ || $center_memory_peak -gt 536870912 ]]; then

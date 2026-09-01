@@ -9,8 +9,22 @@ The compiled interface also includes Radix UI primitives, Lucide icons, and the
 Geist font. Their required notices follow. Other dependency licenses are
 reported in release SBOM and license metadata.
 
-The IPQuality script is downloaded at probe execution time and is not included
-in this repository. It retains its upstream license and copyright.
+## IPQuality
+
+The complete-probe implementation in `internal/agent/probe` is based on
+[IPQuality](https://github.com/xykt/IPQuality) at commit
+`0ee5f192fed70c04615852efba0e4b8bd43546c7`.
+
+Copyright (c) xykt and IPQuality contributors.
+
+IPQuality is licensed under the GNU Affero General Public License version 3.
+IPChronicle modified this code on 2026-09-01 by translating the relevant Bash
+probe behavior and reference data into Go, removing the terminal interface and
+runtime script download, replacing shell utilities with native networking and
+JSON handling, and integrating the probe with IPChronicle's egress selection,
+proxy, timeout, and bounded-result model. The modified implementation is in
+`internal/agent/probe/native*.go` and `internal/agent/probe/data/` and
+is distributed under the repository's `AGPL-3.0-only` license in `LICENSE`.
 
 ## html-to-image
 

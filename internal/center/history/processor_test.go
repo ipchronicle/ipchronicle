@@ -313,7 +313,7 @@ func seedFailedExecution(
 		INSERT INTO probe_executions (
 			id, run_id, egress_id, ordinal, sequence, status,
 			started_at, completed_at, failure_stage, received_at
-		) VALUES (?, ?, ?, 0, ?, 'failed', ?, ?, 'download', ?)
+		) VALUES (?, ?, ?, 0, ?, 'failed', ?, ?, 'process', ?)
 	`, executionID, runID, egressID, sequence, observedAt-1, observedAt, observedAt+1); err != nil {
 		t.Fatal(err)
 	}

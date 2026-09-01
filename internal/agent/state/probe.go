@@ -37,7 +37,6 @@ var (
 var (
 	activeProbeRunKey = []byte("active-run")
 	probeStatusKey    = []byte("status")
-	activeProcessKey  = []byte("active")
 )
 
 type ProbeExecutionManifest struct {
@@ -149,14 +148,6 @@ type ProbeStatus struct {
 	HistoryResetAt                    *time.Time `json:"historyResetAt,omitempty"`
 	HistoryResetDiscardedAddressItems int64      `json:"historyResetDiscardedAddressItems"`
 	HistoryResetDiscardedProbeItems   int64      `json:"historyResetDiscardedProbeItems"`
-}
-
-type ProbeProcess struct {
-	PID            int       `json:"pid"`
-	ProcessGroupID int       `json:"processGroupId"`
-	StartTicks     uint64    `json:"startTicks"`
-	BootID         string    `json:"bootId"`
-	StartedAt      time.Time `json:"startedAt"`
 }
 
 type queuedProbeArtifact struct {
@@ -696,7 +687,7 @@ func (s *Store) ReconcileProbeRun(now time.Time) (*ProbeRun, error) {
 			execution.FailureStage = cloneString(stringPointer("restart"))
 			if execution.Status == "running" {
 				execution.Status = "interrupted"
-				diagnostic := "Agent restarted while the upstream process was active"
+				diagnostic := "Agent restarted while the complete probe was active"
 				execution.Diagnostic = &diagnostic
 			} else {
 				execution.Status = "skipped"
@@ -945,54 +936,6 @@ func (s *Store) AcknowledgeProbeArtifact(receipt ProbeArtifactReceipt) error {
 		_ = os.Remove(filepath.Join(s.resultDirectory, removeFile))
 	}
 	return err
-}
-
-func (s *Store) SetProbeProcess(process ProbeProcess) error {
-	s.probeMu.Lock()
-	defer s.probeMu.Unlock()
-	if process.PID < 1 || process.ProcessGroupID < 1 || process.StartTicks < 1 || process.BootID == "" || process.StartedAt.IsZero() {
-		return ErrInvalidProbeState
-	}
-	return s.database.Update(func(transaction *bolt.Tx) error {
-		return putJSON(transaction.Bucket(probeProcessBucket), activeProcessKey, process)
-	})
-}
-
-func (s *Store) ProbeProcess() (*ProbeProcess, error) {
-	s.probeMu.Lock()
-	defer s.probeMu.Unlock()
-	var process ProbeProcess
-	err := s.database.View(func(transaction *bolt.Tx) error {
-		encoded := transaction.Bucket(probeProcessBucket).Get(activeProcessKey)
-		if encoded == nil {
-			return nil
-		}
-		return decodeJSON(encoded, &process, "active probe process")
-	})
-	if err != nil || process.PID == 0 {
-		return nil, err
-	}
-	return &process, nil
-}
-
-func (s *Store) ClearProbeProcess(processGroupID int) error {
-	s.probeMu.Lock()
-	defer s.probeMu.Unlock()
-	return s.database.Update(func(transaction *bolt.Tx) error {
-		bucket := transaction.Bucket(probeProcessBucket)
-		encoded := bucket.Get(activeProcessKey)
-		if encoded == nil {
-			return nil
-		}
-		var current ProbeProcess
-		if err := decodeJSON(encoded, &current, "active probe process"); err != nil {
-			return err
-		}
-		if processGroupID != 0 && current.ProcessGroupID != processGroupID {
-			return ErrInvalidProbeState
-		}
-		return bucket.Delete(activeProcessKey)
-	})
 }
 
 func finishProbeRun(masterKey [masterKeySize]byte, transaction *bolt.Tx, runID string, completedAt time.Time) (ProbeRun, error) {
@@ -1569,7 +1512,7 @@ func validProbeSkipReason(value string) bool {
 
 func validProbeFailureStage(value string) bool {
 	switch value {
-	case "download", "selector", "adapter", "process", "timeout", "output", "restart":
+	case "selector", "adapter", "process", "timeout", "output", "restart":
 		return true
 	default:
 		return false

@@ -19,17 +19,16 @@ The root Agent supports Linux AMD64 and ARM64 on:
 - Alpine Linux 3.23 and 3.24 with OpenRC.
 
 The installer rejects other operating systems, releases, architectures, and
-init systems. Complete probes are validated with 256 MiB of memory. An Agent
-below 256 MiB continues address observation but pauses complete probes until
+init systems. Complete probes are validated with 64 MiB of memory. An Agent
+below 64 MiB continues address observation but pauses complete probes until
 the administrator enables the low-memory override.
 
 The Center needs outbound HTTPS access to GitHub for release discovery. Each
 Agent needs outbound HTTP or HTTPS access to its Center, configured public-IP
 discovery services, official GitHub release assets for installation and
-updates, the official IPQuality download, and services contacted by that
-script. A configured network proxy applies only to the explicit discovery path
-that references it;
-it is not a global Center or Agent proxy.
+updates, and the third-party database, media, AI, DNSBL, and mail services used
+by complete probes. A configured network proxy applies only to the explicit
+discovery path that references it; it is not a global Center or Agent proxy.
 
 ## Install The Center
 
@@ -136,10 +135,10 @@ Open **Nodes**, rotate the automatic-registration key if none exists, and run
 the displayed command as root on each supported node. The one-line command
 downloads the fixed official installer, which selects the latest Agent from
 the deployment's stable or RC release channel. It verifies the official
-manifest and checksums, installs IPQuality dependencies, enrolls the node, and
-starts the systemd or OpenRC service. The Center does not pin the Agent to its
-own version. An operator may pass `--version VERSION` directly to the installer
-only when deliberately installing a specific release.
+manifest and checksums, installs the release download prerequisites, enrolls
+the node, and starts the systemd or OpenRC service. The Center does not pin the
+Agent to its own version. An operator may pass `--version VERSION` directly to
+the installer only when deliberately installing a specific release.
 
 The shared registration key is used only for enrollment. Each Agent receives a
 node-specific credential and stores it encrypted in the root-only directory
@@ -203,8 +202,8 @@ the node can reach:
 Interfaces, routes, local source addresses, selectors, and automatic path IDs
 are internal execution details and are not displayed as user objects. Temporary
 IPv6 privacy sources do not create their own durable path. When discovery
-indicates NAT, the Center marks the public IP accordingly. Some upstream DNS or
-raw-mail checks may still use the default route or fail to bind.
+indicates NAT, the Center marks the public IP accordingly. DNS-based checks use
+the node's resolver and may follow its default route.
 
 Each public IP has a complete-probe switch that defaults on. The node has one
 setting, also enabled by default, that runs a complete probe for a public IP
@@ -235,12 +234,14 @@ does not change those switches. The immediate action on a public-IP row starts a
 single-IP task directly, including when recurring probing is disabled for that
 IP.
 
-For every attempted public IP the Agent downloads a fresh official IPQuality
-script, supervises its process tree as root, and validates bounded JSON output.
-IPChronicle does not pin or cache the upstream script. A missing known field is
-shown as missing; if a known field changes to an incompatible data type, that
-field is shown as unavailable while the raw report and format status remain
-inspectable.
+For every attempted public IP the Agent runs its built-in Go probe and validates
+bounded JSON output. HTTP, HTTPS, and SMTP checks use the selected source,
+interface, or configured proxy path. DNS resolution and DNSBL lookups use the
+node's resolver. A failed third-party provider leaves only that provider's
+fields unavailable; it does not fabricate data or fail unrelated checks. A
+missing known field is shown as missing; if a known field changes to an
+incompatible data type, that field is shown as unavailable while the raw report
+and format status remain inspectable.
 
 An Agent retains at most 30 pending address events and 30 pending complete
 results per public IP while the Center is unavailable. Address events are

@@ -1065,7 +1065,6 @@ func (e ProbeExecutionStatus) Valid() bool {
 // Defines values for ProbeFailureStage.
 const (
 	Adapter  ProbeFailureStage = "adapter"
-	Download ProbeFailureStage = "download"
 	Output   ProbeFailureStage = "output"
 	Process  ProbeFailureStage = "process"
 	Restart  ProbeFailureStage = "restart"
@@ -1077,8 +1076,6 @@ const (
 func (e ProbeFailureStage) Valid() bool {
 	switch e {
 	case Adapter:
-		return true
-	case Download:
 		return true
 	case Output:
 		return true
@@ -1923,12 +1920,12 @@ type KnownProbeField struct {
 	Id            string          `json:"id"`
 	Path          string          `json:"path"`
 
-	// Status available contains a compatible value; unavailable is an explicit JSON null with no upstream result; missing and incompatible are format issues.
+	// Status available contains a compatible value; unavailable is an explicit JSON null with no provider result; missing and incompatible are format issues.
 	Status KnownProbeFieldStatus `json:"status"`
 	Value  *string               `json:"value,omitempty"`
 }
 
-// KnownProbeFieldStatus available contains a compatible value; unavailable is an explicit JSON null with no upstream result; missing and incompatible are format issues.
+// KnownProbeFieldStatus available contains a compatible value; unavailable is an explicit JSON null with no provider result; missing and incompatible are format issues.
 type KnownProbeFieldStatus string
 
 // LocaleUpdateRequest defines model for LocaleUpdateRequest.
@@ -3430,7 +3427,7 @@ type ClientInterface interface {
 	// Corresponds with GET /api/v1/history/comparison (the `CompareProbeSnapshots` operationId).
 	CompareProbeSnapshots(ctx context.Context, params *CompareProbeSnapshotsParams, reqEditors ...RequestEditorFn) (*http.Response, error)
 
-	// ListHistoryFormatEvents List upstream complete-report format events
+	// ListHistoryFormatEvents List complete-report format events
 	//
 	// Corresponds with GET /api/v1/history/format-events (the `ListHistoryFormatEvents` operationId).
 	ListHistoryFormatEvents(ctx context.Context, params *ListHistoryFormatEventsParams, reqEditors ...RequestEditorFn) (*http.Response, error)
@@ -4370,7 +4367,7 @@ func (c *Client) CompareProbeSnapshots(ctx context.Context, params *CompareProbe
 	return c.Client.Do(req)
 }
 
-// ListHistoryFormatEvents List upstream complete-report format events
+// ListHistoryFormatEvents List complete-report format events
 //
 // Corresponds with GET /api/v1/history/format-events (the `ListHistoryFormatEvents` operationId).
 func (c *Client) ListHistoryFormatEvents(ctx context.Context, params *ListHistoryFormatEventsParams, reqEditors ...RequestEditorFn) (*http.Response, error) {
@@ -8899,7 +8896,7 @@ type ClientWithResponsesInterface interface {
 	// Corresponds with GET /api/v1/history/comparison (the `CompareProbeSnapshots` operationId).
 	CompareProbeSnapshotsWithResponse(ctx context.Context, params *CompareProbeSnapshotsParams, reqEditors ...RequestEditorFn) (*CompareProbeSnapshotsResponse, error)
 
-	// ListHistoryFormatEventsWithResponse List upstream complete-report format events
+	// ListHistoryFormatEventsWithResponse List complete-report format events
 	//
 	// Returns a wrapper object for the known response body format(s).
 	//
@@ -13676,7 +13673,7 @@ func (c *ClientWithResponses) CompareProbeSnapshotsWithResponse(ctx context.Cont
 	return ParseCompareProbeSnapshotsResponse(rsp)
 }
 
-// ListHistoryFormatEventsWithResponse List upstream complete-report format events
+// ListHistoryFormatEventsWithResponse List complete-report format events
 //
 // Returns a wrapper object for the known response body format(s).
 //

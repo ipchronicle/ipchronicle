@@ -26,7 +26,7 @@ for the manifest revision, and the final run links must be recorded here.
 | Single-administrator authentication, sessions, TOTP, and local recovery | `internal/center/admin`, `cmd/ipchronicle-center` | package tests, Compose smoke, browser tests, migration and recovery failure gate |
 | Agent enrollment, persistent identity, 30-second polling, configuration convergence, and temporary sync | `internal/agent`, `internal/center/nodes`, `internal/center/syncws` | package and race tests, Compose smoke, browser tests, distribution lifecycle tests |
 | Linux interface, address, route, egress, proxy, NAT, and temporary-IPv6 handling | `internal/agent/network`, `internal/agent/observation`, `internal/center/nodes` | inventory, selector, proxy, observation, outage, restart, and queue tests |
-| Manual, scheduled, and newly-current-address complete probes with one immediate slot | `internal/agent/probe`, `internal/schedule`, `internal/center/nodes` | scheduler, process-tree, result publication, retry, resource, and live IPQuality tests |
+| Manual, scheduled, and newly-current-address complete probes with one immediate slot | `internal/agent/probe`, `internal/schedule`, `internal/center/nodes` | scheduler, native execution, result publication, retry, resource, and live complete-probe tests |
 | Known-field interpretation, raw results, format drift, comparison, starring, and retention | `internal/center/history`, `internal/center/nodes` | interpretation, comparison, retention, reset, capacity, API, and browser tests |
 | Telegram, Webhook, and isolated JavaScript notifications | `internal/center/notifications`, `cmd/ipchronicle-center` | sender, queue, retry, isolation, redaction, overflow, API, and browser tests |
 | Agent update discovery, validation, atomic replacement, health commitment, and rollback | `internal/agent/update`, `internal/center/updates` | update manager, supervisor, rollback, distribution lifecycle, and browser tests |
@@ -48,7 +48,7 @@ not a pass.
 | Candidate creation, manifest, checksums, SBOMs, and artifact contract | `make release-candidate VERSION=0.1.0-rc.3`; `make verify-release-candidate VERSION=0.1.0-rc.3`; `Release candidate artifact / candidate` | Pass |
 | Install, reinstall, uninstall, migration, history reset, outage, restart, unavailable selector, update rollback, and queue overflow | `make release-failure-gate`; `Release candidate artifact / candidate` | Pass |
 | Supported distribution and init lifecycle | 17 distributions x AMD64/ARM64 in `Release candidate artifact / distribution` | All 34 pass |
-| Native resource limits and live official IPQuality execution | AMD64 and ARM64 `Release candidate artifact / resources` | Both pass at 256 MiB Agent and 512 MiB Center limits |
+| Native resource limits and live complete-probe execution | AMD64 and ARM64 `Release candidate artifact / resources` | Both pass at 64 MiB Agent and 512 MiB Center limits |
 | 70-node and 420-egress capacity | `internal/center/nodes/release_capacity_test.go`; `make check` | Pass |
 | Reproducibility | two clean builds from the manifest revision; compare names, modes, sizes, and SHA-256 for every file | Exact match |
 | Source hygiene | `shellcheck scripts/*.sh`; `actionlint .github/workflows/*.yml`; `git diff --check`; clean product worktree | Pass |
@@ -107,12 +107,14 @@ isolation, and redaction behavior.
   promised to remain compatible before the first stable release is published
   and put into use. Incompatible development data fails explicitly and is
   rebuilt or purged by the operator.
-- Every complete-probe attempt downloads the current official IPQuality script.
-  IPChronicle trusts that source, validates bounded JSON output, and exposes
-  format drift; it does not pin, cache, vendor, or rewrite the script.
-- Some upstream DNS and raw-mail checks may ignore a selected source address or
-  fail to bind. The interface reports the egress, selector, NAT interpretation,
-  result, and diagnostic without presenting unsupported routing guarantees.
+- The built-in Go probe is derived from the AGPL-licensed IPQuality behavior at
+  the revision recorded in `THIRD_PARTY_NOTICES.md`. Its database, media, AI,
+  DNSBL, and mail checks still depend on third-party services whose availability
+  and response formats IPChronicle does not control.
+- HTTP, HTTPS, and SMTP checks use the selected egress path. DNS and DNSBL
+  lookups use the node's resolver and are not tunneled through an egress proxy.
+  The interface reports unavailable provider data and format changes without
+  presenting unsupported routing guarantees.
 
 ## Publication Gate
 

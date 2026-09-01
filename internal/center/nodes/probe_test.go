@@ -155,7 +155,7 @@ func TestCreateCompleteProbeTaskEligibilityAndSingleSlot(t *testing.T) {
 		}
 	})
 	t.Run("low memory", func(t *testing.T) {
-		fixture := newProbeServiceFixture(t, 64*1024*1024)
+		fixture := newProbeServiceFixture(t, minimumProbeMemoryBytes-1)
 		if _, err := fixture.service.CreateCompleteProbeTask(fixture.ctx, fixture.registration.NodeID, fixture.probeTargetIDs()); !errors.Is(err, ErrProbePausedLowMemory) {
 			t.Fatalf("low-memory task error = %v", err)
 		}

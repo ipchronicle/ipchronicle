@@ -194,27 +194,19 @@ if [ "$skip_packages" != "1" ]; then
       export DEBIAN_FRONTEND=noninteractive
       apt-get update
       apt-get install --yes --no-install-recommends \
-        bash curl jq bc netcat-openbsd dnsutils iproute2 ca-certificates
+        curl jq ca-certificates
       ;;
     dnf)
       dnf install --assumeyes \
-        bash jq bc nmap-ncat bind-utils iproute ca-certificates
-      if ! command -v curl >/dev/null 2>&1; then
-        dnf install --assumeyes curl
-      fi
+        curl jq ca-certificates
       ;;
     apk)
       apk add --no-cache \
-        bash curl jq bc netcat-openbsd bind-tools iproute2 ca-certificates
+        curl jq ca-certificates
       ;;
   esac
 fi
-for dependency in bash curl jq bc dig ip; do
-  command -v "$dependency" >/dev/null 2>&1 || fail "$dependency is required by the IPQuality probe"
-done
-if ! command -v nc >/dev/null 2>&1 && ! command -v ncat >/dev/null 2>&1; then
-  fail "nc or ncat is required by the IPQuality probe"
-fi
+command -v jq >/dev/null 2>&1 || fail "jq is required to validate Agent metadata"
 
 temporary_directory=$(mktemp -d)
 cleanup() {

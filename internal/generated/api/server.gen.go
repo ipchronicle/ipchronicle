@@ -1064,7 +1064,6 @@ func (e ProbeExecutionStatus) Valid() bool {
 // Defines values for ProbeFailureStage.
 const (
 	Adapter  ProbeFailureStage = "adapter"
-	Download ProbeFailureStage = "download"
 	Output   ProbeFailureStage = "output"
 	Process  ProbeFailureStage = "process"
 	Restart  ProbeFailureStage = "restart"
@@ -1076,8 +1075,6 @@ const (
 func (e ProbeFailureStage) Valid() bool {
 	switch e {
 	case Adapter:
-		return true
-	case Download:
 		return true
 	case Output:
 		return true
@@ -1922,12 +1919,12 @@ type KnownProbeField struct {
 	Id            string          `json:"id"`
 	Path          string          `json:"path"`
 
-	// Status available contains a compatible value; unavailable is an explicit JSON null with no upstream result; missing and incompatible are format issues.
+	// Status available contains a compatible value; unavailable is an explicit JSON null with no provider result; missing and incompatible are format issues.
 	Status KnownProbeFieldStatus `json:"status"`
 	Value  *string               `json:"value,omitempty"`
 }
 
-// KnownProbeFieldStatus available contains a compatible value; unavailable is an explicit JSON null with no upstream result; missing and incompatible are format issues.
+// KnownProbeFieldStatus available contains a compatible value; unavailable is an explicit JSON null with no provider result; missing and incompatible are format issues.
 type KnownProbeFieldStatus string
 
 // LocaleUpdateRequest defines model for LocaleUpdateRequest.
@@ -3190,7 +3187,7 @@ type ServerInterface interface {
 	// CompareProbeSnapshots Compare two retained snapshots for the same public IP
 	// (GET /api/v1/history/comparison)
 	CompareProbeSnapshots(w http.ResponseWriter, r *http.Request, params CompareProbeSnapshotsParams)
-	// ListHistoryFormatEvents List upstream complete-report format events
+	// ListHistoryFormatEvents List complete-report format events
 	// (GET /api/v1/history/format-events)
 	ListHistoryFormatEvents(w http.ResponseWriter, r *http.Request, params ListHistoryFormatEventsParams)
 	// ListHistoryProbeGaps List explicit complete-probe history gaps
@@ -3466,7 +3463,7 @@ func (_ Unimplemented) CompareProbeSnapshots(w http.ResponseWriter, r *http.Requ
 	w.WriteHeader(http.StatusNotImplemented)
 }
 
-// ListHistoryFormatEvents List upstream complete-report format events
+// ListHistoryFormatEvents List complete-report format events
 // (GET /api/v1/history/format-events)
 func (_ Unimplemented) ListHistoryFormatEvents(w http.ResponseWriter, r *http.Request, params ListHistoryFormatEventsParams) {
 	w.WriteHeader(http.StatusNotImplemented)
@@ -10764,7 +10761,7 @@ type StrictServerInterface interface {
 	// CompareProbeSnapshots Compare two retained snapshots for the same public IP
 	// (GET /api/v1/history/comparison)
 	CompareProbeSnapshots(ctx context.Context, request CompareProbeSnapshotsRequestObject) (CompareProbeSnapshotsResponseObject, error)
-	// ListHistoryFormatEvents List upstream complete-report format events
+	// ListHistoryFormatEvents List complete-report format events
 	// (GET /api/v1/history/format-events)
 	ListHistoryFormatEvents(ctx context.Context, request ListHistoryFormatEventsRequestObject) (ListHistoryFormatEventsResponseObject, error)
 	// ListHistoryProbeGaps List explicit complete-probe history gaps

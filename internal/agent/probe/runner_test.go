@@ -3,17 +3,13 @@ package probe
 import (
 	"context"
 	"crypto/tls"
-	"errors"
 	"fmt"
 	"io"
 	"net"
 	"net/http"
 	"net/http/httptest"
 	"net/url"
-	"os/exec"
 	"strings"
-	"sync"
-	"syscall"
 	"testing"
 	"time"
 
@@ -23,8 +19,12 @@ import (
 )
 
 func TestRunnerExecutesOneBoundedJSONProbe(t *testing.T) {
-	processes := &fakeProcessState{}
-	runner := testRunner(t, processes, `printf '%s\n' '{"field":{"value":1}}'`)
+	runner := testRunner(t, func(_ context.Context, input nativeProbeInput) ([]byte, error) {
+		if input.Target != "203.0.113.10" || input.Family != "ipv4" || input.HTTPClient == nil || input.DialContext == nil {
+			t.Fatalf("native input = %#v", input)
+		}
+		return []byte(`{"field":{"value":1}}`), nil
+	})
 	configuration, egress := probeTestConfiguration("default", "ipv4")
 	runner.discover = func() (agentnetwork.Inventory, error) { return probeTestInventory(), nil }
 	startedAt := time.Now().UTC().Truncate(time.Second)
@@ -36,20 +36,22 @@ func TestRunnerExecutesOneBoundedJSONProbe(t *testing.T) {
 		outcome.StartedAt == nil || !outcome.StartedAt.Equal(startedAt) {
 		t.Fatalf("outcome = %#v", outcome)
 	}
-	if processes.setCount != 1 || processes.clearCount != 1 || processes.current != nil {
-		t.Fatalf("process state = %#v", processes)
-	}
 }
 
-func TestRunnerAcceptsIPQualitySingleFamilyCompletion(t *testing.T) {
-	runner := testRunner(t, &fakeProcessState{}, `printf '\033[H\033[J\r\r%s\r\n' '{"field":{"value":1}}'; exit 1`)
+func TestRunnerStopsNativeProbeAtTimeout(t *testing.T) {
+	runner := testRunner(t, func(ctx context.Context, _ nativeProbeInput) ([]byte, error) {
+		<-ctx.Done()
+		return nil, ctx.Err()
+	})
+	runner.timeout = 50 * time.Millisecond
 	configuration, egress := probeTestConfiguration("default", "ipv4")
 	runner.discover = func() (agentnetwork.Inventory, error) { return probeTestInventory(), nil }
+	started := time.Now()
 	outcome, err := runner.Run(context.Background(), configuration, egress, time.Now())
 	if err != nil {
 		t.Fatal(err)
 	}
-	if outcome.Status != "succeeded" || string(outcome.RawResult) != `{"field":{"value":1}}` {
+	if time.Since(started) > time.Second || outcome.Status != "failed" || outcome.FailureStage != "timeout" {
 		t.Fatalf("outcome = %#v", outcome)
 	}
 }
@@ -57,15 +59,17 @@ func TestRunnerAcceptsIPQualitySingleFamilyCompletion(t *testing.T) {
 func TestRunnerReportsInvalidAndOversizedJSON(t *testing.T) {
 	tests := []struct {
 		name       string
-		script     string
+		result     []byte
 		diagnostic string
 	}{
-		{name: "invalid", script: `printf 'not-json'`, diagnostic: "not a JSON object"},
-		{name: "oversized", script: `printf '{"value":"'; head -c 1048577 /dev/zero | tr '\0' x; printf '"}'`, diagnostic: "exceeded 1 MiB"},
+		{name: "invalid", result: []byte("not-json"), diagnostic: "not a JSON object"},
+		{name: "oversized", result: make([]byte, state.MaxProbeResultBytes+1), diagnostic: "exceeds 1 MiB"},
 	}
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
-			runner := testRunner(t, &fakeProcessState{}, test.script)
+			runner := testRunner(t, func(context.Context, nativeProbeInput) ([]byte, error) {
+				return test.result, nil
+			})
 			configuration, egress := probeTestConfiguration("default", "ipv4")
 			runner.discover = func() (agentnetwork.Inventory, error) { return probeTestInventory(), nil }
 			outcome, err := runner.Run(context.Background(), configuration, egress, time.Now())
@@ -77,92 +81,6 @@ func TestRunnerReportsInvalidAndOversizedJSON(t *testing.T) {
 				t.Fatalf("outcome = %#v", outcome)
 			}
 		})
-	}
-}
-
-func TestTailCaptureRetainsRecentDiagnostic(t *testing.T) {
-	capture := newTailCapture(5)
-	if _, err := capture.Write([]byte("abc")); err != nil {
-		t.Fatal(err)
-	}
-	if _, err := capture.Write([]byte("defg")); err != nil {
-		t.Fatal(err)
-	}
-	if got := capture.String(); got != "cdefg" || !capture.Overflowed() {
-		t.Fatalf("capture = %q, overflowed = %t", got, capture.Overflowed())
-	}
-}
-
-func TestRunnerClearsProxyAndShellHookEnvironment(t *testing.T) {
-	for _, name := range []string{
-		"HTTP_PROXY", "HTTPS_PROXY", "ALL_PROXY", "NO_PROXY",
-		"http_proxy", "https_proxy", "all_proxy", "no_proxy", "BASH_ENV", "ENV",
-	} {
-		t.Setenv(name, "must-not-reach-probe")
-	}
-	t.Setenv("IPCHRONICLE_RUNNER_TEST", "retained")
-	runner := testRunner(t, &fakeProcessState{}, `
-if env | grep -Eq '^(HTTP_PROXY|HTTPS_PROXY|ALL_PROXY|NO_PROXY|http_proxy|https_proxy|all_proxy|no_proxy|BASH_ENV|ENV)='; then
-  printf 'blocked environment leaked' >&2
-  exit 1
-fi
-printf '{"retained":"%s"}' "$IPCHRONICLE_RUNNER_TEST"
-`)
-	configuration, egress := probeTestConfiguration("default", "ipv4")
-	runner.discover = func() (agentnetwork.Inventory, error) { return probeTestInventory(), nil }
-	outcome, err := runner.Run(context.Background(), configuration, egress, time.Now())
-	if err != nil {
-		t.Fatal(err)
-	}
-	if outcome.Status != "succeeded" || string(outcome.RawResult) != `{"retained":"retained"}` {
-		t.Fatalf("outcome = %#v", outcome)
-	}
-}
-
-func TestRunnerTerminatesProcessGroupAtTimeout(t *testing.T) {
-	processes := &fakeProcessState{}
-	runner := testRunner(t, processes, `sleep 30`)
-	runner.timeout = 100 * time.Millisecond
-	configuration, egress := probeTestConfiguration("default", "ipv4")
-	runner.discover = func() (agentnetwork.Inventory, error) { return probeTestInventory(), nil }
-	started := time.Now()
-	outcome, err := runner.Run(context.Background(), configuration, egress, started)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if time.Since(started) > 2*time.Second {
-		t.Fatal("timed-out process group did not terminate promptly")
-	}
-	if outcome.Status != "failed" || outcome.FailureStage != "timeout" || processes.current != nil {
-		t.Fatalf("outcome = %#v, process = %#v", outcome, processes.current)
-	}
-}
-
-func TestRecoverRetainedProcessTerminatesMatchingProcessGroup(t *testing.T) {
-	command := exec.Command("bash", "-c", "sleep 30")
-	command.SysProcAttr = &syscall.SysProcAttr{Setpgid: true}
-	if err := command.Start(); err != nil {
-		t.Fatal(err)
-	}
-	identity, err := currentProcessIdentity(command.Process.Pid, command.Process.Pid, time.Now())
-	if err != nil {
-		_ = command.Process.Kill()
-		_ = command.Wait()
-		t.Fatal(err)
-	}
-	processes := &fakeProcessState{current: &identity}
-	waited := make(chan error, 1)
-	go func() { waited <- command.Wait() }()
-	if err := recoverRetainedProcess(context.Background(), processes); err != nil {
-		t.Fatal(err)
-	}
-	select {
-	case <-waited:
-	case <-time.After(2 * time.Second):
-		t.Fatal("retained process was not terminated")
-	}
-	if processes.current != nil || processes.clearCount != 1 {
-		t.Fatalf("retained process state = %#v", processes)
 	}
 }
 
@@ -180,12 +98,9 @@ func TestExecutionPathUsesOneDeterministicSourceAndHidesProxyCredentials(t *test
 	if err != nil {
 		t.Fatal(err)
 	}
-	arguments, err := path.scriptArguments("")
-	if err != nil {
-		t.Fatal(err)
-	}
-	if strings.Join(arguments, " ") != "-n -j -p -i 2001:db8::10" {
-		t.Fatalf("interface arguments = %q", arguments)
+	if path.sourceAddress == nil || path.sourceAddress.String() != "2001:db8::10" ||
+		path.interfaceName != "eth0" || !path.bindInterface {
+		t.Fatalf("interface path = %#v", path)
 	}
 
 	password := "proxy-secret-value"
@@ -200,13 +115,8 @@ func TestExecutionPathUsesOneDeterministicSourceAndHidesProxyCredentials(t *test
 	if err != nil {
 		t.Fatal(err)
 	}
-	arguments, err = path.scriptArguments("http://127.0.0.1:12345")
-	if err != nil {
-		t.Fatal(err)
-	}
-	joined := strings.Join(arguments, " ")
-	if strings.Contains(joined, password) || joined != "-n -j -p -6 -x http://127.0.0.1:12345" {
-		t.Fatalf("proxy arguments = %q", arguments)
+	if path.proxy == nil || path.proxy.ID != proxyID {
+		t.Fatalf("proxy path = %#v", path)
 	}
 	if value := sanitizeDiagnostic("failed password="+password, configuration); strings.Contains(value, password) {
 		t.Fatalf("diagnostic contains proxy password: %q", value)
@@ -286,17 +196,11 @@ func TestLocalProxyAdapterAuthenticatesHTTPAndConnect(t *testing.T) {
 	}
 }
 
-func testRunner(t *testing.T, processes processState, script string) *Runner {
+func testRunner(t *testing.T, execute func(context.Context, nativeProbeInput) ([]byte, error)) *Runner {
 	t.Helper()
-	server := httptest.NewServer(http.HandlerFunc(func(response http.ResponseWriter, _ *http.Request) {
-		response.Header().Set("Content-Type", "text/plain")
-		_, _ = response.Write([]byte(script))
-	}))
-	t.Cleanup(server.Close)
-	runner := NewRunner(processes)
-	runner.scriptURL = server.URL
-	runner.httpClient = func(executionPath, string) *http.Client { return server.Client() }
+	runner := NewRunner()
 	runner.verifyTarget = func(context.Context, state.Configuration, state.Egress, time.Time) error { return nil }
+	runner.execute = execute
 	return runner
 }
 
@@ -327,46 +231,6 @@ func probeTestInventory() agentnetwork.Inventory {
 			Interface: "eth0", Family: agentnetwork.IPv4, Destination: "0.0.0.0/0", Default: true,
 		}},
 	}
-}
-
-type fakeProcessState struct {
-	mu         sync.Mutex
-	current    *state.ProbeProcess
-	setCount   int
-	clearCount int
-}
-
-func (store *fakeProcessState) SetProbeProcess(process state.ProbeProcess) error {
-	store.mu.Lock()
-	defer store.mu.Unlock()
-	if store.current != nil {
-		return errors.New("process already retained")
-	}
-	value := process
-	store.current = &value
-	store.setCount++
-	return nil
-}
-
-func (store *fakeProcessState) ClearProbeProcess(processGroupID int) error {
-	store.mu.Lock()
-	defer store.mu.Unlock()
-	if store.current == nil || store.current.ProcessGroupID != processGroupID {
-		return errors.New("wrong process group cleared")
-	}
-	store.current = nil
-	store.clearCount++
-	return nil
-}
-
-func (store *fakeProcessState) ProbeProcess() (*state.ProbeProcess, error) {
-	store.mu.Lock()
-	defer store.mu.Unlock()
-	if store.current == nil {
-		return nil, nil
-	}
-	value := *store.current
-	return &value, nil
 }
 
 func basicToken(username, password string) string {

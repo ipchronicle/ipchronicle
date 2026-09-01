@@ -146,19 +146,18 @@ export const en = {
         offlineTitle: "{{node}} is offline",
         offlineDetail: "Last contact: {{time}}. Current data may be stale.",
         memoryTitle: "Complete probes are paused on {{node}}",
-        memoryDetail:
-          "The Agent reported less than 256 MiB of physical memory.",
+        memoryDetail: "The Agent reported less than 64 MiB of physical memory.",
         probeTitle: "The latest probe for {{address}} failed",
         probeDetail: "Open the run from {{node}} to review its failure stage.",
-        formatTitle: "{{address}} has an upstream format mismatch",
+        formatTitle: "{{address}} has a report format mismatch",
         formatDetail:
-          "Some expected IPQuality fields could not be read with their expected types.",
+          "Some expected complete-probe fields could not be read with their expected types.",
         unprobedTitle: "{{address}} has no complete report",
         unprobedDetail:
           "The IP is currently available from {{node}} and can be probed manually.",
         natTitle: "{{address}} is likely reached through NAT",
         natDetail:
-          "The upstream probe on {{node}} may route some non-HTTP checks through its default path.",
+          "The probe on {{node}} may route DNS checks through its default path.",
       },
       nodes: {
         title: "Nodes and current public IPs",
@@ -686,7 +685,7 @@ export const en = {
         proxy: "Reached through proxy",
         probeEnabled: "Enable complete probe",
         probeEnabledDetail:
-          "Only enabled public IPs are included in complete IPQuality probes.",
+          "Only enabled public IPs are included in scheduled complete probes.",
         saving: "Saving public IP settings",
         path: "Discovery path",
         direct: "Direct from node",
@@ -703,7 +702,7 @@ export const en = {
         nat: "Likely NAT",
         temporary: "Temporary IPv6 source",
         natDetail:
-          "The local source differs from the observed public address. Some upstream DNS or raw mail checks may use the default route or fail to bind.",
+          "The local source differs from the observed public address. DNS checks use the node resolver and may follow its default route.",
         status: { confirmed: "Confirmed", failed: "Check failed" },
         failure: {
           "selector-unavailable":
@@ -763,7 +762,7 @@ export const en = {
     probe: {
       section: "Node probes",
       title: "Complete probes",
-      detail: "Schedule and inspect full IPQuality runs for this node.",
+      detail: "Schedule and inspect complete-probe runs for this node.",
       back: "Back to nodes",
       refresh: "Refresh",
       retry: "Retry",
@@ -785,7 +784,7 @@ export const en = {
       lowMemory: {
         title: "Complete probes are paused for low memory",
         detail:
-          "The Agent reported less than 256 MiB of physical memory. Address checks continue; an administrator can accept the risk in probe settings.",
+          "The Agent reported less than 64 MiB of physical memory. Address checks continue; an administrator can accept the risk in probe settings.",
       },
       unavailable: {
         offline:
@@ -866,7 +865,7 @@ export const en = {
         timezone: "Time zone",
         timezoneSearch: "Search time zones...",
         timezoneEmpty: "No matching time zone",
-        memoryOverride: "Allow probes below 256 MiB",
+        memoryOverride: "Allow probes below 64 MiB",
         memoryOverrideDetail:
           "Enabling this accepts possible probe failure or node resource exhaustion.",
         save: "Save probe settings",
@@ -896,10 +895,9 @@ export const en = {
         missed: "the occurrence was missed",
       },
       failure: {
-        download: "Script download",
         selector: "Network path selector",
         adapter: "Proxy adapter",
-        process: "Probe process",
+        process: "Probe execution",
         timeout: "Timeout",
         output: "JSON output",
         restart: "Agent restart",
@@ -1114,12 +1112,13 @@ export const en = {
         overview: {
           unknownAddress: "IP address unavailable",
           detail: "Public-IP sequence {{sequence}} · {{value}}",
-          version: "Upstream script version",
-          upstreamTime: "Upstream report time",
+          version: "Probe version",
+          upstreamTime: "Report time",
         },
         basic: {
           title: "Basic information",
-          detail: "Address ownership and location returned by MaxMind.",
+          detail:
+            "Address ownership and location returned by available databases.",
           asn: "ASN",
           organization: "Organization",
           location: "Location",
@@ -1172,7 +1171,7 @@ export const en = {
         media: {
           title: "Streaming and AI",
           detail:
-            "Service availability, detected region, and upstream result type.",
+            "Service availability, detected region, and probe result type.",
           item: "Item",
           status: "Status",
           region: "Region",
@@ -1214,12 +1213,12 @@ export const en = {
       },
       fieldCatalog: {
         unmappedDescription:
-          "Known upstream field without a localized description.",
+          "Known probe field without a localized description.",
         groups: {
           head: {
             name: "Report metadata",
             description:
-              "Identity and generation details from the upstream report.",
+              "Identity and generation details from the probe report.",
           },
           info: {
             name: "IP information",
@@ -1254,23 +1253,23 @@ export const en = {
           head: {
             ip: {
               name: "IP address",
-              description: "Public IP address reported by the upstream probe.",
+              description: "Public IP address recorded by the probe.",
             },
             command: {
               name: "Probe command",
-              description: "Command recorded by the upstream probe.",
+              description: "Command identity recorded by the probe.",
             },
             github: {
-              name: "Upstream source",
-              description: "Source reference recorded by the upstream probe.",
+              name: "Probe source",
+              description: "Source reference recorded by the probe.",
             },
             time: {
               name: "Report time",
-              description: "Generation time recorded in the upstream report.",
+              description: "Generation time recorded in the report.",
             },
             version: {
               name: "Probe version",
-              description: "Version reported by the upstream probe.",
+              description: "Version reported by the probe.",
             },
           },
           info: {
@@ -1446,7 +1445,7 @@ export const en = {
         },
       },
       raw: {
-        title: "IPQuality JSON",
+        title: "Complete-probe JSON",
         detail: "Public-IP sequence {{sequence}}, observed {{value}}",
         wrap: "Toggle line wrapping",
         copy: "Copy JSON",
@@ -1594,7 +1593,7 @@ export const en = {
         sender: "Sender",
         event: "Event",
         field: "Known field ID",
-        fieldPlaceholder: "IPQuality.ipinfo.CountryCode",
+        fieldPlaceholder: "Factor.CountryCode.IPinfo",
         node: "Node",
         egress: "Public IP",
         allNodes: "All nodes",
@@ -1702,7 +1701,7 @@ export const en = {
       probe_already_running:
         "A complete-probe run is already active on this node.",
       probe_paused_low_memory:
-        "Complete probes are paused because this node reported less than 256 MiB of memory.",
+        "Complete probes are paused because this node reported less than 64 MiB of memory.",
       probe_target_unavailable:
         "A selected public IP is no longer available through this node. Reopen the probe dialog and choose again.",
       probe_run_not_found:

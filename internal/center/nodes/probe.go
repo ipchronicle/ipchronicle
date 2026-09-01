@@ -23,7 +23,7 @@ import (
 )
 
 const (
-	minimumProbeMemoryBytes      = 256 * 1024 * 1024
+	minimumProbeMemoryBytes      = 64 * 1024 * 1024
 	probeTaskDeliveryWindow      = 2 * time.Minute
 	taskReportClockSkewTolerance = 5 * time.Minute
 	maxProbeResultBytes          = 1024 * 1024
@@ -1501,7 +1501,7 @@ func validProbeTrigger(value string) bool {
 
 func validFailureStage(value string) bool {
 	switch value {
-	case "download", "selector", "adapter", "process", "timeout", "output", "restart":
+	case "selector", "adapter", "process", "timeout", "output", "restart":
 		return true
 	default:
 		return false

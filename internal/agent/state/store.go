@@ -51,7 +51,6 @@ var (
 	probeGapsBucket           = []byte("probe-gaps")
 	probeTasksBucket          = []byte("probe-tasks")
 	probeControlBucket        = []byte("probe-control")
-	probeProcessBucket        = []byte("probe-process")
 	agentUpdatesBucket        = []byte("agent-updates")
 	schemaVersionKey          = []byte("schema-version")
 	centerURLKey              = []byte("center-url")
@@ -466,7 +465,7 @@ func (s *Store) initialize() error {
 		for _, name := range [][]byte{
 			configurationBucket, addressCurrentBucket, addressEventsBucket, addressGapsBucket,
 			probeRunsBucket, probeExecutionsBucket, probeArtifactsBucket, probeSequencesBucket,
-			probeGapsBucket, probeTasksBucket, probeControlBucket, probeProcessBucket, agentUpdatesBucket,
+			probeGapsBucket, probeTasksBucket, probeControlBucket, agentUpdatesBucket,
 		} {
 			if _, err = transaction.CreateBucketIfNotExists(name); err != nil {
 				return err

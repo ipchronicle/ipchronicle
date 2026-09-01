@@ -63,30 +63,6 @@ func selectExecutionPath(configuration state.Configuration, egress state.Egress,
 	return path, nil
 }
 
-func (path executionPath) scriptArguments(adapterURL string) ([]string, error) {
-	arguments := []string{"-n", "-j", "-p"}
-	if path.proxy != nil {
-		if adapterURL == "" {
-			return nil, errors.New("proxy adapter URL is missing")
-		}
-		arguments = append(arguments, familyFlag(path.egress.Family), "-x", adapterURL)
-		return arguments, nil
-	}
-	if path.sourceAddress != nil {
-		arguments = append(arguments, "-i", path.sourceAddress.String())
-		return arguments, nil
-	}
-	arguments = append(arguments, familyFlag(path.egress.Family))
-	return arguments, nil
-}
-
-func familyFlag(family string) string {
-	if family == "ipv6" {
-		return "-6"
-	}
-	return "-4"
-}
-
 func defaultPathAvailable(inventory agentnetwork.Inventory, family string) bool {
 	for _, route := range inventory.Routes {
 		if route.Default && string(route.Family) == family && interfaceAvailable(inventory, route.Interface, family) {

@@ -3,8 +3,8 @@
 IPChronicle is a self-hosted IP address and IP quality history product for one
 administrator managing Linux nodes under their control. It discovers durable
 public IPv4 and IPv6 addresses through managed nodes, records confirmed address
-changes, runs the official
-IPQuality probe on demand or on a local schedule, compares retained reports,
+changes, runs the built-in complete IP-quality probe on demand or on a local
+schedule, compares retained reports,
 and delivers change notifications.
 
 The product is one repository containing the Go Center, root Linux Agent,

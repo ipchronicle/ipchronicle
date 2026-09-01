@@ -14,7 +14,7 @@ import (
 )
 
 const (
-	minimumProbeMemoryBytes  = 256 * 1024 * 1024
+	minimumProbeMemoryBytes  = 64 * 1024 * 1024
 	managerResolution        = 250 * time.Millisecond
 	probeTaskCleanupInterval = time.Hour
 )
@@ -49,7 +49,7 @@ func NewManager(store *state.Store, physicalMemoryBytes int64, logger *log.Logge
 		logger = log.Default()
 	}
 	return &Manager{
-		store: store, runner: NewRunner(store), logger: logger,
+		store: store, runner: NewRunner(), logger: logger,
 		physicalMemoryBytes: physicalMemoryBytes, now: time.Now,
 		errors: make(chan error, 1), wake: make(chan struct{}, 1), uploadWake: make(chan struct{}, 1),
 	}
@@ -64,9 +64,6 @@ func (manager *Manager) UploadWake() <-chan struct{} {
 }
 
 func (manager *Manager) Run(ctx context.Context) error {
-	if err := recoverRetainedProcess(ctx, manager.store); err != nil {
-		return fmt.Errorf("recover retained probe process: %w", err)
-	}
 	if reconciled, err := manager.store.ReconcileProbeRun(manager.now()); err != nil {
 		return fmt.Errorf("reconcile complete-probe run: %w", err)
 	} else if reconciled != nil {
