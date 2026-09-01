@@ -702,6 +702,7 @@ func (e NetworkProxyDeletionStatus) Valid() bool {
 const (
 	NetworkProxyFamilyStatusAvailable   NetworkProxyFamilyStatus = "available"
 	NetworkProxyFamilyStatusChecking    NetworkProxyFamilyStatus = "checking"
+	NetworkProxyFamilyStatusDisabled    NetworkProxyFamilyStatus = "disabled"
 	NetworkProxyFamilyStatusUnavailable NetworkProxyFamilyStatus = "unavailable"
 )
 
@@ -711,6 +712,8 @@ func (e NetworkProxyFamilyStatus) Valid() bool {
 	case NetworkProxyFamilyStatusAvailable:
 		return true
 	case NetworkProxyFamilyStatusChecking:
+		return true
+	case NetworkProxyFamilyStatusDisabled:
 		return true
 	case NetworkProxyFamilyStatusUnavailable:
 		return true
@@ -764,6 +767,7 @@ func (e NetworkProxyScheme) Valid() bool {
 // Defines values for NetworkProxyStatus.
 const (
 	NetworkProxyStatusChecking    NetworkProxyStatus = "checking"
+	NetworkProxyStatusDisabled    NetworkProxyStatus = "disabled"
 	NetworkProxyStatusDualStack   NetworkProxyStatus = "dual-stack"
 	NetworkProxyStatusIpv4Only    NetworkProxyStatus = "ipv4-only"
 	NetworkProxyStatusIpv6Only    NetworkProxyStatus = "ipv6-only"
@@ -774,6 +778,8 @@ const (
 func (e NetworkProxyStatus) Valid() bool {
 	switch e {
 	case NetworkProxyStatusChecking:
+		return true
+	case NetworkProxyStatusDisabled:
 		return true
 	case NetworkProxyStatusDualStack:
 		return true
@@ -1992,6 +1998,7 @@ type NetworkProxy struct {
 	CreatedAt          time.Time                   `json:"createdAt"`
 	DeletionError      *string                     `json:"deletionError,omitempty"`
 	DeletionStatus     *NetworkProxyDeletionStatus `json:"deletionStatus,omitempty"`
+	Enabled            bool                        `json:"enabled"`
 	Host               string                      `json:"host"`
 	Id                 openapi_types.UUID          `json:"id"`
 	Ipv4               NetworkProxyFamilyResult    `json:"ipv4"`
@@ -2046,6 +2053,7 @@ type NetworkProxyStatus string
 
 // NetworkProxyUpdate defines model for NetworkProxyUpdate.
 type NetworkProxyUpdate struct {
+	Enabled        bool                       `json:"enabled"`
 	Host           string                     `json:"host"`
 	Name           string                     `json:"name"`
 	Password       *string                    `json:"password,omitempty"`

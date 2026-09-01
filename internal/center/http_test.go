@@ -719,7 +719,7 @@ func TestNetworkObservationAndPublicAddressAPIWorkflow(t *testing.T) {
 	if err := json.NewDecoder(created.Body).Decode(&proxy); err != nil {
 		t.Fatal(err)
 	}
-	if proxy.NodeId != registration.NodeID || proxy.Status != api.NetworkProxyStatusChecking ||
+	if proxy.NodeId != registration.NodeID || !proxy.Enabled || proxy.Status != api.NetworkProxyStatusChecking ||
 		proxy.Ipv4.Status != api.NetworkProxyFamilyStatusChecking || proxy.Ipv6.Status != api.NetworkProxyFamilyStatusChecking {
 		t.Fatalf("created node proxy = %#v", proxy)
 	}
@@ -728,6 +728,27 @@ func TestNetworkObservationAndPublicAddressAPIWorkflow(t *testing.T) {
 	)
 	if listed.Code != http.StatusOK || !bytes.Contains(listed.Body.Bytes(), []byte(`"API proxy"`)) {
 		t.Fatalf("node proxy list = %d %s", listed.Code, listed.Body.String())
+	}
+	updateBody, err := json.Marshal(api.NetworkProxyUpdate{
+		Name: proxy.Name, Scheme: proxy.Scheme, Host: proxy.Host, Port: proxy.Port,
+		Enabled: false, PasswordAction: api.Keep,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	updateResponse := performRequestWithCSRF(
+		handler, http.MethodPut,
+		"/api/v1/nodes/"+registration.NodeID.String()+"/network-proxies/"+proxy.Id.String(), updateBody,
+		"http://example.test", cookie, session.CsrfToken,
+	)
+	if updateResponse.Code != http.StatusOK {
+		t.Fatalf("node proxy update = %d %s", updateResponse.Code, updateResponse.Body.String())
+	}
+	if err := json.NewDecoder(updateResponse.Body).Decode(&proxy); err != nil {
+		t.Fatal(err)
+	}
+	if proxy.Enabled || proxy.Status != api.NetworkProxyStatusDisabled {
+		t.Fatalf("disabled node proxy = %#v", proxy)
 	}
 	queued := performRequestWithCSRF(
 		handler, http.MethodDelete,

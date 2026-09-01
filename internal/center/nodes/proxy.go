@@ -34,6 +34,7 @@ type NetworkProxy struct {
 	Port               int64
 	Username           *string
 	PasswordConfigured bool
+	Enabled            bool
 	Status             string
 	IPv4               NetworkProxyFamilyResult
 	IPv6               NetworkProxyFamilyResult
@@ -65,6 +66,7 @@ type NetworkProxyUpdate struct {
 	Host           string
 	Port           int64
 	Username       *string
+	Enabled        bool
 	PasswordAction string
 	Password       *string
 }
@@ -138,7 +140,7 @@ func (s *Service) CreateNetworkProxy(ctx context.Context, nodeID uuid.UUID, inpu
 	if err := queries.CreateNetworkProxy(ctx, configdb.CreateNetworkProxyParams{
 		ID: id.String(), NodeID: nodeID.String(), Name: normalized.Name, Scheme: normalized.Scheme,
 		Host: normalized.Host, Port: normalized.Port, Username: normalized.Username,
-		PasswordEncrypted: encrypted, CreatedAt: now, UpdatedAt: now,
+		PasswordEncrypted: encrypted, Enabled: 1, CreatedAt: now, UpdatedAt: now,
 	}); err != nil {
 		return NetworkProxy{}, err
 	}
@@ -218,13 +220,13 @@ func (s *Service) UpdateNetworkProxy(ctx context.Context, nodeID, id uuid.UUID, 
 	passwordChanged := input.PasswordAction == "replace" || (input.PasswordAction == "clear" && len(record.PasswordEncrypted) != 0)
 	changed := record.Name != normalized.Name || record.Scheme != normalized.Scheme ||
 		record.Host != normalized.Host || record.Port != normalized.Port ||
-		!equalOptionalString(record.Username, normalized.Username) || passwordChanged
+		!equalOptionalString(record.Username, normalized.Username) || record.Enabled != boolInt(input.Enabled) || passwordChanged
 	if changed {
 		now := s.now().UTC().Truncate(time.Second).Unix()
 		updatedRows, err := queries.UpdateNetworkProxy(ctx, configdb.UpdateNetworkProxyParams{
 			Name: normalized.Name, Scheme: normalized.Scheme, Host: normalized.Host,
 			Port: normalized.Port, Username: normalized.Username, PasswordEncrypted: encrypted,
-			UpdatedAt: now, NodeID: nodeID.String(), ID: id.String(),
+			Enabled: boolInt(input.Enabled), UpdatedAt: now, NodeID: nodeID.String(), ID: id.String(),
 		})
 		if err != nil {
 			return NetworkProxy{}, err
@@ -365,9 +367,11 @@ func (s *Service) networkProxiesFromRecords(ctx context.Context, nodeID uuid.UUI
 			return nil, err
 		}
 		paths := pathsByProxy[record.ID]
-		proxy.IPv4 = networkProxyFamilyResult(paths["ipv4"], stateByEgress, record.UpdatedAt)
-		proxy.IPv6 = networkProxyFamilyResult(paths["ipv6"], stateByEgress, record.UpdatedAt)
-		proxy.Status = networkProxyStatus(proxy.IPv4.Status, proxy.IPv6.Status)
+		if proxy.Enabled {
+			proxy.IPv4 = networkProxyFamilyResult(paths["ipv4"], stateByEgress, record.UpdatedAt)
+			proxy.IPv6 = networkProxyFamilyResult(paths["ipv6"], stateByEgress, record.UpdatedAt)
+			proxy.Status = networkProxyStatus(proxy.IPv4.Status, proxy.IPv6.Status)
+		}
 		if record.DeletionRequestedAt != nil {
 			status := "pending"
 			for _, path := range paths {
@@ -448,11 +452,15 @@ func networkProxyFromRecord(record configdb.NetworkProxy) (NetworkProxy, error) 
 	if err != nil {
 		return NetworkProxy{}, fmt.Errorf("parse stored network proxy node ID %q: %w", record.NodeID, err)
 	}
+	enabled := record.Enabled == 1
+	status := "disabled"
+	if enabled {
+		status = "checking"
+	}
 	return NetworkProxy{
 		ID: id, NodeID: nodeID, Name: record.Name, Scheme: record.Scheme, Host: record.Host, Port: record.Port,
-		Username: record.Username, PasswordConfigured: len(record.PasswordEncrypted) != 0,
-		Status: "checking",
-		IPv4:   NetworkProxyFamilyResult{Status: "checking"}, IPv6: NetworkProxyFamilyResult{Status: "checking"},
+		Username: record.Username, PasswordConfigured: len(record.PasswordEncrypted) != 0, Enabled: enabled,
+		Status: status, IPv4: NetworkProxyFamilyResult{Status: status}, IPv6: NetworkProxyFamilyResult{Status: status},
 		CreatedAt: time.Unix(record.CreatedAt, 0).UTC(), UpdatedAt: time.Unix(record.UpdatedAt, 0).UTC(),
 	}, nil
 }

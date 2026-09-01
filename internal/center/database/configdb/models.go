@@ -88,6 +88,7 @@ type NetworkProxy struct {
 	Port                int64
 	Username            *string
 	PasswordEncrypted   []byte
+	Enabled             int64
 	DeletionRequestedAt *int64
 	CreatedAt           int64
 	UpdatedAt           int64

@@ -1393,6 +1393,7 @@ describe("administrator application", () => {
           port: 1080,
           username: "probe-user",
           passwordConfigured: true,
+          enabled: true,
           status: "ipv4-only",
           ipv4: {
             status: "available",
@@ -1461,6 +1462,44 @@ describe("administrator application", () => {
     expect(
       within(proxyManager).getByText("Password configured"),
     ).toBeInTheDocument();
+    updateProxyMock.mockResolvedValueOnce({
+      id: "6fc6d7e8-bc63-49e2-91fc-d4c58b43ac16",
+      nodeId: "7289cfa3-a75d-4a3f-ac06-8f1074446a85",
+      name: "Primary proxy",
+      scheme: "socks5",
+      host: "proxy.example.test",
+      port: 1080,
+      username: "probe-user",
+      passwordConfigured: true,
+      enabled: false,
+      status: "disabled",
+      ipv4: { status: "disabled" },
+      ipv6: { status: "disabled" },
+      createdAt: "2026-08-09T06:00:00Z",
+      updatedAt: "2026-08-09T06:03:00Z",
+    });
+    fireEvent.click(
+      within(proxyManager).getByRole("switch", {
+        name: "Enable proxy Primary proxy",
+      }),
+    );
+    await waitFor(() =>
+      expect(updateProxyMock).toHaveBeenCalledWith(
+        "7289cfa3-a75d-4a3f-ac06-8f1074446a85",
+        "6fc6d7e8-bc63-49e2-91fc-d4c58b43ac16",
+        {
+          name: "Primary proxy",
+          scheme: "socks5",
+          host: "proxy.example.test",
+          port: 1080,
+          username: "probe-user",
+          enabled: false,
+          passwordAction: "keep",
+        },
+        session.csrfToken,
+      ),
+    );
+    expect(within(proxyManager).getAllByText("Disabled")).toHaveLength(4);
     fireEvent.click(
       within(proxyManager).getByRole("button", { name: "Close" }),
     );
@@ -1530,6 +1569,7 @@ describe("administrator application", () => {
       port: 1080,
       username: "probe-user",
       passwordConfigured: true,
+      enabled: true,
       status: "ipv4-only",
       ipv4: { status: "available", publicAddress: "198.51.100.20" },
       ipv6: { status: "unavailable", failureReason: "no-valid-response" },
@@ -1595,6 +1635,7 @@ describe("administrator application", () => {
       host: "proxy.example.test",
       port: 8080,
       passwordConfigured: false,
+      enabled: true,
       status: "checking",
       ipv4: { status: "checking" },
       ipv6: { status: "checking" },

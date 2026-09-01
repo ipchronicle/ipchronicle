@@ -183,8 +183,8 @@ func (q *Queries) CreateEgressDeletion(ctx context.Context, arg CreateEgressDele
 const createNetworkProxy = `-- name: CreateNetworkProxy :exec
 INSERT INTO network_proxies (
     id, node_id, name, scheme, host, port, username, password_encrypted,
-    created_at, updated_at
-) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    enabled, created_at, updated_at
+) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
 `
 
 type CreateNetworkProxyParams struct {
@@ -196,6 +196,7 @@ type CreateNetworkProxyParams struct {
 	Port              int64
 	Username          *string
 	PasswordEncrypted []byte
+	Enabled           int64
 	CreatedAt         int64
 	UpdatedAt         int64
 }
@@ -210,6 +211,7 @@ func (q *Queries) CreateNetworkProxy(ctx context.Context, arg CreateNetworkProxy
 		arg.Port,
 		arg.Username,
 		arg.PasswordEncrypted,
+		arg.Enabled,
 		arg.CreatedAt,
 		arg.UpdatedAt,
 	)
@@ -655,11 +657,23 @@ WHERE pending_public_address_probes.node_id = ?
       SELECT 1
       FROM public_addresses AS address
       JOIN public_address_paths AS path ON path.path_id = address.selected_path_id
+      JOIN network_egresses AS egress ON egress.id = path.path_id
       WHERE address.id = pending_public_address_probes.public_address_id
         AND address.probe_enabled = 1
         AND path.node_id = pending_public_address_probes.node_id
         AND path.public_address_id = address.id
         AND path.available = 1
+        AND egress.enabled = 1
+        AND (
+            egress.proxy_id IS NULL OR EXISTS (
+                SELECT 1
+                FROM network_proxies proxy
+                WHERE proxy.id = egress.proxy_id
+                  AND proxy.node_id = egress.node_id
+                  AND proxy.enabled = 1
+                  AND proxy.deletion_requested_at IS NULL
+            )
+        )
   )
 `
 
@@ -1355,7 +1369,7 @@ func (q *Queries) GetNodeNetworkInventory(ctx context.Context, nodeID string) (N
 
 const getNodeNetworkProxy = `-- name: GetNodeNetworkProxy :one
 SELECT id, node_id, name, scheme, host, port, username, password_encrypted,
-       deletion_requested_at, created_at, updated_at
+       enabled, deletion_requested_at, created_at, updated_at
 FROM network_proxies
 WHERE node_id = ? AND id = ?
 `
@@ -1377,6 +1391,7 @@ func (q *Queries) GetNodeNetworkProxy(ctx context.Context, arg GetNodeNetworkPro
 		&i.Port,
 		&i.Username,
 		&i.PasswordEncrypted,
+		&i.Enabled,
 		&i.DeletionRequestedAt,
 		&i.CreatedAt,
 		&i.UpdatedAt,
@@ -1386,7 +1401,7 @@ func (q *Queries) GetNodeNetworkProxy(ctx context.Context, arg GetNodeNetworkPro
 
 const getNodeNetworkProxyByName = `-- name: GetNodeNetworkProxyByName :one
 SELECT id, node_id, name, scheme, host, port, username, password_encrypted,
-       deletion_requested_at, created_at, updated_at
+       enabled, deletion_requested_at, created_at, updated_at
 FROM network_proxies
 WHERE node_id = ? AND name = ? COLLATE NOCASE
 `
@@ -1408,6 +1423,7 @@ func (q *Queries) GetNodeNetworkProxyByName(ctx context.Context, arg GetNodeNetw
 		&i.Port,
 		&i.Username,
 		&i.PasswordEncrypted,
+		&i.Enabled,
 		&i.DeletionRequestedAt,
 		&i.CreatedAt,
 		&i.UpdatedAt,
@@ -1938,9 +1954,9 @@ func (q *Queries) ListActiveNodeEgresses(ctx context.Context, nodeID string) ([]
 
 const listActiveNodeNetworkProxies = `-- name: ListActiveNodeNetworkProxies :many
 SELECT id, node_id, name, scheme, host, port, username, password_encrypted,
-       deletion_requested_at, created_at, updated_at
+       enabled, deletion_requested_at, created_at, updated_at
 FROM network_proxies
-WHERE node_id = ? AND deletion_requested_at IS NULL
+WHERE node_id = ? AND enabled = 1 AND deletion_requested_at IS NULL
 ORDER BY name COLLATE NOCASE, id
 `
 
@@ -1962,7 +1978,71 @@ func (q *Queries) ListActiveNodeNetworkProxies(ctx context.Context, nodeID strin
 			&i.Port,
 			&i.Username,
 			&i.PasswordEncrypted,
+			&i.Enabled,
 			&i.DeletionRequestedAt,
+			&i.CreatedAt,
+			&i.UpdatedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listConfiguredNodeEgresses = `-- name: ListConfiguredNodeEgresses :many
+SELECT e.id, e.node_id, e.name, e.kind, e.family, e.interface_name,
+       e.source_address, e.proxy_id, e.enabled, e.available, e.automatic,
+       e.lightweight_interval_seconds, e.created_at, e.updated_at
+FROM network_egresses e
+WHERE e.node_id = ?
+  AND e.enabled = 1
+  AND (
+      e.proxy_id IS NULL OR EXISTS (
+          SELECT 1
+          FROM network_proxies p
+          WHERE p.id = e.proxy_id
+            AND p.node_id = e.node_id
+            AND p.enabled = 1
+            AND p.deletion_requested_at IS NULL
+      )
+  )
+  AND NOT EXISTS (
+      SELECT 1
+      FROM egress_deletion_operations d
+      WHERE d.egress_id = e.id AND d.status IN ('pending', 'failed')
+  )
+ORDER BY e.family, e.kind, e.created_at, e.id
+`
+
+func (q *Queries) ListConfiguredNodeEgresses(ctx context.Context, nodeID string) ([]NetworkEgress, error) {
+	rows, err := q.db.QueryContext(ctx, listConfiguredNodeEgresses, nodeID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []NetworkEgress{}
+	for rows.Next() {
+		var i NetworkEgress
+		if err := rows.Scan(
+			&i.ID,
+			&i.NodeID,
+			&i.Name,
+			&i.Kind,
+			&i.Family,
+			&i.InterfaceName,
+			&i.SourceAddress,
+			&i.ProxyID,
+			&i.Enabled,
+			&i.Available,
+			&i.Automatic,
+			&i.LightweightIntervalSeconds,
 			&i.CreatedAt,
 			&i.UpdatedAt,
 		); err != nil {
@@ -2098,7 +2178,17 @@ SELECT a.id, a.address, a.family, a.probe_enabled,
 FROM public_addresses a
 JOIN network_egresses e ON e.id = a.selected_path_id
 JOIN public_address_paths p ON p.path_id = e.id AND p.public_address_id = a.id
-WHERE e.node_id = ? AND p.available = 1
+WHERE e.node_id = ? AND e.enabled = 1 AND p.available = 1
+  AND (
+      e.proxy_id IS NULL OR EXISTS (
+          SELECT 1
+          FROM network_proxies proxy
+          WHERE proxy.id = e.proxy_id
+            AND proxy.node_id = e.node_id
+            AND proxy.enabled = 1
+            AND proxy.deletion_requested_at IS NULL
+      )
+  )
 ORDER BY a.family, a.address
 `
 
@@ -2289,7 +2379,7 @@ func (q *Queries) ListNodeEgressesByProxy(ctx context.Context, arg ListNodeEgres
 
 const listNodeNetworkProxies = `-- name: ListNodeNetworkProxies :many
 SELECT id, node_id, name, scheme, host, port, username, password_encrypted,
-       deletion_requested_at, created_at, updated_at
+       enabled, deletion_requested_at, created_at, updated_at
 FROM network_proxies
 WHERE node_id = ?
 ORDER BY name COLLATE NOCASE, id
@@ -2313,6 +2403,7 @@ func (q *Queries) ListNodeNetworkProxies(ctx context.Context, nodeID string) ([]
 			&i.Port,
 			&i.Username,
 			&i.PasswordEncrypted,
+			&i.Enabled,
 			&i.DeletionRequestedAt,
 			&i.CreatedAt,
 			&i.UpdatedAt,
@@ -2993,12 +3084,24 @@ SELECT pending.public_address_id, pending.node_id,
 FROM pending_public_address_probes AS pending
 JOIN public_addresses AS address ON address.id = pending.public_address_id
 JOIN public_address_paths AS path ON path.path_id = address.selected_path_id
+JOIN network_egresses AS egress ON egress.id = path.path_id
 WHERE pending.node_id = ?
   AND pending.required_configuration_revision <= ?
   AND address.probe_enabled = 1
   AND path.node_id = pending.node_id
   AND path.public_address_id = address.id
   AND path.available = 1
+  AND egress.enabled = 1
+  AND (
+      egress.proxy_id IS NULL OR EXISTS (
+          SELECT 1
+          FROM network_proxies proxy
+          WHERE proxy.id = egress.proxy_id
+            AND proxy.node_id = egress.node_id
+            AND proxy.enabled = 1
+            AND proxy.deletion_requested_at IS NULL
+      )
+  )
 ORDER BY pending.created_at, pending.public_address_id
 LIMIT 64
 `
@@ -3561,7 +3664,7 @@ func (q *Queries) UpdateNetworkObservationSettings(ctx context.Context, arg Upda
 const updateNetworkProxy = `-- name: UpdateNetworkProxy :execrows
 UPDATE network_proxies
 SET name = ?, scheme = ?, host = ?, port = ?, username = ?,
-    password_encrypted = ?, updated_at = ?
+    password_encrypted = ?, enabled = ?, updated_at = ?
 WHERE node_id = ? AND id = ? AND deletion_requested_at IS NULL
 `
 
@@ -3572,6 +3675,7 @@ type UpdateNetworkProxyParams struct {
 	Port              int64
 	Username          *string
 	PasswordEncrypted []byte
+	Enabled           int64
 	UpdatedAt         int64
 	NodeID            string
 	ID                string
@@ -3585,6 +3689,7 @@ func (q *Queries) UpdateNetworkProxy(ctx context.Context, arg UpdateNetworkProxy
 		arg.Port,
 		arg.Username,
 		arg.PasswordEncrypted,
+		arg.Enabled,
 		arg.UpdatedAt,
 		arg.NodeID,
 		arg.ID,

@@ -1250,9 +1250,9 @@ export interface components {
         /** @enum {string} */
         NetworkProxyScheme: "http" | "https" | "socks5";
         /** @enum {string} */
-        NetworkProxyStatus: "checking" | "ipv4-only" | "ipv6-only" | "dual-stack" | "unavailable";
+        NetworkProxyStatus: "disabled" | "checking" | "ipv4-only" | "ipv6-only" | "dual-stack" | "unavailable";
         /** @enum {string} */
-        NetworkProxyFamilyStatus: "checking" | "available" | "unavailable";
+        NetworkProxyFamilyStatus: "disabled" | "checking" | "available" | "unavailable";
         /** @enum {string} */
         NetworkProxyDeletionStatus: "pending" | "failed";
         NetworkProxyFamilyResult: {
@@ -1274,6 +1274,7 @@ export interface components {
             port: number;
             username?: string;
             passwordConfigured: boolean;
+            enabled: boolean;
             status: components["schemas"]["NetworkProxyStatus"];
             ipv4: components["schemas"]["NetworkProxyFamilyResult"];
             ipv6: components["schemas"]["NetworkProxyFamilyResult"];
@@ -1305,6 +1306,7 @@ export interface components {
             /** Format: int64 */
             port: number;
             username?: string;
+            enabled: boolean;
             passwordAction: components["schemas"]["NetworkProxyPasswordAction"];
             password?: string;
         };

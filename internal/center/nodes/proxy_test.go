@@ -85,6 +85,48 @@ func TestNetworkProxyCredentialsAndReferencedConfiguration(t *testing.T) {
 	if configuration.Proxies[0].ID != proxy.ID || configuration.Proxies[0].Password == nil || *configuration.Proxies[0].Password != password {
 		t.Fatalf("delivered proxy credential = %#v", configuration.Proxies[0])
 	}
+	beforeToggleWakes := len(connections.wakes)
+	now = now.Add(time.Minute)
+	disabled, err := service.UpdateNetworkProxy(ctx, first.NodeID, proxy.ID, NetworkProxyUpdate{
+		Name: proxy.Name, Scheme: proxy.Scheme, Host: proxy.Host, Port: proxy.Port,
+		Username: proxy.Username, Enabled: false, PasswordAction: "keep",
+	})
+	if err != nil || disabled.Enabled || disabled.Status != "disabled" ||
+		disabled.IPv4.Status != "disabled" || disabled.IPv6.Status != "disabled" {
+		t.Fatalf("disabled proxy = %#v, %v", disabled, err)
+	}
+	disabledConfiguration, err := service.Configuration(ctx, first.Credential)
+	if err != nil || disabledConfiguration.Revision != 3 || len(disabledConfiguration.DiscoveryPaths) != 0 || len(disabledConfiguration.Proxies) != 0 {
+		t.Fatalf("configuration with disabled proxy = %#v, %v", disabledConfiguration, err)
+	}
+	if len(connections.wakes) != beforeToggleWakes+1 {
+		t.Fatalf("disable wake count = %d, want %d", len(connections.wakes), beforeToggleWakes+1)
+	}
+	if _, err := service.UpdateNetworkProxy(ctx, first.NodeID, proxy.ID, NetworkProxyUpdate{
+		Name: proxy.Name, Scheme: proxy.Scheme, Host: proxy.Host, Port: proxy.Port,
+		Username: proxy.Username, Enabled: false, PasswordAction: "keep",
+	}); err != nil {
+		t.Fatal(err)
+	}
+	unchangedDisabledConfiguration, err := service.Configuration(ctx, first.Credential)
+	if err != nil || unchangedDisabledConfiguration.Revision != 3 || len(connections.wakes) != beforeToggleWakes+1 {
+		t.Fatalf("no-op proxy disable advanced configuration: %#v, wakes=%#v, err=%v", unchangedDisabledConfiguration, connections.wakes, err)
+	}
+	now = now.Add(time.Minute)
+	reenabled, err := service.UpdateNetworkProxy(ctx, first.NodeID, proxy.ID, NetworkProxyUpdate{
+		Name: proxy.Name, Scheme: proxy.Scheme, Host: proxy.Host, Port: proxy.Port,
+		Username: proxy.Username, Enabled: true, PasswordAction: "keep",
+	})
+	if err != nil || !reenabled.Enabled || reenabled.Status != "checking" {
+		t.Fatalf("re-enabled proxy = %#v, %v", reenabled, err)
+	}
+	reenabledConfiguration, err := service.Configuration(ctx, first.Credential)
+	if err != nil || reenabledConfiguration.Revision != 4 || len(reenabledConfiguration.DiscoveryPaths) != 2 || len(reenabledConfiguration.Proxies) != 1 {
+		t.Fatalf("configuration with re-enabled proxy = %#v, %v", reenabledConfiguration, err)
+	}
+	if len(connections.wakes) != beforeToggleWakes+2 {
+		t.Fatalf("re-enable wake count = %d, want %d", len(connections.wakes), beforeToggleWakes+2)
+	}
 	secondConfiguration, err := service.Configuration(ctx, second.Credential)
 	if err != nil || len(secondConfiguration.Proxies) != 1 || secondConfiguration.Proxies[0].ID != secondProxy.ID {
 		t.Fatalf("second node proxy configuration = %#v, %v", secondConfiguration, err)
@@ -126,8 +168,46 @@ func TestNetworkProxyCredentialsAndReferencedConfiguration(t *testing.T) {
 		t.Fatalf("observed node proxy = %#v, %v", listed, err)
 	}
 	configuration, err = service.Configuration(ctx, first.Credential)
-	if err != nil {
+	if err != nil || len(configuration.ProbeTargets) != 1 {
+		t.Fatalf("configuration with observed proxy target = %#v, %v", configuration, err)
+	}
+	network, err := service.Network(ctx, first.NodeID)
+	if err != nil || !containsAvailablePublicAddress(network.PublicAddresses, publicIPv4) {
+		t.Fatalf("network before proxy disable = %#v, %v", network, err)
+	}
+	now = now.Add(time.Minute)
+	disabled, err = service.UpdateNetworkProxy(ctx, first.NodeID, proxy.ID, NetworkProxyUpdate{
+		Name: proxy.Name, Scheme: proxy.Scheme, Host: proxy.Host, Port: proxy.Port,
+		Username: proxy.Username, Enabled: false, PasswordAction: "keep",
+	})
+	if err != nil || disabled.Enabled {
+		t.Fatalf("disable observed proxy = %#v, %v", disabled, err)
+	}
+	disabledConfiguration, err = service.Configuration(ctx, first.Credential)
+	if err != nil || len(disabledConfiguration.DiscoveryPaths) != 0 || len(disabledConfiguration.ProbeTargets) != 0 || len(disabledConfiguration.Proxies) != 0 {
+		t.Fatalf("configuration after observed proxy disable = %#v, %v", disabledConfiguration, err)
+	}
+	if _, err := service.Poll(
+		ctx, first.Credential, testMetadata(), disabledConfiguration.Revision,
+		nil, nil, nil, nil, AddressUpload{States: []AddressState{}},
+	); err != nil {
 		t.Fatal(err)
+	}
+	network, err = service.Network(ctx, first.NodeID)
+	if err != nil || containsAvailablePublicAddress(network.PublicAddresses, publicIPv4) {
+		t.Fatalf("network after proxy disable convergence = %#v, %v", network, err)
+	}
+	now = now.Add(time.Minute)
+	reenabled, err = service.UpdateNetworkProxy(ctx, first.NodeID, proxy.ID, NetworkProxyUpdate{
+		Name: proxy.Name, Scheme: proxy.Scheme, Host: proxy.Host, Port: proxy.Port,
+		Username: proxy.Username, Enabled: true, PasswordAction: "keep",
+	})
+	if err != nil || !reenabled.Enabled {
+		t.Fatalf("re-enable observed proxy = %#v, %v", reenabled, err)
+	}
+	configuration, err = service.Configuration(ctx, first.Credential)
+	if err != nil || len(configuration.DiscoveryPaths) != 2 || len(configuration.ProbeTargets) != 0 || len(configuration.Proxies) != 1 {
+		t.Fatalf("configuration after observed proxy re-enable = %#v, %v", configuration, err)
 	}
 	beforeUpdateRevision := configuration.Revision
 	beforeUpdateWakes := len(connections.wakes)
@@ -135,7 +215,7 @@ func TestNetworkProxyCredentialsAndReferencedConfiguration(t *testing.T) {
 	now = now.Add(time.Minute)
 	updated, err := service.UpdateNetworkProxy(ctx, first.NodeID, proxy.ID, NetworkProxyUpdate{
 		Name: proxy.Name, Scheme: proxy.Scheme, Host: "proxy-2.example.test", Port: proxy.Port,
-		Username: proxy.Username, PasswordAction: "clear",
+		Username: proxy.Username, Enabled: true, PasswordAction: "clear",
 	})
 	if err != nil || updated.PasswordConfigured {
 		t.Fatalf("updated proxy = %#v, %v", updated, err)
@@ -152,7 +232,7 @@ func TestNetworkProxyCredentialsAndReferencedConfiguration(t *testing.T) {
 	}
 	if _, err := service.UpdateNetworkProxy(ctx, first.NodeID, proxy.ID, NetworkProxyUpdate{
 		Name: updated.Name, Scheme: updated.Scheme, Host: updated.Host, Port: updated.Port,
-		Username: updated.Username, PasswordAction: "clear",
+		Username: updated.Username, Enabled: true, PasswordAction: "clear",
 	}); err != nil {
 		t.Fatal(err)
 	}
@@ -162,7 +242,7 @@ func TestNetworkProxyCredentialsAndReferencedConfiguration(t *testing.T) {
 	}
 	if _, err := service.UpdateNetworkProxy(ctx, second.NodeID, proxy.ID, NetworkProxyUpdate{
 		Name: updated.Name, Scheme: updated.Scheme, Host: updated.Host, Port: updated.Port,
-		Username: updated.Username, PasswordAction: "keep",
+		Username: updated.Username, Enabled: true, PasswordAction: "keep",
 	}); !errors.Is(err, ErrNetworkProxyNotFound) {
 		t.Fatalf("cross-node proxy update error = %v", err)
 	}
@@ -172,7 +252,7 @@ func TestNetworkProxyCredentialsAndReferencedConfiguration(t *testing.T) {
 	}
 	if _, err := service.UpdateNetworkProxy(ctx, first.NodeID, proxy.ID, NetworkProxyUpdate{
 		Name: updated.Name, Scheme: updated.Scheme, Host: updated.Host, Port: updated.Port,
-		Username: updated.Username, PasswordAction: "keep",
+		Username: updated.Username, Enabled: true, PasswordAction: "keep",
 	}); !errors.Is(err, ErrNetworkProxyDeletionPending) {
 		t.Fatalf("update deleting proxy error = %v", err)
 	}

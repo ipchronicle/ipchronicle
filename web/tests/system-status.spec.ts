@@ -265,6 +265,7 @@ test("customizes and restores the automatic external address", async ({
 test("generates an Agent installation command from the nodes page", async ({
   page,
 }, testInfo) => {
+  testInfo.setTimeout(60_000);
   const fixtureSuffix =
     testInfo.project.name === "mobile-chromium" ? "mobile" : "desktop";
   const nodeName = `edge-e2e-${fixtureSuffix}`;
@@ -574,7 +575,9 @@ test("generates an Agent installation command from the nodes page", async ({
   await expect(
     page.getByRole("switch", { name: "Enable complete probe" }),
   ).toBeChecked();
-  await page.getByRole("button", { name: "Add proxy" }).click();
+  await page.getByRole("button", { name: "Manage proxies" }).click();
+  const proxyManager = page.getByRole("dialog", { name: "Network proxies" });
+  await proxyManager.getByRole("button", { name: "Add proxy" }).click();
   const proxyDialog = page.getByRole("dialog", { name: "Add proxy" });
   await proxyDialog.getByLabel("Name", { exact: true }).fill(proxyName);
   await proxyDialog.getByLabel("Protocol").click();
@@ -584,12 +587,18 @@ test("generates an Agent installation command from the nodes page", async ({
   await proxyDialog.getByLabel("Username").fill("probe-user");
   await proxyDialog.getByLabel("Password").fill("e2e-proxy-secret");
   await proxyDialog.getByRole("button", { name: "Add proxy" }).click();
-  await expect(page.getByText(proxyName, { exact: true })).toBeVisible();
-  await expect(page.getByText("Password configured")).toBeVisible();
-  await expect(page.getByText("IPv4", { exact: true }).last()).toBeVisible();
-  await expect(page.getByText("IPv6", { exact: true }).last()).toBeVisible();
   await expect(
-    page.getByText("Checking", { exact: true }).first(),
+    proxyManager.getByText(proxyName, { exact: true }),
+  ).toBeVisible();
+  await expect(proxyManager.getByText("Password configured")).toBeVisible();
+  await expect(
+    proxyManager.getByText("IPv4", { exact: true }).last(),
+  ).toBeVisible();
+  await expect(
+    proxyManager.getByText("IPv6", { exact: true }).last(),
+  ).toBeVisible();
+  await expect(
+    proxyManager.getByText("Checking", { exact: true }).first(),
   ).toBeVisible();
   await expect(page.getByLabel("Address family")).toHaveCount(0);
   const inputValues = await page
@@ -598,12 +607,33 @@ test("generates an Agent installation command from the nodes page", async ({
       inputs.map((input) => (input as HTMLInputElement).value),
     );
   expect(inputValues).not.toContain("e2e-proxy-secret");
-  await page.getByRole("button", { name: "Delete proxy" }).click();
+  const proxySwitch = proxyManager.getByRole("switch", {
+    name: `Enable proxy ${proxyName}`,
+  });
+  await expect(proxySwitch).toBeChecked();
+  await proxySwitch.click();
+  await expect(proxySwitch).not.toBeChecked();
+  await expect(
+    proxyManager.getByText("Disabled", { exact: true }).first(),
+  ).toBeVisible();
+  await proxySwitch.click();
+  await expect(proxySwitch).toBeChecked();
+  await expect(
+    proxyManager.getByText("Checking", { exact: true }).first(),
+  ).toBeVisible();
+  await expectNoPageOverflow(page);
+  await page.screenshot({
+    path: testInfo.outputPath("network-proxy-manager.png"),
+    fullPage: true,
+  });
+  await proxyManager.getByRole("button", { name: "Delete proxy" }).click();
   await page
-    .getByRole("alertdialog")
+    .getByRole("dialog", { name: "Delete this network proxy?" })
     .getByRole("button", { name: "Delete proxy", exact: true })
     .click();
-  await expect(page.getByText("Deleting", { exact: true })).toBeVisible();
+  await expect(
+    proxyManager.getByText("This node has no network proxy.", { exact: true }),
+  ).toBeVisible();
   await expect
     .poll(() =>
       page.evaluate(
@@ -613,6 +643,8 @@ test("generates an Agent installation command from the nodes page", async ({
       ),
     )
     .toBe(true);
+  await proxyManager.getByRole("button", { name: "Close" }).click();
+  await expect(proxyManager).not.toBeVisible();
   await page.screenshot({
     path: testInfo.outputPath("public-ips.png"),
     fullPage: true,

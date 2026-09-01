@@ -139,6 +139,7 @@ CREATE TABLE network_proxies(
   port INTEGER NOT NULL CHECK(port BETWEEN 1 AND 65535),
   username TEXT CHECK(username IS NULL OR length(username) BETWEEN 1 AND 512),
   password_encrypted BLOB,
+  enabled INTEGER NOT NULL DEFAULT 1 CHECK(enabled IN(0, 1)),
   deletion_requested_at INTEGER,
   created_at INTEGER NOT NULL,
   updated_at INTEGER NOT NULL CHECK(updated_at >= created_at),

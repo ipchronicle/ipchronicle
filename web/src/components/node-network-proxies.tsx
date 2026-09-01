@@ -37,6 +37,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { Switch } from "@/components/ui/switch";
 import { formatTime } from "@/pages/node-probe-page";
 
 const emptyCreate: NetworkProxyCreate = {
@@ -131,6 +132,17 @@ export function NodeNetworkProxies({
           <ProxyManagerList
             proxies={proxies}
             onCreate={() => setView({ kind: "create" })}
+            onToggle={(proxy, enabled) =>
+              onUpdate(proxy.id, {
+                name: proxy.name,
+                scheme: proxy.scheme,
+                host: proxy.host,
+                port: proxy.port,
+                username: proxy.username,
+                enabled,
+                passwordAction: "keep",
+              })
+            }
             onEdit={(proxyId) => setView({ kind: "edit", proxyId })}
             onClearPassword={(proxyId) =>
               setView({ kind: "clear-password", proxyId })
@@ -166,12 +178,14 @@ export function NodeNetworkProxies({
 function ProxyManagerList({
   proxies,
   onCreate,
+  onToggle,
   onEdit,
   onClearPassword,
   onDelete,
 }: {
   proxies: NetworkProxy[];
   onCreate: () => void;
+  onToggle: (proxy: NetworkProxy, enabled: boolean) => Promise<boolean>;
   onEdit: (proxyId: string) => void;
   onClearPassword: (proxyId: string) => void;
   onDelete: (proxyId: string) => void;
@@ -199,6 +213,7 @@ function ProxyManagerList({
             <ProxyRow
               key={proxy.id}
               proxy={proxy}
+              onToggle={(enabled) => onToggle(proxy, enabled)}
               onEdit={() => onEdit(proxy.id)}
               onClearPassword={() => onClearPassword(proxy.id)}
               onDelete={() => onDelete(proxy.id)}
@@ -212,17 +227,30 @@ function ProxyManagerList({
 
 function ProxyRow({
   proxy,
+  onToggle,
   onEdit,
   onClearPassword,
   onDelete,
 }: {
   proxy: NetworkProxy;
+  onToggle: (enabled: boolean) => Promise<boolean>;
   onEdit: () => void;
   onClearPassword: () => void;
   onDelete: () => void;
 }) {
   const { t } = useTranslation();
   const deleting = proxy.deletionStatus === "pending";
+  const [toggling, setToggling] = useState(false);
+
+  async function toggle(enabled: boolean) {
+    setToggling(true);
+    try {
+      await onToggle(enabled);
+    } finally {
+      setToggling(false);
+    }
+  }
+
   return (
     <div className="grid min-w-0 gap-4 border-t p-4 first:border-t-0 md:grid-cols-[minmax(180px,1fr)_minmax(260px,1.35fr)] md:items-center xl:grid-cols-[minmax(180px,1fr)_minmax(260px,1.35fr)_auto]">
       <div className="min-w-0">
@@ -247,6 +275,19 @@ function ProxyRow({
       </div>
 
       <div className="flex flex-wrap gap-2 md:col-span-2 xl:col-span-1 xl:justify-end">
+        <div className="flex h-9 items-center gap-2 rounded-md border px-3">
+          <span className="text-sm text-muted-foreground">
+            {proxy.enabled
+              ? t("network.proxies.enabled")
+              : t("network.proxies.disabled")}
+          </span>
+          <Switch
+            checked={proxy.enabled}
+            disabled={deleting || toggling}
+            aria-label={t("network.proxies.toggle", { name: proxy.name })}
+            onCheckedChange={(enabled) => void toggle(enabled)}
+          />
+        </div>
         <Button
           type="button"
           variant="outline"
@@ -338,6 +379,7 @@ function ProxyEditor({ proxy, onCreate, onUpdate, onDone }: ProxyEditorProps) {
           host: input.host,
           port: input.port,
           username: input.username || undefined,
+          enabled: proxy.enabled,
           passwordAction: replacePassword ? "replace" : "keep",
           password: replacePassword ? input.password : undefined,
         });
@@ -447,6 +489,7 @@ function ProxyConfirmation({
             host: proxy.host,
             port: proxy.port,
             username: proxy.username,
+            enabled: proxy.enabled,
             passwordAction: "clear",
           });
       if (succeeded) onDone();
@@ -534,11 +577,13 @@ function ProxyStatusBadge({ proxy }: { proxy: NetworkProxy }) {
     );
   }
   const variant =
-    proxy.status === "unavailable"
-      ? "warning"
-      : proxy.status === "checking"
-        ? "info"
-        : "success";
+    proxy.status === "disabled"
+      ? "secondary"
+      : proxy.status === "unavailable"
+        ? "warning"
+        : proxy.status === "checking"
+          ? "info"
+          : "success";
   return (
     <Badge variant={variant}>
       {proxy.status === "checking" ? (
@@ -569,7 +614,9 @@ function ProxyFamilyResult({
               ? "success"
               : result.status === "unavailable"
                 ? "warning"
-                : "info"
+                : result.status === "disabled"
+                  ? "secondary"
+                  : "info"
           }
         >
           {t(`network.proxies.familyStatus.${result.status}`)}

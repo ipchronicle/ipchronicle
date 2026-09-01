@@ -757,6 +757,9 @@ export const en = {
         detail:
           "Proxies are used only by this node. After one is added or changed, the Agent automatically discovers its IPv4 and IPv6 public exits.",
         empty: "This node has no network proxy.",
+        enabled: "Enabled",
+        disabled: "Disabled",
+        toggle: "Enable proxy {{name}}",
         attention: {
           title: "Network proxy issues ({{count}})",
           detail:
@@ -766,6 +769,7 @@ export const en = {
         noAddress: "No public IP discovered",
         lastChecked: "Checked {{value}}",
         status: {
+          disabled: "Disabled",
           checking: "Checking",
           "ipv4-only": "IPv4 only",
           "ipv6-only": "IPv6 only",
@@ -773,6 +777,7 @@ export const en = {
           unavailable: "Unavailable",
         },
         familyStatus: {
+          disabled: "Disabled",
           checking: "Checking",
           available: "Available",
           unavailable: "Unavailable",

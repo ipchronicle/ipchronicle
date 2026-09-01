@@ -709,6 +709,9 @@ export const zhCN = {
         detail:
           "代理只在当前节点使用。添加或修改后，Agent 会自动发现 IPv4 和 IPv6 公网出口。",
         empty: "此节点尚未配置网络代理。",
+        enabled: "已启用",
+        disabled: "已禁用",
+        toggle: "启用代理 {{name}}",
         attention: {
           title: "网络代理异常（{{count}}）",
           detail: "代理当前不可用或删除失败，公网出口发现可能不完整。",
@@ -717,6 +720,7 @@ export const zhCN = {
         noAddress: "尚未发现公网 IP",
         lastChecked: "检查于 {{value}}",
         status: {
+          disabled: "已禁用",
           checking: "检查中",
           "ipv4-only": "仅 IPv4",
           "ipv6-only": "仅 IPv6",
@@ -724,6 +728,7 @@ export const zhCN = {
           unavailable: "暂不可用",
         },
         familyStatus: {
+          disabled: "已禁用",
           checking: "检查中",
           available: "可用",
           unavailable: "不可用",

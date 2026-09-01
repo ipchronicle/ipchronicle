@@ -451,7 +451,7 @@ func (s *Service) Configuration(ctx context.Context, credential string) (Configu
 	if err != nil {
 		return Configuration{}, err
 	}
-	egressRecords, err := s.queries.ListActiveNodeEgresses(ctx, node.ID)
+	egressRecords, err := s.queries.ListConfiguredNodeEgresses(ctx, node.ID)
 	if err != nil {
 		return Configuration{}, err
 	}

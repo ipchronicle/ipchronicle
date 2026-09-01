@@ -2714,10 +2714,10 @@ components:
       enum: [http, https, socks5]
     NetworkProxyStatus:
       type: string
-      enum: [checking, ipv4-only, ipv6-only, dual-stack, unavailable]
+      enum: [disabled, checking, ipv4-only, ipv6-only, dual-stack, unavailable]
     NetworkProxyFamilyStatus:
       type: string
-      enum: [checking, available, unavailable]
+      enum: [disabled, checking, available, unavailable]
     NetworkProxyDeletionStatus:
       type: string
       enum: [pending, failed]
@@ -2749,6 +2749,7 @@ components:
           host,
           port,
           passwordConfigured,
+          enabled,
           status,
           ipv4,
           ipv6,
@@ -2782,6 +2783,8 @@ components:
           minLength: 1
           maxLength: 512
         passwordConfigured:
+          type: boolean
+        enabled:
           type: boolean
         status:
           $ref: "#/components/schemas/NetworkProxyStatus"
@@ -2846,7 +2849,7 @@ components:
     NetworkProxyUpdate:
       type: object
       additionalProperties: false
-      required: [name, scheme, host, port, passwordAction]
+      required: [name, scheme, host, port, enabled, passwordAction]
       properties:
         name:
           type: string
@@ -2867,6 +2870,8 @@ components:
           type: string
           minLength: 1
           maxLength: 512
+        enabled:
+          type: boolean
         passwordAction:
           $ref: "#/components/schemas/NetworkProxyPasswordAction"
         password:

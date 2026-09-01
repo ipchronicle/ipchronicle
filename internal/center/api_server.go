@@ -1056,7 +1056,7 @@ func (s apiServer) UpdateNodeNetworkProxy(ctx context.Context, request api.Updat
 	}
 	proxy, err := s.nodes.UpdateNetworkProxy(ctx, request.NodeId, request.ProxyId, nodes.NetworkProxyUpdate{
 		Name: request.Body.Name, Scheme: string(request.Body.Scheme), Host: request.Body.Host,
-		Port: request.Body.Port, Username: request.Body.Username,
+		Port: request.Body.Port, Username: request.Body.Username, Enabled: request.Body.Enabled,
 		PasswordAction: string(request.Body.PasswordAction), Password: request.Body.Password,
 	})
 	switch {
@@ -2124,7 +2124,7 @@ func networkProxyResponse(proxy nodes.NetworkProxy) api.NetworkProxy {
 	return api.NetworkProxy{
 		Id: proxy.ID, NodeId: proxy.NodeID, Name: proxy.Name, Scheme: api.NetworkProxyScheme(proxy.Scheme),
 		Host: proxy.Host, Port: proxy.Port, Username: proxy.Username,
-		PasswordConfigured: proxy.PasswordConfigured, Status: api.NetworkProxyStatus(proxy.Status),
+		PasswordConfigured: proxy.PasswordConfigured, Enabled: proxy.Enabled, Status: api.NetworkProxyStatus(proxy.Status),
 		Ipv4: networkProxyFamilyResponse(proxy.IPv4), Ipv6: networkProxyFamilyResponse(proxy.IPv6),
 		DeletionStatus: deletionStatus, DeletionError: proxy.DeletionError,
 		CreatedAt: proxy.CreatedAt, UpdatedAt: proxy.UpdatedAt,
