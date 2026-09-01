@@ -280,20 +280,13 @@ function ExecutionRow({
             t("probe.notAvailable"),
           )}
         />
-        <SummaryValue
-          label={t("probeRun.executions.stage")}
-          value={
-            execution.failureStage
-              ? t(`probe.failure.${execution.failureStage}`)
-              : t("probe.notAvailable")
-          }
-        />
+        {execution.status === "failed" ? (
+          <SummaryValue
+            label={t("probeRun.executions.result")}
+            value={t("probeRun.executions.failed")}
+          />
+        ) : null}
       </dl>
-      {execution.diagnostic ? (
-        <pre className="mt-4 max-h-48 overflow-auto whitespace-pre-wrap rounded-md bg-muted p-3 text-sm leading-5">
-          {execution.diagnostic}
-        </pre>
-      ) : null}
       {execution.snapshotId ? (
         <Button variant="outline" size="sm" asChild className="mt-4">
           <Link to={`/probe-snapshots/${execution.snapshotId}?runId=${run.id}`}>

@@ -1867,7 +1867,8 @@ describe("administrator application", () => {
     expect(
       screen.queryByText("da1a3999-e0bd-4649-85ae-aa9a4a9d6961"),
     ).not.toBeInTheDocument();
-    expect(screen.getByText("exit status 1")).toBeInTheDocument();
+    expect(screen.getByText("Probe failed")).toBeInTheDocument();
+    expect(screen.queryByText("exit status 1")).not.toBeInTheDocument();
     expect(
       screen.getByRole("link", { name: "Open report snapshot" }),
     ).toHaveAttribute(
