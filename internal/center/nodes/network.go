@@ -330,7 +330,11 @@ func (s *Service) Network(ctx context.Context, id uuid.UUID) (NodeNetworkState, 
 		latestSnapshots[snapshot.EgressID] = snapshot
 	}
 	for _, record := range publicAddressRecords {
-		address, err := s.publicAddressFromRecord(ctx, record)
+		address, err := s.publicAddressFromRecord(ctx, configdb.PublicAddress{
+			ID: record.ID, Address: record.Address, Family: record.Family,
+			ProbeEnabled: record.ProbeEnabled, SelectedPathID: record.SelectedPathID,
+			FirstSeenAt: record.FirstSeenAt, LastSeenAt: record.LastSeenAt, UpdatedAt: record.UpdatedAt,
+		}, id.String())
 		if err != nil {
 			return NodeNetworkState{}, err
 		}
@@ -420,10 +424,10 @@ func (s *Service) UpdatePublicAddress(ctx context.Context, nodeID, addressID uui
 		return PublicAddress{}, err
 	}
 	record.ProbeEnabled = value
-	return s.publicAddressFromRecord(ctx, record)
+	return s.publicAddressFromRecord(ctx, record, nodeID.String())
 }
 
-func (s *Service) publicAddressFromRecord(ctx context.Context, record configdb.PublicAddress) (PublicAddress, error) {
+func (s *Service) publicAddressFromRecord(ctx context.Context, record configdb.PublicAddress, nodeID string) (PublicAddress, error) {
 	id, err := uuid.Parse(record.ID)
 	if err != nil {
 		return PublicAddress{}, err
@@ -439,7 +443,7 @@ func (s *Service) publicAddressFromRecord(ctx context.Context, record configdb.P
 	}
 	result.PathCount = len(paths)
 	for _, path := range paths {
-		if path.Available == 1 {
+		if path.NodeID == nodeID && path.Available == 1 {
 			result.Available = true
 		}
 		if record.SelectedPathID == nil || path.PathID != *record.SelectedPathID {

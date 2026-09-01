@@ -2,6 +2,7 @@ import { useCallback, useEffect, useState } from "react";
 import {
   Eye,
   Globe2,
+  History,
   LoaderCircle,
   Play,
   RefreshCw,
@@ -115,6 +116,14 @@ export function NodeNetworkPage() {
 
   const csrfToken =
     authState.status === "authenticated" ? authState.session.csrfToken : "";
+  const currentAddresses =
+    state.kind === "success"
+      ? state.network.publicAddresses.filter((address) => address.available)
+      : [];
+  const historicalAddresses =
+    state.kind === "success"
+      ? state.network.publicAddresses.filter((address) => !address.available)
+      : [];
 
   async function saveAddress(address: PublicAddress, probeEnabled: boolean) {
     setSaving((current) => new Set(current).add(address.id));
@@ -315,23 +324,59 @@ export function NodeNetworkPage() {
                   {t("network.publicAddresses.empty")}
                 </div>
               ) : (
-                <div className="overflow-hidden rounded-lg border">
-                  {state.network.publicAddresses.map((address) => (
-                    <PublicAddressRow
-                      key={address.id}
-                      address={address}
-                      locale={i18n.resolvedLanguage}
-                      saving={saving.has(address.id)}
-                      probing={probing.has(address.id)}
-                      probeDisabled={
-                        node.status !== "online" ||
-                        !node.enabled ||
-                        node.deletionStatus !== undefined
-                      }
-                      onChange={(enabled) => void saveAddress(address, enabled)}
-                      onProbe={() => void probeAddress(address)}
-                    />
-                  ))}
+                <div className="space-y-6">
+                  <AddressGroupHeader
+                    title={t("network.publicAddresses.current.title")}
+                    detail={t("network.publicAddresses.current.detail")}
+                    count={currentAddresses.length}
+                    active
+                  />
+                  {currentAddresses.length === 0 ? (
+                    <div className="rounded-lg border border-dashed py-8 text-center text-sm text-muted-foreground">
+                      {t("network.publicAddresses.current.empty")}
+                    </div>
+                  ) : (
+                    <div className="overflow-hidden rounded-lg border">
+                      {currentAddresses.map((address) => (
+                        <PublicAddressRow
+                          key={address.id}
+                          address={address}
+                          locale={i18n.resolvedLanguage}
+                          saving={saving.has(address.id)}
+                          probing={probing.has(address.id)}
+                          probeDisabled={
+                            node.status !== "online" ||
+                            !node.enabled ||
+                            node.deletionStatus !== undefined
+                          }
+                          onChange={(enabled) =>
+                            void saveAddress(address, enabled)
+                          }
+                          onProbe={() => void probeAddress(address)}
+                        />
+                      ))}
+                    </div>
+                  )}
+
+                  {historicalAddresses.length > 0 ? (
+                    <section className="space-y-3">
+                      <AddressGroupHeader
+                        title={t("network.publicAddresses.history.title")}
+                        detail={t("network.publicAddresses.history.detail")}
+                        count={historicalAddresses.length}
+                      />
+                      <div className="overflow-hidden rounded-lg border border-dashed bg-muted/20">
+                        {historicalAddresses.map((address) => (
+                          <PublicAddressRow
+                            key={address.id}
+                            address={address}
+                            locale={i18n.resolvedLanguage}
+                            historical
+                          />
+                        ))}
+                      </div>
+                    </section>
+                  ) : null}
                 </div>
               )}
             </CardContent>
@@ -352,24 +397,28 @@ export function NodeNetworkPage() {
 function PublicAddressRow({
   address,
   locale,
-  saving,
-  probing,
-  probeDisabled,
+  saving = false,
+  probing = false,
+  probeDisabled = false,
+  historical = false,
   onChange,
   onProbe,
 }: {
   address: PublicAddress;
   locale: string | undefined;
-  saving: boolean;
-  probing: boolean;
-  probeDisabled: boolean;
-  onChange: (enabled: boolean) => void;
-  onProbe: () => void;
+  saving?: boolean;
+  probing?: boolean;
+  probeDisabled?: boolean;
+  historical?: boolean;
+  onChange?: (enabled: boolean) => void;
+  onProbe?: () => void;
 }) {
   const { t } = useTranslation();
   const availability = publicAddressAvailability(address);
   return (
-    <div className="grid min-w-0 gap-4 border-t p-4 first:border-t-0 lg:grid-cols-[minmax(240px,1.4fr)_minmax(130px,.65fr)_minmax(150px,.75fr)_auto] lg:items-center">
+    <div
+      className={`grid min-w-0 gap-4 border-t p-4 first:border-t-0 lg:grid-cols-[minmax(240px,1.4fr)_minmax(130px,.65fr)_minmax(150px,.75fr)_auto] lg:items-center ${historical ? "bg-muted/30" : ""}`}
+    >
       <div className="min-w-0">
         <p className="break-all font-mono text-base font-semibold">
           {address.address}
@@ -378,24 +427,38 @@ function PublicAddressRow({
           <Badge variant="outline">
             {t(`network.family.${address.family}`)}
           </Badge>
-          <Badge variant={availability === "available" ? "success" : "warning"}>
-            {t(`network.publicAddresses.status.${availability}`)}
-          </Badge>
-          {address.likelyNat ? (
+          {historical ? (
+            <Badge variant="secondary">
+              {t("network.publicAddresses.history.badge")}
+            </Badge>
+          ) : (
+            <Badge
+              variant={availability === "available" ? "success" : "warning"}
+            >
+              {t(`network.publicAddresses.status.${availability}`)}
+            </Badge>
+          )}
+          {!historical && address.likelyNat ? (
             <Badge variant="warning">{t("network.publicAddresses.nat")}</Badge>
           ) : null}
-          {address.proxyPath ? (
+          {!historical && address.proxyPath ? (
             <Badge variant="info">{t("network.publicAddresses.proxy")}</Badge>
           ) : null}
         </div>
       </div>
 
       <AddressCell
-        label={t("network.publicAddresses.path")}
+        label={
+          historical
+            ? t("network.publicAddresses.history.lastSeen")
+            : t("network.publicAddresses.path")
+        }
         value={
-          address.proxyPath
-            ? t("network.publicAddresses.proxy")
-            : t("network.publicAddresses.direct")
+          historical
+            ? formatTime(address.lastSeenAt, locale, t("nodes.notAvailable"))
+            : address.proxyPath
+              ? t("network.publicAddresses.proxy")
+              : t("network.publicAddresses.direct")
         }
       />
       <AddressCell
@@ -413,23 +476,25 @@ function PublicAddressRow({
       />
 
       <div className="flex flex-wrap items-center gap-2 lg:justify-end">
-        {saving ? (
+        {!historical && saving ? (
           <LoaderCircle
             aria-label={t("network.publicAddresses.saving")}
             className="size-4 animate-spin text-muted-foreground"
           />
         ) : null}
-        <div className="flex items-center gap-2">
-          <span className="text-sm text-muted-foreground">
-            {t("network.publicAddresses.probeShort")}
-          </span>
-          <Switch
-            checked={address.probeEnabled}
-            disabled={saving}
-            onCheckedChange={onChange}
-            aria-label={t("network.publicAddresses.probeEnabled")}
-          />
-        </div>
+        {!historical ? (
+          <div className="flex items-center gap-2">
+            <span className="text-sm text-muted-foreground">
+              {t("network.publicAddresses.probeShort")}
+            </span>
+            <Switch
+              checked={address.probeEnabled}
+              disabled={saving}
+              onCheckedChange={(enabled) => onChange?.(enabled)}
+              aria-label={t("network.publicAddresses.probeEnabled")}
+            />
+          </div>
+        ) : null}
         {address.latestSnapshotId ? (
           <Button variant="outline" size="sm" asChild>
             <Link to={`/probe-snapshots/${address.latestSnapshotId}`}>
@@ -443,23 +508,57 @@ function PublicAddressRow({
             {t("network.publicAddresses.openReport")}
           </Button>
         )}
-        <Button
-          size="sm"
-          disabled={probeDisabled || !address.available || probing}
-          onClick={onProbe}
-        >
-          {probing ? (
-            <LoaderCircle
-              data-icon="inline-start"
-              aria-hidden="true"
-              className="animate-spin"
-            />
-          ) : (
-            <Play data-icon="inline-start" aria-hidden="true" />
-          )}
-          {t("network.publicAddresses.probeNow")}
-        </Button>
+        {!historical ? (
+          <Button
+            size="sm"
+            disabled={probeDisabled || probing}
+            onClick={() => onProbe?.()}
+          >
+            {probing ? (
+              <LoaderCircle
+                data-icon="inline-start"
+                aria-hidden="true"
+                className="animate-spin"
+              />
+            ) : (
+              <Play data-icon="inline-start" aria-hidden="true" />
+            )}
+            {t("network.publicAddresses.probeNow")}
+          </Button>
+        ) : null}
       </div>
+    </div>
+  );
+}
+
+function AddressGroupHeader({
+  title,
+  detail,
+  count,
+  active = false,
+}: {
+  title: string;
+  detail: string;
+  count: number;
+  active?: boolean;
+}) {
+  return (
+    <div className="flex min-w-0 items-start justify-between gap-3">
+      <div className="min-w-0">
+        <h3 className="flex items-center gap-2 text-sm font-semibold">
+          {active ? (
+            <span className="size-2 rounded-full bg-emerald-500" />
+          ) : (
+            <History
+              className="size-4 text-muted-foreground"
+              aria-hidden="true"
+            />
+          )}
+          {title}
+        </h3>
+        <p className="mt-1 text-sm text-muted-foreground">{detail}</p>
+      </div>
+      <Badge variant={active ? "success" : "secondary"}>{count}</Badge>
     </div>
   );
 }

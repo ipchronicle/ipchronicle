@@ -668,8 +668,21 @@ export const en = {
       publicAddresses: {
         title: "Discovered public IPs",
         detail:
-          "Each public IP appears once; interfaces, source addresses, NAT, and proxy paths are handled automatically.",
+          "Each public IP appears once, with current and previously discovered addresses shown separately.",
         empty: "Waiting for the Agent's first public-address discovery.",
+        current: {
+          title: "Currently active",
+          detail:
+            "Public IPs confirmed reachable in this node's latest discovery.",
+          empty: "No public IP is currently confirmed as available.",
+        },
+        history: {
+          title: "Previously discovered",
+          detail:
+            "These public IPs are no longer active, but their retained probe results remain available.",
+          badge: "Historical",
+          lastSeen: "Last discovered",
+        },
         available: "Available",
         unavailable: "Unavailable",
         status: {

@@ -400,6 +400,14 @@ func TestDynamicPublicAddressesKeepIndependentIdentityAndReuseOldAddress(t *test
 	if second.ID == first.ID || !second.ProbeEnabled {
 		t.Fatalf("dynamic replacement reused identity or settings: first=%#v second=%#v", first, second)
 	}
+	current, err := service.Network(ctx, registration.NodeID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(current.PublicAddresses) != 2 || current.PublicAddresses[0].ID != second.ID || !current.PublicAddresses[0].Available ||
+		current.PublicAddresses[1].ID != first.ID || current.PublicAddresses[1].Available {
+		t.Fatalf("current and historical public addresses = %#v", current.PublicAddresses)
+	}
 	now = now.Add(time.Minute)
 	reappeared := observe("8.8.8.8")
 	if reappeared.ID != first.ID || reappeared.ProbeEnabled {

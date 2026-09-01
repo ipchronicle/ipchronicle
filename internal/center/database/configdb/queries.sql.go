@@ -2438,22 +2438,42 @@ func (q *Queries) ListNodePublicAddressSummaries(ctx context.Context) ([]ListNod
 
 const listNodePublicAddresses = `-- name: ListNodePublicAddresses :many
 SELECT DISTINCT a.id, a.address, a.family, a.probe_enabled,
-       a.selected_path_id, a.first_seen_at, a.last_seen_at, a.updated_at
-FROM public_addresses a
-JOIN public_address_paths p ON p.public_address_id = a.id
-WHERE p.node_id = ? AND p.available = 1
-ORDER BY a.family, a.address
+       a.selected_path_id, n.first_seen_at, n.last_seen_at, a.updated_at
+FROM public_address_nodes n
+JOIN public_addresses a ON a.id = n.public_address_id
+WHERE n.node_id = ?
+ORDER BY EXISTS (
+             SELECT 1
+             FROM public_address_paths p
+             WHERE p.public_address_id = a.id
+               AND p.node_id = n.node_id
+               AND p.available = 1
+         ) DESC,
+         n.last_seen_at DESC,
+         a.family,
+         a.address
 `
 
-func (q *Queries) ListNodePublicAddresses(ctx context.Context, nodeID string) ([]PublicAddress, error) {
+type ListNodePublicAddressesRow struct {
+	ID             string
+	Address        string
+	Family         string
+	ProbeEnabled   int64
+	SelectedPathID *string
+	FirstSeenAt    int64
+	LastSeenAt     int64
+	UpdatedAt      int64
+}
+
+func (q *Queries) ListNodePublicAddresses(ctx context.Context, nodeID string) ([]ListNodePublicAddressesRow, error) {
 	rows, err := q.db.QueryContext(ctx, listNodePublicAddresses, nodeID)
 	if err != nil {
 		return nil, err
 	}
 	defer rows.Close()
-	items := []PublicAddress{}
+	items := []ListNodePublicAddressesRow{}
 	for rows.Next() {
-		var i PublicAddress
+		var i ListNodePublicAddressesRow
 		if err := rows.Scan(
 			&i.ID,
 			&i.Address,

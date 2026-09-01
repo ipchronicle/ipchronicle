@@ -1368,6 +1368,20 @@ describe("administrator application", () => {
           firstSeenAt: "2026-08-09T06:01:00Z",
           lastSeenAt: "2026-08-09T06:02:00Z",
         },
+        {
+          id: "6dd9645b-16f3-48ea-a8b6-523a660d7465",
+          address: "9.9.9.9",
+          family: "ipv4",
+          probeEnabled: true,
+          available: false,
+          pathCount: 1,
+          likelyNat: false,
+          proxyPath: true,
+          firstSeenAt: "2026-08-08T05:00:00Z",
+          lastSeenAt: "2026-08-08T06:00:00Z",
+          latestSnapshotId: "3d17baa3-1941-4be1-86f1-9d3d62c4c41b",
+          latestSnapshotAt: "2026-08-08T05:30:00Z",
+        },
       ],
       networkProxies: [
         {
@@ -1426,6 +1440,10 @@ describe("administrator application", () => {
       await screen.findByRole("heading", { name: "edge-1" }),
     ).toBeInTheDocument();
     expect(await screen.findByText("8.8.8.8")).toBeInTheDocument();
+    expect(screen.getByText("Currently active")).toBeInTheDocument();
+    expect(screen.getByText("Previously discovered")).toBeInTheDocument();
+    expect(screen.getByText("9.9.9.9")).toBeInTheDocument();
+    expect(screen.getByText("Historical")).toBeInTheDocument();
     expect(screen.getByText("Reached through NAT")).toBeInTheDocument();
     expect(screen.queryByText("eth0")).not.toBeInTheDocument();
     expect(screen.getByText("Primary proxy")).toBeInTheDocument();
@@ -1434,11 +1452,24 @@ describe("administrator application", () => {
     expect(screen.getByText("No public IP discovered")).toBeInTheDocument();
     expect(screen.queryByLabelText("Address family")).not.toBeInTheDocument();
     expect(screen.getByText("Password configured")).toBeInTheDocument();
-    expect(screen.getByRole("link", { name: "View result" })).toHaveAttribute(
-      "href",
-      "/probe-snapshots/cd6233d2-a600-443b-9cf5-a0bc3c241ea5",
+    expect(screen.getAllByRole("link", { name: "View result" })).toHaveLength(
+      2,
     );
+    expect(
+      screen
+        .getAllByRole("link", { name: "View result" })
+        .map((link) => link.getAttribute("href")),
+    ).toEqual([
+      "/probe-snapshots/cd6233d2-a600-443b-9cf5-a0bc3c241ea5",
+      "/probe-snapshots/3d17baa3-1941-4be1-86f1-9d3d62c4c41b",
+    ]);
     expect(screen.getByRole("button", { name: "View result" })).toBeDisabled();
+    expect(
+      screen.getAllByRole("switch", { name: "Enable complete probe" }),
+    ).toHaveLength(2);
+    expect(screen.getAllByRole("button", { name: "Probe now" })).toHaveLength(
+      2,
+    );
     fireEvent.click(screen.getAllByRole("button", { name: "Probe now" })[0]);
     await waitFor(() =>
       expect(createProbeTaskMock).toHaveBeenCalledWith(

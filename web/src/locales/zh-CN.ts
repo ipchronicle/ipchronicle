@@ -627,8 +627,19 @@ export const zhCN = {
       publicAddresses: {
         title: "发现的公网 IP",
         detail:
-          "相同公网 IP 只显示一次；接口、源地址、NAT 和代理路径由系统自动处理。",
+          "相同公网 IP 只显示一次；当前地址与此节点过去发现的地址分别展示。",
         empty: "等待 Agent 完成首次公网地址发现。",
+        current: {
+          title: "当前活跃",
+          detail: "该节点最近一次发现确认仍可到达的公网 IP。",
+          empty: "当前没有已确认可用的公网 IP。",
+        },
+        history: {
+          title: "历史发现",
+          detail: "这些公网 IP 当前已不再活跃，可继续查看已保留的探测结果。",
+          badge: "历史",
+          lastSeen: "最后发现",
+        },
         available: "当前可用",
         unavailable: "当前不可用",
         status: {
