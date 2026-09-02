@@ -20,6 +20,7 @@ import (
 	"github.com/ipchronicle/ipchronicle/internal/center/database/configdb"
 	"github.com/ipchronicle/ipchronicle/internal/center/database/historydb"
 	"github.com/ipchronicle/ipchronicle/internal/center/systemsettings"
+	"github.com/ipchronicle/ipchronicle/internal/probefields"
 )
 
 const (
@@ -300,6 +301,7 @@ func sameOptional(left, right *string) bool {
 
 type eventEnvelope struct {
 	SchemaVersion int             `json:"schemaVersion"`
+	Locale        string          `json:"locale"`
 	ID            string          `json:"id"`
 	Type          string          `json:"type"`
 	ObservedAt    string          `json:"observedAt"`
@@ -323,7 +325,7 @@ type egressRef struct {
 
 func (s *Service) buildDeliveryContent(ctx context.Context, event historydb.NotificationEvent, locale string) ([]byte, string, string, error) {
 	envelope := eventEnvelope{
-		SchemaVersion: 1, ID: event.ID, Type: event.EventType,
+		SchemaVersion: 1, Locale: locale, ID: event.ID, Type: event.EventType,
 		ObservedAt: unixTime(event.ObservedAt).Format(time.RFC3339),
 		RecordedAt: unixTime(event.RecordedAt).Format(time.RFC3339), Data: event.PayloadJson,
 	}
@@ -409,7 +411,7 @@ func renderEvent(locale string, event eventEnvelope) (string, string) {
 	if zh {
 		title = pair[1]
 	}
-	lines := []string{title}
+	lines := make([]string, 0, 12)
 	if event.Node != nil {
 		if zh {
 			lines = append(lines, "节点："+event.Node.Name)
@@ -427,15 +429,66 @@ func renderEvent(locale string, event eventEnvelope) (string, string) {
 	if event.Type == EventProbeFieldChange {
 		var data ProbeChangeData
 		if json.Unmarshal(event.Data, &data) == nil {
+			if len(lines) > 0 {
+				lines = append(lines, "")
+			}
+			if zh {
+				lines = append(lines, fmt.Sprintf("变更项（%d）", len(data.Changes)))
+			} else {
+				lines = append(lines, fmt.Sprintf("Changes (%d)", len(data.Changes)))
+			}
 			for _, change := range data.Changes {
-				lines = append(lines, fmt.Sprintf("- %s: %s -> %s", change.Path, change.Before, change.After))
+				name, ok := probefields.DisplayName(change.FieldID, locale)
+				if !ok {
+					if zh {
+						name = "未知探测字段"
+					} else {
+						name = "Unknown probe field"
+					}
+				}
+				before := truncateUTF8(probefields.DisplayValue(change.FieldID, change.Before, locale), 512)
+				after := truncateUTF8(probefields.DisplayValue(change.FieldID, change.After, locale), 512)
+				lines = append(lines, fmt.Sprintf("- %s: %s → %s", name, before, after))
 			}
 		}
 	}
+	if event.Type == EventTest {
+		if zh {
+			lines = append(lines, "测试消息已成功送达。")
+		} else {
+			lines = append(lines, "The test message was delivered successfully.")
+		}
+	}
 	if event.Link != nil {
-		lines = append(lines, *event.Link)
+		if len(lines) > 0 {
+			lines = append(lines, "")
+		}
+		if zh {
+			lines = append(lines, "查看详情："+*event.Link)
+		} else {
+			lines = append(lines, "View details: "+*event.Link)
+		}
 	}
 	return truncateUTF8(title, 8192), truncateUTF8(strings.Join(lines, "\n"), 65536)
+}
+
+func (s *Service) TestTelegramSender(ctx context.Context, configuration TelegramConfiguration) error {
+	if err := validateSender("Telegram test", SenderTelegram, SenderConfiguration{Telegram: &configuration}); err != nil {
+		return err
+	}
+	administrator, err := s.configQueries.GetAdministrator(ctx)
+	if err != nil {
+		return err
+	}
+	now := s.now().UTC().Unix()
+	eventJSON, title, body, err := s.testDeliveryContent(uuid.NewString(), []byte(`{"message":"telegram sender test"}`), now, administrator.Locale)
+	if err != nil {
+		return err
+	}
+	if failure := s.sendTelegram(ctx, configuration, eventJSON, title, body); !failure.Empty() {
+		return SenderTestFailure{Code: failure.Code}
+	}
+	return nil
 }
 
 func (s *Service) CreateTestDelivery(ctx context.Context, senderID uuid.UUID) (Delivery, error) {
@@ -502,7 +555,7 @@ func (s *Service) CreateTestDelivery(ctx context.Context, senderID uuid.UUID) (D
 
 func (s *Service) testDeliveryContent(id string, payload []byte, now int64, locale string) ([]byte, string, string, error) {
 	envelope := eventEnvelope{
-		SchemaVersion: 1, ID: id, Type: EventTest,
+		SchemaVersion: 1, Locale: locale, ID: id, Type: EventTest,
 		ObservedAt: unixTime(now).Format(time.RFC3339), RecordedAt: unixTime(now).Format(time.RFC3339),
 		Data: payload,
 	}

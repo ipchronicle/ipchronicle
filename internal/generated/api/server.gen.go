@@ -432,6 +432,7 @@ const (
 	NotificationSenderInUse          ErrorCode = "notification_sender_in_use"
 	NotificationSenderNameInUse      ErrorCode = "notification_sender_name_in_use"
 	NotificationSenderNotFound       ErrorCode = "notification_sender_not_found"
+	NotificationSenderTestFailed     ErrorCode = "notification_sender_test_failed"
 	OriginNotAllowed                 ErrorCode = "origin_not_allowed"
 	ProbeAlreadyRunning              ErrorCode = "probe_already_running"
 	ProbePausedLowMemory             ErrorCode = "probe_paused_low_memory"
@@ -530,6 +531,8 @@ func (e ErrorCode) Valid() bool {
 	case NotificationSenderNameInUse:
 		return true
 	case NotificationSenderNotFound:
+		return true
+	case NotificationSenderTestFailed:
 		return true
 	case OriginNotAllowed:
 		return true
@@ -2824,6 +2827,9 @@ type AgentForbidden = ErrorResponse
 // AgentUnauthorized defines model for AgentUnauthorized.
 type AgentUnauthorized = ErrorResponse
 
+// BadGateway defines model for BadGateway.
+type BadGateway = ErrorResponse
+
 // BadRequest defines model for BadRequest.
 type BadRequest = ErrorResponse
 
@@ -3065,6 +3071,11 @@ type CreateNotificationTestDeliveryParams struct {
 	XCSRFToken *CSRFToken `json:"X-CSRF-Token,omitempty"`
 }
 
+// TestTelegramNotificationSenderParams defines parameters for TestTelegramNotificationSender.
+type TestTelegramNotificationSenderParams struct {
+	XCSRFToken *CSRFToken `json:"X-CSRF-Token,omitempty"`
+}
+
 // PreviewProbeScheduleParams defines parameters for PreviewProbeSchedule.
 type PreviewProbeScheduleParams struct {
 	Cron     string `form:"cron" json:"cron"`
@@ -3160,6 +3171,9 @@ type CreateNotificationSenderJSONRequestBody = NotificationSenderCreate
 
 // UpdateNotificationSenderJSONRequestBody defines body for UpdateNotificationSender for application/json ContentType.
 type UpdateNotificationSenderJSONRequestBody = NotificationSenderUpdate
+
+// TestTelegramNotificationSenderJSONRequestBody defines body for TestTelegramNotificationSender for application/json ContentType.
+type TestTelegramNotificationSenderJSONRequestBody = TelegramSenderCreate
 
 // UpdateSystemSettingsJSONRequestBody defines body for UpdateSystemSettings for application/json ContentType.
 type UpdateSystemSettingsJSONRequestBody = SystemSettingsUpdate
@@ -3337,6 +3351,9 @@ type ServerInterface interface {
 	// CreateNotificationTestDelivery Queue a real-path test delivery for one sender
 	// (POST /api/v1/notification-senders/{senderId}/test-deliveries)
 	CreateNotificationTestDelivery(w http.ResponseWriter, r *http.Request, senderId SenderId, params CreateNotificationTestDeliveryParams)
+	// TestTelegramNotificationSender Send a Telegram test message without saving the sender
+	// (POST /api/v1/notification-telegram-tests)
+	TestTelegramNotificationSender(w http.ResponseWriter, r *http.Request, params TestTelegramNotificationSenderParams)
 	// GetOverview Read the administrator overview
 	// (GET /api/v1/overview)
 	GetOverview(w http.ResponseWriter, r *http.Request)
@@ -3709,6 +3726,12 @@ func (_ Unimplemented) UpdateNotificationSender(w http.ResponseWriter, r *http.R
 // CreateNotificationTestDelivery Queue a real-path test delivery for one sender
 // (POST /api/v1/notification-senders/{senderId}/test-deliveries)
 func (_ Unimplemented) CreateNotificationTestDelivery(w http.ResponseWriter, r *http.Request, senderId SenderId, params CreateNotificationTestDeliveryParams) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
+// TestTelegramNotificationSender Send a Telegram test message without saving the sender
+// (POST /api/v1/notification-telegram-tests)
+func (_ Unimplemented) TestTelegramNotificationSender(w http.ResponseWriter, r *http.Request, params TestTelegramNotificationSenderParams) {
 	w.WriteHeader(http.StatusNotImplemented)
 }
 
@@ -6188,6 +6211,47 @@ func (siw *ServerInterfaceWrapper) CreateNotificationTestDelivery(w http.Respons
 	handler.ServeHTTP(w, r)
 }
 
+// TestTelegramNotificationSender operation middleware
+func (siw *ServerInterfaceWrapper) TestTelegramNotificationSender(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	// Parameter object where we will unmarshal all parameters from the context
+	var params TestTelegramNotificationSenderParams
+
+	headers := r.Header
+
+	// ------------- Optional header parameter "X-CSRF-Token" -------------
+	if valueList, found := headers[http.CanonicalHeaderKey("X-CSRF-Token")]; found {
+		var XCSRFToken CSRFToken
+		n := len(valueList)
+		if n != 1 {
+			siw.ErrorHandlerFunc(w, r, &TooManyValuesForParamError{ParamName: "X-CSRF-Token", Count: n})
+			return
+		}
+
+		err = runtime.BindStyledParameterWithOptions("simple", "X-CSRF-Token", valueList[0], &XCSRFToken, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: false, Type: "string", Format: ""})
+		if err != nil {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "X-CSRF-Token", Err: err})
+			return
+		}
+
+		params.XCSRFToken = &XCSRFToken
+
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.TestTelegramNotificationSender(w, r, params)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
 // GetOverview operation middleware
 func (siw *ServerInterfaceWrapper) GetOverview(w http.ResponseWriter, r *http.Request) {
 
@@ -6712,6 +6776,9 @@ func HandlerWithOptions(si ServerInterface, options ChiServerOptions) http.Handl
 		r.Get(options.BaseURL+"/api/v1/notification-probe-fields", wrapper.ListNotificationProbeFields)
 	})
 	r.Group(func(r chi.Router) {
+		r.Post(options.BaseURL+"/api/v1/notification-telegram-tests", wrapper.TestTelegramNotificationSender)
+	})
+	r.Group(func(r chi.Router) {
 		r.Delete(options.BaseURL+"/api/v1/notification-senders/{senderId}", wrapper.DeleteNotificationSender)
 	})
 	r.Group(func(r chi.Router) {
@@ -6787,6 +6854,8 @@ func HandlerWithOptions(si ServerInterface, options ChiServerOptions) http.Handl
 type AgentForbiddenJSONResponse ErrorResponse
 
 type AgentUnauthorizedJSONResponse ErrorResponse
+
+type BadGatewayJSONResponse ErrorResponse
 
 type BadRequestJSONResponse ErrorResponse
 
@@ -10349,6 +10418,79 @@ func (response CreateNotificationTestDelivery404JSONResponse) VisitCreateNotific
 	return err
 }
 
+type TestTelegramNotificationSenderRequestObject struct {
+	Params TestTelegramNotificationSenderParams
+	Body   *TestTelegramNotificationSenderJSONRequestBody
+}
+
+type TestTelegramNotificationSenderResponseObject interface {
+	VisitTestTelegramNotificationSenderResponse(w http.ResponseWriter) error
+}
+
+type TestTelegramNotificationSender204Response struct {
+}
+
+func (response TestTelegramNotificationSender204Response) VisitTestTelegramNotificationSenderResponse(w http.ResponseWriter) error {
+	w.WriteHeader(204)
+	return nil
+}
+
+type TestTelegramNotificationSender400JSONResponse struct{ BadRequestJSONResponse }
+
+func (response TestTelegramNotificationSender400JSONResponse) VisitTestTelegramNotificationSenderResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(400)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type TestTelegramNotificationSender401JSONResponse struct{ UnauthorizedJSONResponse }
+
+func (response TestTelegramNotificationSender401JSONResponse) VisitTestTelegramNotificationSenderResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(401)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type TestTelegramNotificationSender403JSONResponse struct{ ForbiddenJSONResponse }
+
+func (response TestTelegramNotificationSender403JSONResponse) VisitTestTelegramNotificationSenderResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(403)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type TestTelegramNotificationSender502JSONResponse struct{ BadGatewayJSONResponse }
+
+func (response TestTelegramNotificationSender502JSONResponse) VisitTestTelegramNotificationSenderResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(502)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
 type GetOverviewRequestObject struct {
 }
 
@@ -10972,6 +11114,9 @@ type StrictServerInterface interface {
 	// CreateNotificationTestDelivery Queue a real-path test delivery for one sender
 	// (POST /api/v1/notification-senders/{senderId}/test-deliveries)
 	CreateNotificationTestDelivery(ctx context.Context, request CreateNotificationTestDeliveryRequestObject) (CreateNotificationTestDeliveryResponseObject, error)
+	// TestTelegramNotificationSender Send a Telegram test message without saving the sender
+	// (POST /api/v1/notification-telegram-tests)
+	TestTelegramNotificationSender(ctx context.Context, request TestTelegramNotificationSenderRequestObject) (TestTelegramNotificationSenderResponseObject, error)
 	// GetOverview Read the administrator overview
 	// (GET /api/v1/overview)
 	GetOverview(ctx context.Context, request GetOverviewRequestObject) (GetOverviewResponseObject, error)
@@ -12679,6 +12824,39 @@ func (sh *strictHandler) CreateNotificationTestDelivery(w http.ResponseWriter, r
 		sh.options.ResponseErrorHandlerFunc(w, r, err)
 	} else if validResponse, ok := response.(CreateNotificationTestDeliveryResponseObject); ok {
 		if err := validResponse.VisitCreateNotificationTestDeliveryResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// TestTelegramNotificationSender operation middleware
+func (sh *strictHandler) TestTelegramNotificationSender(w http.ResponseWriter, r *http.Request, params TestTelegramNotificationSenderParams) {
+	var request TestTelegramNotificationSenderRequestObject
+
+	request.Params = params
+
+	var body TestTelegramNotificationSenderJSONRequestBody
+	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+		sh.options.RequestErrorHandlerFunc(w, r, fmt.Errorf("can't decode JSON body: %w", err))
+		return
+	}
+	request.Body = &body
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.TestTelegramNotificationSender(ctx, request.(TestTelegramNotificationSenderRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "TestTelegramNotificationSender")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(TestTelegramNotificationSenderResponseObject); ok {
+		if err := validResponse.VisitTestTelegramNotificationSenderResponse(w); err != nil {
 			sh.options.ResponseErrorHandlerFunc(w, r, err)
 		}
 	} else if response != nil {

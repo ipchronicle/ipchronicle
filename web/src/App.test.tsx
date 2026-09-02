@@ -70,6 +70,7 @@ import {
   listNotificationProbeFields,
   listNotificationRules,
   listNotificationSenders,
+  testTelegramNotificationSender,
   updateNotificationRule,
   updateNotificationSender,
 } from "@/api/notifications";
@@ -164,6 +165,7 @@ vi.mock("@/api/notifications", () => ({
   listNotificationProbeFields: vi.fn(),
   listNotificationRules: vi.fn(),
   listNotificationSenders: vi.fn(),
+  testTelegramNotificationSender: vi.fn(),
   updateNotificationRule: vi.fn(),
   updateNotificationSender: vi.fn(),
 }));
@@ -231,6 +233,9 @@ const listNotificationDeliveriesMock = vi.mocked(listNotificationDeliveries);
 const listNotificationProbeFieldsMock = vi.mocked(listNotificationProbeFields);
 const listNotificationRulesMock = vi.mocked(listNotificationRules);
 const listNotificationSendersMock = vi.mocked(listNotificationSenders);
+const testTelegramNotificationSenderMock = vi.mocked(
+  testTelegramNotificationSender,
+);
 const updateNotificationRuleMock = vi.mocked(updateNotificationRule);
 const updateNotificationSenderMock = vi.mocked(updateNotificationSender);
 const createProbeTaskMock = vi.mocked(createCompleteProbeTask);
@@ -427,6 +432,8 @@ describe("administrator application", () => {
     listNotificationRulesMock.mockResolvedValue([]);
     listNotificationSendersMock.mockReset();
     listNotificationSendersMock.mockResolvedValue([]);
+    testTelegramNotificationSenderMock.mockReset();
+    testTelegramNotificationSenderMock.mockResolvedValue(undefined);
     updateNotificationRuleMock.mockReset();
     updateNotificationSenderMock.mockReset();
     createProbeTaskMock.mockReset();
@@ -794,7 +801,9 @@ describe("administrator application", () => {
       "aria-current",
       "page",
     );
-    fireEvent.click(await screen.findByRole("button", { name: "Send test" }));
+    fireEvent.click(
+      await screen.findByRole("button", { name: "Send test message" }),
+    );
     await waitFor(() =>
       expect(createNotificationTestDeliveryMock).toHaveBeenCalledWith(
         sender.id,
@@ -875,6 +884,22 @@ describe("administrator application", () => {
     fireEvent.change(screen.getByLabelText("Bot token"), {
       target: { value: "test-bot-token" },
     });
+    fireEvent.click(screen.getByRole("button", { name: "Send test message" }));
+    await waitFor(() =>
+      expect(testTelegramNotificationSenderMock).toHaveBeenCalledWith(
+        {
+          chatId: "-1001234567890",
+          topicId: 42,
+          token: "test-bot-token",
+        },
+        session.csrfToken,
+      ),
+    );
+    expect(
+      screen.getByText(
+        "The test message was sent. These settings are not saved yet.",
+      ),
+    ).toBeInTheDocument();
     fireEvent.click(screen.getByRole("button", { name: "Save" }));
 
     await waitFor(() =>

@@ -251,7 +251,9 @@ test("configures and delivers notifications through local receivers", async ({
     const updatedWebhookCard = page
       .getByText(updatedWebhookName, { exact: true })
       .locator("..");
-    await updatedWebhookCard.getByRole("button", { name: "Send test" }).click();
+    await updatedWebhookCard
+      .getByRole("button", { name: "Send test message" })
+      .click();
     await expectDeliverySucceeded(page, updatedWebhookName);
 
     await page.getByRole("tab", { name: "Senders" }).click();
@@ -272,7 +274,9 @@ test("configures and delivers notifications through local receivers", async ({
     const javascriptCard = page
       .getByText(javascriptName, { exact: true })
       .locator("..");
-    await javascriptCard.getByRole("button", { name: "Send test" }).click();
+    await javascriptCard
+      .getByRole("button", { name: "Send test message" })
+      .click();
     await expectDeliverySucceeded(page, javascriptName);
 
     await expect

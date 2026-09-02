@@ -1600,7 +1600,10 @@ export const en = {
           "Configure Telegram, generic Webhook, or isolated JavaScript delivery.",
         add: "Add sender",
         empty: "No notification senders are configured.",
-        test: "Send test",
+        test: "Send test message",
+        testIncomplete: "Enter the chat or group ID and bot token first.",
+        testSent:
+          "The test message was sent. These settings are not saved yet.",
         deleteTitle: "Delete this notification sender?",
         deleteDetail:
           "A sender referenced by a rule or active delivery cannot be deleted.",
@@ -1768,6 +1771,8 @@ export const en = {
       snapshot_egress_mismatch: "The snapshots belong to different public IPs.",
       invalid_notification_sender:
         "The notification sender settings are invalid.",
+      notification_sender_test_failed:
+        "The test message failed ({{reason}}). Check the bot token, chat or group ID, topic ID, and bot permissions.",
       notification_sender_not_found:
         "The notification sender does not exist or was deleted.",
       notification_sender_name_in_use:

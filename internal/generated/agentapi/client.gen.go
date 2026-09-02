@@ -433,6 +433,7 @@ const (
 	NotificationSenderInUse          ErrorCode = "notification_sender_in_use"
 	NotificationSenderNameInUse      ErrorCode = "notification_sender_name_in_use"
 	NotificationSenderNotFound       ErrorCode = "notification_sender_not_found"
+	NotificationSenderTestFailed     ErrorCode = "notification_sender_test_failed"
 	OriginNotAllowed                 ErrorCode = "origin_not_allowed"
 	ProbeAlreadyRunning              ErrorCode = "probe_already_running"
 	ProbePausedLowMemory             ErrorCode = "probe_paused_low_memory"
@@ -531,6 +532,8 @@ func (e ErrorCode) Valid() bool {
 	case NotificationSenderNameInUse:
 		return true
 	case NotificationSenderNotFound:
+		return true
+	case NotificationSenderTestFailed:
 		return true
 	case OriginNotAllowed:
 		return true
@@ -2825,6 +2828,9 @@ type AgentForbidden = ErrorResponse
 // AgentUnauthorized defines model for AgentUnauthorized.
 type AgentUnauthorized = ErrorResponse
 
+// BadGateway defines model for BadGateway.
+type BadGateway = ErrorResponse
+
 // BadRequest defines model for BadRequest.
 type BadRequest = ErrorResponse
 
@@ -3066,6 +3072,11 @@ type CreateNotificationTestDeliveryParams struct {
 	XCSRFToken *CSRFToken `json:"X-CSRF-Token,omitempty"`
 }
 
+// TestTelegramNotificationSenderParams defines parameters for TestTelegramNotificationSender.
+type TestTelegramNotificationSenderParams struct {
+	XCSRFToken *CSRFToken `json:"X-CSRF-Token,omitempty"`
+}
+
 // PreviewProbeScheduleParams defines parameters for PreviewProbeSchedule.
 type PreviewProbeScheduleParams struct {
 	Cron     string `form:"cron" json:"cron"`
@@ -3161,6 +3172,9 @@ type CreateNotificationSenderJSONRequestBody = NotificationSenderCreate
 
 // UpdateNotificationSenderJSONRequestBody defines body for UpdateNotificationSender for application/json ContentType.
 type UpdateNotificationSenderJSONRequestBody = NotificationSenderUpdate
+
+// TestTelegramNotificationSenderJSONRequestBody defines body for TestTelegramNotificationSender for application/json ContentType.
+type TestTelegramNotificationSenderJSONRequestBody = TelegramSenderCreate
 
 // UpdateSystemSettingsJSONRequestBody defines body for UpdateSystemSettings for application/json ContentType.
 type UpdateSystemSettingsJSONRequestBody = SystemSettingsUpdate
@@ -3748,6 +3762,20 @@ type ClientInterface interface {
 	//
 	// Corresponds with POST /api/v1/notification-senders/{senderId}/test-deliveries (the `CreateNotificationTestDelivery` operationId).
 	CreateNotificationTestDelivery(ctx context.Context, senderId SenderId, params *CreateNotificationTestDeliveryParams, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// TestTelegramNotificationSenderWithBody Send a Telegram test message without saving the sender
+	//
+	// Takes any type of body and a specified content type.
+	//
+	// Corresponds with POST /api/v1/notification-telegram-tests (the `TestTelegramNotificationSender` operationId).
+	TestTelegramNotificationSenderWithBody(ctx context.Context, params *TestTelegramNotificationSenderParams, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// TestTelegramNotificationSender Send a Telegram test message without saving the sender
+	//
+	// Takes a body of the `application/json` content type.
+	//
+	// Corresponds with POST /api/v1/notification-telegram-tests (the `TestTelegramNotificationSender` operationId).
+	TestTelegramNotificationSender(ctx context.Context, params *TestTelegramNotificationSenderParams, body TestTelegramNotificationSenderJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
 
 	// GetOverview Read the administrator overview
 	//
@@ -5124,6 +5152,40 @@ func (c *Client) UpdateNotificationSender(ctx context.Context, senderId SenderId
 // Corresponds with POST /api/v1/notification-senders/{senderId}/test-deliveries (the `CreateNotificationTestDelivery` operationId).
 func (c *Client) CreateNotificationTestDelivery(ctx context.Context, senderId SenderId, params *CreateNotificationTestDeliveryParams, reqEditors ...RequestEditorFn) (*http.Response, error) {
 	req, err := NewCreateNotificationTestDeliveryRequest(c.Server, senderId, params)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+// TestTelegramNotificationSenderWithBody Send a Telegram test message without saving the sender
+//
+// Takes any type of body and a specified content type.
+//
+// Corresponds with POST /api/v1/notification-telegram-tests (the `TestTelegramNotificationSender` operationId).
+func (c *Client) TestTelegramNotificationSenderWithBody(ctx context.Context, params *TestTelegramNotificationSenderParams, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewTestTelegramNotificationSenderRequestWithBody(c.Server, params, contentType, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+// TestTelegramNotificationSender Send a Telegram test message without saving the sender
+//
+// Takes a body of the `application/json` content type.
+//
+// Corresponds with POST /api/v1/notification-telegram-tests (the `TestTelegramNotificationSender` operationId).
+func (c *Client) TestTelegramNotificationSender(ctx context.Context, params *TestTelegramNotificationSenderParams, body TestTelegramNotificationSenderJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewTestTelegramNotificationSenderRequest(c.Server, params, body)
 	if err != nil {
 		return nil, err
 	}
@@ -8327,6 +8389,61 @@ func NewCreateNotificationTestDeliveryRequest(server string, senderId SenderId, 
 	return req, nil
 }
 
+// NewTestTelegramNotificationSenderRequest calls the generic TestTelegramNotificationSender builder with application/json body
+func NewTestTelegramNotificationSenderRequest(server string, params *TestTelegramNotificationSenderParams, body TestTelegramNotificationSenderJSONRequestBody) (*http.Request, error) {
+	var bodyReader io.Reader
+	buf, err := json.Marshal(body)
+	if err != nil {
+		return nil, err
+	}
+	bodyReader = bytes.NewReader(buf)
+	return NewTestTelegramNotificationSenderRequestWithBody(server, params, "application/json", bodyReader)
+}
+
+// NewTestTelegramNotificationSenderRequestWithBody constructs an http.Request for the TestTelegramNotificationSender method, with any body, and a specified content type
+func NewTestTelegramNotificationSenderRequestWithBody(server string, params *TestTelegramNotificationSenderParams, contentType string, body io.Reader) (*http.Request, error) {
+	var err error
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/api/v1/notification-telegram-tests")
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest(http.MethodPost, queryURL.String(), body)
+	if err != nil {
+		return nil, err
+	}
+
+	req.Header.Add("Content-Type", contentType)
+
+	if params != nil {
+
+		if params.XCSRFToken != nil {
+			var headerParam0 string
+
+			headerParam0, err = runtime.StyleParamWithOptions("simple", false, "X-CSRF-Token", *params.XCSRFToken, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationHeader, Type: "string", Format: ""})
+			if err != nil {
+				return nil, err
+			}
+
+			req.Header.Set("X-CSRF-Token", headerParam0)
+		}
+
+	}
+
+	return req, nil
+}
+
 // NewGetOverviewRequest constructs an http.Request for the GetOverview method
 func NewGetOverviewRequest(server string) (*http.Request, error) {
 	var err error
@@ -9304,6 +9421,20 @@ type ClientWithResponsesInterface interface {
 	//
 	// Corresponds with POST /api/v1/notification-senders/{senderId}/test-deliveries (the `CreateNotificationTestDelivery` operationId).
 	CreateNotificationTestDeliveryWithResponse(ctx context.Context, senderId SenderId, params *CreateNotificationTestDeliveryParams, reqEditors ...RequestEditorFn) (*CreateNotificationTestDeliveryResponse, error)
+
+	// TestTelegramNotificationSenderWithBodyWithResponse Send a Telegram test message without saving the sender
+	//
+	// Takes any type of body and a specified content type, and returns a wrapper object for the known response body format(s).
+	//
+	// Corresponds with POST /api/v1/notification-telegram-tests (the `TestTelegramNotificationSender` operationId).
+	TestTelegramNotificationSenderWithBodyWithResponse(ctx context.Context, params *TestTelegramNotificationSenderParams, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*TestTelegramNotificationSenderResponse, error)
+
+	// TestTelegramNotificationSenderWithResponse Send a Telegram test message without saving the sender
+	//
+	// Takes a body of the `application/json` content type, and returns a wrapper object for the known response body format(s).
+	//
+	// Corresponds with POST /api/v1/notification-telegram-tests (the `TestTelegramNotificationSender` operationId).
+	TestTelegramNotificationSenderWithResponse(ctx context.Context, params *TestTelegramNotificationSenderParams, body TestTelegramNotificationSenderJSONRequestBody, reqEditors ...RequestEditorFn) (*TestTelegramNotificationSenderResponse, error)
 
 	// GetOverviewWithResponse Read the administrator overview
 	//
@@ -12840,6 +12971,68 @@ func (r CreateNotificationTestDeliveryResponse) ContentType() string {
 	return ""
 }
 
+type TestTelegramNotificationSenderResponse struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	// JSON400 the response for an HTTP 400 `application/json` response
+	JSON400 *BadRequest
+	// JSON401 the response for an HTTP 401 `application/json` response
+	JSON401 *Unauthorized
+	// JSON403 the response for an HTTP 403 `application/json` response
+	JSON403 *Forbidden
+	// JSON502 the response for an HTTP 502 `application/json` response
+	JSON502 *BadGateway
+}
+
+// GetJSON400 returns the response for an HTTP 400 `application/json` response
+func (r TestTelegramNotificationSenderResponse) GetJSON400() *BadRequest {
+	return r.JSON400
+}
+
+// GetJSON401 returns the response for an HTTP 401 `application/json` response
+func (r TestTelegramNotificationSenderResponse) GetJSON401() *Unauthorized {
+	return r.JSON401
+}
+
+// GetJSON403 returns the response for an HTTP 403 `application/json` response
+func (r TestTelegramNotificationSenderResponse) GetJSON403() *Forbidden {
+	return r.JSON403
+}
+
+// GetJSON502 returns the response for an HTTP 502 `application/json` response
+func (r TestTelegramNotificationSenderResponse) GetJSON502() *BadGateway {
+	return r.JSON502
+}
+
+// GetBody returns the raw response body bytes
+func (r TestTelegramNotificationSenderResponse) GetBody() []byte {
+	return r.Body
+}
+
+// Status returns HTTPResponse.Status
+func (r TestTelegramNotificationSenderResponse) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r TestTelegramNotificationSenderResponse) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+// ContentType is a convenience method to retrieve the Content-Type value from the HTTP response headers
+func (r TestTelegramNotificationSenderResponse) ContentType() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Header.Get("Content-Type")
+	}
+	return ""
+}
+
 type GetOverviewResponse struct {
 	Body         []byte
 	HTTPResponse *http.Response
@@ -14399,6 +14592,32 @@ func (c *ClientWithResponses) CreateNotificationTestDeliveryWithResponse(ctx con
 		return nil, err
 	}
 	return ParseCreateNotificationTestDeliveryResponse(rsp)
+}
+
+// TestTelegramNotificationSenderWithBodyWithResponse Send a Telegram test message without saving the sender
+//
+// Takes any type of body and a specified content type, and returns a wrapper object for the known response body format(s).
+//
+// Corresponds with POST /api/v1/notification-telegram-tests (the `TestTelegramNotificationSender` operationId).
+func (c *ClientWithResponses) TestTelegramNotificationSenderWithBodyWithResponse(ctx context.Context, params *TestTelegramNotificationSenderParams, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*TestTelegramNotificationSenderResponse, error) {
+	rsp, err := c.TestTelegramNotificationSenderWithBody(ctx, params, contentType, body, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseTestTelegramNotificationSenderResponse(rsp)
+}
+
+// TestTelegramNotificationSenderWithResponse Send a Telegram test message without saving the sender
+//
+// Takes a body of the `application/json` content type, and returns a wrapper object for the known response body format(s).
+//
+// Corresponds with POST /api/v1/notification-telegram-tests (the `TestTelegramNotificationSender` operationId).
+func (c *ClientWithResponses) TestTelegramNotificationSenderWithResponse(ctx context.Context, params *TestTelegramNotificationSenderParams, body TestTelegramNotificationSenderJSONRequestBody, reqEditors ...RequestEditorFn) (*TestTelegramNotificationSenderResponse, error) {
+	rsp, err := c.TestTelegramNotificationSender(ctx, params, body, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseTestTelegramNotificationSenderResponse(rsp)
 }
 
 // GetOverviewWithResponse Read the administrator overview
@@ -17179,6 +17398,56 @@ func ParseCreateNotificationTestDeliveryResponse(rsp *http.Response) (*CreateNot
 			return nil, err
 		}
 		response.JSON404 = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseTestTelegramNotificationSenderResponse parses an HTTP response from a TestTelegramNotificationSenderWithResponse call
+func ParseTestTelegramNotificationSenderResponse(rsp *http.Response) (*TestTelegramNotificationSenderResponse, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &TestTelegramNotificationSenderResponse{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case rsp.StatusCode == 204:
+		break // No content-type
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 400:
+		var dest BadRequest
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON400 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 401:
+		var dest Unauthorized
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON401 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 403:
+		var dest Forbidden
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON403 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 502:
+		var dest BadGateway
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON502 = &dest
 
 	}
 

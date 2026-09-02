@@ -1384,6 +1384,10 @@ func badRequest(code api.ErrorCode) api.BadRequestJSONResponse {
 	return api.BadRequestJSONResponse(errorResponse(code, nil))
 }
 
+func badGateway(code api.ErrorCode, parameters map[string]string) api.BadGatewayJSONResponse {
+	return api.BadGatewayJSONResponse(errorResponse(code, parameters))
+}
+
 func conflict(code api.ErrorCode) api.ConflictJSONResponse {
 	return api.ConflictJSONResponse(errorResponse(code, nil))
 }

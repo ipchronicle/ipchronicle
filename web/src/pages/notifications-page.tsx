@@ -27,6 +27,7 @@ import {
   listNotificationProbeFields,
   listNotificationRules,
   listNotificationSenders,
+  testTelegramNotificationSender,
   updateNotificationRule,
   updateNotificationSender,
   type NotificationDeliveryStatus,
@@ -37,6 +38,7 @@ import {
   type NotificationSender,
   type NotificationSenderCreate,
   type NotificationSenderUpdate,
+  type TelegramSenderCreate,
 } from "@/api/notifications";
 import { useAuth } from "@/auth-context";
 import {
@@ -252,6 +254,15 @@ export function NotificationsPage() {
     setDeliveryRevision((value) => value + 1);
   }
 
+  async function testUnsavedTelegramSender(input: TelegramSenderCreate) {
+    try {
+      await testTelegramNotificationSender(input, csrfToken);
+      return undefined;
+    } catch (error) {
+      return formatAPIError(error, t);
+    }
+  }
+
   async function createRule(input: NotificationRuleWrite) {
     const rule = await runAction(() =>
       createNotificationRule(input, csrfToken),
@@ -386,6 +397,7 @@ export function NotificationsPage() {
                   sender={senderEditor === "create" ? undefined : senderEditor}
                   onCancel={() => setSenderEditor(undefined)}
                   onCreate={createSender}
+                  onTestTelegram={testUnsavedTelegramSender}
                   onUpdate={updateSender}
                 />
               ) : null}
@@ -540,11 +552,13 @@ function SenderForm({
   sender,
   onCancel,
   onCreate,
+  onTestTelegram,
   onUpdate,
 }: {
   sender?: NotificationSender;
   onCancel: () => void;
   onCreate: (input: NotificationSenderCreate) => Promise<boolean>;
+  onTestTelegram: (input: TelegramSenderCreate) => Promise<string | undefined>;
   onUpdate: (
     senderId: string,
     input: NotificationSenderUpdate,
@@ -566,7 +580,44 @@ function SenderForm({
   const [replaceHeaders, setReplaceHeaders] = useState(!sender);
   const [source, setSource] = useState(sender?.javascript?.source ?? "");
   const [working, setWorking] = useState(false);
+  const [testing, setTesting] = useState(false);
+  const [testSent, setTestSent] = useState(false);
   const [invalid, setInvalid] = useState<string>();
+
+  function telegramInput() {
+    const parsedTopicId = topicId === "" ? undefined : Number(topicId);
+    if (
+      parsedTopicId !== undefined &&
+      (!Number.isSafeInteger(parsedTopicId) || parsedTopicId <= 0)
+    ) {
+      setInvalid(t("notifications.senders.invalidTopicId"));
+      return undefined;
+    }
+    return {
+      chatId,
+      token,
+      ...(parsedTopicId ? { topicId: parsedTopicId } : {}),
+    } satisfies TelegramSenderCreate;
+  }
+
+  async function testTelegram() {
+    setInvalid(undefined);
+    setTestSent(false);
+    if (chatId.trim() === "" || token.trim() === "") {
+      setInvalid(t("notifications.senders.testIncomplete"));
+      return;
+    }
+    const input = telegramInput();
+    if (!input) return;
+    setTesting(true);
+    try {
+      const error = await onTestTelegram(input);
+      if (error) setInvalid(error);
+      else setTestSent(true);
+    } finally {
+      setTesting(false);
+    }
+  }
 
   async function submit(event: FormEvent) {
     event.preventDefault();
@@ -576,25 +627,13 @@ function SenderForm({
       setInvalid(t("notifications.senders.invalidHeaders"));
       return;
     }
-    const parsedTopicId = topicId === "" ? undefined : Number(topicId);
-    if (
-      kind === "telegram" &&
-      parsedTopicId !== undefined &&
-      (!Number.isSafeInteger(parsedTopicId) || parsedTopicId <= 0)
-    ) {
-      setInvalid(t("notifications.senders.invalidTopicId"));
-      return;
-    }
+    const telegram = kind === "telegram" ? telegramInput() : undefined;
+    if (kind === "telegram" && !telegram) return;
     setWorking(true);
     try {
       if (!sender) {
         const input: NotificationSenderCreate = { name, kind, enabled };
-        if (kind === "telegram")
-          input.telegram = {
-            chatId,
-            token,
-            ...(parsedTopicId ? { topicId: parsedTopicId } : {}),
-          };
+        if (kind === "telegram") input.telegram = telegram;
         if (kind === "webhook")
           input.webhook = { url, headers: parsedHeaders ?? {} };
         if (kind === "javascript") input.javascript = { source };
@@ -606,7 +645,7 @@ function SenderForm({
         input.telegram = {
           chatId,
           ...(token ? { token } : {}),
-          ...(parsedTopicId ? { topicId: parsedTopicId } : {}),
+          ...(telegram?.topicId ? { topicId: telegram.topicId } : {}),
         };
       }
       if (kind === "webhook") {
@@ -640,6 +679,13 @@ function SenderForm({
             <Alert variant="destructive">
               <TriangleAlert aria-hidden="true" />
               <AlertDescription>{invalid}</AlertDescription>
+            </Alert>
+          ) : null}
+          {testSent ? (
+            <Alert>
+              <AlertDescription>
+                {t("notifications.senders.testSent")}
+              </AlertDescription>
             </Alert>
           ) : null}
           <div className="grid gap-4 sm:grid-cols-2">
@@ -697,7 +743,10 @@ function SenderForm({
                 <Input
                   id="sender-chat-id"
                   value={chatId}
-                  onChange={(event) => setChatId(event.target.value)}
+                  onChange={(event) => {
+                    setChatId(event.target.value);
+                    setTestSent(false);
+                  }}
                   required
                 />
               </div>
@@ -712,7 +761,10 @@ function SenderForm({
                   max={Number.MAX_SAFE_INTEGER}
                   step={1}
                   value={topicId}
-                  onChange={(event) => setTopicId(event.target.value)}
+                  onChange={(event) => {
+                    setTopicId(event.target.value);
+                    setTestSent(false);
+                  }}
                   placeholder={t("notifications.senders.topicIdPlaceholder")}
                 />
                 <p className="text-sm text-muted-foreground">
@@ -727,7 +779,10 @@ function SenderForm({
                   id="sender-token"
                   type="password"
                   value={token}
-                  onChange={(event) => setToken(event.target.value)}
+                  onChange={(event) => {
+                    setToken(event.target.value);
+                    setTestSent(false);
+                  }}
                   required={!sender}
                   autoComplete="off"
                 />
@@ -826,22 +881,45 @@ function SenderForm({
               onCheckedChange={setEnabled}
             />
           </div>
-          <div className="flex justify-end gap-2 border-t pt-4">
-            <Button type="button" variant="outline" onClick={onCancel}>
-              {t("common.cancel")}
-            </Button>
-            <Button type="submit" disabled={working}>
-              {working ? (
-                <LoaderCircle
-                  data-icon="inline-start"
-                  aria-hidden="true"
-                  className="animate-spin"
-                />
-              ) : (
-                <Save data-icon="inline-start" aria-hidden="true" />
-              )}
-              {t("notifications.save")}
-            </Button>
+          <div className="flex flex-wrap items-center justify-between gap-2 border-t pt-4">
+            <div>
+              {!sender && kind === "telegram" ? (
+                <Button
+                  type="button"
+                  variant="outline"
+                  disabled={working || testing}
+                  onClick={() => void testTelegram()}
+                >
+                  {testing ? (
+                    <LoaderCircle
+                      data-icon="inline-start"
+                      aria-hidden="true"
+                      className="animate-spin"
+                    />
+                  ) : (
+                    <Send data-icon="inline-start" aria-hidden="true" />
+                  )}
+                  {t("notifications.senders.test")}
+                </Button>
+              ) : null}
+            </div>
+            <div className="flex gap-2">
+              <Button type="button" variant="outline" onClick={onCancel}>
+                {t("common.cancel")}
+              </Button>
+              <Button type="submit" disabled={working || testing}>
+                {working ? (
+                  <LoaderCircle
+                    data-icon="inline-start"
+                    aria-hidden="true"
+                    className="animate-spin"
+                  />
+                ) : (
+                  <Save data-icon="inline-start" aria-hidden="true" />
+                )}
+                {t("notifications.save")}
+              </Button>
+            </div>
           </div>
         </form>
       </CardContent>

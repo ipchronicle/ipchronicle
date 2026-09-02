@@ -30,6 +30,39 @@ func (s apiServer) ListNotificationProbeFields(ctx context.Context, _ api.ListNo
 	return api.ListNotificationProbeFields200JSONResponse{Items: items}, nil
 }
 
+func (s apiServer) TestTelegramNotificationSender(ctx context.Context, request api.TestTelegramNotificationSenderRequestObject) (api.TestTelegramNotificationSenderResponseObject, error) {
+	_, failure, err := s.authorize(ctx, true, csrfValue(request.Params.XCSRFToken))
+	if err != nil {
+		return nil, err
+	}
+	if failure == api.Unauthenticated {
+		return api.TestTelegramNotificationSender401JSONResponse{UnauthorizedJSONResponse: unauthorized(failure)}, nil
+	}
+	if failure != "" {
+		return api.TestTelegramNotificationSender403JSONResponse{ForbiddenJSONResponse: forbidden(failure)}, nil
+	}
+	if request.Body == nil {
+		return api.TestTelegramNotificationSender400JSONResponse{BadRequestJSONResponse: badRequest(api.InvalidRequest)}, nil
+	}
+	configuration := notifications.TelegramConfiguration{
+		ChatID: request.Body.ChatId, Token: request.Body.Token, TopicID: request.Body.TopicId,
+	}
+	err = s.notifications.TestTelegramSender(ctx, configuration)
+	if errors.Is(err, notifications.ErrInvalidSender) {
+		return api.TestTelegramNotificationSender400JSONResponse{BadRequestJSONResponse: badRequest(api.InvalidNotificationSender)}, nil
+	}
+	var testFailure notifications.SenderTestFailure
+	if errors.As(err, &testFailure) {
+		return api.TestTelegramNotificationSender502JSONResponse{BadGatewayJSONResponse: badGateway(
+			api.NotificationSenderTestFailed, map[string]string{"reason": testFailure.Code},
+		)}, nil
+	}
+	if err != nil {
+		return nil, err
+	}
+	return api.TestTelegramNotificationSender204Response{}, nil
+}
+
 func (s apiServer) ListNotificationSenders(ctx context.Context, _ api.ListNotificationSendersRequestObject) (api.ListNotificationSendersResponseObject, error) {
 	_, failure, err := s.authorize(ctx, false, "")
 	if err != nil {

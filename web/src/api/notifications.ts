@@ -7,6 +7,8 @@ export type NotificationSenderCreate =
   components["schemas"]["NotificationSenderCreate"];
 export type NotificationSenderUpdate =
   components["schemas"]["NotificationSenderUpdate"];
+export type TelegramSenderCreate =
+  components["schemas"]["TelegramSenderCreate"];
 export type NotificationRule = components["schemas"]["NotificationRule"];
 export type NotificationRuleWrite =
   components["schemas"]["NotificationRuleWrite"];
@@ -51,6 +53,19 @@ export async function createNotificationSender(
     throwAPIError(result.response, result.error);
   }
   return result.data;
+}
+
+export async function testTelegramNotificationSender(
+  input: TelegramSenderCreate,
+  csrfToken: string,
+) {
+  const result = await apiClient.POST("/api/v1/notification-telegram-tests", {
+    body: input,
+    headers: { "X-CSRF-Token": csrfToken },
+  });
+  if (!result.response.ok) {
+    throwAPIError(result.response, result.error);
+  }
 }
 
 export async function updateNotificationSender(

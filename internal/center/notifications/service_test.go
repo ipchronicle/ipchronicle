@@ -162,9 +162,13 @@ func TestAllEventRuleMatchesAndRejectsUnknownProbeFields(t *testing.T) {
 func TestTelegramDeliveryIncludesOptionalTopic(t *testing.T) {
 	topicID := int64(42)
 	var payload struct {
-		ChatID  string `json:"chat_id"`
-		Text    string `json:"text"`
-		TopicID *int64 `json:"message_thread_id"`
+		ChatID            string `json:"chat_id"`
+		Text              string `json:"text"`
+		ParseMode         string `json:"parse_mode"`
+		TopicID           *int64 `json:"message_thread_id"`
+		LinkPreviewOption struct {
+			Disabled bool `json:"is_disabled"`
+		} `json:"link_preview_options"`
 	}
 	client := &http.Client{Transport: roundTripFunc(func(request *http.Request) (*http.Response, error) {
 		if request.Method != http.MethodPost || request.URL.Path != "/bottest-token/sendMessage" {
@@ -183,10 +187,63 @@ func TestTelegramDeliveryIncludesOptionalTopic(t *testing.T) {
 	service := &Service{httpClient: client}
 	result := service.sendTelegram(context.Background(), TelegramConfiguration{
 		ChatID: "-1001234567890", Token: "test-token", TopicID: &topicID,
-	}, "Title", "Body")
+	}, nil, "Title & status", "Node: <node>")
 	if !result.Empty() || payload.ChatID != "-1001234567890" || payload.TopicID == nil || *payload.TopicID != topicID ||
-		payload.Text != "Title\n\nBody" {
+		payload.Text != "<b>Title &amp; status</b>\n\nNode: &lt;node&gt;" || payload.ParseMode != "HTML" ||
+		!payload.LinkPreviewOption.Disabled {
 		t.Fatalf("telegram topic request = %#v, result = %#v", payload, result)
+	}
+}
+
+func TestRenderEventUsesHumanProbeFieldLabelsAndValues(t *testing.T) {
+	data, err := json.Marshal(ProbeChangeData{Changes: []FieldChange{
+		{FieldID: "Mail.DNSBlacklist.Clean", Path: "Mail.DNSBlacklist.Clean", Before: "422", After: "421"},
+		{FieldID: "Mail.Sohu", Path: "Mail.Sohu", Before: "false", After: "true"},
+		{FieldID: "Media.Youtube.Status", Path: "Media.Youtube.Status", Before: `"Failed"`, After: `"Unlocked"`},
+	}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	title, body := renderEvent("zh-CN", eventEnvelope{
+		Locale: "zh-CN", Type: EventProbeFieldChange, Node: &resourceRef{Name: "test-node"},
+		Egress: &egressRef{Name: "203.0.113.10"}, Data: data,
+	})
+	if title != "IP 质量发生变化" || strings.Contains(body, title) ||
+		!strings.Contains(body, "变更项（3）") ||
+		!strings.Contains(body, "正常 DNS 黑名单: 422 → 421") ||
+		!strings.Contains(body, "Sohu 连通性: 不可用 → 可用") ||
+		!strings.Contains(body, "Youtube 可用性: Failed → Unlocked") ||
+		strings.Contains(body, "Mail.DNSBlacklist.Clean") || strings.Contains(body, "Media.Youtube.Status") {
+		t.Fatalf("rendered notification = %q, %q", title, body)
+	}
+	eventJSON, err := json.Marshal(eventEnvelope{
+		Locale: "zh-CN", Type: EventProbeFieldChange, Node: &resourceRef{Name: "test-node"},
+		Egress: &egressRef{Name: "203.0.113.10"}, Data: data,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	telegram := telegramMessage(eventJSON, title, body)
+	if !strings.Contains(telegram, "<b>节点</b>：test-node") ||
+		!strings.Contains(telegram, "<b>公网 IP</b>：<code>203.0.113.10</code>") ||
+		!strings.Contains(telegram, "• <b>正常 DNS 黑名单</b>\n  <code>422</code> → <code>421</code>") ||
+		strings.Contains(telegram, "Mail.DNSBlacklist.Clean") {
+		t.Fatalf("Telegram notification = %q", telegram)
+	}
+}
+
+func TestUnsavedTelegramSenderTestReturnsBoundedFailure(t *testing.T) {
+	service, _, _, _ := newNotificationTestService(t)
+	service.httpClient = &http.Client{Transport: roundTripFunc(func(request *http.Request) (*http.Response, error) {
+		return &http.Response{
+			StatusCode: http.StatusUnauthorized, Header: make(http.Header),
+			Body: io.NopCloser(strings.NewReader(`{"ok":false}`)), Request: request,
+		}, nil
+	})}
+	err := service.TestTelegramSender(context.Background(), TelegramConfiguration{ChatID: "123", Token: "invalid"})
+	var failure SenderTestFailure
+	if !errors.Is(err, ErrSenderTestFailed) || !errors.As(err, &failure) || failure.Code != "http-401" {
+		t.Fatalf("Telegram sender test error = %#v", err)
 	}
 }
 

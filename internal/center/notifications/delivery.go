@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"html"
 	"io"
 	"net/http"
 	"net/url"
@@ -13,6 +14,7 @@ import (
 	"time"
 
 	"github.com/ipchronicle/ipchronicle/internal/center/database/historydb"
+	"github.com/ipchronicle/ipchronicle/internal/probefields"
 )
 
 const maximumSenderResponseBytes = 1024 * 1024
@@ -90,7 +92,7 @@ func (s *Service) dispatch(ctx context.Context, record historydb.NotificationDel
 	}
 	switch decoded.Kind {
 	case SenderTelegram:
-		return s.sendTelegram(ctx, *decoded.Configuration.Telegram, record.Title, record.Body)
+		return s.sendTelegram(ctx, *decoded.Configuration.Telegram, record.EventJson, record.Title, record.Body)
 	case SenderWebhook:
 		return s.sendWebhook(ctx, *decoded.Configuration.Webhook, record.EventJson)
 	case SenderJavaScript:
@@ -103,13 +105,22 @@ func (s *Service) dispatch(ctx context.Context, record historydb.NotificationDel
 	}
 }
 
-func (s *Service) sendTelegram(ctx context.Context, configuration TelegramConfiguration, title, body string) DeliveryError {
+func (s *Service) sendTelegram(ctx context.Context, configuration TelegramConfiguration, eventJSON []byte, title, body string) DeliveryError {
 	endpoint := "https://api.telegram.org/bot" + url.PathEscape(configuration.Token) + "/sendMessage"
 	payload, err := json.Marshal(struct {
-		ChatID  string `json:"chat_id"`
-		Text    string `json:"text"`
-		TopicID *int64 `json:"message_thread_id,omitempty"`
-	}{ChatID: configuration.ChatID, Text: title + "\n\n" + body, TopicID: configuration.TopicID})
+		ChatID            string `json:"chat_id"`
+		Text              string `json:"text"`
+		ParseMode         string `json:"parse_mode"`
+		TopicID           *int64 `json:"message_thread_id,omitempty"`
+		LinkPreviewOption struct {
+			Disabled bool `json:"is_disabled"`
+		} `json:"link_preview_options"`
+	}{
+		ChatID: configuration.ChatID, Text: telegramMessage(eventJSON, title, body), ParseMode: "HTML",
+		TopicID: configuration.TopicID, LinkPreviewOption: struct {
+			Disabled bool `json:"is_disabled"`
+		}{Disabled: true},
+	})
 	if err != nil {
 		return DeliveryError{Code: "request-invalid"}
 	}
@@ -119,6 +130,114 @@ func (s *Service) sendTelegram(ctx context.Context, configuration TelegramConfig
 	}
 	request.Header.Set("Content-Type", "application/json")
 	return s.sendHTTPRequest(request)
+}
+
+func telegramMessage(eventJSON []byte, title, body string) string {
+	var event eventEnvelope
+	if len(eventJSON) > 0 && json.Unmarshal(eventJSON, &event) == nil && event.Type != "" {
+		return renderTelegramEvent(title, event)
+	}
+	title = truncateUTF8(strings.TrimSpace(title), 256)
+	body = truncateUTF8(strings.TrimSpace(body), 3700)
+	message := "<b>" + html.EscapeString(title) + "</b>"
+	if body != "" {
+		message += "\n\n" + html.EscapeString(body)
+	}
+	return message
+}
+
+func renderTelegramEvent(title string, event eventEnvelope) string {
+	const maximumChanges = 10
+	zh := event.Locale == "zh-CN"
+	var message strings.Builder
+	message.WriteString("<b>")
+	message.WriteString(html.EscapeString(truncateUTF8(strings.TrimSpace(title), 256)))
+	message.WriteString("</b>")
+	if event.Node != nil {
+		message.WriteString("\n\n<b>")
+		if zh {
+			message.WriteString("节点")
+		} else {
+			message.WriteString("Node")
+		}
+		if zh {
+			message.WriteString("</b>：")
+		} else {
+			message.WriteString("</b>: ")
+		}
+		message.WriteString(html.EscapeString(truncateUTF8(event.Node.Name, 128)))
+	}
+	if event.Egress != nil {
+		message.WriteString("\n<b>")
+		if zh {
+			message.WriteString("公网 IP")
+		} else {
+			message.WriteString("Public IP")
+		}
+		if zh {
+			message.WriteString("</b>：<code>")
+		} else {
+			message.WriteString("</b>: <code>")
+		}
+		message.WriteString(html.EscapeString(truncateUTF8(event.Egress.Name, 128)))
+		message.WriteString("</code>")
+	}
+	if event.Type == EventProbeFieldChange {
+		var data ProbeChangeData
+		if json.Unmarshal(event.Data, &data) == nil && len(data.Changes) > 0 {
+			message.WriteString("\n\n<b>")
+			if zh {
+				fmt.Fprintf(&message, "变更项（%d）", len(data.Changes))
+			} else {
+				fmt.Fprintf(&message, "Changes (%d)", len(data.Changes))
+			}
+			message.WriteString("</b>")
+			for _, change := range data.Changes[:min(len(data.Changes), maximumChanges)] {
+				name, ok := probefields.DisplayName(change.FieldID, event.Locale)
+				if !ok {
+					name = localizedNotification(event.Locale, "Unknown probe field", "未知探测字段")
+				}
+				before := truncateUTF8(probefields.DisplayValue(change.FieldID, change.Before, event.Locale), 120)
+				after := truncateUTF8(probefields.DisplayValue(change.FieldID, change.After, event.Locale), 120)
+				message.WriteString("\n• <b>")
+				message.WriteString(html.EscapeString(name))
+				message.WriteString("</b>\n  <code>")
+				message.WriteString(html.EscapeString(before))
+				message.WriteString("</code> → <code>")
+				message.WriteString(html.EscapeString(after))
+				message.WriteString("</code>")
+			}
+			if remaining := len(data.Changes) - maximumChanges; remaining > 0 {
+				message.WriteString("\n")
+				if zh {
+					fmt.Fprintf(&message, "另有 %d 项，请打开详情查看。", remaining)
+				} else {
+					fmt.Fprintf(&message, "%d more changes are available in the details.", remaining)
+				}
+			}
+		}
+	}
+	if event.Type == EventTest {
+		message.WriteString("\n\n")
+		message.WriteString(html.EscapeString(localizedNotification(
+			event.Locale, "The test message was delivered successfully.", "测试消息已成功送达。",
+		)))
+	}
+	if event.Link != nil && len(*event.Link) <= 1024 {
+		message.WriteString("\n\n<a href=\"")
+		message.WriteString(html.EscapeString(*event.Link))
+		message.WriteString("\">")
+		message.WriteString(localizedNotification(event.Locale, "View details", "查看详情"))
+		message.WriteString("</a>")
+	}
+	return message.String()
+}
+
+func localizedNotification(locale, english, chinese string) string {
+	if locale == "zh-CN" {
+		return chinese
+	}
+	return english
 }
 
 func (s *Service) sendWebhook(ctx context.Context, configuration WebhookConfiguration, event []byte) DeliveryError {

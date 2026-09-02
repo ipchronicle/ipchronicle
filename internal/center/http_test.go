@@ -251,6 +251,15 @@ func TestNotificationAPIConfigurationRulesAndDeliveryHistory(t *testing.T) {
 	if err := json.NewDecoder(probeFields.Body).Decode(&fieldList); err != nil || len(fieldList.Items) == 0 {
 		t.Fatalf("notification probe field list = %#v, %v", fieldList, err)
 	}
+	invalidTelegramTestBody, err := json.Marshal(map[string]any{"chatId": " ", "token": "test-token"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	invalidTelegramTest := performRequestWithCSRF(
+		handler, http.MethodPost, "/api/v1/notification-telegram-tests", invalidTelegramTestBody,
+		"http://example.test", cookie, session.CsrfToken,
+	)
+	assertErrorCode(t, invalidTelegramTest, http.StatusBadRequest, api.InvalidNotificationSender)
 	createSenderBody, err := json.Marshal(map[string]any{
 		"name": "local webhook", "kind": "webhook", "enabled": true,
 		"webhook": map[string]any{

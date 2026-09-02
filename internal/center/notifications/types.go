@@ -39,12 +39,25 @@ var (
 	ErrSenderInUse          = errors.New("notification sender is referenced by a rule")
 	ErrSenderHasActiveWork  = errors.New("notification sender has active deliveries")
 	ErrInvalidSender        = errors.New("notification sender is invalid")
+	ErrSenderTestFailed     = errors.New("notification sender test failed")
 	ErrRuleNotFound         = errors.New("notification rule does not exist")
 	ErrRuleNameInUse        = errors.New("notification rule name is already in use")
 	ErrInvalidRule          = errors.New("notification rule is invalid")
 	ErrDeliveryNotFound     = errors.New("notification delivery does not exist")
 	ErrInvalidDeliveryQuery = errors.New("notification delivery query is invalid")
 )
+
+type SenderTestFailure struct {
+	Code string
+}
+
+func (failure SenderTestFailure) Error() string {
+	return ErrSenderTestFailed.Error() + ": " + failure.Code
+}
+
+func (failure SenderTestFailure) Unwrap() error {
+	return ErrSenderTestFailed
+}
 
 type TelegramConfiguration struct {
 	ChatID  string `json:"chatId"`
