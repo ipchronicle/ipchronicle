@@ -57,6 +57,7 @@ type SchedulePreviewState =
   | { kind: "disabled" | "invalid" | "error" };
 
 const activeTaskStatuses = new Set(["pending", "acknowledged", "running"]);
+const refreshIntervalMilliseconds = 5_000;
 
 export function NodeProbePage() {
   const { nodeId = "" } = useParams();
@@ -95,19 +96,40 @@ export function NodeProbePage() {
     return () => controller.abort();
   }, [load]);
 
-  const shouldPoll =
-    state.kind === "success" &&
-    ((state.probe.task !== undefined &&
-      activeTaskStatuses.has(state.probe.task.status)) ||
-      state.probe.recentRuns.some((run) => run.status === "running"));
   useEffect(() => {
-    if (!shouldPoll) return;
+    if (state.kind !== "success") return;
+    let inFlight = false;
+    let disposed = false;
+    let controller: AbortController | undefined;
+    const refresh = async () => {
+      if (disposed || inFlight || document.visibilityState !== "visible")
+        return;
+      inFlight = true;
+      controller = new AbortController();
+      try {
+        await load(controller.signal, false, true);
+      } finally {
+        inFlight = false;
+        controller = undefined;
+      }
+    };
+    const wake = () => {
+      if (document.visibilityState === "visible") void refresh();
+    };
     const timer = window.setInterval(
-      () => void load(undefined, false, true),
-      5_000,
+      () => void refresh(),
+      refreshIntervalMilliseconds,
     );
-    return () => window.clearInterval(timer);
-  }, [load, shouldPoll]);
+    document.addEventListener("visibilitychange", wake);
+    window.addEventListener("focus", wake);
+    return () => {
+      disposed = true;
+      controller?.abort();
+      window.clearInterval(timer);
+      document.removeEventListener("visibilitychange", wake);
+      window.removeEventListener("focus", wake);
+    };
+  }, [load, state.kind]);
 
   const csrfToken =
     authState.status === "authenticated" ? authState.session.csrfToken : "";
@@ -288,11 +310,15 @@ function ProbeStatusCard({ probe }: { probe: NodeProbeState }) {
           />
           <SummaryItem
             label={t("probe.status.next")}
-            value={formatTime(
-              status?.nextScheduledAt,
-              i18n.resolvedLanguage,
-              t("probe.notAvailable"),
-            )}
+            value={
+              status?.nextScheduledAt
+                ? formatScheduleTime(
+                    status.nextScheduledAt,
+                    probe.schedule.timezone,
+                    i18n.resolvedLanguage,
+                  )
+                : t("probe.notAvailable")
+            }
             detail={
               probe.schedule.enabled
                 ? t("probe.status.scheduleEnabled")

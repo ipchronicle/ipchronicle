@@ -1721,7 +1721,7 @@ describe("administrator application", () => {
     expect(screen.queryByLabelText("Address family")).not.toBeInTheDocument();
   });
 
-  it("searches and saves an explicit probe timezone", async () => {
+  it("refreshes the Agent schedule after saving an explicit timezone", async () => {
     getSessionMock.mockResolvedValue(session);
     listNodesMock.mockResolvedValue([probeTestNode]);
     const probeState = {
@@ -1731,43 +1731,75 @@ describe("administrator application", () => {
       probeOnNewAddress: true,
       pausedLowMemory: false,
       recentRuns: [],
+      agentStatus: { nextScheduledAt: "2026-08-11T00:00:00Z" },
     };
-    getNodeProbeMock.mockResolvedValue(probeState);
+    const convergedState = {
+      ...probeState,
+      schedule: { ...probeState.schedule, timezone: "Asia/Shanghai" },
+      agentStatus: { nextScheduledAt: "2026-08-10T16:00:00Z" },
+    };
+    getNodeProbeMock
+      .mockResolvedValueOnce(probeState)
+      .mockResolvedValue(convergedState);
     updateProbeSettingsMock.mockResolvedValue({
       ...probeState,
       schedule: { ...probeState.schedule, timezone: "Asia/Shanghai" },
     });
 
-    renderApplication(`/nodes/${probeTestNode.id}/probe`);
+    let refresh: (() => void) | undefined;
+    const interval = vi
+      .spyOn(window, "setInterval")
+      .mockImplementation((handler, timeout) => {
+        if (timeout === 5_000 && typeof handler === "function") {
+          refresh = handler as () => void;
+        }
+        return 1;
+      });
+    try {
+      renderApplication(`/nodes/${probeTestNode.id}/probe`);
 
-    const timezone = await screen.findByRole("combobox", {
-      name: "Time zone",
-    });
-    expect(timezone).toHaveTextContent("UTC");
-    fireEvent.click(timezone);
-    fireEvent.change(screen.getByPlaceholderText("Search time zones..."), {
-      target: { value: "Asia/Shanghai" },
-    });
-    fireEvent.click(await screen.findByText("Asia/Shanghai"));
-    fireEvent.click(
-      screen.getByRole("button", { name: "Save probe settings" }),
-    );
+      const timezone = await screen.findByRole("combobox", {
+        name: "Time zone",
+      });
+      expect(timezone).toHaveTextContent("UTC");
+      fireEvent.click(timezone);
+      fireEvent.change(screen.getByPlaceholderText("Search time zones..."), {
+        target: { value: "Asia/Shanghai" },
+      });
+      fireEvent.click(await screen.findByText("Asia/Shanghai"));
+      fireEvent.click(
+        screen.getByRole("button", { name: "Save probe settings" }),
+      );
 
-    await waitFor(() =>
-      expect(updateProbeSettingsMock).toHaveBeenCalledWith(
-        probeTestNode.id,
-        {
-          schedule: {
-            enabled: true,
-            cron: "0 0 0 * * *",
-            timezone: "Asia/Shanghai",
+      await waitFor(() =>
+        expect(updateProbeSettingsMock).toHaveBeenCalledWith(
+          probeTestNode.id,
+          {
+            schedule: {
+              enabled: true,
+              cron: "0 0 0 * * *",
+              timezone: "Asia/Shanghai",
+            },
+            lowMemoryOverride: false,
+            probeOnNewAddress: true,
           },
-          lowMemoryOverride: false,
-          probeOnNewAddress: true,
-        },
-        session.csrfToken,
-      ),
-    );
+          session.csrfToken,
+        ),
+      );
+      expect(refresh).toBeDefined();
+      await act(async () => refresh?.());
+
+      const nextRun = screen.getByText("Next scheduled run").parentElement;
+      expect(nextRun).not.toBeNull();
+      expect(
+        await within(nextRun as HTMLElement).findByText(
+          /Aug 11, 2026.*12:00:00 AM.*GMT\+8/,
+        ),
+      ).toBeInTheDocument();
+      expect(getNodeProbeMock).toHaveBeenCalledTimes(2);
+    } finally {
+      interval.mockRestore();
+    }
   });
 
   it("previews the next scheduled run while editing the Cron expression", async () => {
