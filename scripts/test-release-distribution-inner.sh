@@ -91,16 +91,12 @@ fake_agent_checksum=$(sha256sum "$fake_agent" | awk '{print $1}')
 [ "$(sha256sum /usr/local/libexec/ipchronicle-agent-updater | awk '{print $1}')" = "$fake_agent_checksum" ]
 [ "$(stat -c '%a' /var/lib/ipchronicle-agent)" = "700" ]
 [ "$(wc -l < "$ENROLL_LOG")" -eq 1 ]
-for dependency in bash curl jq bc dig ip; do
+for dependency in curl jq; do
   command -v "$dependency" >/dev/null 2>&1 || {
     printf 'installer dependency %s is unavailable\n' "$dependency" >&2
     exit 1
   }
 done
-if ! command -v nc >/dev/null 2>&1 && ! command -v ncat >/dev/null 2>&1; then
-  printf 'installer netcat dependency is unavailable\n' >&2
-  exit 1
-fi
 
 candidate_metadata=$("/release/ipchronicle-agent-linux-$EXPECTED_ARCH" version --json)
 printf '%s\n' "$candidate_metadata" | jq -e \
