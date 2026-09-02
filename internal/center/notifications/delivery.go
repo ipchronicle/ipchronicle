@@ -106,9 +106,10 @@ func (s *Service) dispatch(ctx context.Context, record historydb.NotificationDel
 func (s *Service) sendTelegram(ctx context.Context, configuration TelegramConfiguration, title, body string) DeliveryError {
 	endpoint := "https://api.telegram.org/bot" + url.PathEscape(configuration.Token) + "/sendMessage"
 	payload, err := json.Marshal(struct {
-		ChatID string `json:"chat_id"`
-		Text   string `json:"text"`
-	}{ChatID: configuration.ChatID, Text: title + "\n\n" + body})
+		ChatID  string `json:"chat_id"`
+		Text    string `json:"text"`
+		TopicID *int64 `json:"message_thread_id,omitempty"`
+	}{ChatID: configuration.ChatID, Text: title + "\n\n" + body, TopicID: configuration.TopicID})
 	if err != nil {
 		return DeliveryError{Code: "request-invalid"}
 	}

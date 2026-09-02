@@ -937,6 +937,20 @@ paths:
           $ref: "#/components/responses/Forbidden"
         "409":
           $ref: "#/components/responses/Conflict"
+  /api/v1/notification-probe-fields:
+    get:
+      operationId: listNotificationProbeFields
+      summary: List fields available to probe-change notification rules
+      tags: [notifications]
+      responses:
+        "200":
+          description: The current comparable probe-field catalog.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/NotificationProbeFieldList"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
   /api/v1/notification-senders/{senderId}:
     parameters:
       - $ref: "#/components/parameters/SenderId"
@@ -4546,6 +4560,10 @@ components:
           type: string
           minLength: 1
           maxLength: 512
+        topicId:
+          type: integer
+          format: int64
+          minimum: 1
     TelegramSenderUpdate:
       type: object
       additionalProperties: false
@@ -4559,6 +4577,10 @@ components:
           type: string
           minLength: 1
           maxLength: 512
+        topicId:
+          type: integer
+          format: int64
+          minimum: 1
     TelegramSenderView:
       type: object
       additionalProperties: false
@@ -4568,6 +4590,10 @@ components:
           type: string
         tokenConfigured:
           type: boolean
+        topicId:
+          type: integer
+          format: int64
+          minimum: 1
     WebhookSenderCreate:
       type: object
       additionalProperties: false
@@ -4691,6 +4717,7 @@ components:
     NotificationEventType:
       type: string
       enum:
+        - all
         - probe-field-change
         - address-change
         - address-check-failure
@@ -4702,6 +4729,33 @@ components:
         - format-mismatch
         - format-changed
         - format-recovery
+    NotificationProbeField:
+      type: object
+      additionalProperties: false
+      required: [id, group, path]
+      properties:
+        id:
+          type: string
+          minLength: 1
+          maxLength: 256
+        group:
+          type: string
+          minLength: 1
+          maxLength: 64
+        path:
+          type: string
+          minLength: 1
+          maxLength: 256
+    NotificationProbeFieldList:
+      type: object
+      additionalProperties: false
+      required: [items]
+      properties:
+        items:
+          type: array
+          maxItems: 256
+          items:
+            $ref: "#/components/schemas/NotificationProbeField"
     NotificationRuleWrite:
       type: object
       additionalProperties: false

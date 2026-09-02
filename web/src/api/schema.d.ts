@@ -574,6 +574,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/notification-probe-fields": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List fields available to probe-change notification rules */
+        get: operations["listNotificationProbeFields"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/notification-senders/{senderId}": {
         parameters: {
             query?: never;
@@ -1978,14 +1995,20 @@ export interface components {
         TelegramSenderCreate: {
             chatId: string;
             token: string;
+            /** Format: int64 */
+            topicId?: number;
         };
         TelegramSenderUpdate: {
             chatId: string;
             token?: string;
+            /** Format: int64 */
+            topicId?: number;
         };
         TelegramSenderView: {
             chatId: string;
             tokenConfigured: boolean;
+            /** Format: int64 */
+            topicId?: number;
         };
         WebhookSenderCreate: {
             /** Format: uri */
@@ -2042,7 +2065,15 @@ export interface components {
             items: components["schemas"]["NotificationSender"][];
         };
         /** @enum {string} */
-        NotificationEventType: "probe-field-change" | "address-change" | "address-check-failure" | "address-check-recovery" | "probe-failure" | "probe-recovery" | "address-gap" | "probe-gap" | "format-mismatch" | "format-changed" | "format-recovery";
+        NotificationEventType: "all" | "probe-field-change" | "address-change" | "address-check-failure" | "address-check-recovery" | "probe-failure" | "probe-recovery" | "address-gap" | "probe-gap" | "format-mismatch" | "format-changed" | "format-recovery";
+        NotificationProbeField: {
+            id: string;
+            group: string;
+            path: string;
+        };
+        NotificationProbeFieldList: {
+            items: components["schemas"]["NotificationProbeField"][];
+        };
         NotificationRuleWrite: {
             name: string;
             enabled: boolean;
@@ -3390,6 +3421,27 @@ export interface operations {
             401: components["responses"]["Unauthorized"];
             403: components["responses"]["Forbidden"];
             409: components["responses"]["Conflict"];
+        };
+    };
+    listNotificationProbeFields: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The current comparable probe-field catalog. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["NotificationProbeFieldList"];
+                };
+            };
+            401: components["responses"]["Unauthorized"];
         };
     };
     updateNotificationSender: {

@@ -243,6 +243,14 @@ func TestNotificationAPIConfigurationRulesAndDeliveryHistory(t *testing.T) {
 	unauthenticated := performRequest(handler, http.MethodGet, "/api/v1/notification-senders", nil, "", nil)
 	assertErrorCode(t, unauthenticated, http.StatusUnauthorized, api.Unauthenticated)
 	cookie, session := loginTestAdministrator(t, handler)
+	probeFields := performRequest(handler, http.MethodGet, "/api/v1/notification-probe-fields", nil, "", cookie)
+	if probeFields.Code != http.StatusOK {
+		t.Fatalf("list notification probe fields status = %d, body = %s", probeFields.Code, probeFields.Body.String())
+	}
+	var fieldList api.NotificationProbeFieldList
+	if err := json.NewDecoder(probeFields.Body).Decode(&fieldList); err != nil || len(fieldList.Items) == 0 {
+		t.Fatalf("notification probe field list = %#v, %v", fieldList, err)
+	}
 	createSenderBody, err := json.Marshal(map[string]any{
 		"name": "local webhook", "kind": "webhook", "enabled": true,
 		"webhook": map[string]any{
@@ -308,8 +316,8 @@ func TestNotificationAPIConfigurationRulesAndDeliveryHistory(t *testing.T) {
 		t.Fatal(err)
 	}
 	updateRuleBody, err := json.Marshal(map[string]any{
-		"name": "all address changes", "enabled": true, "senderId": sender.Id,
-		"eventType": "address-change",
+		"name": "all events", "enabled": true, "senderId": sender.Id,
+		"eventType": "all",
 	})
 	if err != nil {
 		t.Fatal(err)
@@ -327,7 +335,8 @@ func TestNotificationAPIConfigurationRulesAndDeliveryHistory(t *testing.T) {
 		t.Fatalf("list notification rules status = %d, body = %s", rules.Code, rules.Body.String())
 	}
 	var ruleList api.NotificationRuleList
-	if err := json.NewDecoder(rules.Body).Decode(&ruleList); err != nil || len(ruleList.Items) != 1 || ruleList.Items[0].Name != "all address changes" {
+	if err := json.NewDecoder(rules.Body).Decode(&ruleList); err != nil || len(ruleList.Items) != 1 ||
+		ruleList.Items[0].Name != "all events" || ruleList.Items[0].EventType != api.NotificationEventTypeAll {
 		t.Fatalf("notification rule list = %#v, %v", ruleList, err)
 	}
 

@@ -9,6 +9,7 @@ import (
 )
 
 const (
+	EventAll                 = "all"
 	EventProbeFieldChange    = "probe-field-change"
 	EventAddressChange       = "address-change"
 	EventAddressCheckFailure = "address-check-failure"
@@ -46,8 +47,9 @@ var (
 )
 
 type TelegramConfiguration struct {
-	ChatID string `json:"chatId"`
-	Token  string `json:"token"`
+	ChatID  string `json:"chatId"`
+	Token   string `json:"token"`
+	TopicID *int64 `json:"topicId,omitempty"`
 }
 
 type WebhookConfiguration struct {
@@ -83,8 +85,9 @@ type SenderCreate struct {
 }
 
 type TelegramUpdate struct {
-	ChatID string
-	Token  *string
+	ChatID  string
+	Token   *string
+	TopicID *int64
 }
 
 type WebhookUpdate struct {

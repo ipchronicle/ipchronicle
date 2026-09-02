@@ -274,7 +274,8 @@ func (s *Service) processEvent(
 }
 
 func ruleMatches(rule configdb.ListEnabledNotificationRulesRow, event historydb.NotificationEvent) bool {
-	if rule.EventType != event.EventType || rule.NodeID != nil && !sameOptional(rule.NodeID, event.NodeID) ||
+	if (rule.EventType != EventAll && rule.EventType != event.EventType) ||
+		rule.NodeID != nil && !sameOptional(rule.NodeID, event.NodeID) ||
 		rule.EgressID != nil && !sameOptional(rule.EgressID, event.EgressID) {
 		return false
 	}

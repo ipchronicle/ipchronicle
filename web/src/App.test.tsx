@@ -67,6 +67,7 @@ import {
   deleteNotificationRule,
   deleteNotificationSender,
   listNotificationDeliveries,
+  listNotificationProbeFields,
   listNotificationRules,
   listNotificationSenders,
   updateNotificationRule,
@@ -160,6 +161,7 @@ vi.mock("@/api/notifications", () => ({
   deleteNotificationRule: vi.fn(),
   deleteNotificationSender: vi.fn(),
   listNotificationDeliveries: vi.fn(),
+  listNotificationProbeFields: vi.fn(),
   listNotificationRules: vi.fn(),
   listNotificationSenders: vi.fn(),
   updateNotificationRule: vi.fn(),
@@ -226,6 +228,7 @@ const createNotificationTestDeliveryMock = vi.mocked(
 const deleteNotificationRuleMock = vi.mocked(deleteNotificationRule);
 const deleteNotificationSenderMock = vi.mocked(deleteNotificationSender);
 const listNotificationDeliveriesMock = vi.mocked(listNotificationDeliveries);
+const listNotificationProbeFieldsMock = vi.mocked(listNotificationProbeFields);
 const listNotificationRulesMock = vi.mocked(listNotificationRules);
 const listNotificationSendersMock = vi.mocked(listNotificationSenders);
 const updateNotificationRuleMock = vi.mocked(updateNotificationRule);
@@ -411,6 +414,15 @@ describe("administrator application", () => {
       totalItems: 0,
       totalPages: 0,
     });
+    listNotificationProbeFieldsMock.mockReset();
+    listNotificationProbeFieldsMock.mockResolvedValue([
+      {
+        id: "Factor.VPN.IPQS",
+        group: "Factor",
+        path: "Factor.VPN.IPQS",
+      },
+      { id: "Info.ASN", group: "Info", path: "Info.ASN" },
+    ]);
     listNotificationRulesMock.mockReset();
     listNotificationRulesMock.mockResolvedValue([]);
     listNotificationSendersMock.mockReset();
@@ -754,6 +766,16 @@ describe("administrator application", () => {
     };
     listNotificationSendersMock.mockResolvedValue([sender]);
     listNodesMock.mockResolvedValue([probeTestNode]);
+    createNotificationRuleMock.mockResolvedValue({
+      id: "2e6c1450-5406-4a73-bc60-e7f15189260c",
+      name: "VPN changes",
+      enabled: true,
+      senderId: sender.id,
+      eventType: "probe-field-change",
+      fieldId: "Factor.VPN.IPQS",
+      createdAt: "2026-08-09T12:02:00Z",
+      updatedAt: "2026-08-09T12:02:00Z",
+    });
     createNotificationTestDeliveryMock.mockResolvedValue(delivery);
     listNotificationDeliveriesMock.mockResolvedValue({
       items: [delivery],
@@ -785,9 +807,94 @@ describe("administrator application", () => {
       ctrlKey: false,
     });
     fireEvent.click(await screen.findByRole("button", { name: "Add rule" }));
-    expect(screen.getByLabelText("Event")).toBeInTheDocument();
+    fireEvent.click(screen.getByLabelText("Event"));
+    expect(
+      await screen.findByRole("option", { name: "All events" }),
+    ).toBeInTheDocument();
+    fireEvent.click(
+      screen.getByRole("option", { name: "Probe field changed" }),
+    );
+    const field = screen.getByRole("combobox", { name: "Probe field" });
+    expect(field).toHaveTextContent("All probe fields");
+    fireEvent.click(field);
+    fireEvent.change(screen.getByPlaceholderText("Search probe fields..."), {
+      target: { value: "VPN" },
+    });
+    fireEvent.click(await screen.findByText("VPN indicator (IPQS)"));
+    fireEvent.change(screen.getByLabelText("Name"), {
+      target: { value: "VPN changes" },
+    });
     expect(screen.getByLabelText("Node")).toBeInTheDocument();
     expect(screen.getByLabelText("Public IP")).toBeDisabled();
+    fireEvent.click(screen.getByRole("button", { name: "Save" }));
+    await waitFor(() =>
+      expect(createNotificationRuleMock).toHaveBeenCalledWith(
+        {
+          name: "VPN changes",
+          enabled: true,
+          senderId: sender.id,
+          eventType: "probe-field-change",
+          fieldId: "Factor.VPN.IPQS",
+        },
+        session.csrfToken,
+      ),
+    );
+    expect(screen.queryByText("Factor.VPN.IPQS")).not.toBeInTheDocument();
+    expect(screen.getByText("VPN indicator (IPQS)")).toBeInTheDocument();
+  });
+
+  it("creates a Telegram group sender with an optional topic", async () => {
+    getSessionMock.mockResolvedValue(session);
+    listNodesMock.mockResolvedValue([]);
+    createNotificationSenderMock.mockResolvedValue({
+      id: "b665059c-af65-456f-88a7-c03bdfca6e39",
+      name: "Operations group",
+      kind: "telegram",
+      enabled: true,
+      telegram: {
+        chatId: "-1001234567890",
+        topicId: 42,
+        tokenConfigured: true,
+      },
+      createdAt: "2026-08-09T12:00:00Z",
+      updatedAt: "2026-08-09T12:00:00Z",
+    });
+
+    renderApplication("/notifications");
+
+    fireEvent.click(await screen.findByRole("button", { name: "Add sender" }));
+    fireEvent.change(screen.getByLabelText("Name"), {
+      target: { value: "Operations group" },
+    });
+    fireEvent.change(screen.getByLabelText("Chat or group ID"), {
+      target: { value: "-1001234567890" },
+    });
+    fireEvent.change(screen.getByLabelText("Topic ID (optional)"), {
+      target: { value: "42" },
+    });
+    fireEvent.change(screen.getByLabelText("Bot token"), {
+      target: { value: "test-bot-token" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Save" }));
+
+    await waitFor(() =>
+      expect(createNotificationSenderMock).toHaveBeenCalledWith(
+        {
+          name: "Operations group",
+          kind: "telegram",
+          enabled: true,
+          telegram: {
+            chatId: "-1001234567890",
+            topicId: 42,
+            token: "test-bot-token",
+          },
+        },
+        session.csrfToken,
+      ),
+    );
+    expect(
+      screen.getByText("Telegram chat or group -1001234567890 · topic 42"),
+    ).toBeInTheDocument();
   });
 
   it("creates a webhook sender without rendering its secret header", async () => {

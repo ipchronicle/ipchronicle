@@ -24,12 +24,14 @@ import {
   deleteNotificationRule,
   deleteNotificationSender,
   listNotificationDeliveries,
+  listNotificationProbeFields,
   listNotificationRules,
   listNotificationSenders,
   updateNotificationRule,
   updateNotificationSender,
   type NotificationDeliveryStatus,
   type NotificationEventType,
+  type NotificationProbeField,
   type NotificationRule,
   type NotificationRuleWrite,
   type NotificationSender,
@@ -37,6 +39,10 @@ import {
   type NotificationSenderUpdate,
 } from "@/api/notifications";
 import { useAuth } from "@/auth-context";
+import {
+  allProbeFieldsValue,
+  ProbeFieldCombobox,
+} from "@/components/probe-field-combobox";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -82,9 +88,11 @@ import {
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Textarea } from "@/components/ui/textarea";
 import { formatAPIError } from "@/lib/api-error";
+import { presentProbeField } from "@/lib/probe-field-label";
 
 const allValue = "__all__";
 const notificationEventTypes: NotificationEventType[] = [
+  "all",
   "probe-field-change",
   "address-change",
   "address-check-failure",
@@ -105,6 +113,7 @@ type ViewState =
       senders: NotificationSender[];
       rules: NotificationRule[];
       nodes: Node[];
+      probeFields: NotificationProbeField[];
     }
   | { kind: "error" };
 
@@ -127,12 +136,13 @@ export function NotificationsPage() {
     if (initial) setState({ kind: "loading" });
     else setRefreshing(true);
     try {
-      const [senders, rules, nodes] = await Promise.all([
+      const [senders, rules, nodes, probeFields] = await Promise.all([
         listNotificationSenders(signal),
         listNotificationRules(signal),
         listNodes(signal),
+        listNotificationProbeFields(signal),
       ]);
-      setState({ kind: "success", senders, rules, nodes });
+      setState({ kind: "success", senders, rules, nodes, probeFields });
     } catch (error) {
       if (error instanceof DOMException && error.name === "AbortError") return;
       setState({ kind: "error" });
@@ -406,6 +416,7 @@ export function NotificationsPage() {
                   rule={ruleEditor === "create" ? undefined : ruleEditor}
                   senders={state.senders}
                   nodes={state.nodes}
+                  probeFields={state.probeFields}
                   onCancel={() => setRuleEditor(undefined)}
                   onCreate={createRule}
                   onUpdate={updateRule}
@@ -420,6 +431,7 @@ export function NotificationsPage() {
                     rule={rule}
                     senders={state.senders}
                     nodes={state.nodes}
+                    probeFields={state.probeFields}
                     onEdit={() => setRuleEditor(rule)}
                     onDelete={() => void removeRule(rule.id)}
                   />
@@ -545,6 +557,9 @@ function SenderForm({
   );
   const [enabled, setEnabled] = useState(sender?.enabled ?? true);
   const [chatId, setChatId] = useState(sender?.telegram?.chatId ?? "");
+  const [topicId, setTopicId] = useState(
+    sender?.telegram?.topicId?.toString() ?? "",
+  );
   const [token, setToken] = useState("");
   const [url, setURL] = useState(sender?.webhook?.url ?? "");
   const [headers, setHeaders] = useState("");
@@ -561,11 +576,25 @@ function SenderForm({
       setInvalid(t("notifications.senders.invalidHeaders"));
       return;
     }
+    const parsedTopicId = topicId === "" ? undefined : Number(topicId);
+    if (
+      kind === "telegram" &&
+      parsedTopicId !== undefined &&
+      (!Number.isSafeInteger(parsedTopicId) || parsedTopicId <= 0)
+    ) {
+      setInvalid(t("notifications.senders.invalidTopicId"));
+      return;
+    }
     setWorking(true);
     try {
       if (!sender) {
         const input: NotificationSenderCreate = { name, kind, enabled };
-        if (kind === "telegram") input.telegram = { chatId, token };
+        if (kind === "telegram")
+          input.telegram = {
+            chatId,
+            token,
+            ...(parsedTopicId ? { topicId: parsedTopicId } : {}),
+          };
         if (kind === "webhook")
           input.webhook = { url, headers: parsedHeaders ?? {} };
         if (kind === "javascript") input.javascript = { source };
@@ -574,7 +603,11 @@ function SenderForm({
       }
       const input: NotificationSenderUpdate = { name, enabled };
       if (kind === "telegram") {
-        input.telegram = { chatId, ...(token ? { token } : {}) };
+        input.telegram = {
+          chatId,
+          ...(token ? { token } : {}),
+          ...(parsedTopicId ? { topicId: parsedTopicId } : {}),
+        };
       }
       if (kind === "webhook") {
         input.webhook = {
@@ -667,6 +700,24 @@ function SenderForm({
                   onChange={(event) => setChatId(event.target.value)}
                   required
                 />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="sender-topic-id">
+                  {t("notifications.senders.topicId")}
+                </Label>
+                <Input
+                  id="sender-topic-id"
+                  type="number"
+                  min={1}
+                  max={Number.MAX_SAFE_INTEGER}
+                  step={1}
+                  value={topicId}
+                  onChange={(event) => setTopicId(event.target.value)}
+                  placeholder={t("notifications.senders.topicIdPlaceholder")}
+                />
+                <p className="text-sm text-muted-foreground">
+                  {t("notifications.senders.topicIdDetail")}
+                </p>
               </div>
               <div className="space-y-2">
                 <Label htmlFor="sender-token">
@@ -802,12 +853,14 @@ function RuleCard({
   rule,
   senders,
   nodes,
+  probeFields,
   onEdit,
   onDelete,
 }: {
   rule: NotificationRule;
   senders: NotificationSender[];
   nodes: Node[];
+  probeFields: NotificationProbeField[];
   onEdit: () => void;
   onDelete: () => void;
 }) {
@@ -841,7 +894,11 @@ function RuleCard({
             ? t("notifications.enabled")
             : t("notifications.disabled")}
         </Badge>
-        {rule.fieldId ? <Badge variant="outline">{rule.fieldId}</Badge> : null}
+        {rule.fieldId ? (
+          <Badge variant="outline">
+            {notificationProbeFieldLabel(rule.fieldId, probeFields, t)}
+          </Badge>
+        ) : null}
         <Badge variant="outline">
           {node?.name ?? t("notifications.rules.allNodes")}
         </Badge>
@@ -859,6 +916,7 @@ function RuleForm({
   rule,
   senders,
   nodes,
+  probeFields,
   onCancel,
   onCreate,
   onUpdate,
@@ -866,6 +924,7 @@ function RuleForm({
   rule?: NotificationRule;
   senders: NotificationSender[];
   nodes: Node[];
+  probeFields: NotificationProbeField[];
   onCancel: () => void;
   onCreate: (input: NotificationRuleWrite) => Promise<boolean>;
   onUpdate: (ruleId: string, input: NotificationRuleWrite) => Promise<boolean>;
@@ -879,7 +938,7 @@ function RuleForm({
   const [eventType, setEventType] = useState<NotificationEventType>(
     rule?.eventType ?? "address-change",
   );
-  const [fieldId, setFieldId] = useState(rule?.fieldId ?? "");
+  const [fieldId, setFieldId] = useState(rule?.fieldId ?? allProbeFieldsValue);
   const [nodeId, setNodeId] = useState(rule?.nodeId ?? allValue);
   const [egressId, setEgressId] = useState(rule?.egressId ?? allValue);
   const [publicAddresses, setPublicAddresses] = useState<PublicAddress[]>([]);
@@ -911,7 +970,9 @@ function RuleForm({
       enabled,
       senderId,
       eventType,
-      ...(eventType === "probe-field-change" && fieldId ? { fieldId } : {}),
+      ...(eventType === "probe-field-change" && fieldId !== allProbeFieldsValue
+        ? { fieldId }
+        : {}),
       ...(nodeId !== allValue ? { nodeId } : {}),
       ...(egressId !== allValue ? { egressId } : {}),
     };
@@ -991,11 +1052,11 @@ function RuleForm({
                 <Label htmlFor="rule-field">
                   {t("notifications.rules.field")}
                 </Label>
-                <Input
+                <ProbeFieldCombobox
                   id="rule-field"
+                  fields={probeFields}
                   value={fieldId}
-                  onChange={(event) => setFieldId(event.target.value)}
-                  placeholder={t("notifications.rules.fieldPlaceholder")}
+                  onValueChange={setFieldId}
                 />
               </div>
             ) : null}
@@ -1413,11 +1474,27 @@ function senderDescription(
   t: ReturnType<typeof useTranslation>["t"],
 ) {
   if (sender.telegram)
-    return t("notifications.senders.telegramDetail", {
-      value: sender.telegram.chatId,
-    });
+    return sender.telegram.topicId === undefined
+      ? t("notifications.senders.telegramDetail", {
+          value: sender.telegram.chatId,
+        })
+      : t("notifications.senders.telegramTopicDetail", {
+          chatId: sender.telegram.chatId,
+          topicId: sender.telegram.topicId,
+        });
   if (sender.webhook) return sender.webhook.url;
   return t("notifications.senders.javascriptDetail");
+}
+
+function notificationProbeFieldLabel(
+  fieldId: string,
+  fields: NotificationProbeField[],
+  t: ReturnType<typeof useTranslation>["t"],
+) {
+  const field = fields.find((item) => item.id === fieldId);
+  return field
+    ? presentProbeField(field, t).name
+    : t("notifications.rules.fieldUnavailable");
 }
 
 function eventTypeLabel(

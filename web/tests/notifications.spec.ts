@@ -299,6 +299,16 @@ test("configures and delivers notifications through local receivers", async ({
     await page.getByRole("tab", { name: "Rules" }).click();
     await page.getByRole("button", { name: "Add rule" }).click();
     await page.getByLabel("Name", { exact: true }).fill(ruleName);
+    await page.getByLabel("Event").click();
+    await expect(
+      page.getByRole("option", { name: "All events" }),
+    ).toBeVisible();
+    await page.getByRole("option", { name: "Probe field changed" }).click();
+    const probeField = page.getByRole("combobox", { name: "Probe field" });
+    await expect(probeField).toContainText("All probe fields");
+    await probeField.click();
+    await page.getByPlaceholder("Search probe fields...").fill("VPN IPQS");
+    await page.getByText("VPN indicator (IPQS)", { exact: true }).click();
     await page.getByLabel("Node").click();
     await page.getByRole("option", { name: nodeName }).click();
     await expect(page.getByLabel("Public IP")).toBeEnabled();
@@ -314,7 +324,13 @@ test("configures and delivers notifications through local receivers", async ({
       ruleCard.getByText(node.publicAddress.address, { exact: true }),
     ).toBeVisible();
     await expect(
+      ruleCard.getByText("VPN indicator (IPQS)", { exact: true }),
+    ).toBeVisible();
+    await expect(
       page.getByText(node.publicAddress.id, { exact: true }),
+    ).toHaveCount(0);
+    await expect(
+      page.getByText("Factor.VPN.IPQS", { exact: true }),
     ).toHaveCount(0);
     await ruleCard.getByRole("button", { name: "Edit" }).click();
     await page.getByLabel("Name", { exact: true }).fill(updatedRuleName);

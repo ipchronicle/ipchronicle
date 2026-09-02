@@ -933,6 +933,7 @@ const (
 	NotificationEventTypeAddressCheckFailure  NotificationEventType = "address-check-failure"
 	NotificationEventTypeAddressCheckRecovery NotificationEventType = "address-check-recovery"
 	NotificationEventTypeAddressGap           NotificationEventType = "address-gap"
+	NotificationEventTypeAll                  NotificationEventType = "all"
 	NotificationEventTypeFormatChanged        NotificationEventType = "format-changed"
 	NotificationEventTypeFormatMismatch       NotificationEventType = "format-mismatch"
 	NotificationEventTypeFormatRecovery       NotificationEventType = "format-recovery"
@@ -952,6 +953,8 @@ func (e NotificationEventType) Valid() bool {
 	case NotificationEventTypeAddressCheckRecovery:
 		return true
 	case NotificationEventTypeAddressGap:
+		return true
+	case NotificationEventTypeAll:
 		return true
 	case NotificationEventTypeFormatChanged:
 		return true
@@ -2232,6 +2235,18 @@ type NotificationDeliveryStatus string
 // NotificationEventType defines model for NotificationEventType.
 type NotificationEventType string
 
+// NotificationProbeField defines model for NotificationProbeField.
+type NotificationProbeField struct {
+	Group string `json:"group"`
+	Id    string `json:"id"`
+	Path  string `json:"path"`
+}
+
+// NotificationProbeFieldList defines model for NotificationProbeFieldList.
+type NotificationProbeFieldList struct {
+	Items []NotificationProbeField `json:"items"`
+}
+
 // NotificationRule defines model for NotificationRule.
 type NotificationRule struct {
 	CreatedAt     time.Time             `json:"createdAt"`
@@ -2701,20 +2716,23 @@ type TOTPEnrollment struct {
 
 // TelegramSenderCreate defines model for TelegramSenderCreate.
 type TelegramSenderCreate struct {
-	ChatId string `json:"chatId"`
-	Token  string `json:"token"`
+	ChatId  string `json:"chatId"`
+	Token   string `json:"token"`
+	TopicId *int64 `json:"topicId,omitempty"`
 }
 
 // TelegramSenderUpdate defines model for TelegramSenderUpdate.
 type TelegramSenderUpdate struct {
-	ChatId string  `json:"chatId"`
-	Token  *string `json:"token,omitempty"`
+	ChatId  string  `json:"chatId"`
+	Token   *string `json:"token,omitempty"`
+	TopicId *int64  `json:"topicId,omitempty"`
 }
 
 // TelegramSenderView defines model for TelegramSenderView.
 type TelegramSenderView struct {
 	ChatId          string `json:"chatId"`
 	TokenConfigured bool   `json:"tokenConfigured"`
+	TopicId         *int64 `json:"topicId,omitempty"`
 }
 
 // WebhookSenderCreate defines model for WebhookSenderCreate.
@@ -3644,6 +3662,11 @@ type ClientInterface interface {
 	//
 	// Corresponds with GET /api/v1/notification-deliveries (the `ListNotificationDeliveries` operationId).
 	ListNotificationDeliveries(ctx context.Context, params *ListNotificationDeliveriesParams, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// ListNotificationProbeFields List fields available to probe-change notification rules
+	//
+	// Corresponds with GET /api/v1/notification-probe-fields (the `ListNotificationProbeFields` operationId).
+	ListNotificationProbeFields(ctx context.Context, reqEditors ...RequestEditorFn) (*http.Response, error)
 
 	// ListNotificationRules List current notification matching rules
 	//
@@ -4875,6 +4898,21 @@ func (c *Client) StartNodeSyncSession(ctx context.Context, nodeId NodeId, params
 // Corresponds with GET /api/v1/notification-deliveries (the `ListNotificationDeliveries` operationId).
 func (c *Client) ListNotificationDeliveries(ctx context.Context, params *ListNotificationDeliveriesParams, reqEditors ...RequestEditorFn) (*http.Response, error) {
 	req, err := NewListNotificationDeliveriesRequest(c.Server, params)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+// ListNotificationProbeFields List fields available to probe-change notification rules
+//
+// Corresponds with GET /api/v1/notification-probe-fields (the `ListNotificationProbeFields` operationId).
+func (c *Client) ListNotificationProbeFields(ctx context.Context, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewListNotificationProbeFieldsRequest(c.Server)
 	if err != nil {
 		return nil, err
 	}
@@ -7827,6 +7865,33 @@ func NewListNotificationDeliveriesRequest(server string, params *ListNotificatio
 	return req, nil
 }
 
+// NewListNotificationProbeFieldsRequest constructs an http.Request for the ListNotificationProbeFields method
+func NewListNotificationProbeFieldsRequest(server string) (*http.Request, error) {
+	var err error
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/api/v1/notification-probe-fields")
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest(http.MethodGet, queryURL.String(), nil)
+	if err != nil {
+		return nil, err
+	}
+
+	return req, nil
+}
+
 // NewListNotificationRulesRequest constructs an http.Request for the ListNotificationRules method
 func NewListNotificationRulesRequest(server string) (*http.Request, error) {
 	var err error
@@ -9141,6 +9206,13 @@ type ClientWithResponsesInterface interface {
 	//
 	// Corresponds with GET /api/v1/notification-deliveries (the `ListNotificationDeliveries` operationId).
 	ListNotificationDeliveriesWithResponse(ctx context.Context, params *ListNotificationDeliveriesParams, reqEditors ...RequestEditorFn) (*ListNotificationDeliveriesResponse, error)
+
+	// ListNotificationProbeFieldsWithResponse List fields available to probe-change notification rules
+	//
+	// Returns a wrapper object for the known response body format(s).
+	//
+	// Corresponds with GET /api/v1/notification-probe-fields (the `ListNotificationProbeFields` operationId).
+	ListNotificationProbeFieldsWithResponse(ctx context.Context, reqEditors ...RequestEditorFn) (*ListNotificationProbeFieldsResponse, error)
 
 	// ListNotificationRulesWithResponse List current notification matching rules
 	//
@@ -12155,6 +12227,54 @@ func (r ListNotificationDeliveriesResponse) ContentType() string {
 	return ""
 }
 
+type ListNotificationProbeFieldsResponse struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	// JSON200 the response for an HTTP 200 `application/json` response
+	JSON200 *NotificationProbeFieldList
+	// JSON401 the response for an HTTP 401 `application/json` response
+	JSON401 *Unauthorized
+}
+
+// GetJSON200 returns the response for an HTTP 200 `application/json` response
+func (r ListNotificationProbeFieldsResponse) GetJSON200() *NotificationProbeFieldList {
+	return r.JSON200
+}
+
+// GetJSON401 returns the response for an HTTP 401 `application/json` response
+func (r ListNotificationProbeFieldsResponse) GetJSON401() *Unauthorized {
+	return r.JSON401
+}
+
+// GetBody returns the raw response body bytes
+func (r ListNotificationProbeFieldsResponse) GetBody() []byte {
+	return r.Body
+}
+
+// Status returns HTTPResponse.Status
+func (r ListNotificationProbeFieldsResponse) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r ListNotificationProbeFieldsResponse) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+// ContentType is a convenience method to retrieve the Content-Type value from the HTTP response headers
+func (r ListNotificationProbeFieldsResponse) ContentType() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Header.Get("Content-Type")
+	}
+	return ""
+}
+
 type ListNotificationRulesResponse struct {
 	Body         []byte
 	HTTPResponse *http.Response
@@ -14097,6 +14217,19 @@ func (c *ClientWithResponses) ListNotificationDeliveriesWithResponse(ctx context
 		return nil, err
 	}
 	return ParseListNotificationDeliveriesResponse(rsp)
+}
+
+// ListNotificationProbeFieldsWithResponse List fields available to probe-change notification rules
+//
+// Returns a wrapper object for the known response body format(s).
+//
+// Corresponds with GET /api/v1/notification-probe-fields (the `ListNotificationProbeFields` operationId).
+func (c *ClientWithResponses) ListNotificationProbeFieldsWithResponse(ctx context.Context, reqEditors ...RequestEditorFn) (*ListNotificationProbeFieldsResponse, error) {
+	rsp, err := c.ListNotificationProbeFields(ctx, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseListNotificationProbeFieldsResponse(rsp)
 }
 
 // ListNotificationRulesWithResponse List current notification matching rules
@@ -16570,6 +16703,39 @@ func ParseListNotificationDeliveriesResponse(rsp *http.Response) (*ListNotificat
 			return nil, err
 		}
 		response.JSON400 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 401:
+		var dest Unauthorized
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON401 = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseListNotificationProbeFieldsResponse parses an HTTP response from a ListNotificationProbeFieldsWithResponse call
+func ParseListNotificationProbeFieldsResponse(rsp *http.Response) (*ListNotificationProbeFieldsResponse, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &ListNotificationProbeFieldsResponse{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest NotificationProbeFieldList
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 401:
 		var dest Unauthorized

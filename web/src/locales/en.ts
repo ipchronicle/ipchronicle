@@ -1609,7 +1609,11 @@ export const en = {
         formDetail:
           "Credentials are encrypted at rest. Hidden Telegram and Webhook credentials stay unchanged unless replaced.",
         kind: "Sender type",
-        chatId: "Chat ID",
+        chatId: "Chat or group ID",
+        topicId: "Topic ID (optional)",
+        topicIdPlaceholder: "Leave blank for the main group",
+        topicIdDetail: "Only Telegram forum-group topics require this value.",
+        invalidTopicId: "The topic ID must be a positive integer.",
         token: "Bot token",
         keepToken: "Leave blank to keep the configured token.",
         url: "Webhook URL",
@@ -1622,12 +1626,14 @@ export const en = {
         sourceDetail:
           "Use ipchronicle.event, title, body, and synchronous ipchronicle.http.request().",
         telegramDetail: "Telegram chat {{value}}",
+        telegramTopicDetail:
+          "Telegram chat or group {{chatId}} · topic {{topicId}}",
         javascriptDetail: "Runs in a fresh isolated worker for each delivery.",
       },
       rules: {
         title: "Matching rules",
         detail:
-          "Match an event and optionally narrow it to a field, node, and public IP.",
+          "Match every event or one event and optionally narrow it to a field, node, and public IP.",
         add: "Add rule",
         empty: "No notification rules are configured.",
         deleteTitle: "Delete this notification rule?",
@@ -1639,8 +1645,11 @@ export const en = {
           "Current enabled rules are evaluated when each durable event is processed.",
         sender: "Sender",
         event: "Event",
-        field: "Known field ID",
-        fieldPlaceholder: "Factor.CountryCode.IPinfo",
+        field: "Probe field",
+        fieldSearch: "Search probe fields...",
+        fieldEmpty: "No probe field matches",
+        allFields: "All probe fields",
+        fieldUnavailable: "Unavailable probe field",
         node: "Node",
         egress: "Public IP",
         allNodes: "All nodes",
@@ -1649,6 +1658,7 @@ export const en = {
         senderRequired: "Create a sender before saving a notification rule.",
       },
       eventType: {
+        all: "All events",
         "probe-field-change": "Probe field changed",
         "address-change": "Public address changed",
         "address-check-failure": "Address check failed",

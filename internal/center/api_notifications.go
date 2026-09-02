@@ -4,10 +4,31 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"strings"
 
 	"github.com/ipchronicle/ipchronicle/internal/center/notifications"
 	"github.com/ipchronicle/ipchronicle/internal/generated/api"
+	"github.com/ipchronicle/ipchronicle/internal/probefields"
 )
+
+func (s apiServer) ListNotificationProbeFields(ctx context.Context, _ api.ListNotificationProbeFieldsRequestObject) (api.ListNotificationProbeFieldsResponseObject, error) {
+	_, failure, err := s.authorize(ctx, false, "")
+	if err != nil {
+		return nil, err
+	}
+	if failure != "" {
+		return api.ListNotificationProbeFields401JSONResponse{UnauthorizedJSONResponse: unauthorized(failure)}, nil
+	}
+	items := make([]api.NotificationProbeField, 0)
+	for _, definition := range probefields.Catalog() {
+		if definition.Compare {
+			items = append(items, api.NotificationProbeField{
+				Id: definition.ID, Group: definition.Group, Path: strings.Join(definition.Path, "."),
+			})
+		}
+	}
+	return api.ListNotificationProbeFields200JSONResponse{Items: items}, nil
+}
 
 func (s apiServer) ListNotificationSenders(ctx context.Context, _ api.ListNotificationSendersRequestObject) (api.ListNotificationSendersResponseObject, error) {
 	_, failure, err := s.authorize(ctx, false, "")
@@ -271,7 +292,9 @@ func (s apiServer) ListNotificationDeliveries(ctx context.Context, request api.L
 func notificationSenderCreate(input api.NotificationSenderCreate) notifications.SenderCreate {
 	configuration := notifications.SenderConfiguration{}
 	if input.Telegram != nil {
-		configuration.Telegram = &notifications.TelegramConfiguration{ChatID: input.Telegram.ChatId, Token: input.Telegram.Token}
+		configuration.Telegram = &notifications.TelegramConfiguration{
+			ChatID: input.Telegram.ChatId, Token: input.Telegram.Token, TopicID: input.Telegram.TopicId,
+		}
 	}
 	if input.Webhook != nil {
 		configuration.Webhook = &notifications.WebhookConfiguration{URL: input.Webhook.Url, Headers: input.Webhook.Headers}
@@ -285,7 +308,9 @@ func notificationSenderCreate(input api.NotificationSenderCreate) notifications.
 func notificationSenderUpdate(input api.NotificationSenderUpdate) notifications.SenderUpdate {
 	result := notifications.SenderUpdate{Name: input.Name, Enabled: input.Enabled}
 	if input.Telegram != nil {
-		result.Telegram = &notifications.TelegramUpdate{ChatID: input.Telegram.ChatId, Token: input.Telegram.Token}
+		result.Telegram = &notifications.TelegramUpdate{
+			ChatID: input.Telegram.ChatId, Token: input.Telegram.Token, TopicID: input.Telegram.TopicId,
+		}
 	}
 	if input.Webhook != nil {
 		result.Webhook = &notifications.WebhookUpdate{URL: input.Webhook.Url, Headers: input.Webhook.Headers}
@@ -303,7 +328,10 @@ func notificationSenderResponse(sender notifications.Sender) api.NotificationSen
 	}
 	switch sender.Kind {
 	case notifications.SenderTelegram:
-		result.Telegram = &api.TelegramSenderView{ChatId: sender.Configuration.Telegram.ChatID, TokenConfigured: true}
+		result.Telegram = &api.TelegramSenderView{
+			ChatId: sender.Configuration.Telegram.ChatID, TokenConfigured: true,
+			TopicId: sender.Configuration.Telegram.TopicID,
+		}
 	case notifications.SenderWebhook:
 		result.Webhook = &api.WebhookSenderView{
 			Url:         sender.Configuration.Webhook.URL,

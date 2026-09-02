@@ -12,6 +12,8 @@ export type NotificationRuleWrite =
   components["schemas"]["NotificationRuleWrite"];
 export type NotificationEventType =
   components["schemas"]["NotificationEventType"];
+export type NotificationProbeField =
+  components["schemas"]["NotificationProbeField"];
 export type NotificationDelivery =
   components["schemas"]["NotificationDelivery"];
 export type NotificationDeliveryStatus =
@@ -19,6 +21,16 @@ export type NotificationDeliveryStatus =
 
 export async function listNotificationSenders(signal?: AbortSignal) {
   const result = await apiClient.GET("/api/v1/notification-senders", {
+    signal,
+  });
+  if (!result.response.ok || result.data === undefined) {
+    throwAPIError(result.response, result.error);
+  }
+  return result.data.items;
+}
+
+export async function listNotificationProbeFields(signal?: AbortSignal) {
+  const result = await apiClient.GET("/api/v1/notification-probe-fields", {
     signal,
   });
   if (!result.response.ok || result.data === undefined) {

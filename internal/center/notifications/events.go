@@ -51,6 +51,10 @@ func validEventType(value string, allowTest bool) bool {
 	}
 }
 
+func validRuleEventType(value string) bool {
+	return value == EventAll || validEventType(value, false)
+}
+
 func validSourceKind(value string) bool {
 	switch value {
 	case "probe-change-set", "address-event", "probe-execution", "address-gap", "probe-gap", "format-event":

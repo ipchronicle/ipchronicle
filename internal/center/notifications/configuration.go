@@ -13,6 +13,7 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/ipchronicle/ipchronicle/internal/center/database/configdb"
+	"github.com/ipchronicle/ipchronicle/internal/probefields"
 	"github.com/mattn/go-sqlite3"
 	"golang.org/x/net/http/httpguts"
 )
@@ -215,12 +216,13 @@ func (s *Service) DeleteRule(ctx context.Context, id uuid.UUID) error {
 
 func (s *Service) validateRule(ctx context.Context, input RuleCreate) error {
 	if input.Name == "" || len(input.Name) > 128 || input.SenderID == uuid.Nil ||
-		!validEventType(input.EventType, false) {
+		!validRuleEventType(input.EventType) {
 		return ErrInvalidRule
 	}
 	if input.FieldID != nil {
 		value := strings.TrimSpace(*input.FieldID)
-		if input.EventType != EventProbeFieldChange || value == "" || len(value) > 256 {
+		if input.EventType != EventProbeFieldChange || value == "" || len(value) > 256 ||
+			!probefields.IsComparable(value) {
 			return ErrInvalidRule
 		}
 	}
@@ -327,6 +329,7 @@ func mergeSenderConfiguration(current Sender, input SenderUpdate) (SenderConfigu
 		}
 		configuration := *current.Configuration.Telegram
 		configuration.ChatID = input.Telegram.ChatID
+		configuration.TopicID = input.Telegram.TopicID
 		if input.Telegram.Token != nil {
 			configuration.Token = *input.Telegram.Token
 		}
@@ -360,7 +363,8 @@ func validateSender(name, kind string, configuration SenderConfiguration) error 
 	case SenderTelegram:
 		if configuration.Telegram == nil || configuration.Webhook != nil || configuration.JavaScript != nil ||
 			strings.TrimSpace(configuration.Telegram.ChatID) == "" || len(configuration.Telegram.ChatID) > 128 ||
-			strings.TrimSpace(configuration.Telegram.Token) == "" || len(configuration.Telegram.Token) > 512 {
+			strings.TrimSpace(configuration.Telegram.Token) == "" || len(configuration.Telegram.Token) > 512 ||
+			configuration.Telegram.TopicID != nil && *configuration.Telegram.TopicID <= 0 {
 			return ErrInvalidSender
 		}
 	case SenderWebhook:

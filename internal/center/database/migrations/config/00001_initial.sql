@@ -327,7 +327,7 @@ CREATE TABLE notification_rules(
   name TEXT NOT NULL CHECK(length(name) BETWEEN 1 AND 128),
   enabled INTEGER NOT NULL DEFAULT 1 CHECK(enabled IN(0, 1)),
   sender_id TEXT NOT NULL REFERENCES notification_senders(id) ON DELETE RESTRICT,
-  event_type TEXT NOT NULL CHECK(event_type IN('probe-field-change', 'address-change', 'address-check-failure',
+  event_type TEXT NOT NULL CHECK(event_type IN('all', 'probe-field-change', 'address-change', 'address-check-failure',
 'address-check-recovery', 'probe-failure', 'probe-recovery',
 'address-gap', 'probe-gap', 'format-mismatch', 'format-changed',
 'format-recovery')),

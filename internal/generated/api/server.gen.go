@@ -932,6 +932,7 @@ const (
 	NotificationEventTypeAddressCheckFailure  NotificationEventType = "address-check-failure"
 	NotificationEventTypeAddressCheckRecovery NotificationEventType = "address-check-recovery"
 	NotificationEventTypeAddressGap           NotificationEventType = "address-gap"
+	NotificationEventTypeAll                  NotificationEventType = "all"
 	NotificationEventTypeFormatChanged        NotificationEventType = "format-changed"
 	NotificationEventTypeFormatMismatch       NotificationEventType = "format-mismatch"
 	NotificationEventTypeFormatRecovery       NotificationEventType = "format-recovery"
@@ -951,6 +952,8 @@ func (e NotificationEventType) Valid() bool {
 	case NotificationEventTypeAddressCheckRecovery:
 		return true
 	case NotificationEventTypeAddressGap:
+		return true
+	case NotificationEventTypeAll:
 		return true
 	case NotificationEventTypeFormatChanged:
 		return true
@@ -2231,6 +2234,18 @@ type NotificationDeliveryStatus string
 // NotificationEventType defines model for NotificationEventType.
 type NotificationEventType string
 
+// NotificationProbeField defines model for NotificationProbeField.
+type NotificationProbeField struct {
+	Group string `json:"group"`
+	Id    string `json:"id"`
+	Path  string `json:"path"`
+}
+
+// NotificationProbeFieldList defines model for NotificationProbeFieldList.
+type NotificationProbeFieldList struct {
+	Items []NotificationProbeField `json:"items"`
+}
+
 // NotificationRule defines model for NotificationRule.
 type NotificationRule struct {
 	CreatedAt     time.Time             `json:"createdAt"`
@@ -2700,20 +2715,23 @@ type TOTPEnrollment struct {
 
 // TelegramSenderCreate defines model for TelegramSenderCreate.
 type TelegramSenderCreate struct {
-	ChatId string `json:"chatId"`
-	Token  string `json:"token"`
+	ChatId  string `json:"chatId"`
+	Token   string `json:"token"`
+	TopicId *int64 `json:"topicId,omitempty"`
 }
 
 // TelegramSenderUpdate defines model for TelegramSenderUpdate.
 type TelegramSenderUpdate struct {
-	ChatId string  `json:"chatId"`
-	Token  *string `json:"token,omitempty"`
+	ChatId  string  `json:"chatId"`
+	Token   *string `json:"token,omitempty"`
+	TopicId *int64  `json:"topicId,omitempty"`
 }
 
 // TelegramSenderView defines model for TelegramSenderView.
 type TelegramSenderView struct {
 	ChatId          string `json:"chatId"`
 	TokenConfigured bool   `json:"tokenConfigured"`
+	TopicId         *int64 `json:"topicId,omitempty"`
 }
 
 // WebhookSenderCreate defines model for WebhookSenderCreate.
@@ -3289,6 +3307,9 @@ type ServerInterface interface {
 	// ListNotificationDeliveries List durable notification delivery history and active work
 	// (GET /api/v1/notification-deliveries)
 	ListNotificationDeliveries(w http.ResponseWriter, r *http.Request, params ListNotificationDeliveriesParams)
+	// ListNotificationProbeFields List fields available to probe-change notification rules
+	// (GET /api/v1/notification-probe-fields)
+	ListNotificationProbeFields(w http.ResponseWriter, r *http.Request)
 	// ListNotificationRules List current notification matching rules
 	// (GET /api/v1/notification-rules)
 	ListNotificationRules(w http.ResponseWriter, r *http.Request)
@@ -3628,6 +3649,12 @@ func (_ Unimplemented) StartNodeSyncSession(w http.ResponseWriter, r *http.Reque
 // ListNotificationDeliveries List durable notification delivery history and active work
 // (GET /api/v1/notification-deliveries)
 func (_ Unimplemented) ListNotificationDeliveries(w http.ResponseWriter, r *http.Request, params ListNotificationDeliveriesParams) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
+// ListNotificationProbeFields List fields available to probe-change notification rules
+// (GET /api/v1/notification-probe-fields)
+func (_ Unimplemented) ListNotificationProbeFields(w http.ResponseWriter, r *http.Request) {
 	w.WriteHeader(http.StatusNotImplemented)
 }
 
@@ -5787,6 +5814,20 @@ func (siw *ServerInterfaceWrapper) ListNotificationDeliveries(w http.ResponseWri
 	handler.ServeHTTP(w, r)
 }
 
+// ListNotificationProbeFields operation middleware
+func (siw *ServerInterfaceWrapper) ListNotificationProbeFields(w http.ResponseWriter, r *http.Request) {
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.ListNotificationProbeFields(w, r)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
 // ListNotificationRules operation middleware
 func (siw *ServerInterfaceWrapper) ListNotificationRules(w http.ResponseWriter, r *http.Request) {
 
@@ -6666,6 +6707,9 @@ func HandlerWithOptions(si ServerInterface, options ChiServerOptions) http.Handl
 	})
 	r.Group(func(r chi.Router) {
 		r.Post(options.BaseURL+"/api/v1/notification-senders", wrapper.CreateNotificationSender)
+	})
+	r.Group(func(r chi.Router) {
+		r.Get(options.BaseURL+"/api/v1/notification-probe-fields", wrapper.ListNotificationProbeFields)
 	})
 	r.Group(func(r chi.Router) {
 		r.Delete(options.BaseURL+"/api/v1/notification-senders/{senderId}", wrapper.DeleteNotificationSender)
@@ -9657,6 +9701,41 @@ func (response ListNotificationDeliveries401JSONResponse) VisitListNotificationD
 	return err
 }
 
+type ListNotificationProbeFieldsRequestObject struct {
+}
+
+type ListNotificationProbeFieldsResponseObject interface {
+	VisitListNotificationProbeFieldsResponse(w http.ResponseWriter) error
+}
+
+type ListNotificationProbeFields200JSONResponse NotificationProbeFieldList
+
+func (response ListNotificationProbeFields200JSONResponse) VisitListNotificationProbeFieldsResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type ListNotificationProbeFields401JSONResponse struct{ UnauthorizedJSONResponse }
+
+func (response ListNotificationProbeFields401JSONResponse) VisitListNotificationProbeFieldsResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(401)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
 type ListNotificationRulesRequestObject struct {
 }
 
@@ -10863,6 +10942,9 @@ type StrictServerInterface interface {
 	// ListNotificationDeliveries List durable notification delivery history and active work
 	// (GET /api/v1/notification-deliveries)
 	ListNotificationDeliveries(ctx context.Context, request ListNotificationDeliveriesRequestObject) (ListNotificationDeliveriesResponseObject, error)
+	// ListNotificationProbeFields List fields available to probe-change notification rules
+	// (GET /api/v1/notification-probe-fields)
+	ListNotificationProbeFields(ctx context.Context, request ListNotificationProbeFieldsRequestObject) (ListNotificationProbeFieldsResponseObject, error)
 	// ListNotificationRules List current notification matching rules
 	// (GET /api/v1/notification-rules)
 	ListNotificationRules(ctx context.Context, request ListNotificationRulesRequestObject) (ListNotificationRulesResponseObject, error)
@@ -12310,6 +12392,30 @@ func (sh *strictHandler) ListNotificationDeliveries(w http.ResponseWriter, r *ht
 		sh.options.ResponseErrorHandlerFunc(w, r, err)
 	} else if validResponse, ok := response.(ListNotificationDeliveriesResponseObject); ok {
 		if err := validResponse.VisitListNotificationDeliveriesResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// ListNotificationProbeFields operation middleware
+func (sh *strictHandler) ListNotificationProbeFields(w http.ResponseWriter, r *http.Request) {
+	var request ListNotificationProbeFieldsRequestObject
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.ListNotificationProbeFields(ctx, request.(ListNotificationProbeFieldsRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "ListNotificationProbeFields")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(ListNotificationProbeFieldsResponseObject); ok {
+		if err := validResponse.VisitListNotificationProbeFieldsResponse(w); err != nil {
 			sh.options.ResponseErrorHandlerFunc(w, r, err)
 		}
 	} else if response != nil {

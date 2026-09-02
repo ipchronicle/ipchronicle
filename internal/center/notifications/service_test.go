@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
 	"io"
 	"net/http"
 	"net/http/httptest"
@@ -18,6 +19,12 @@ import (
 	"github.com/ipchronicle/ipchronicle/internal/center/database/historydb"
 	"github.com/ipchronicle/ipchronicle/internal/center/systemsettings"
 )
+
+type roundTripFunc func(*http.Request) (*http.Response, error)
+
+func (function roundTripFunc) RoundTrip(request *http.Request) (*http.Response, error) {
+	return function(request)
+}
 
 type discardConfigurationWaker struct{}
 
@@ -50,8 +57,8 @@ func TestSenderRulesAggregateOneDeliveryAndEncryptConfiguration(t *testing.T) {
 	if bytes.Contains(encrypted, []byte(secret)) {
 		t.Fatal("sender token is present in configuration.db ciphertext")
 	}
-	fieldOne := "ipquality.ipinfo.CountryCode"
-	fieldTwo := "ipquality.ipinfo.Organization"
+	fieldOne := "Info.Region.Code"
+	fieldTwo := "Info.Organization"
 	for index, field := range []string{fieldOne, fieldTwo} {
 		rule, err := service.CreateRule(context.Background(), RuleCreate{
 			Name: "rule-" + string(rune('a'+index)), Enabled: true, SenderID: sender.ID,
@@ -80,8 +87,8 @@ func TestSenderRulesAggregateOneDeliveryAndEncryptConfiguration(t *testing.T) {
 		Payload: ProbeChangeData{
 			ExecutionID: uuid.NewString(), SnapshotID: uuid.NewString(), Sequence: 2,
 			Changes: []FieldChange{
-				{FieldID: fieldOne, Group: "ipquality", Path: "IPQuality.ipinfo.CountryCode", ValueType: "string", Before: `"US"`, After: `"DE"`},
-				{FieldID: fieldTwo, Group: "ipquality", Path: "IPQuality.ipinfo.Organization", ValueType: "string", Before: `"A"`, After: `"B"`},
+				{FieldID: fieldOne, Group: "Info", Path: fieldOne, ValueType: "string", Before: `"US"`, After: `"DE"`},
+				{FieldID: fieldTwo, Group: "Info", Path: fieldTwo, ValueType: "string", Before: `"A"`, After: `"B"`},
 			},
 		},
 	})
@@ -108,6 +115,101 @@ func TestSenderRulesAggregateOneDeliveryAndEncryptConfiguration(t *testing.T) {
 	page, err = service.Deliveries(context.Background(), DeliveryFilter{Page: 1, PageSize: 50})
 	if err != nil || len(page.Items) != 1 {
 		t.Fatalf("idempotent event processing = %#v, %v", page, err)
+	}
+}
+
+func TestAllEventRuleMatchesAndRejectsUnknownProbeFields(t *testing.T) {
+	service, store, nodeID, publicAddressID := newNotificationTestService(t)
+	sender, err := service.CreateSender(context.Background(), SenderCreate{
+		Name: "owner", Kind: SenderTelegram, Enabled: true,
+		Configuration: SenderConfiguration{Telegram: &TelegramConfiguration{ChatID: "12345", Token: "test-token"}},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := service.CreateRule(context.Background(), RuleCreate{
+		Name: "everything", Enabled: true, SenderID: sender.ID, EventType: EventAll,
+		NodeID: &nodeID,
+	}); err != nil {
+		t.Fatal(err)
+	}
+	unknown := "Future.Unknown"
+	if _, err := service.CreateRule(context.Background(), RuleCreate{
+		Name: "unknown field", Enabled: true, SenderID: sender.ID,
+		EventType: EventProbeFieldChange, FieldID: &unknown,
+	}); !errors.Is(err, ErrInvalidRule) {
+		t.Fatalf("unknown probe field rule error = %v", err)
+	}
+	node := nodeID.String()
+	egress := publicAddressID.String()
+	if err := CreateEvent(context.Background(), store.HistoryQueries, EventInput{
+		Type: EventAddressChange, SourceKind: "address-event", SourceID: uuid.NewString(),
+		NodeID: &node, EgressID: &egress, ObservedAt: 100, RecordedAt: 101,
+		Payload: AddressData{Sequence: 1, Kind: "address-added", Family: "ipv4"},
+	}); err != nil {
+		t.Fatal(err)
+	}
+	service.now = func() time.Time { return time.Unix(200, 0).UTC() }
+	if err := service.processPendingEvents(context.Background()); err != nil {
+		t.Fatal(err)
+	}
+	page, err := service.Deliveries(context.Background(), DeliveryFilter{Page: 1, PageSize: 50})
+	if err != nil || len(page.Items) != 1 || page.Items[0].EventType != EventAddressChange {
+		t.Fatalf("all-event delivery = %#v, %v", page, err)
+	}
+}
+
+func TestTelegramDeliveryIncludesOptionalTopic(t *testing.T) {
+	topicID := int64(42)
+	var payload struct {
+		ChatID  string `json:"chat_id"`
+		Text    string `json:"text"`
+		TopicID *int64 `json:"message_thread_id"`
+	}
+	client := &http.Client{Transport: roundTripFunc(func(request *http.Request) (*http.Response, error) {
+		if request.Method != http.MethodPost || request.URL.Path != "/bottest-token/sendMessage" {
+			t.Fatalf("telegram request = %s %s", request.Method, request.URL.String())
+		}
+		if err := json.NewDecoder(request.Body).Decode(&payload); err != nil {
+			t.Fatal(err)
+		}
+		return &http.Response{
+			StatusCode: http.StatusOK,
+			Header:     make(http.Header),
+			Body:       io.NopCloser(strings.NewReader(`{"ok":true}`)),
+			Request:    request,
+		}, nil
+	})}
+	service := &Service{httpClient: client}
+	result := service.sendTelegram(context.Background(), TelegramConfiguration{
+		ChatID: "-1001234567890", Token: "test-token", TopicID: &topicID,
+	}, "Title", "Body")
+	if !result.Empty() || payload.ChatID != "-1001234567890" || payload.TopicID == nil || *payload.TopicID != topicID ||
+		payload.Text != "Title\n\nBody" {
+		t.Fatalf("telegram topic request = %#v, result = %#v", payload, result)
+	}
+}
+
+func TestTelegramSenderStoresAndClearsOptionalTopic(t *testing.T) {
+	service, _, _, _ := newNotificationTestService(t)
+	topicID := int64(42)
+	sender, err := service.CreateSender(context.Background(), SenderCreate{
+		Name: "group", Kind: SenderTelegram, Enabled: true,
+		Configuration: SenderConfiguration{Telegram: &TelegramConfiguration{
+			ChatID: "-1001234567890", Token: "test-token", TopicID: &topicID,
+		}},
+	})
+	if err != nil || sender.Configuration.Telegram.TopicID == nil ||
+		*sender.Configuration.Telegram.TopicID != topicID {
+		t.Fatalf("created Telegram topic = %#v, %v", sender, err)
+	}
+	updated, err := service.UpdateSender(context.Background(), sender.ID, SenderUpdate{
+		Name: "group", Enabled: true,
+		Telegram: &TelegramUpdate{ChatID: "-1001234567890"},
+	})
+	if err != nil || updated.Configuration.Telegram.TopicID != nil ||
+		updated.Configuration.Telegram.Token != "test-token" {
+		t.Fatalf("cleared Telegram topic = %#v, %v", updated, err)
 	}
 }
 
