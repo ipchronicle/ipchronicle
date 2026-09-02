@@ -1,8 +1,8 @@
-# IPChronicle v0.1.0-rc.3 Release Readiness
+# IPChronicle v0.1.0-rc.4 Release Readiness
 
 Status: Pre-publication validation in progress
 
-This report maps the first public release candidate to its product scope,
+This report maps this public release candidate to its product scope,
 automated validation, artifacts, operational documentation, and publication
 gate. The source revision and artifact digests in `release-manifest.json` and
 `checksums.txt` identify a particular build. A candidate is not ready to
@@ -11,8 +11,8 @@ for the manifest revision, and the final run links must be recorded here.
 
 ## Candidate Identity
 
-- Version: `0.1.0-rc.3`
-- Proposed tag: `v0.1.0-rc.3`
+- Version: `0.1.0-rc.4`
+- Proposed tag: `v0.1.0-rc.4`
 - Channel: `rc`
 - License: `AGPL-3.0-only`
 - Source: <https://github.com/ipchronicle/ipchronicle>
@@ -27,8 +27,8 @@ for the manifest revision, and the final run links must be recorded here.
 | Agent enrollment, persistent identity, 30-second polling, configuration convergence, and temporary sync | `internal/agent`, `internal/center/nodes`, `internal/center/syncws` | package and race tests, Compose smoke, browser tests, distribution lifecycle tests |
 | Linux interface, address, route, egress, proxy, NAT, and temporary-IPv6 handling | `internal/agent/network`, `internal/agent/observation`, `internal/center/nodes` | inventory, selector, proxy, observation, outage, restart, and queue tests |
 | Manual, scheduled, and newly-current-address complete probes with one immediate slot | `internal/agent/probe`, `internal/schedule`, `internal/center/nodes` | scheduler, native execution, result publication, retry, resource, and live complete-probe tests |
-| Known-field interpretation, raw results, format drift, comparison, starring, and retention | `internal/center/history`, `internal/center/nodes` | interpretation, comparison, retention, reset, capacity, API, and browser tests |
-| Telegram, Webhook, and isolated JavaScript notifications | `internal/center/notifications`, `cmd/ipchronicle-center` | sender, queue, retry, isolation, redaction, overflow, API, and browser tests |
+| Known-field interpretation, raw results, localized semantic presentation, format drift, comparison, starring, and retention | `internal/probefields`, `internal/center/history`, `internal/center/nodes`, `web/src/pages/probe-snapshot-page.tsx` | interpretation, value presentation, comparison, retention, reset, capacity, API, and browser tests |
+| Telegram text/image, Webhook, and isolated JavaScript notifications | `internal/center/notifications`, `cmd/ipchronicle-center` | sender, renderer, queue, retry, isolation, redaction, overflow, API, and browser tests |
 | Agent update discovery, validation, atomic replacement, health commitment, and rollback | `internal/agent/update`, `internal/center/updates` | update manager, supervisor, rollback, distribution lifecycle, and browser tests |
 | Bilingual administrator interface | `web/src`, `web/src/locales` | locale parity, component, production build, and desktop/mobile Chromium tests |
 | Separate configuration and history ownership | `internal/center/database/migrations`, independent sqlc packages | migration, corruption, reset, retention, Compose, and failure-gate tests |
@@ -45,7 +45,7 @@ not a pass.
 | Production Center image and Compose boundary | `make compose-smoke`; GitHub Actions `CI / compose` | Pass |
 | Simplified Chinese and English desktop/mobile workflows | `make browser-test`; GitHub Actions `CI / browser` | Pass |
 | AMD64 and ARM64 Center image metadata | GitHub Actions `CI / image (linux/amd64)` and `CI / image (linux/arm64)` | Pass |
-| Candidate creation, manifest, checksums, SBOMs, and artifact contract | `make release-candidate VERSION=0.1.0-rc.3`; `make verify-release-candidate VERSION=0.1.0-rc.3`; `Release candidate artifact / candidate` | Pass |
+| Candidate creation, manifest, checksums, SBOMs, and artifact contract | `make release-candidate VERSION=0.1.0-rc.4`; `make verify-release-candidate VERSION=0.1.0-rc.4`; `Release candidate artifact / candidate` | Pass |
 | Install, reinstall, uninstall, migration, history reset, outage, restart, unavailable selector, update rollback, and queue overflow | `make release-failure-gate`; `Release candidate artifact / candidate` | Pass |
 | Supported distribution and init lifecycle | 17 distributions x AMD64/ARM64 in `Release candidate artifact / distribution` | All 34 pass |
 | Native resource limits and live complete-probe execution | AMD64 and ARM64 `Release candidate artifact / resources` | Both pass at 64 MiB Agent and 512 MiB Center limits |
@@ -81,6 +81,10 @@ The release verifier rejects missing, extra, non-regular, oversized, tampered,
 or unexpectedly non-executable files. The manifest records the source revision,
 channel, capabilities, size, SHA-256, operating system, and architecture where
 applicable.
+
+`RELEASE_NOTES.md` is the source for the GitHub prerelease description. The
+candidate builder rejects release-facing documentation and workflow defaults
+that do not identify the same version.
 
 ## Operator Workflow Coverage
 

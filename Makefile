@@ -13,7 +13,7 @@ GO_RUN := docker run --rm --user $(CONTAINER_USER) -e HOME=/tmp -e GOCACHE=/tmp/
 NODE_RUN := docker run --rm --user $(CONTAINER_USER) -e HOME=/tmp -v $(CURDIR):$(ROOT) -w $(ROOT)/web $(NODE_IMAGE)
 SQLC_RUN := docker run --rm --user $(CONTAINER_USER) -v $(CURDIR):/src -w /src $(SQLC_IMAGE)
 
-.PHONY: all browser-test build check compose-smoke format generate go-check release-candidate release-failure-gate secret-scan verify-release-candidate web-assets web-check
+.PHONY: all browser-test build check compose-smoke format generate go-check release-candidate release-failure-gate release-version-check secret-scan verify-release-candidate web-assets web-check
 
 all: check
 
@@ -36,7 +36,7 @@ go-check:
 	$(GO_RUN) sh -ceu 'go mod tidy; unformatted=$$(gofmt -l $$(find . -type f -name "*.go" -not -path "./web/node_modules/*")); test -z "$$unformatted" || { printf "Unformatted Go files:\n%s\n" "$$unformatted"; exit 1; }; go vet ./...; go test ./...; go test -race ./...; go build -trimpath -buildvcs=false -ldflags "$(GO_LDFLAGS)" -o /tmp/ipchronicle-center ./cmd/ipchronicle-center; CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -trimpath -buildvcs=false -ldflags "$(GO_LDFLAGS)" -o /tmp/ipchronicle-agent-amd64 ./cmd/ipchronicle-agent; CGO_ENABLED=0 GOOS=linux GOARCH=arm64 go build -trimpath -buildvcs=false -ldflags "$(GO_LDFLAGS)" -o /tmp/ipchronicle-agent-arm64 ./cmd/ipchronicle-agent'
 	git diff --exit-code -- go.mod go.sum
 
-check: generate
+check: release-version-check generate
 	./scripts/check-generated.sh
 	$(MAKE) web-assets
 	$(MAKE) go-check
@@ -54,6 +54,9 @@ browser-test:
 
 release-candidate:
 	./scripts/build-release-candidate.sh "$(VERSION)"
+
+release-version-check:
+	./scripts/check-release-version.sh
 
 verify-release-candidate:
 	./scripts/verify-release-candidate.sh "dist/release/$(VERSION)"

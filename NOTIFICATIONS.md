@@ -22,13 +22,27 @@ history**.
 
 ### Telegram
 
-Provide the Bot API token and target chat ID. IPChronicle calls the official
-Telegram `sendMessage` API with the localized event title and body. The bot
-must already have permission to send to the target chat.
+Provide the Bot API token, target private-chat or group ID, and an optional
+topic ID for a forum group. The bot must already have permission to send to the
+destination and topic. Each sender chooses one format:
+
+- **Image** calls the official Telegram `sendPhoto` API with a bounded
+  black-background status card and a details-link caption.
+- **Text** calls the official Telegram `sendMessage` API with a bounded HTML
+  message and disabled link previews.
+
+The selected format applies to every supported event. Probe changes use
+localized human field names and values, including database classifications,
+risk levels and factors, country codes, media states, and mail connectivity.
+Unknown upstream values remain visible unchanged. The raw event envelope is
+not rewritten for presentation.
 
 The token is encrypted in `config.db`. It is never returned by the API or web
 interface. Leaving the token blank while editing preserves the configured
-value.
+value. The create form can send one synchronous test with its unsaved values;
+this checks only whether Telegram accepted the message and does not persist a
+sender, delivery, or rule. Tests for saved senders use the durable queue and
+appear in delivery history.
 
 ### Webhook
 

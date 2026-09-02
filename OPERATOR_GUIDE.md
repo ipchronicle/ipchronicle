@@ -36,7 +36,7 @@ Choose the release version, create an empty installation directory, and
 download the deployment assets. The version must omit the leading `v`.
 
 ```sh
-IPCHRONICLE_VERSION=0.1.0-rc.3
+IPCHRONICLE_VERSION=0.1.0-rc.4
 mkdir ipchronicle
 cd ipchronicle
 curl --proto '=https' --tlsv1.2 -fLO \
@@ -288,6 +288,13 @@ Open **Notifications** to configure Telegram, generic Webhook, or isolated
 JavaScript senders, then create rules for address, probe, gap, or format events.
 Use **Test delivery** before enabling rules. Test delivery follows the same
 durable queue, timeout, retry, and terminal-state path as real events.
+
+A Telegram destination accepts a private chat or group ID and an optional
+topic ID. Choose image or text delivery per sender; every supported event uses
+the selected format. The create form can send one synchronous test before the
+sender is saved. Known probe fields and values are localized for human
+notifications, while Webhook payloads and the JavaScript event object retain
+their machine values.
 
 No notification is sent until the administrator configures a destination and
 an enabled matching rule. Sender credentials are encrypted in `config.db`.

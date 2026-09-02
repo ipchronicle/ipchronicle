@@ -6,7 +6,7 @@ on:
       version:
         description: Canonical release candidate version without the v prefix
         required: true
-        default: 0.1.0-rc.3
+        default: 0.1.0-rc.4
         type: string
       candidate_run_id:
         description: Successful Release candidate artifact workflow run ID
@@ -186,16 +186,15 @@ jobs:
         run: |
           set -euo pipefail
           notes_file="$RUNNER_TEMP/release-notes.md"
-          cat >"$notes_file" <<EOF
-          IPChronicle $VERSION is a release candidate for personal self-hosted installations.
+          cp RELEASE_NOTES.md "$notes_file"
+          cat >>"$notes_file" <<EOF
+
+          ## Verified Candidate
 
           - Source revision: \`$REVISION\`
           - Candidate validation: https://github.com/$GITHUB_REPOSITORY/actions/runs/$CANDIDATE_RUN_ID
           - Center image: \`ghcr.io/${GITHUB_REPOSITORY_OWNER,,}/ipchronicle-center:$TAG\`
           - Supported image platforms: \`linux/amd64\`, \`linux/arm64\`
-
-          Read \`OPERATOR_GUIDE.md\` before installation or upgrade. Verify downloaded assets with
-          \`checksums.txt\` and \`release-manifest.json\`.
           EOF
 
           if gh release view "$TAG" --json isDraft,isPrerelease >"$RUNNER_TEMP/release.json" 2>/dev/null; then

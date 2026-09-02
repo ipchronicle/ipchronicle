@@ -6,7 +6,7 @@ on:
       version:
         description: Canonical release candidate version without the v prefix
         required: true
-        default: 0.1.0-rc.3
+        default: 0.1.0-rc.4
         type: string
 
 permissions:

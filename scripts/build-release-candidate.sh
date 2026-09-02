@@ -13,6 +13,8 @@ if [[ ! $version =~ ^${semver_number}\.${semver_number}\.${semver_number}(-rc\.$
   exit 2
 fi
 
+"$script_dir/check-release-version.sh" "$version"
+
 for command_name in docker git jq; do
   command -v "$command_name" >/dev/null 2>&1 || {
     echo "$command_name is required to build a release candidate" >&2
