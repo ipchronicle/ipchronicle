@@ -8,8 +8,10 @@ import (
 	"fmt"
 	"html"
 	"io"
+	"mime/multipart"
 	"net/http"
 	"net/url"
+	"strconv"
 	"strings"
 	"time"
 
@@ -106,6 +108,17 @@ func (s *Service) dispatch(ctx context.Context, record historydb.NotificationDel
 }
 
 func (s *Service) sendTelegram(ctx context.Context, configuration TelegramConfiguration, eventJSON []byte, title, body string) DeliveryError {
+	switch configuration.MessageFormat {
+	case TelegramFormatImage:
+		return s.sendTelegramImage(ctx, configuration, eventJSON)
+	case TelegramFormatText:
+		return s.sendTelegramText(ctx, configuration, eventJSON, title, body)
+	default:
+		return DeliveryError{Code: "sender-configuration-invalid"}
+	}
+}
+
+func (s *Service) sendTelegramText(ctx context.Context, configuration TelegramConfiguration, eventJSON []byte, title, body string) DeliveryError {
 	endpoint := "https://api.telegram.org/bot" + url.PathEscape(configuration.Token) + "/sendMessage"
 	payload, err := json.Marshal(struct {
 		ChatID            string `json:"chat_id"`
@@ -130,6 +143,54 @@ func (s *Service) sendTelegram(ctx context.Context, configuration TelegramConfig
 	}
 	request.Header.Set("Content-Type", "application/json")
 	return s.sendHTTPRequest(request)
+}
+
+func (s *Service) sendTelegramImage(ctx context.Context, configuration TelegramConfiguration, eventJSON []byte) DeliveryError {
+	imageData, err := renderTelegramImage(eventJSON)
+	if err != nil {
+		return DeliveryError{Code: "image-render-failed"}
+	}
+	var payload bytes.Buffer
+	writer := multipart.NewWriter(&payload)
+	writeField := func(name, value string) bool {
+		return writer.WriteField(name, value) == nil
+	}
+	if !writeField("chat_id", configuration.ChatID) {
+		return DeliveryError{Code: "request-invalid"}
+	}
+	if configuration.TopicID != nil && !writeField("message_thread_id", strconv.FormatInt(*configuration.TopicID, 10)) {
+		return DeliveryError{Code: "request-invalid"}
+	}
+	caption := telegramPhotoCaption(eventJSON)
+	if caption != "" && (!writeField("caption", caption) || !writeField("parse_mode", "HTML")) {
+		return DeliveryError{Code: "request-invalid"}
+	}
+	photo, err := writer.CreateFormFile("photo", "ipchronicle-notification.png")
+	if err != nil {
+		return DeliveryError{Code: "request-invalid"}
+	}
+	if _, err := photo.Write(imageData); err != nil {
+		return DeliveryError{Code: "request-invalid"}
+	}
+	if err := writer.Close(); err != nil {
+		return DeliveryError{Code: "request-invalid"}
+	}
+	endpoint := "https://api.telegram.org/bot" + url.PathEscape(configuration.Token) + "/sendPhoto"
+	request, err := http.NewRequestWithContext(ctx, http.MethodPost, endpoint, &payload)
+	if err != nil {
+		return DeliveryError{Code: "request-invalid"}
+	}
+	request.Header.Set("Content-Type", writer.FormDataContentType())
+	return s.sendHTTPRequest(request)
+}
+
+func telegramPhotoCaption(eventJSON []byte) string {
+	var event eventEnvelope
+	if len(eventJSON) == 0 || json.Unmarshal(eventJSON, &event) != nil || event.Link == nil || len(*event.Link) > 900 {
+		return ""
+	}
+	return "<a href=\"" + html.EscapeString(*event.Link) + "\">" +
+		localizedNotification(event.Locale, "View details", "查看详情") + "</a>"
 }
 
 func telegramMessage(eventJSON []byte, title, body string) string {
@@ -216,12 +277,23 @@ func renderTelegramEvent(title string, event eventEnvelope) string {
 				}
 			}
 		}
-	}
-	if event.Type == EventTest {
-		message.WriteString("\n\n")
-		message.WriteString(html.EscapeString(localizedNotification(
-			event.Locale, "The test message was delivered successfully.", "测试消息已成功送达。",
-		)))
+	} else {
+		status, _, facts := genericEventContent(event)
+		if status != "" {
+			message.WriteString("\n\n<b>")
+			message.WriteString(html.EscapeString(status))
+			message.WriteString("</b>")
+		}
+		for _, fact := range facts {
+			message.WriteString("\n")
+			message.WriteString(html.EscapeString(fact.label))
+			if zh {
+				message.WriteString("：")
+			} else {
+				message.WriteString(": ")
+			}
+			message.WriteString(html.EscapeString(fact.value))
+		}
 	}
 	if event.Link != nil && len(*event.Link) <= 1024 {
 		message.WriteString("\n\n<a href=\"")

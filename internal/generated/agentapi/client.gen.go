@@ -1398,6 +1398,24 @@ func (e SystemStatusTransportSecurity) Valid() bool {
 	}
 }
 
+// Defines values for TelegramMessageFormat.
+const (
+	Image TelegramMessageFormat = "image"
+	Text  TelegramMessageFormat = "text"
+)
+
+// Valid indicates whether the value is a known member of the TelegramMessageFormat enum.
+func (e TelegramMessageFormat) Valid() bool {
+	switch e {
+	case Image:
+		return true
+	case Text:
+		return true
+	default:
+		return false
+	}
+}
+
 // Account defines model for Account.
 type Account struct {
 	Locale                 SupportedLocale `json:"locale"`
@@ -2717,25 +2735,31 @@ type TOTPEnrollment struct {
 	Secret          string `json:"secret"`
 }
 
+// TelegramMessageFormat defines model for TelegramMessageFormat.
+type TelegramMessageFormat string
+
 // TelegramSenderCreate defines model for TelegramSenderCreate.
 type TelegramSenderCreate struct {
-	ChatId  string `json:"chatId"`
-	Token   string `json:"token"`
-	TopicId *int64 `json:"topicId,omitempty"`
+	ChatId        string                `json:"chatId"`
+	MessageFormat TelegramMessageFormat `json:"messageFormat"`
+	Token         string                `json:"token"`
+	TopicId       *int64                `json:"topicId,omitempty"`
 }
 
 // TelegramSenderUpdate defines model for TelegramSenderUpdate.
 type TelegramSenderUpdate struct {
-	ChatId  string  `json:"chatId"`
-	Token   *string `json:"token,omitempty"`
-	TopicId *int64  `json:"topicId,omitempty"`
+	ChatId        string                `json:"chatId"`
+	MessageFormat TelegramMessageFormat `json:"messageFormat"`
+	Token         *string               `json:"token,omitempty"`
+	TopicId       *int64                `json:"topicId,omitempty"`
 }
 
 // TelegramSenderView defines model for TelegramSenderView.
 type TelegramSenderView struct {
-	ChatId          string `json:"chatId"`
-	TokenConfigured bool   `json:"tokenConfigured"`
-	TopicId         *int64 `json:"topicId,omitempty"`
+	ChatId          string                `json:"chatId"`
+	MessageFormat   TelegramMessageFormat `json:"messageFormat"`
+	TokenConfigured bool                  `json:"tokenConfigured"`
+	TopicId         *int64                `json:"topicId,omitempty"`
 }
 
 // WebhookSenderCreate defines model for WebhookSenderCreate.

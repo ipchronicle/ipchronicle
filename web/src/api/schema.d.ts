@@ -2009,23 +2009,28 @@ export interface components {
         };
         /** @enum {string} */
         NotificationSenderKind: "telegram" | "webhook" | "javascript";
+        /** @enum {string} */
+        TelegramMessageFormat: "image" | "text";
         TelegramSenderCreate: {
             chatId: string;
             token: string;
             /** Format: int64 */
             topicId?: number;
+            messageFormat: components["schemas"]["TelegramMessageFormat"];
         };
         TelegramSenderUpdate: {
             chatId: string;
             token?: string;
             /** Format: int64 */
             topicId?: number;
+            messageFormat: components["schemas"]["TelegramMessageFormat"];
         };
         TelegramSenderView: {
             chatId: string;
             tokenConfigured: boolean;
             /** Format: int64 */
             topicId?: number;
+            messageFormat: components["schemas"]["TelegramMessageFormat"];
         };
         WebhookSenderCreate: {
             /** Format: uri */

@@ -45,7 +45,9 @@ func TestSenderRulesAggregateOneDeliveryAndEncryptConfiguration(t *testing.T) {
 	secret := "telegram-secret-that-must-not-appear"
 	sender, err := service.CreateSender(context.Background(), SenderCreate{
 		Name: "owner", Kind: SenderTelegram, Enabled: true,
-		Configuration: SenderConfiguration{Telegram: &TelegramConfiguration{ChatID: "12345", Token: secret}},
+		Configuration: SenderConfiguration{Telegram: &TelegramConfiguration{
+			ChatID: "12345", Token: secret, MessageFormat: TelegramFormatImage,
+		}},
 	})
 	if err != nil {
 		t.Fatal(err)
@@ -122,7 +124,9 @@ func TestAllEventRuleMatchesAndRejectsUnknownProbeFields(t *testing.T) {
 	service, store, nodeID, publicAddressID := newNotificationTestService(t)
 	sender, err := service.CreateSender(context.Background(), SenderCreate{
 		Name: "owner", Kind: SenderTelegram, Enabled: true,
-		Configuration: SenderConfiguration{Telegram: &TelegramConfiguration{ChatID: "12345", Token: "test-token"}},
+		Configuration: SenderConfiguration{Telegram: &TelegramConfiguration{
+			ChatID: "12345", Token: "test-token", MessageFormat: TelegramFormatImage,
+		}},
 	})
 	if err != nil {
 		t.Fatal(err)
@@ -187,6 +191,7 @@ func TestTelegramDeliveryIncludesOptionalTopic(t *testing.T) {
 	service := &Service{httpClient: client}
 	result := service.sendTelegram(context.Background(), TelegramConfiguration{
 		ChatID: "-1001234567890", Token: "test-token", TopicID: &topicID,
+		MessageFormat: TelegramFormatText,
 	}, nil, "Title & status", "Node: <node>")
 	if !result.Empty() || payload.ChatID != "-1001234567890" || payload.TopicID == nil || *payload.TopicID != topicID ||
 		payload.Text != "<b>Title &amp; status</b>\n\nNode: &lt;node&gt;" || payload.ParseMode != "HTML" ||
@@ -240,7 +245,9 @@ func TestUnsavedTelegramSenderTestReturnsBoundedFailure(t *testing.T) {
 			Body: io.NopCloser(strings.NewReader(`{"ok":false}`)), Request: request,
 		}, nil
 	})}
-	err := service.TestTelegramSender(context.Background(), TelegramConfiguration{ChatID: "123", Token: "invalid"})
+	err := service.TestTelegramSender(context.Background(), TelegramConfiguration{
+		ChatID: "123", Token: "invalid", MessageFormat: TelegramFormatImage,
+	})
 	var failure SenderTestFailure
 	if !errors.Is(err, ErrSenderTestFailed) || !errors.As(err, &failure) || failure.Code != "http-401" {
 		t.Fatalf("Telegram sender test error = %#v", err)
@@ -254,6 +261,7 @@ func TestTelegramSenderStoresAndClearsOptionalTopic(t *testing.T) {
 		Name: "group", Kind: SenderTelegram, Enabled: true,
 		Configuration: SenderConfiguration{Telegram: &TelegramConfiguration{
 			ChatID: "-1001234567890", Token: "test-token", TopicID: &topicID,
+			MessageFormat: TelegramFormatImage,
 		}},
 	})
 	if err != nil || sender.Configuration.Telegram.TopicID == nil ||
@@ -262,10 +270,11 @@ func TestTelegramSenderStoresAndClearsOptionalTopic(t *testing.T) {
 	}
 	updated, err := service.UpdateSender(context.Background(), sender.ID, SenderUpdate{
 		Name: "group", Enabled: true,
-		Telegram: &TelegramUpdate{ChatID: "-1001234567890"},
+		Telegram: &TelegramUpdate{ChatID: "-1001234567890", MessageFormat: TelegramFormatText},
 	})
 	if err != nil || updated.Configuration.Telegram.TopicID != nil ||
-		updated.Configuration.Telegram.Token != "test-token" {
+		updated.Configuration.Telegram.Token != "test-token" ||
+		updated.Configuration.Telegram.MessageFormat != TelegramFormatText {
 		t.Fatalf("cleared Telegram topic = %#v, %v", updated, err)
 	}
 }

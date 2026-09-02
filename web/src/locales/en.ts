@@ -1612,6 +1612,18 @@ export const en = {
         formDetail:
           "Credentials are encrypted at rest. Hidden Telegram and Webhook credentials stay unchanged unless replaced.",
         kind: "Sender type",
+        messageFormat: "Message format",
+        messageFormatImage: "Image",
+        messageFormatText: "Text",
+        messageFormatDetail: {
+          image:
+            "Every event uses a dark notification card; the details link remains in the photo caption.",
+          text: "Every event uses structured text formatted for Telegram.",
+        },
+        messageFormatValue: {
+          image: "Image notifications",
+          text: "Text notifications",
+        },
         chatId: "Chat or group ID",
         topicId: "Topic ID (optional)",
         topicIdPlaceholder: "Leave blank for the main group",

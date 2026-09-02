@@ -46,6 +46,7 @@ func (s apiServer) TestTelegramNotificationSender(ctx context.Context, request a
 	}
 	configuration := notifications.TelegramConfiguration{
 		ChatID: request.Body.ChatId, Token: request.Body.Token, TopicID: request.Body.TopicId,
+		MessageFormat: string(request.Body.MessageFormat),
 	}
 	err = s.notifications.TestTelegramSender(ctx, configuration)
 	if errors.Is(err, notifications.ErrInvalidSender) {
@@ -327,6 +328,7 @@ func notificationSenderCreate(input api.NotificationSenderCreate) notifications.
 	if input.Telegram != nil {
 		configuration.Telegram = &notifications.TelegramConfiguration{
 			ChatID: input.Telegram.ChatId, Token: input.Telegram.Token, TopicID: input.Telegram.TopicId,
+			MessageFormat: string(input.Telegram.MessageFormat),
 		}
 	}
 	if input.Webhook != nil {
@@ -343,6 +345,7 @@ func notificationSenderUpdate(input api.NotificationSenderUpdate) notifications.
 	if input.Telegram != nil {
 		result.Telegram = &notifications.TelegramUpdate{
 			ChatID: input.Telegram.ChatId, Token: input.Telegram.Token, TopicID: input.Telegram.TopicId,
+			MessageFormat: string(input.Telegram.MessageFormat),
 		}
 	}
 	if input.Webhook != nil {
@@ -363,7 +366,8 @@ func notificationSenderResponse(sender notifications.Sender) api.NotificationSen
 	case notifications.SenderTelegram:
 		result.Telegram = &api.TelegramSenderView{
 			ChatId: sender.Configuration.Telegram.ChatID, TokenConfigured: true,
-			TopicId: sender.Configuration.Telegram.TopicID,
+			TopicId:       sender.Configuration.Telegram.TopicID,
+			MessageFormat: api.TelegramMessageFormat(sender.Configuration.Telegram.MessageFormat),
 		}
 	case notifications.SenderWebhook:
 		result.Webhook = &api.WebhookSenderView{

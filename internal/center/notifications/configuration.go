@@ -330,6 +330,7 @@ func mergeSenderConfiguration(current Sender, input SenderUpdate) (SenderConfigu
 		configuration := *current.Configuration.Telegram
 		configuration.ChatID = input.Telegram.ChatID
 		configuration.TopicID = input.Telegram.TopicID
+		configuration.MessageFormat = input.Telegram.MessageFormat
 		if input.Telegram.Token != nil {
 			configuration.Token = *input.Telegram.Token
 		}
@@ -364,7 +365,9 @@ func validateSender(name, kind string, configuration SenderConfiguration) error 
 		if configuration.Telegram == nil || configuration.Webhook != nil || configuration.JavaScript != nil ||
 			strings.TrimSpace(configuration.Telegram.ChatID) == "" || len(configuration.Telegram.ChatID) > 128 ||
 			strings.TrimSpace(configuration.Telegram.Token) == "" || len(configuration.Telegram.Token) > 512 ||
-			configuration.Telegram.TopicID != nil && *configuration.Telegram.TopicID <= 0 {
+			configuration.Telegram.TopicID != nil && *configuration.Telegram.TopicID <= 0 ||
+			configuration.Telegram.MessageFormat != TelegramFormatImage &&
+				configuration.Telegram.MessageFormat != TelegramFormatText {
 			return ErrInvalidSender
 		}
 	case SenderWebhook:

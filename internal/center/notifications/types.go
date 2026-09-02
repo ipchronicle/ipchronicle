@@ -26,6 +26,9 @@ const (
 	SenderTelegram   = "telegram"
 	SenderWebhook    = "webhook"
 	SenderJavaScript = "javascript"
+
+	TelegramFormatImage = "image"
+	TelegramFormatText  = "text"
 )
 
 const (
@@ -60,9 +63,10 @@ func (failure SenderTestFailure) Unwrap() error {
 }
 
 type TelegramConfiguration struct {
-	ChatID  string `json:"chatId"`
-	Token   string `json:"token"`
-	TopicID *int64 `json:"topicId,omitempty"`
+	ChatID        string `json:"chatId"`
+	Token         string `json:"token"`
+	TopicID       *int64 `json:"topicId,omitempty"`
+	MessageFormat string `json:"messageFormat"`
 }
 
 type WebhookConfiguration struct {
@@ -98,9 +102,10 @@ type SenderCreate struct {
 }
 
 type TelegramUpdate struct {
-	ChatID  string
-	Token   *string
-	TopicID *int64
+	ChatID        string
+	Token         *string
+	TopicID       *int64
+	MessageFormat string
 }
 
 type WebhookUpdate struct {

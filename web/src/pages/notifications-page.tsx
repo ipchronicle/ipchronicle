@@ -543,6 +543,13 @@ function SenderCard({
             ? t("notifications.enabled")
             : t("notifications.disabled")}
         </Badge>
+        {sender.telegram ? (
+          <Badge variant="outline">
+            {t(
+              `notifications.senders.messageFormatValue.${sender.telegram.messageFormat}`,
+            )}
+          </Badge>
+        ) : null}
       </CardContent>
     </Card>
   );
@@ -574,6 +581,9 @@ function SenderForm({
   const [topicId, setTopicId] = useState(
     sender?.telegram?.topicId?.toString() ?? "",
   );
+  const [messageFormat, setMessageFormat] = useState<
+    TelegramSenderCreate["messageFormat"]
+  >(sender?.telegram?.messageFormat ?? "image");
   const [token, setToken] = useState("");
   const [url, setURL] = useState(sender?.webhook?.url ?? "");
   const [headers, setHeaders] = useState("");
@@ -596,6 +606,7 @@ function SenderForm({
     return {
       chatId,
       token,
+      messageFormat,
       ...(parsedTopicId ? { topicId: parsedTopicId } : {}),
     } satisfies TelegramSenderCreate;
   }
@@ -644,6 +655,7 @@ function SenderForm({
       if (kind === "telegram") {
         input.telegram = {
           chatId,
+          messageFormat,
           ...(token ? { token } : {}),
           ...(telegram?.topicId ? { topicId: telegram.topicId } : {}),
         };
@@ -736,6 +748,37 @@ function SenderForm({
           </div>
           {kind === "telegram" ? (
             <div className="grid gap-4 sm:grid-cols-2">
+              <div className="space-y-2">
+                <Label htmlFor="sender-message-format">
+                  {t("notifications.senders.messageFormat")}
+                </Label>
+                <Select
+                  value={messageFormat}
+                  onValueChange={(value) => {
+                    setMessageFormat(
+                      value as TelegramSenderCreate["messageFormat"],
+                    );
+                    setTestSent(false);
+                  }}
+                >
+                  <SelectTrigger id="sender-message-format" className="w-full">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="image">
+                      {t("notifications.senders.messageFormatImage")}
+                    </SelectItem>
+                    <SelectItem value="text">
+                      {t("notifications.senders.messageFormatText")}
+                    </SelectItem>
+                  </SelectContent>
+                </Select>
+                <p className="text-sm text-muted-foreground">
+                  {t(
+                    `notifications.senders.messageFormatDetail.${messageFormat}`,
+                  )}
+                </p>
+              </div>
               <div className="space-y-2">
                 <Label htmlFor="sender-chat-id">
                   {t("notifications.senders.chatId")}

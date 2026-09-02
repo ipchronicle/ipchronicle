@@ -4578,10 +4578,13 @@ components:
     NotificationSenderKind:
       type: string
       enum: [telegram, webhook, javascript]
+    TelegramMessageFormat:
+      type: string
+      enum: [image, text]
     TelegramSenderCreate:
       type: object
       additionalProperties: false
-      required: [chatId, token]
+      required: [chatId, token, messageFormat]
       properties:
         chatId:
           type: string
@@ -4595,10 +4598,12 @@ components:
           type: integer
           format: int64
           minimum: 1
+        messageFormat:
+          $ref: "#/components/schemas/TelegramMessageFormat"
     TelegramSenderUpdate:
       type: object
       additionalProperties: false
-      required: [chatId]
+      required: [chatId, messageFormat]
       properties:
         chatId:
           type: string
@@ -4612,10 +4617,12 @@ components:
           type: integer
           format: int64
           minimum: 1
+        messageFormat:
+          $ref: "#/components/schemas/TelegramMessageFormat"
     TelegramSenderView:
       type: object
       additionalProperties: false
-      required: [chatId, tokenConfigured]
+      required: [chatId, tokenConfigured, messageFormat]
       properties:
         chatId:
           type: string
@@ -4625,6 +4632,8 @@ components:
           type: integer
           format: int64
           minimum: 1
+        messageFormat:
+          $ref: "#/components/schemas/TelegramMessageFormat"
     WebhookSenderCreate:
       type: object
       additionalProperties: false

@@ -1480,6 +1480,17 @@ export const zhCN = {
         formDetail:
           "凭据会加密存储。除非明确替换，隐藏的 Telegram 和 Webhook 凭据保持不变。",
         kind: "发送器类型",
+        messageFormat: "消息格式",
+        messageFormatImage: "图片",
+        messageFormatText: "文字",
+        messageFormatDetail: {
+          image: "所有事件使用黑底通知卡片，详情链接保留在图片说明中。",
+          text: "所有事件使用适合 Telegram 阅读的结构化文字。",
+        },
+        messageFormatValue: {
+          image: "图片通知",
+          text: "文字通知",
+        },
         chatId: "聊天或群组 ID",
         topicId: "话题 ID（可选）",
         topicIdPlaceholder: "不填写则发送到主群组",

@@ -6,8 +6,9 @@ retains its own copyright and license terms.
 The web interface includes source components obtained from the official
 [shadcn/ui](https://github.com/shadcn-ui/ui) registry under the MIT License.
 The compiled interface also includes Radix UI primitives, Lucide icons, and the
-Geist font. Their required notices follow. Other dependency licenses are
-reported in release SBOM and license metadata.
+Geist font. The Center embeds Noto Sans CJK SC for Telegram notification image
+rendering. Their required notices follow. Other dependency licenses are reported
+in release SBOM and license metadata.
 
 ## IPQuality
 
@@ -138,10 +139,17 @@ LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 
-## Geist Font
+## Geist and Noto Fonts
 
 Copyright 2024 The Geist Project Authors
 (https://github.com/vercel/geist-font)
+
+The Telegram notification renderer includes Noto Sans CJK SC from
+[Noto CJK](https://github.com/notofonts/noto-cjk) at commit
+`165c01b46ea533872e002e0785ff17e44f6d97d8`. Noto Sans CJK is Copyright
+2014-2021 Adobe and is distributed under the SIL Open Font License version 1.1.
+
+Both fonts are distributed under the SIL Open Font License version 1.1:
 
 SIL OPEN FONT LICENSE Version 1.1 - 26 February 2007
 
