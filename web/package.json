@@ -12,6 +12,7 @@
   "scripts": {
     "dev": "vite --host 0.0.0.0",
     "build": "tsc -b && vite build",
+    "audit": "npm audit --audit-level=high",
     "format": "prettier --write .",
     "format:check": "prettier --check .",
     "generate:api": "openapi-typescript ../openapi/openapi.yaml -o src/api/schema.d.ts",
@@ -20,8 +21,8 @@
     "test": "vitest run",
     "test:e2e": "playwright test",
     "typecheck": "tsc -b",
-    "preflight": "npm run format:check && npm run lint && npm run typecheck && npm run test && npm run openapi:lint",
-    "check": "npm run format:check && npm run lint && npm run typecheck && npm run test && npm run openapi:lint && npm run build",
+    "preflight": "npm run audit && npm run format:check && npm run lint && npm run typecheck && npm run test && npm run openapi:lint",
+    "check": "npm run audit && npm run format:check && npm run lint && npm run typecheck && npm run test && npm run openapi:lint && npm run build",
     "preview": "vite preview --host 0.0.0.0"
   },
   "dependencies": {
