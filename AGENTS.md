@@ -90,11 +90,17 @@ rules that would make this file ambiguous. Do not create empty rule files.
 ## Generated Files And Validation
 
 - Run `make generate` after changing OpenAPI or generator configuration.
-- Run `make check` for formatting, generated drift, lint, type checking, unit
-  tests, Go race tests, and production builds.
-- Run `make compose-smoke` when changing the center, web embedding, container,
-  health endpoint, or Compose configuration.
-- Run `make browser-test` when changing user-visible workflows.
+- Run focused tests while developing, then run `make preflight` before pushing.
+  It checks release-version consistency, committed generated-file drift,
+  formatting, lint, types, ordinary unit tests, OpenAPI, Go vet, module tidiness,
+  and source hygiene without race instrumentation or release builds.
+- `make check` remains the complete GitHub Actions gate for regeneration,
+  production builds, no-CGO Agent builds, and Go race tests. Run it locally only
+  when capacity permits or when diagnosing a CI failure.
+- Compose, desktop/mobile browser, dual-architecture image, distribution,
+  resource-limit, reproducibility, and release failure tests run in GitHub
+  Actions. Use their local targets only for focused diagnosis.
+- A push is not release-ready until ordinary CI for that exact revision passes.
 - Before finishing, inspect `git diff` for secrets, generated artifacts,
   unrelated edits, duplicate logic, and unmentioned behavior changes.
 - After a feature is complete and its risk-proportionate checks pass, create a

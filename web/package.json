@@ -20,6 +20,7 @@
     "test": "vitest run",
     "test:e2e": "playwright test",
     "typecheck": "tsc -b",
+    "preflight": "npm run format:check && npm run lint && npm run typecheck && npm run test && npm run openapi:lint",
     "check": "npm run format:check && npm run lint && npm run typecheck && npm run test && npm run openapi:lint && npm run build",
     "preview": "vite preview --host 0.0.0.0"
   },

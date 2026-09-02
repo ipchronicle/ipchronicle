@@ -40,7 +40,8 @@ not a pass.
 
 | Gate | Command or workflow evidence | Required result |
 | --- | --- | --- |
-| Generated bindings, formatting, lint, types, ordinary tests, race tests, native Center, no-CGO Agents, and production web build | `make check`; GitHub Actions `CI / check` | Pass |
+| Local release-version, source, generated-file, formatting, lint, type, ordinary-test, and static-analysis preflight | `make preflight` | Pass before push |
+| Generated bindings, ordinary and race tests, native Center, no-CGO Agents, and production web build | `make check`; GitHub Actions `CI / check` | Pass on the candidate revision |
 | Committed-source secret scan | `make secret-scan`; GitHub Actions `CI / check` | Pass, no leaks |
 | Production Center image and Compose boundary | `make compose-smoke`; GitHub Actions `CI / compose` | Pass |
 | Simplified Chinese and English desktop/mobile workflows | `make browser-test`; GitHub Actions `CI / browser` | Pass |
