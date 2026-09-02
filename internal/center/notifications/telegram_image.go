@@ -395,7 +395,7 @@ func probeValueTone(fieldID, raw, display string) imageTone {
 	}
 	segments := strings.Split(fieldID, ".")
 	if len(segments) >= 2 && segments[0] == "Score" {
-		value, err := strconv.ParseFloat(strings.Trim(trimmed, `"`), 64)
+		value, err := strconv.ParseFloat(strings.TrimSuffix(strings.Trim(trimmed, `"`), "%"), 64)
 		if err == nil {
 			return riskScoreTone(segments[1], value)
 		}
@@ -438,10 +438,10 @@ func probeValueTone(fieldID, raw, display string) imageTone {
 	}
 	if fieldID == "Info.Type" {
 		normalized := strings.ToLower(strings.TrimSpace(display))
-		if normalized == "geo-consistent" || normalized == "原生ip" {
+		if stringIn(normalized, "geo-consistent", "native ip", "原生ip", "原生 ip") {
 			return toneGreen
 		}
-		if normalized == "geo-discrepant" || normalized == "广播ip" {
+		if stringIn(normalized, "geo-discrepant", "broadcast ip", "广播ip", "广播 ip") {
 			return toneRed
 		}
 	}
@@ -500,10 +500,10 @@ func riskScoreTone(provider string, value float64) imageTone {
 
 func classificationTone(value string) imageTone {
 	normalized := strings.ToLower(strings.TrimSpace(value))
-	if stringIn(normalized, "hosting", "cdn", "web spider", "机房", "蜘蛛") {
+	if stringIn(normalized, "hosting", "cdn", "web spider", "search crawler", "机房", "蜘蛛", "搜索爬虫") {
 		return toneRed
 	}
-	if stringIn(normalized, "isp", "line isp", "mobile isp", "家宽", "手机") {
+	if stringIn(normalized, "isp", "line isp", "residential isp", "mobile isp", "mobile network", "家宽", "手机", "移动网络") {
 		return toneGreen
 	}
 	if stringIn(normalized, "business", "education", "government", "banking", "organization", "military", "library", "reserved", "other", "商业", "教育", "政府", "银行", "组织", "军队", "图书馆", "保留", "其他") {
@@ -517,10 +517,10 @@ func mediaValueTone(value string) imageTone {
 	if stringIn(normalized, "yes", "unlocked", "解锁", "native", "原生") {
 		return toneGreen
 	}
-	if stringIn(normalized, "block", "blocked", "屏蔽", "failed", "失败", "china", "中国", "noprem.", "禁会员") {
+	if stringIn(normalized, "block", "blocked", "屏蔽", "failed", "failure", "check failed", "失败", "检测失败", "china", "mainland china", "中国", "中国大陆", "noprem.", "premium unavailable", "禁会员", "premium 不可用") {
 		return toneRed
 	}
-	if stringIn(normalized, "pending", "待支持", "nf.only", "仅自制", "webonly", "仅网页", "apponly", "仅app", "idc", "机房", "viadns", "dns") {
+	if stringIn(normalized, "pending", "not yet supported", "待支持", "nf.only", "originals only", "仅自制", "仅自制内容", "webonly", "web only", "仅网页", "仅网页可用", "apponly", "app only", "仅app", "仅 app 可用", "idc", "data center", "机房", "viadns", "via dns", "dns", "经 dns") {
 		return toneAmber
 	}
 	return toneNeutral

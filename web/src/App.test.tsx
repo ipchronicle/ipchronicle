@@ -2337,14 +2337,14 @@ describe("administrator application", () => {
       screen.getByRole("heading", { name: "IP type attributes" }),
     ).toBeInTheDocument();
     expect(
-      screen.getByRole("row", { name: /^Usage Hosting ISP/ }),
+      screen.getByRole("row", { name: /^Usage Hosting Residential ISP/ }),
     ).toBeInTheDocument();
     expect(
       screen.getByRole("row", { name: /^Company Business/ }),
     ).toBeInTheDocument();
     expect(screen.getByText("Hosting")).toHaveClass("text-destructive");
     expect(screen.getByText("Business")).toHaveClass("text-amber-700");
-    expect(screen.getByText("ISP")).toHaveClass("text-emerald-700");
+    expect(screen.getByText("Residential ISP")).toHaveClass("text-emerald-700");
     expect(
       screen.getByRole("heading", { name: "Risk scores" }),
     ).toBeInTheDocument();
@@ -2383,13 +2383,15 @@ describe("administrator application", () => {
       .closest<HTMLElement>('[data-slot="card"]');
     expect(riskFactorsCard).not.toBeNull();
     expect(
-      within(riskFactorsCard!).getByRole("row", { name: /^Region TW/ }),
+      within(riskFactorsCard!).getByRole("row", {
+        name: /^Region Taiwan \(TW\)/,
+      }),
     ).toBeInTheDocument();
-    expect(within(riskFactorsCard!).getByText("TW")).toHaveClass(
+    expect(within(riskFactorsCard!).getByText("Taiwan (TW)")).toHaveClass(
       "text-emerald-700",
     );
-    expect(screen.getAllByText("No").length).toBeGreaterThan(0);
-    expect(screen.getAllByText("Yes").length).toBeGreaterThan(0);
+    expect(screen.getAllByText("Not detected").length).toBeGreaterThan(0);
+    expect(screen.getAllByText("Detected").length).toBeGreaterThan(0);
     expect(
       document.querySelector('[data-report-path="Factor.Proxy.DBIP"]'),
     ).toHaveTextContent("—");
@@ -2397,8 +2399,10 @@ describe("administrator application", () => {
       screen.getByRole("columnheader", { name: "Netflix" }),
     ).toBeInTheDocument();
     expect(screen.getByText("Unlocked")).toBeInTheDocument();
-    expect(screen.getAllByText("Pending")[0]).toHaveClass("text-amber-700");
-    expect(screen.getByText("ViaDNS")).toHaveClass("text-amber-700");
+    expect(screen.getAllByText("Not yet supported")[0]).toHaveClass(
+      "text-amber-700",
+    );
+    expect(screen.getByText("Via DNS")).toHaveClass("text-amber-700");
     expect(screen.getByText("Gmail · Reachable")).toBeInTheDocument();
     expect(screen.getByText("439")).toHaveClass("text-cyan-700");
     expect(screen.getByText("411")).toHaveClass("text-emerald-700");

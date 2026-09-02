@@ -53,6 +53,7 @@ import {
 } from "@/components/ui/tooltip";
 import { formatAPIError } from "@/lib/api-error";
 import { presentProbeField } from "@/lib/probe-field-label";
+import { presentProbeFieldValue } from "@/lib/probe-field-value";
 import { cn } from "@/lib/utils";
 import { formatTime } from "@/pages/node-probe-page";
 
@@ -667,7 +668,8 @@ function BasicInformationCard({
   fields: FieldMap;
   exportMode?: boolean;
 }) {
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
+  const addressType = fieldText(fields, "Info.Type");
   const location = joinDistinct([
     fieldText(fields, "Info.Region.Name"),
     fieldText(fields, "Info.City.Name"),
@@ -713,8 +715,15 @@ function BasicInformationCard({
     ],
     [
       t("snapshot.report.basic.type"),
-      fieldText(fields, "Info.Type"),
-      basicTypeTone(fieldText(fields, "Info.Type")),
+      addressType
+        ? presentProbeFieldValue(
+            "Info.Type",
+            addressType,
+            t,
+            i18n.resolvedLanguage,
+          )
+        : undefined,
+      basicTypeTone(addressType),
       "Info.Type",
     ],
   ];
@@ -808,6 +817,7 @@ function TypeClassificationCard({
                           fields,
                           `Type.${field}.${provider}`,
                         )}
+                        path={`Type.${field}.${provider}`}
                       />
                     </div>
                   </TableCell>
@@ -902,7 +912,7 @@ function RiskFactorsCard({
   fields: FieldMap;
   compact?: boolean;
 }) {
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
   const rows = (["CountryCode", ...riskFactors] as const).map((factor) => ({
     factor,
     values: factorProviders.map((provider) => ({
@@ -910,7 +920,12 @@ function RiskFactorsCard({
       unavailable: fieldUnavailable(fields, `Factor.${factor}.${provider}`),
       value:
         factor === "CountryCode"
-          ? fieldText(fields, `Factor.CountryCode.${provider}`)
+          ? displayFieldText(
+              fields,
+              `Factor.CountryCode.${provider}`,
+              t,
+              i18n.resolvedLanguage,
+            )
           : factorField(fields, `Factor.${factor}.${provider}`),
     })),
   }));
@@ -1014,7 +1029,7 @@ function MediaServicesCard({
   fields: FieldMap;
   compact?: boolean;
 }) {
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
   const services = mediaServices.flatMap((service) => {
     const statusPath = `Media.${service}.Status`;
     const regionPath = `Media.${service}.Region`;
@@ -1083,6 +1098,7 @@ function MediaServicesCard({
                     <MediaStatusBadge
                       value={service.status}
                       unavailable={service.statusUnavailable}
+                      path={`Media.${service.service}.Status`}
                     />
                   </div>
                 </TableCell>
@@ -1096,7 +1112,16 @@ function MediaServicesCard({
                 <TableCell key={service.service} className="text-center">
                   <div data-report-path={`Media.${service.service}.Region`}>
                     <ReportValueBadge
-                      value={service.region}
+                      value={
+                        service.region
+                          ? presentProbeFieldValue(
+                              `Media.${service.service}.Region`,
+                              service.region,
+                              t,
+                              i18n.resolvedLanguage,
+                            )
+                          : undefined
+                      }
                       tone="green"
                       unavailable={service.regionUnavailable}
                     />
@@ -1114,6 +1139,7 @@ function MediaServicesCard({
                     <MediaValueBadge
                       value={service.type}
                       unavailable={service.typeUnavailable}
+                      path={`Media.${service.service}.Type`}
                     />
                   </div>
                 </TableCell>
@@ -1131,33 +1157,34 @@ function MediaServicesCard({
 function MediaValueBadge({
   value,
   unavailable,
+  path,
 }: {
   value?: string;
   unavailable: boolean;
+  path: string;
 }) {
+  const { t, i18n } = useTranslation();
   if (!value) return unavailable ? <UnavailableValue /> : null;
-  return <ReportValueBadge value={value} tone={mediaTone(value)} />;
+  return (
+    <ReportValueBadge
+      value={presentProbeFieldValue(path, value, t, i18n.resolvedLanguage)}
+      tone={mediaTone(value)}
+    />
+  );
 }
 
 function MediaStatusBadge({
   value,
   unavailable,
+  path,
 }: {
   value?: string;
   unavailable: boolean;
+  path: string;
 }) {
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
   if (!value) return unavailable ? <UnavailableValue /> : null;
-  const normalized = value.trim().toLowerCase();
-  const display = ["yes", "true", "available", "unlock", "unlocked"].includes(
-    normalized,
-  )
-    ? t("snapshot.report.media.unlocked")
-    : ["no", "false", "block", "blocked", "failed", "unavailable"].includes(
-          normalized,
-        )
-      ? t("snapshot.report.media.blocked")
-      : value;
+  const display = presentProbeFieldValue(path, value, t, i18n.resolvedLanguage);
   return <ReportValueBadge value={display} tone={mediaTone(value)} />;
 }
 
@@ -1362,12 +1389,20 @@ function ReportEmpty() {
 function ClassificationValue({
   value,
   unavailable,
+  path,
 }: {
   value?: string;
   unavailable: boolean;
+  path: string;
 }) {
+  const { t, i18n } = useTranslation();
   if (!value) return unavailable ? <UnavailableValue /> : null;
-  return <ReportValueBadge value={value} tone={classificationTone(value)} />;
+  return (
+    <ReportValueBadge
+      value={presentProbeFieldValue(path, value, t, i18n.resolvedLanguage)}
+      tone={classificationTone(value)}
+    />
+  );
 }
 
 function ReportValueBadge({
@@ -1633,6 +1668,16 @@ function fieldText(fields: FieldMap, path: string) {
   const value = field.value.trim();
   if (!value || ["null", "n/a"].includes(value.toLowerCase())) return undefined;
   return value;
+}
+
+function displayFieldText(
+  fields: FieldMap,
+  path: string,
+  t: ReturnType<typeof useTranslation>["t"],
+  language?: string,
+) {
+  const value = fieldText(fields, path);
+  return value ? presentProbeFieldValue(path, value, t, language) : undefined;
 }
 
 function fieldUnavailable(fields: FieldMap, path: string) {

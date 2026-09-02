@@ -133,8 +133,24 @@ func TestTelegramImageBoundsChangesAndUsesFieldSemantics(t *testing.T) {
 			t.Errorf("change %d tones = %v -> %v, want %v -> %v", index, actual.beforeTone, actual.afterTone, tones[0], tones[1])
 		}
 	}
+	wantValues := [][2]string{
+		{"家宽", "机房"}, {"未检测到", "检测到"}, {"解锁", "仅自制内容"},
+		{"不可用", "可用"}, {"4（低）", "86（存在风险）"},
+	}
+	for index, values := range wantValues {
+		actual := content.changes[index]
+		if actual.before != values[0] || actual.after != values[1] {
+			t.Errorf("change %d values = %q -> %q, want %q -> %q", index, actual.before, actual.after, values[0], values[1])
+		}
+	}
 	if strings.Contains(content.changes[0].label, "Type.Usage") {
 		t.Fatalf("image exposed internal field ID: %#v", content.changes[0])
+	}
+}
+
+func TestProbeValueToneParsesPercentageScores(t *testing.T) {
+	if tone := probeValueTone("Score.ipapi", `"4.00%"`, "4.00%（高）"); tone != toneRed {
+		t.Fatalf("ipapi percentage score tone = %v, want %v", tone, toneRed)
 	}
 }
 

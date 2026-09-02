@@ -217,7 +217,7 @@ func TestRenderEventUsesHumanProbeFieldLabelsAndValues(t *testing.T) {
 		!strings.Contains(body, "变更项（3）") ||
 		!strings.Contains(body, "正常 DNS 黑名单: 422 → 421") ||
 		!strings.Contains(body, "Sohu 连通性: 不可用 → 可用") ||
-		!strings.Contains(body, "Youtube 可用性: Failed → Unlocked") ||
+		!strings.Contains(body, "Youtube 可用性: 检测失败 → 解锁") ||
 		strings.Contains(body, "Mail.DNSBlacklist.Clean") || strings.Contains(body, "Media.Youtube.Status") {
 		t.Fatalf("rendered notification = %q, %q", title, body)
 	}
