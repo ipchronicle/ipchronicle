@@ -78,7 +78,7 @@ func serve() error {
 	}
 	syncHub := syncws.NewHub()
 	nodeService := nodes.NewService(store.Config, store.History, store.ConfigQueries, store.MasterKey, syncHub)
-	systemSettingsService := systemsettings.NewService(store.ConfigQueries)
+	systemSettingsService := systemsettings.NewService(store.Config, store.ConfigQueries, store.MasterKey, syncHub)
 	notificationService := notifications.NewService(notifications.ServiceOptions{
 		ConfigDatabase: store.Config, HistoryDatabase: store.History,
 		ConfigQueries: store.ConfigQueries, HistoryQueries: store.HistoryQueries,

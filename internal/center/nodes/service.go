@@ -522,7 +522,7 @@ func (s *Service) Configuration(ctx context.Context, credential string) (Configu
 		return Configuration{}, fmt.Errorf("read stored probe schedule: %w", err)
 	}
 	return Configuration{
-		SchemaVersion: 8, Revision: node.DesiredConfigurationRevision,
+		SchemaVersion: 9, Revision: node.DesiredConfigurationRevision,
 		Enabled: node.Enabled == 1, HistoryGeneration: state.HistoryGeneration,
 		DiscoveryPaths: discoveryPaths, ProbeTargets: probeTargets,
 		Proxies: proxies, DiscoveryServices: discoveryServices,

@@ -30,6 +30,7 @@ type nativeProbeInput struct {
 	DialContext              func(context.Context, string, string) (net.Conn, error)
 	ProxyAdapterURL          string
 	StartedAt                time.Time
+	IPAPIAPIKey              string
 }
 
 type Runner struct {
@@ -106,7 +107,7 @@ func (runner *Runner) Run(
 		HTTPClient:               runner.httpClient(path, adapterURL),
 		ExplicitLookupHTTPClient: runner.lookupClient(path, adapterURL),
 		DialContext:              pathDialContext(path),
-		ProxyAdapterURL:          adapterURL, StartedAt: startedAt,
+		ProxyAdapterURL:          adapterURL, StartedAt: startedAt, IPAPIAPIKey: configuration.IPAPIAPIKey,
 	})
 	if err != nil {
 		if errors.Is(executionContext.Err(), context.DeadlineExceeded) {
@@ -198,6 +199,10 @@ func pathDialContext(path executionPath) func(context.Context, string, string) (
 }
 
 func sanitizeDiagnostic(value string, configuration state.Configuration) string {
+	if configuration.IPAPIAPIKey != "" {
+		value = strings.ReplaceAll(value, configuration.IPAPIAPIKey, "[REDACTED]")
+		value = strings.ReplaceAll(value, url.QueryEscape(configuration.IPAPIAPIKey), "[REDACTED]")
+	}
 	for _, proxy := range configuration.Proxies {
 		for _, secret := range []*string{proxy.Password} {
 			if secret == nil || *secret == "" {

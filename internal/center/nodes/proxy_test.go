@@ -76,7 +76,7 @@ func TestNetworkProxyCredentialsAndReferencedConfiguration(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if configuration.SchemaVersion != 8 || configuration.Revision != 2 || len(configuration.DiscoveryPaths) != 2 || len(configuration.ProbeTargets) != 0 || len(configuration.Proxies) != 1 || len(configuration.DiscoveryServices.IPv4) < 2 {
+	if configuration.SchemaVersion != 9 || configuration.Revision != 2 || len(configuration.DiscoveryPaths) != 2 || len(configuration.ProbeTargets) != 0 || len(configuration.Proxies) != 1 || len(configuration.DiscoveryServices.IPv4) < 2 {
 		t.Fatalf("referenced proxy configuration = %#v", configuration)
 	}
 	if configuration.DiscoveryPaths[0].Family == configuration.DiscoveryPaths[1].Family {

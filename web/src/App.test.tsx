@@ -347,6 +347,7 @@ describe("administrator application", () => {
       automatic: true,
       externalOrigin: "",
       effectiveOrigin: window.location.origin,
+      ipapiApiKeyConfigured: false,
     });
     getSystemStatusMock.mockReset();
     getSystemStatusMock.mockResolvedValue(healthyStatus);
@@ -649,6 +650,7 @@ describe("administrator application", () => {
       automatic: false,
       externalOrigin: "https://ip.example.com",
       effectiveOrigin: "https://ip.example.com",
+      ipapiApiKeyConfigured: true,
     });
     renderApplication("/settings/system");
 
@@ -675,13 +677,35 @@ describe("administrator application", () => {
     fireEvent.click(screen.getByRole("button", { name: "Save address" }));
     await waitFor(() =>
       expect(updateSystemSettingsMock).toHaveBeenCalledWith(
-        "https://ip.example.com",
+        {
+          externalOrigin: "https://ip.example.com",
+          ipapiApiKeyAction: "keep",
+        },
         session.csrfToken,
       ),
     );
     expect(
       screen.getByText("External address settings saved."),
     ).toBeInTheDocument();
+    fireEvent.change(screen.getByLabelText("ipapi API Key (optional)"), {
+      target: { value: "test-ipapi-key" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Save key" }));
+    await waitFor(() =>
+      expect(updateSystemSettingsMock).toHaveBeenLastCalledWith(
+        {
+          ipapiApiKeyAction: "replace",
+          ipapiApiKey: "test-ipapi-key",
+        },
+        session.csrfToken,
+      ),
+    );
+    expect(
+      screen.getByText("ipapi API key settings saved."),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByRole("link", { name: "Create an ipapi account" }),
+    ).toHaveAttribute("href", "https://ipapi.is/app/signup");
     fireEvent.click(
       screen.getByRole("combobox", { name: "Discovery channel" }),
     );

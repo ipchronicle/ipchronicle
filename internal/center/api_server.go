@@ -362,11 +362,14 @@ func (s apiServer) UpdateSystemSettings(ctx context.Context, request api.UpdateS
 	if failure != "" {
 		return api.UpdateSystemSettings403JSONResponse{ForbiddenJSONResponse: forbidden(failure)}, nil
 	}
-	if request.Body == nil {
+	if request.Body == nil || !request.Body.IpapiApiKeyAction.Valid() {
 		return api.UpdateSystemSettings400JSONResponse{BadRequestJSONResponse: badRequest(api.InvalidRequest)}, nil
 	}
-	settings, err := s.systemSettings.Update(ctx, request.Body.ExternalOrigin)
-	if errors.Is(err, systemsettings.ErrInvalidExternalOrigin) {
+	settings, err := s.systemSettings.Update(ctx, systemsettings.Update{
+		ExternalOrigin: request.Body.ExternalOrigin, IPAPIAPIKeyAction: string(request.Body.IpapiApiKeyAction),
+		IPAPIAPIKey: request.Body.IpapiApiKey,
+	})
+	if errors.Is(err, systemsettings.ErrInvalidExternalOrigin) || errors.Is(err, systemsettings.ErrInvalidIPAPIAPIKey) {
 		return api.UpdateSystemSettings400JSONResponse{BadRequestJSONResponse: badRequest(api.InvalidSystemSettings)}, nil
 	}
 	if err != nil {
@@ -1253,6 +1256,10 @@ func (s apiServer) GetAgentConfiguration(ctx context.Context, _ api.GetAgentConf
 	case err != nil:
 		return nil, err
 	}
+	ipapiAPIKey, err := s.systemSettings.IPAPIAPIKey(ctx)
+	if err != nil {
+		return nil, err
+	}
 	discoveryPaths := make([]api.AgentDiscoveryPath, 0, len(configuration.DiscoveryPaths))
 	for _, egress := range configuration.DiscoveryPaths {
 		discoveryPaths = append(discoveryPaths, api.AgentDiscoveryPath{
@@ -1280,7 +1287,7 @@ func (s apiServer) GetAgentConfiguration(ctx context.Context, _ api.GetAgentConf
 			Port: proxy.Port, Username: proxy.Username, Password: proxy.Password,
 		})
 	}
-	return api.GetAgentConfiguration200JSONResponse{
+	response := api.GetAgentConfiguration200JSONResponse{
 		SchemaVersion: api.AgentConfigurationSnapshotSchemaVersion(configuration.SchemaVersion),
 		Revision:      configuration.Revision, Enabled: configuration.Enabled,
 		HistoryGeneration: configuration.HistoryGeneration,
@@ -1294,7 +1301,11 @@ func (s apiServer) GetAgentConfiguration(ctx context.Context, _ api.GetAgentConf
 			Ipv4Services: configuration.DiscoveryServices.IPv4,
 			Ipv6Services: configuration.DiscoveryServices.IPv6,
 		},
-	}, nil
+	}
+	if ipapiAPIKey != "" {
+		response.IpapiApiKey = &ipapiAPIKey
+	}
+	return response, nil
 }
 
 func (s apiServer) UploadProbeArtifact(ctx context.Context, request api.UploadProbeArtifactRequestObject) (api.UploadProbeArtifactResponseObject, error) {
@@ -1445,7 +1456,7 @@ func systemSettingsResponse(settings systemsettings.Settings, requestOrigin stri
 	}
 	return api.SystemSettings{
 		Automatic: settings.ExternalOrigin == "", ExternalOrigin: settings.ExternalOrigin,
-		EffectiveOrigin: effectiveOrigin,
+		EffectiveOrigin: effectiveOrigin, IpapiApiKeyConfigured: settings.IPAPIAPIKeyConfigured,
 	}
 }
 

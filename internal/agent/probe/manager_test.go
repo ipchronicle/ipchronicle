@@ -181,7 +181,7 @@ func openManagerTestStore(t *testing.T, egressCount int) (*state.Store, state.Co
 		t.Fatal(err)
 	}
 	configuration := state.Configuration{
-		SchemaVersion: 8, Revision: 1, Enabled: true,
+		SchemaVersion: 9, Revision: 1, Enabled: true,
 		HistoryGeneration: "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef",
 		ProbeSchedule:     state.ProbeSchedule{Enabled: true, Cron: "0 0 0 * * *", Timezone: "UTC"},
 		DiscoveryServices: state.DiscoveryServices{

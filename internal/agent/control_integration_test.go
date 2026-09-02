@@ -36,7 +36,7 @@ func TestAgentEnrollsOnceAndBecomesOnline(t *testing.T) {
 	}
 	syncHub := syncws.NewHub()
 	nodeService := nodes.NewService(centerStore.Config, centerStore.History, centerStore.ConfigQueries, centerStore.MasterKey, syncHub)
-	systemSettingsService := systemsettings.NewService(centerStore.ConfigQueries)
+	systemSettingsService := systemsettings.NewService(centerStore.Config, centerStore.ConfigQueries, centerStore.MasterKey, syncHub)
 	notificationService := notifications.NewService(notifications.ServiceOptions{
 		ConfigDatabase: centerStore.Config, HistoryDatabase: centerStore.History,
 		ConfigQueries: centerStore.ConfigQueries, HistoryQueries: centerStore.HistoryQueries,

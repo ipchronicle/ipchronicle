@@ -3,6 +3,8 @@ import { throwAPIError } from "@/api/errors";
 import type { components } from "@/api/schema";
 
 export type SystemSettings = components["schemas"]["SystemSettings"];
+export type SystemSettingsUpdate =
+  components["schemas"]["SystemSettingsUpdate"];
 
 export async function getSystemStatus(signal?: AbortSignal) {
   const result = await apiClient.GET("/api/v1/system/status", { signal });
@@ -25,11 +27,11 @@ export async function getSystemSettings(signal?: AbortSignal) {
 }
 
 export async function updateSystemSettings(
-  externalOrigin: string,
+  settings: SystemSettingsUpdate,
   csrfToken: string,
 ) {
   const result = await apiClient.PUT("/api/v1/system/settings", {
-    body: { externalOrigin },
+    body: settings,
     headers: { "X-CSRF-Token": csrfToken },
   });
 

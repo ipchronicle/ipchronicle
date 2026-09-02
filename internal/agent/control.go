@@ -626,6 +626,9 @@ func configurationFromAPI(snapshot agentapi.AgentConfigurationSnapshot) state.Co
 		},
 		ProbeLowMemoryOverride: snapshot.ProbeLowMemoryOverride,
 	}
+	if snapshot.IpapiApiKey != nil {
+		configuration.IPAPIAPIKey = *snapshot.IpapiApiKey
+	}
 	for _, path := range snapshot.DiscoveryPaths {
 		configuration.DiscoveryPaths = append(configuration.DiscoveryPaths, state.Egress{
 			ID: path.Id.String(), Kind: string(path.Kind), Family: string(path.Family),
@@ -706,7 +709,7 @@ func currentMetadata(version string, updateCapable bool) (agentapi.AgentMetadata
 	if err != nil {
 		return agentapi.AgentMetadata{}, fmt.Errorf("read physical memory: %w", err)
 	}
-	capabilities := []string{controlCapability, "configuration-v8", "network-inventory-v1", "address-observation-v1", "complete-probe-v1", syncWakeCapability}
+	capabilities := []string{controlCapability, "configuration-v9", "network-inventory-v1", "address-observation-v1", "complete-probe-v1", syncWakeCapability}
 	if updateCapable {
 		capabilities = append(capabilities, "agent-update-v1")
 	}

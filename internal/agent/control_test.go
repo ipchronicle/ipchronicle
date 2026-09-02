@@ -47,6 +47,7 @@ func TestConfigurationMapsV6TransportSemantics(t *testing.T) {
 	pathID := uuid.New()
 	proxyID := uuid.New()
 	generation := strings.Repeat("a", 64)
+	ipapiAPIKey := "test-ipapi-key"
 	server := httptest.NewServer(http.HandlerFunc(func(response http.ResponseWriter, request *http.Request) {
 		if request.URL.Path != "/api/v1/agent/configuration" {
 			http.NotFound(response, request)
@@ -54,7 +55,8 @@ func TestConfigurationMapsV6TransportSemantics(t *testing.T) {
 		}
 		response.Header().Set("Content-Type", "application/json")
 		_ = json.NewEncoder(response).Encode(agentapi.AgentConfigurationSnapshot{
-			SchemaVersion: 8, Revision: 7, Enabled: true, HistoryGeneration: generation,
+			SchemaVersion: 9, Revision: 7, Enabled: true, HistoryGeneration: generation,
+			IpapiApiKey: &ipapiAPIKey,
 			DiscoveryPaths: []agentapi.AgentDiscoveryPath{{
 				Id: discoveryID, Kind: agentapi.Source, Family: agentapi.Ipv4,
 				InterfaceName: pointer("eth0"), SourceAddress: pointer("10.0.0.2"),
@@ -84,6 +86,9 @@ func TestConfigurationMapsV6TransportSemantics(t *testing.T) {
 	configuration, err := client.configuration(context.Background(), "credential", 7)
 	if err != nil {
 		t.Fatal(err)
+	}
+	if configuration.IPAPIAPIKey != ipapiAPIKey {
+		t.Fatalf("ipapi API key = %q", configuration.IPAPIAPIKey)
 	}
 	if len(configuration.DiscoveryPaths) != 1 || !configuration.DiscoveryPaths[0].Enabled ||
 		configuration.DiscoveryPaths[0].ID != discoveryID.String() || configuration.DiscoveryPaths[0].LightweightIntervalSeconds != 600 {

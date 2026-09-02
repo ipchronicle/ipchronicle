@@ -5,6 +5,7 @@ package probe
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"net/http"
 	"regexp"
@@ -182,8 +183,18 @@ func (engine *nativeEngine) probeIPRegistry(ctx context.Context) providerFinding
 }
 
 func (engine *nativeEngine) probeIPAPI(ctx context.Context) providerFinding {
-	document := engine.explicitLookupHTTP.json(ctx, http.MethodGet, "https://api.ipapi.is/?q="+
-		queryEscapeAddress(engine.input.Target), nil, nil)
+	method := http.MethodGet
+	target := "https://api.ipapi.is/?q=" + queryEscapeAddress(engine.input.Target)
+	var headers http.Header
+	var body []byte
+	if engine.input.IPAPIAPIKey != "" {
+		method = http.MethodPost
+		target = "https://api.ipapi.is"
+		headers = make(http.Header)
+		headers.Set("Content-Type", "application/json")
+		body, _ = json.Marshal(map[string]string{"q": engine.input.Target, "key": engine.input.IPAPIAPIKey})
+	}
+	document := engine.explicitLookupHTTP.json(ctx, method, target, headers, body)
 	score := documentString(document, "company", "abuser_score")
 	if score == "" {
 		score = documentString(document, "abuser_score")

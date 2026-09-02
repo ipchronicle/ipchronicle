@@ -9,6 +9,42 @@ import (
 	"context"
 )
 
+const advanceAllNodeConfigurationRevisions = `-- name: AdvanceAllNodeConfigurationRevisions :many
+UPDATE nodes
+SET desired_configuration_revision = desired_configuration_revision + 1,
+    configuration_error = NULL,
+    configuration_error_revision = NULL
+WHERE revoked_at IS NULL
+  AND NOT EXISTS (
+      SELECT 1 FROM node_deletion_operations
+      WHERE node_id = nodes.id AND status != 'completed'
+  )
+RETURNING id
+`
+
+func (q *Queries) AdvanceAllNodeConfigurationRevisions(ctx context.Context) ([]string, error) {
+	rows, err := q.db.QueryContext(ctx, advanceAllNodeConfigurationRevisions)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []string{}
+	for rows.Next() {
+		var id string
+		if err := rows.Scan(&id); err != nil {
+			return nil, err
+		}
+		items = append(items, id)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const clearUnavailablePublicAddressSelections = `-- name: ClearUnavailablePublicAddressSelections :execrows
 UPDATE public_addresses
 SET selected_path_id = NULL, updated_at = MAX(updated_at, last_seen_at)
@@ -1737,6 +1773,24 @@ func (q *Queries) GetRevokedAgentCredential(ctx context.Context, credentialDiges
 	return i, err
 }
 
+const getSystemSettings = `-- name: GetSystemSettings :one
+SELECT external_origin, ipapi_api_key_encrypted
+FROM system_state
+WHERE id = 1
+`
+
+type GetSystemSettingsRow struct {
+	ExternalOrigin       string
+	IpapiApiKeyEncrypted []byte
+}
+
+func (q *Queries) GetSystemSettings(ctx context.Context) (GetSystemSettingsRow, error) {
+	row := q.db.QueryRowContext(ctx, getSystemSettings)
+	var i GetSystemSettingsRow
+	err := row.Scan(&i.ExternalOrigin, &i.IpapiApiKeyEncrypted)
+	return i, err
+}
+
 const getSystemState = `-- name: GetSystemState :one
 SELECT id, history_generation, pending_history_generation, history_reset_at,
        release_channel, external_origin
@@ -1744,9 +1798,18 @@ FROM system_state
 WHERE id = 1
 `
 
-func (q *Queries) GetSystemState(ctx context.Context) (SystemState, error) {
+type GetSystemStateRow struct {
+	ID                       int64
+	HistoryGeneration        string
+	PendingHistoryGeneration *string
+	HistoryResetAt           *int64
+	ReleaseChannel           string
+	ExternalOrigin           string
+}
+
+func (q *Queries) GetSystemState(ctx context.Context) (GetSystemStateRow, error) {
 	row := q.db.QueryRowContext(ctx, getSystemState)
-	var i SystemState
+	var i GetSystemStateRow
 	err := row.Scan(
 		&i.ID,
 		&i.HistoryGeneration,
@@ -3394,6 +3457,17 @@ func (q *Queries) SetExternalOrigin(ctx context.Context, arg SetExternalOriginPa
 		return 0, err
 	}
 	return result.RowsAffected()
+}
+
+const setIPAPIAPIKey = `-- name: SetIPAPIAPIKey :exec
+UPDATE system_state
+SET ipapi_api_key_encrypted = ?
+WHERE id = 1
+`
+
+func (q *Queries) SetIPAPIAPIKey(ctx context.Context, ipapiApiKeyEncrypted []byte) error {
+	_, err := q.db.ExecContext(ctx, setIPAPIAPIKey, ipapiApiKeyEncrypted)
+	return err
 }
 
 const setNodeEgressAvailability = `-- name: SetNodeEgressAvailability :execrows

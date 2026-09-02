@@ -429,7 +429,7 @@ func openProbeTestStore(t *testing.T, directory string, egressCount int) (*Store
 		t.Fatal(err)
 	}
 	configuration := Configuration{
-		SchemaVersion: 8, Revision: 1, Enabled: true, HistoryGeneration: testHistoryGeneration,
+		SchemaVersion: 9, Revision: 1, Enabled: true, HistoryGeneration: testHistoryGeneration,
 		ProbeSchedule:     ProbeSchedule{Enabled: true, Cron: "0 0 0 * * *", Timezone: "UTC"},
 		DiscoveryServices: testDiscoveryServices(),
 	}

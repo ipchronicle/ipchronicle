@@ -127,14 +127,14 @@ func TestExternalOriginSystemSettingDoesNotAuthorizeBrowserRequests(t *testing.T
 
 	invalid := performRequestWithCSRF(
 		handler, http.MethodPut, "/api/v1/system/settings",
-		[]byte(`{"externalOrigin":"https://public.example/path"}`),
+		[]byte(`{"externalOrigin":"https://public.example/path","ipapiApiKeyAction":"keep"}`),
 		"http://example.test", cookie, session.CsrfToken,
 	)
 	assertErrorCode(t, invalid, http.StatusBadRequest, api.InvalidSystemSettings)
 
 	custom := performRequestWithCSRF(
 		handler, http.MethodPut, "/api/v1/system/settings",
-		[]byte(`{"externalOrigin":"HTTPS://PUBLIC.EXAMPLE/"}`),
+		[]byte(`{"externalOrigin":"HTTPS://PUBLIC.EXAMPLE/","ipapiApiKeyAction":"keep"}`),
 		"http://example.test", cookie, session.CsrfToken,
 	)
 	if custom.Code != http.StatusOK {
@@ -143,8 +143,50 @@ func TestExternalOriginSystemSettingDoesNotAuthorizeBrowserRequests(t *testing.T
 	if err := json.NewDecoder(custom.Body).Decode(&settings); err != nil {
 		t.Fatal(err)
 	}
-	if settings.Automatic || settings.ExternalOrigin != "https://public.example" || settings.EffectiveOrigin != "https://public.example" {
+	if settings.Automatic || settings.ExternalOrigin != "https://public.example" ||
+		settings.EffectiveOrigin != "https://public.example" || settings.IpapiApiKeyConfigured {
 		t.Fatalf("custom settings = %#v", settings)
+	}
+
+	registered, err := nodeService.Register(context.Background(), func() string {
+		enrollment, enrollmentErr := nodeService.Enrollment(context.Background())
+		if enrollmentErr != nil {
+			t.Fatal(enrollmentErr)
+		}
+		return enrollment.Key
+	}(), nodes.Metadata{
+		Hostname: "edge", AgentVersion: "dev", OperatingSystem: "linux", Architecture: "amd64",
+		Capabilities: []string{"control-v1", "configuration-v9"}, PhysicalMemoryBytes: 512 * 1024 * 1024,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	ipapiAPIKey := "ipapi-secret-must-not-be-returned"
+	keyBody, err := json.Marshal(map[string]any{
+		"externalOrigin": "https://public.example", "ipapiApiKeyAction": "replace", "ipapiApiKey": ipapiAPIKey,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	configured := performRequestWithCSRF(
+		handler, http.MethodPut, "/api/v1/system/settings", keyBody,
+		"http://example.test", cookie, session.CsrfToken,
+	)
+	if configured.Code != http.StatusOK || strings.Contains(configured.Body.String(), ipapiAPIKey) {
+		t.Fatalf("configured ipapi settings = %d, %s", configured.Code, configured.Body.String())
+	}
+	if err := json.NewDecoder(configured.Body).Decode(&settings); err != nil || !settings.IpapiApiKeyConfigured {
+		t.Fatalf("configured ipapi response = %#v, %v", settings, err)
+	}
+	configurationRequest := httptest.NewRequest(http.MethodGet, "http://example.test/api/v1/agent/configuration", nil)
+	configurationRequest.Header.Set("Authorization", "Bearer "+registered.Credential)
+	configurationResponse := httptest.NewRecorder()
+	handler.ServeHTTP(configurationResponse, configurationRequest)
+	var agentConfiguration api.AgentConfigurationSnapshot
+	if err := json.NewDecoder(configurationResponse.Body).Decode(&agentConfiguration); err != nil ||
+		agentConfiguration.SchemaVersion != 9 || agentConfiguration.IpapiApiKey == nil ||
+		*agentConfiguration.IpapiApiKey != ipapiAPIKey {
+		t.Fatalf("Agent ipapi configuration = %#v, %v", agentConfiguration, err)
 	}
 
 	enrollment := performRequest(handler, http.MethodGet, "/api/v1/agent-enrollment", nil, "", cookie)
@@ -156,14 +198,14 @@ func TestExternalOriginSystemSettingDoesNotAuthorizeBrowserRequests(t *testing.T
 
 	wrongRequestOrigin := performRequestWithCSRF(
 		handler, http.MethodPut, "/api/v1/system/settings",
-		[]byte(`{"externalOrigin":""}`),
+		[]byte(`{"externalOrigin":"","ipapiApiKeyAction":"keep"}`),
 		"https://public.example", cookie, session.CsrfToken,
 	)
 	assertErrorCode(t, wrongRequestOrigin, http.StatusForbidden, api.OriginNotAllowed)
 
 	reset := performRequestWithCSRF(
 		handler, http.MethodPut, "/api/v1/system/settings",
-		[]byte(`{"externalOrigin":""}`),
+		[]byte(`{"externalOrigin":"","ipapiApiKeyAction":"keep"}`),
 		"http://example.test", cookie, session.CsrfToken,
 	)
 	if reset.Code != http.StatusOK {
@@ -731,7 +773,7 @@ func TestNetworkObservationAndPublicAddressAPIWorkflow(t *testing.T) {
 	}
 	updateBody, err := json.Marshal(api.NetworkProxyUpdate{
 		Name: proxy.Name, Scheme: proxy.Scheme, Host: proxy.Host, Port: proxy.Port,
-		Enabled: false, PasswordAction: api.Keep,
+		Enabled: false, PasswordAction: api.NetworkProxyPasswordActionKeep,
 	})
 	if err != nil {
 		t.Fatal(err)
@@ -1142,7 +1184,7 @@ func newTestHTTPHandlerWithNotifications(t *testing.T, trustedProxies []netip.Pr
 	}
 	syncHub := syncws.NewHub()
 	nodeService := nodes.NewService(store.Config, store.History, store.ConfigQueries, store.MasterKey, syncHub)
-	systemSettingsService := systemsettings.NewService(store.ConfigQueries)
+	systemSettingsService := systemsettings.NewService(store.Config, store.ConfigQueries, store.MasterKey, syncHub)
 	notificationService := notifications.NewService(notifications.ServiceOptions{
 		ConfigDatabase: store.Config, HistoryDatabase: store.History,
 		ConfigQueries: store.ConfigQueries, HistoryQueries: store.HistoryQueries,
@@ -1177,7 +1219,7 @@ func seedHTTPHistory(t *testing.T, service *nodes.Service) httpHistoryFixture {
 	now := time.Now().UTC().Truncate(time.Second)
 	metadata := nodes.Metadata{
 		Hostname: "history-edge", AgentVersion: "0.1.0", OperatingSystem: "linux", Architecture: "amd64",
-		Capabilities:        []string{"control-v1", "configuration-v8", "complete-probe-v1"},
+		Capabilities:        []string{"control-v1", "configuration-v9", "complete-probe-v1"},
 		PhysicalMemoryBytes: 512 * 1024 * 1024,
 	}
 	enrollment, err := service.RotateEnrollmentKey(ctx, "UTC")

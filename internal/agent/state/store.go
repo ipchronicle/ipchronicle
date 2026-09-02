@@ -26,9 +26,10 @@ import (
 )
 
 const (
-	masterKeySize         = 32
-	localSchemaVersion    = 8
-	secretEnvelopeVersion = 1
+	masterKeySize            = 32
+	localSchemaVersion       = 9
+	secretEnvelopeVersion    = 1
+	maximumIPAPIAPIKeyLength = 256
 )
 
 func SchemaVersion() int {
@@ -62,6 +63,7 @@ var (
 	configurationErrorRevKey  = []byte("error-revision")
 	revokedKey                = []byte("revoked")
 	credentialAdditionalData  = []byte("ipchronicle:agent-credential:v1")
+	ipapiAPIKeyAdditionalData = []byte("ipchronicle:agent-ipapi-api-key:v1")
 	proxyAdditionalDataPrefix = []byte("ipchronicle:agent-proxy-password:v1:")
 )
 
@@ -83,6 +85,7 @@ type Configuration struct {
 	DiscoveryServices      DiscoveryServices `json:"discoveryServices"`
 	ProbeSchedule          ProbeSchedule     `json:"probeSchedule"`
 	ProbeLowMemoryOverride bool              `json:"probeLowMemoryOverride"`
+	IPAPIAPIKey            string            `json:"ipapiApiKey,omitempty"`
 }
 
 type ProbeSchedule struct {
@@ -129,6 +132,7 @@ type storedConfiguration struct {
 	DiscoveryServices      DiscoveryServices `json:"discoveryServices"`
 	ProbeSchedule          ProbeSchedule     `json:"probeSchedule"`
 	ProbeLowMemoryOverride bool              `json:"probeLowMemoryOverride"`
+	IPAPIAPIKeyEncrypted   []byte            `json:"ipapiApiKeyEncrypted,omitempty"`
 }
 
 type storedProxy struct {
@@ -516,6 +520,9 @@ func validateConfiguration(configuration Configuration) error {
 	if len(configuration.Proxies) > 64 {
 		return errors.New("Agent configuration contains too many network proxies")
 	}
+	if !validStoredIPAPIAPIKey(configuration.IPAPIAPIKey) {
+		return errors.New("Agent configuration contains an invalid ipapi API key")
+	}
 	proxies := make(map[string]struct{}, len(configuration.Proxies))
 	for _, proxy := range configuration.Proxies {
 		if _, err := uuid.Parse(proxy.ID); err != nil ||
@@ -653,6 +660,11 @@ func validStoredProxyPassword(value *string) bool {
 		!strings.ContainsRune(*value, '\x00'))
 }
 
+func validStoredIPAPIAPIKey(value string) bool {
+	return value == "" || (utf8.ValidString(value) && len(value) <= maximumIPAPIAPIKeyLength &&
+		value == strings.TrimSpace(value) && !strings.ContainsAny(value, "\x00\r\n\t"))
+}
+
 func encodeStoredConfiguration(masterKey [masterKeySize]byte, configuration Configuration) ([]byte, error) {
 	stored := storedConfiguration{
 		SchemaVersion: configuration.SchemaVersion, Revision: configuration.Revision,
@@ -661,6 +673,13 @@ func encodeStoredConfiguration(masterKey [masterKeySize]byte, configuration Conf
 		Proxies:           make([]storedProxy, 0, len(configuration.Proxies)),
 		DiscoveryServices: configuration.DiscoveryServices, ProbeSchedule: configuration.ProbeSchedule,
 		ProbeLowMemoryOverride: configuration.ProbeLowMemoryOverride,
+	}
+	if configuration.IPAPIAPIKey != "" {
+		encrypted, err := encryptIPAPIAPIKey(masterKey, configuration.IPAPIAPIKey)
+		if err != nil {
+			return nil, err
+		}
+		stored.IPAPIAPIKeyEncrypted = encrypted
 	}
 	for _, proxy := range configuration.Proxies {
 		item := storedProxy{
@@ -693,6 +712,13 @@ func decodeStoredConfiguration(masterKey [masterKeySize]byte, encoded []byte) (C
 		ProbeTargets:      stored.ProbeTargets,
 		DiscoveryServices: stored.DiscoveryServices, ProbeSchedule: stored.ProbeSchedule,
 		ProbeLowMemoryOverride: stored.ProbeLowMemoryOverride,
+	}
+	if len(stored.IPAPIAPIKeyEncrypted) != 0 {
+		apiKey, err := decryptIPAPIAPIKey(masterKey, stored.IPAPIAPIKeyEncrypted)
+		if err != nil {
+			return Configuration{}, err
+		}
+		configuration.IPAPIAPIKey = apiKey
 	}
 	if len(stored.Proxies) != 0 {
 		configuration.Proxies = make([]Proxy, 0, len(stored.Proxies))
@@ -882,6 +908,45 @@ func decryptProxyPassword(masterKey [masterKeySize]byte, proxyID string, envelop
 	plaintext, err := gcm.Open(nil, nonce, envelope[1+gcm.NonceSize():], agentProxyAdditionalData(proxyID))
 	if err != nil {
 		return "", errors.New("decrypt retained proxy password")
+	}
+	return string(plaintext), nil
+}
+
+func encryptIPAPIAPIKey(masterKey [masterKeySize]byte, value string) ([]byte, error) {
+	block, err := aes.NewCipher(masterKey[:])
+	if err != nil {
+		return nil, err
+	}
+	gcm, err := cipher.NewGCM(block)
+	if err != nil {
+		return nil, err
+	}
+	nonce := make([]byte, gcm.NonceSize())
+	if _, err := rand.Read(nonce); err != nil {
+		return nil, fmt.Errorf("generate retained ipapi API-key nonce: %w", err)
+	}
+	envelope := make([]byte, 1, 1+len(nonce)+len(value)+gcm.Overhead())
+	envelope[0] = secretEnvelopeVersion
+	envelope = append(envelope, nonce...)
+	return gcm.Seal(envelope, nonce, []byte(value), ipapiAPIKeyAdditionalData), nil
+}
+
+func decryptIPAPIAPIKey(masterKey [masterKeySize]byte, envelope []byte) (string, error) {
+	block, err := aes.NewCipher(masterKey[:])
+	if err != nil {
+		return "", err
+	}
+	gcm, err := cipher.NewGCM(block)
+	if err != nil {
+		return "", err
+	}
+	if len(envelope) < 1+gcm.NonceSize()+gcm.Overhead() || envelope[0] != secretEnvelopeVersion {
+		return "", errors.New("invalid retained ipapi API-key envelope")
+	}
+	nonce := envelope[1 : 1+gcm.NonceSize()]
+	plaintext, err := gcm.Open(nil, nonce, envelope[1+gcm.NonceSize():], ipapiAPIKeyAdditionalData)
+	if err != nil {
+		return "", errors.New("decrypt retained ipapi API key")
 	}
 	return string(plaintext), nil
 }

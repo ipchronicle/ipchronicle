@@ -217,7 +217,7 @@ export const en = {
     systemSettings: {
       title: "System",
       detail:
-        "Manage the external address and review product release metadata.",
+        "Manage the external address, probe data sources, and product release metadata.",
       runtime: {
         title: "Runtime information",
         detail:
@@ -255,6 +255,27 @@ export const en = {
           automatic: "Automatic",
           custom: "Custom",
         },
+      },
+      ipapi: {
+        title: "ipapi data source",
+        detail:
+          "Configure an account API key so Agents can retrieve complete IP types, risk scores, and risk factors.",
+        configured: "Configured",
+        notConfigured: "Not configured",
+        loadFailed: "ipapi settings could not be loaded",
+        retry: "Retry",
+        label: "ipapi API Key (optional)",
+        placeholder: "Enter a new API key",
+        valueDetail:
+          "The key is never shown again. Leaving this blank preserves the current key. Saving synchronizes it to every Agent.",
+        save: "Save key",
+        clear: "Clear key",
+        clearConfirmTitle: "Clear the ipapi API key?",
+        clearConfirmDetail:
+          "All Agents will stop using the current key after their configuration synchronizes.",
+        clearConfirm: "Clear key",
+        saved: "ipapi API key settings saved.",
+        register: "Create an ipapi account",
       },
       release: {
         title: "Release channel",

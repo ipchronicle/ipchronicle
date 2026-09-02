@@ -19,14 +19,16 @@ import (
 )
 
 func TestRunnerExecutesOneBoundedJSONProbe(t *testing.T) {
+	ipapiAPIKey := "test-ipapi-key"
 	runner := testRunner(t, func(_ context.Context, input nativeProbeInput) ([]byte, error) {
 		if input.Target != "203.0.113.10" || input.Family != "ipv4" || input.HTTPClient == nil ||
-			input.ExplicitLookupHTTPClient == nil || input.DialContext == nil {
+			input.ExplicitLookupHTTPClient == nil || input.DialContext == nil || input.IPAPIAPIKey != ipapiAPIKey {
 			t.Fatalf("native input = %#v", input)
 		}
 		return []byte(`{"field":{"value":1}}`), nil
 	})
 	configuration, egress := probeTestConfiguration("default", "ipv4")
+	configuration.IPAPIAPIKey = ipapiAPIKey
 	runner.discover = func() (agentnetwork.Inventory, error) { return probeTestInventory(), nil }
 	startedAt := time.Now().UTC().Truncate(time.Second)
 	outcome, err := runner.Run(context.Background(), configuration, egress, startedAt)
@@ -105,10 +107,12 @@ func TestExecutionPathUsesOneDeterministicSourceAndHidesProxyCredentials(t *test
 	}
 
 	password := "proxy-secret-value"
+	ipapiAPIKey := "ipapi-secret-value"
 	proxyID := uuid.NewString()
 	configuration.Proxies = []state.Proxy{{
 		ID: proxyID, Scheme: "http", Host: "proxy.example", Port: 8080, Password: &password,
 	}}
+	configuration.IPAPIAPIKey = ipapiAPIKey
 	egress.Kind = "proxy"
 	egress.ProxyID = &proxyID
 	egress.InterfaceName = nil
@@ -119,8 +123,8 @@ func TestExecutionPathUsesOneDeterministicSourceAndHidesProxyCredentials(t *test
 	if path.proxy == nil || path.proxy.ID != proxyID {
 		t.Fatalf("proxy path = %#v", path)
 	}
-	if value := sanitizeDiagnostic("failed password="+password, configuration); strings.Contains(value, password) {
-		t.Fatalf("diagnostic contains proxy password: %q", value)
+	if value := sanitizeDiagnostic("failed password="+password+" key="+ipapiAPIKey, configuration); strings.Contains(value, password) || strings.Contains(value, ipapiAPIKey) {
+		t.Fatalf("diagnostic contains a retained secret: %q", value)
 	}
 }
 
@@ -216,7 +220,7 @@ func probeTestConfiguration(kind, family string) (state.Configuration, state.Egr
 		Kind: kind, Family: family, Enabled: true,
 	}
 	return state.Configuration{
-		SchemaVersion: 8, Revision: 1, Enabled: true,
+		SchemaVersion: 9, Revision: 1, Enabled: true,
 		HistoryGeneration: "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef",
 		ProbeTargets:      []state.Egress{egress},
 	}, egress

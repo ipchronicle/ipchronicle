@@ -176,7 +176,7 @@ func newUpdateHTTPFixture(t *testing.T) updateHTTPFixture {
 	}
 	syncHub := syncws.NewHub()
 	nodeService := nodes.NewService(store.Config, store.History, store.ConfigQueries, store.MasterKey, syncHub)
-	systemSettingsService := systemsettings.NewService(store.ConfigQueries)
+	systemSettingsService := systemsettings.NewService(store.Config, store.ConfigQueries, store.MasterKey, syncHub)
 	notificationService := notifications.NewService(notifications.ServiceOptions{
 		ConfigDatabase: store.Config, HistoryDatabase: store.History,
 		ConfigQueries: store.ConfigQueries, HistoryQueries: store.HistoryQueries,
@@ -200,7 +200,7 @@ func newUpdateHTTPFixture(t *testing.T) updateHTTPFixture {
 		OperatingSystem: "linux", Architecture: "amd64",
 		Capabilities: []string{
 			"address-observation-v1", centerupdates.AgentUpdateCapability, "complete-probe-v1",
-			"configuration-v8", "control-v1", "network-inventory-v1", "sync-wakeup-v1",
+			"configuration-v9", "control-v1", "network-inventory-v1", "sync-wakeup-v1",
 		},
 		PhysicalMemoryBytes: 512 * 1024 * 1024,
 	}

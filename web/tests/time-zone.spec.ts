@@ -87,7 +87,7 @@ test("uses the browser timezone and exposes a searchable timezone selector", asy
         physicalMemoryBytes: 536870912,
         capabilities: [
           "control-v1",
-          "configuration-v8",
+          "configuration-v9",
           "network-inventory-v1",
           "complete-probe-v1",
         ],

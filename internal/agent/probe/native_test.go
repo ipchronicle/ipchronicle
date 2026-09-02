@@ -65,12 +65,22 @@ func TestNativeReportMatchesCenterFieldContract(t *testing.T) {
 }
 
 func TestNativeProviderParsersMapUpstreamFields(t *testing.T) {
+	ipapiAPIKey := "test-ipapi-key"
 	client := &http.Client{Transport: roundTripFunc(func(request *http.Request) (*http.Response, error) {
 		body := `{}`
 		switch {
 		case request.URL.Host == "ipinfo.io":
 			body = `{"data":{"country":"US","asn":{"type":"hosting"},"company":{"type":"business"},"privacy":{"proxy":true,"tor":false,"vpn":true,"hosting":true}}}`
 		case request.URL.Host == "api.ipapi.is":
+			if request.Method != http.MethodPost || request.URL.RawQuery != "" ||
+				request.Header.Get("Content-Type") != "application/json" {
+				t.Fatalf("authenticated ipapi request = %s %s", request.Method, request.URL.String())
+			}
+			var input map[string]string
+			if err := json.NewDecoder(request.Body).Decode(&input); err != nil ||
+				input["q"] != "203.0.113.10" || input["key"] != ipapiAPIKey {
+				t.Fatalf("authenticated ipapi body = %#v, %v", input, err)
+			}
 			body = `{"location":{"country_code":"US"},"company":{"type":"hosting","abuser_score":"0.125 (Low)"},"asn":{"type":"isp"},"is_proxy":false,"is_tor":false,"is_vpn":true,"is_datacenter":true,"is_abuser":false,"is_crawler":false}`
 		case request.URL.Host == "ipinfo.check.place" && request.URL.Query().Get("db") == "ip2location":
 			body = `{"country_code":"US","usage_type":"DCH/COM","as_info":{"as_usage_type":"ISP"},"is_proxy":false,"proxy":{"is_public_proxy":false,"is_web_proxy":true,"is_tor":false,"is_vpn":true,"is_data_center":true,"is_spammer":false,"is_web_crawler":false,"is_scanner":false,"is_botnet":true},"fraud_score":42}`
@@ -83,7 +93,7 @@ func TestNativeProviderParsersMapUpstreamFields(t *testing.T) {
 		}, nil
 	})}
 	engine := nativeEngine{
-		input: nativeProbeInput{Target: "203.0.113.10"},
+		input: nativeProbeInput{Target: "203.0.113.10", IPAPIAPIKey: ipapiAPIKey},
 		http:  probeHTTP{client: client}, explicitLookupHTTP: probeHTTP{client: client},
 	}
 	ipinfo := engine.probeIPInfo(context.Background())

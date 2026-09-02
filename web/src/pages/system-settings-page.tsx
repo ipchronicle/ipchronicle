@@ -8,8 +8,10 @@ import {
 import {
   CalendarClock,
   Database,
+  ExternalLink,
   GitCommitHorizontal,
   Globe2,
+  KeyRound,
   LoaderCircle,
   PackageCheck,
   RefreshCw,
@@ -36,6 +38,18 @@ import { useAuth } from "@/auth-context";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogMedia,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from "@/components/ui/alert-dialog";
 import {
   Card,
   CardAction,
@@ -122,6 +136,8 @@ export function SystemSettingsPage() {
       </div>
 
       <ExternalOriginSettings csrfToken={csrfToken} />
+
+      <IPAPISettings csrfToken={csrfToken} />
 
       <Card className="mt-8" aria-live="polite">
         <CardHeader>
@@ -467,7 +483,10 @@ function ExternalOriginSettings({ csrfToken }: { csrfToken: string }) {
     setSaved(false);
     setError(undefined);
     try {
-      const updated = await updateSystemSettings(value, csrfToken);
+      const updated = await updateSystemSettings(
+        { externalOrigin: value, ipapiApiKeyAction: "keep" },
+        csrfToken,
+      );
       setState({ kind: "success", value: updated });
       setAutomatic(updated.automatic);
       setExternalOrigin(
@@ -602,6 +621,235 @@ function ExternalOriginSettings({ csrfToken }: { csrfToken: string }) {
                   : "systemSettings.externalOrigin.save",
               )}
             </Button>
+          </form>
+        ) : null}
+      </CardContent>
+    </Card>
+  );
+}
+
+type IPAPIViewState =
+  | { kind: "loading" }
+  | { kind: "success"; value: SystemSettings }
+  | { kind: "error" };
+
+function IPAPISettings({ csrfToken }: { csrfToken: string }) {
+  const { t } = useTranslation();
+  const [state, setState] = useState<IPAPIViewState>({ kind: "loading" });
+  const [apiKey, setAPIKey] = useState("");
+  const [saving, setSaving] = useState(false);
+  const [saved, setSaved] = useState(false);
+  const [error, setError] = useState<string>();
+
+  const load = useCallback((signal?: AbortSignal) => {
+    setState({ kind: "loading" });
+    setError(undefined);
+    setSaved(false);
+    void getSystemSettings(signal)
+      .then((value) => setState({ kind: "success", value }))
+      .catch((cause: unknown) => {
+        if (cause instanceof DOMException && cause.name === "AbortError") {
+          return;
+        }
+        setState({ kind: "error" });
+      });
+  }, []);
+
+  useEffect(() => {
+    const controller = new AbortController();
+    load(controller.signal);
+    return () => controller.abort();
+  }, [load]);
+
+  async function replace(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    if (state.kind !== "success") return;
+    const value = apiKey.trim();
+    if (value === "") return;
+    setSaving(true);
+    setSaved(false);
+    setError(undefined);
+    try {
+      const updated = await updateSystemSettings(
+        {
+          ipapiApiKeyAction: "replace",
+          ipapiApiKey: value,
+        },
+        csrfToken,
+      );
+      setState({ kind: "success", value: updated });
+      setAPIKey("");
+      setSaved(true);
+    } catch (cause) {
+      setError(formatAPIError(cause, t));
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  async function clear() {
+    if (state.kind !== "success") return;
+    setSaving(true);
+    setSaved(false);
+    setError(undefined);
+    try {
+      const updated = await updateSystemSettings(
+        {
+          ipapiApiKeyAction: "clear",
+        },
+        csrfToken,
+      );
+      setState({ kind: "success", value: updated });
+      setAPIKey("");
+      setSaved(true);
+    } catch (cause) {
+      setError(formatAPIError(cause, t));
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  return (
+    <Card className="mt-8" aria-live="polite">
+      <CardHeader>
+        <CardTitle className="flex items-center gap-2">
+          <KeyRound aria-hidden="true" className="size-4" />
+          {t("systemSettings.ipapi.title")}
+        </CardTitle>
+        <CardDescription>{t("systemSettings.ipapi.detail")}</CardDescription>
+        {state.kind === "success" ? (
+          <CardAction>
+            <Badge
+              variant={
+                state.value.ipapiApiKeyConfigured ? "success" : "secondary"
+              }
+            >
+              {t(
+                state.value.ipapiApiKeyConfigured
+                  ? "systemSettings.ipapi.configured"
+                  : "systemSettings.ipapi.notConfigured",
+              )}
+            </Badge>
+          </CardAction>
+        ) : null}
+      </CardHeader>
+      <CardContent>
+        {state.kind === "loading" ? (
+          <Skeleton className="h-32 w-full" aria-busy="true" />
+        ) : null}
+        {state.kind === "error" ? (
+          <Alert variant="destructive">
+            <TriangleAlert aria-hidden="true" />
+            <AlertTitle>{t("systemSettings.ipapi.loadFailed")}</AlertTitle>
+            <AlertDescription>
+              <Button
+                className="mt-3"
+                variant="outline"
+                size="sm"
+                onClick={() => load()}
+              >
+                <RefreshCw data-icon="inline-start" aria-hidden="true" />
+                {t("systemSettings.ipapi.retry")}
+              </Button>
+            </AlertDescription>
+          </Alert>
+        ) : null}
+        {state.kind === "success" ? (
+          <form className="space-y-5" onSubmit={(event) => void replace(event)}>
+            {error !== undefined ? (
+              <Alert variant="destructive">
+                <TriangleAlert aria-hidden="true" />
+                <AlertDescription>{error}</AlertDescription>
+              </Alert>
+            ) : null}
+            {saved ? (
+              <Alert>
+                <AlertDescription>
+                  {t("systemSettings.ipapi.saved")}
+                </AlertDescription>
+              </Alert>
+            ) : null}
+
+            <div className="space-y-2">
+              <Label htmlFor="ipapi-api-key">
+                {t("systemSettings.ipapi.label")}
+              </Label>
+              <Input
+                id="ipapi-api-key"
+                type="password"
+                value={apiKey}
+                disabled={saving}
+                maxLength={256}
+                autoComplete="off"
+                placeholder={t("systemSettings.ipapi.placeholder")}
+                onChange={(event) => {
+                  setAPIKey(event.target.value);
+                  setSaved(false);
+                }}
+              />
+              <p className="text-sm text-muted-foreground">
+                {t("systemSettings.ipapi.valueDetail")}
+              </p>
+            </div>
+
+            <div className="flex flex-wrap gap-2">
+              <Button type="submit" disabled={saving || apiKey.trim() === ""}>
+                {saving ? (
+                  <LoaderCircle className="animate-spin" aria-hidden="true" />
+                ) : (
+                  <Save aria-hidden="true" />
+                )}
+                {t("systemSettings.ipapi.save")}
+              </Button>
+              {state.value.ipapiApiKeyConfigured ? (
+                <AlertDialog>
+                  <AlertDialogTrigger asChild>
+                    <Button
+                      type="button"
+                      variant="destructive"
+                      disabled={saving}
+                    >
+                      {t("systemSettings.ipapi.clear")}
+                    </Button>
+                  </AlertDialogTrigger>
+                  <AlertDialogContent>
+                    <AlertDialogHeader>
+                      <AlertDialogMedia>
+                        <TriangleAlert aria-hidden="true" />
+                      </AlertDialogMedia>
+                      <AlertDialogTitle>
+                        {t("systemSettings.ipapi.clearConfirmTitle")}
+                      </AlertDialogTitle>
+                      <AlertDialogDescription>
+                        {t("systemSettings.ipapi.clearConfirmDetail")}
+                      </AlertDialogDescription>
+                    </AlertDialogHeader>
+                    <AlertDialogFooter>
+                      <AlertDialogCancel>
+                        {t("common.cancel")}
+                      </AlertDialogCancel>
+                      <AlertDialogAction
+                        type="button"
+                        variant="destructive"
+                        onClick={() => void clear()}
+                      >
+                        {t("systemSettings.ipapi.clearConfirm")}
+                      </AlertDialogAction>
+                    </AlertDialogFooter>
+                  </AlertDialogContent>
+                </AlertDialog>
+              ) : null}
+              <Button asChild type="button" variant="outline">
+                <a
+                  href="https://ipapi.is/app/signup"
+                  target="_blank"
+                  rel="noreferrer"
+                >
+                  {t("systemSettings.ipapi.register")}
+                  <ExternalLink data-icon="inline-end" aria-hidden="true" />
+                </a>
+              </Button>
+            </div>
           </form>
         ) : null}
       </CardContent>

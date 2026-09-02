@@ -205,7 +205,7 @@ export const zhCN = {
     },
     systemSettings: {
       title: "系统",
-      detail: "管理外部访问地址，并查看产品发行信息。",
+      detail: "管理外部访问地址、探测数据源和产品发行信息。",
       runtime: {
         title: "运行信息",
         detail: "供服务器操作者查看 Center、数据库、浏览器链路和反向代理诊断。",
@@ -240,6 +240,26 @@ export const zhCN = {
           automatic: "自动",
           custom: "自定义",
         },
+      },
+      ipapi: {
+        title: "ipapi 数据源",
+        detail:
+          "配置账户 API Key，让 Agent 获取完整的 IP 类型、风险评分和风险因子。",
+        configured: "已配置",
+        notConfigured: "未配置",
+        loadFailed: "无法加载 ipapi 设置",
+        retry: "重试",
+        label: "ipapi API Key（选填）",
+        placeholder: "输入新的 API Key",
+        valueDetail:
+          "密钥不会回显；留空不会修改当前密钥。保存后会同步到所有 Agent。",
+        save: "保存密钥",
+        clear: "清除密钥",
+        clearConfirmTitle: "确认清除 ipapi API Key？",
+        clearConfirmDetail: "配置同步后，所有 Agent 都将停止使用当前密钥。",
+        clearConfirm: "确认清除",
+        saved: "ipapi API Key 设置已保存。",
+        register: "注册 ipapi 账户",
       },
       release: {
         title: "发行通道",

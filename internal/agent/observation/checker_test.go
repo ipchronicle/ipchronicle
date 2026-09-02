@@ -343,7 +343,7 @@ func (s *mutableEchoService) Count() int {
 
 func testConfiguration(services []string) state.Configuration {
 	return state.Configuration{
-		SchemaVersion: 8, Revision: 1, Enabled: true,
+		SchemaVersion: 9, Revision: 1, Enabled: true,
 		ProbeSchedule:     state.ProbeSchedule{Enabled: true, Cron: "0 0 0 * * *", Timezone: "UTC"},
 		HistoryGeneration: "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef",
 		DiscoveryServices: state.DiscoveryServices{IPv4: services, IPv6: []string{"https://six-one.invalid", "https://six-two.invalid"}},

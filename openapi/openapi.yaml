@@ -2091,7 +2091,8 @@ components:
     SystemSettings:
       type: object
       additionalProperties: false
-      required: [automatic, externalOrigin, effectiveOrigin]
+      required:
+        [automatic, externalOrigin, effectiveOrigin, ipapiApiKeyConfigured]
       properties:
         automatic:
           type: boolean
@@ -2103,14 +2104,26 @@ components:
           format: uri
           minLength: 1
           maxLength: 2048
+        ipapiApiKeyConfigured:
+          type: boolean
+    IPAPIAPIKeyAction:
+      type: string
+      enum: [keep, replace, clear]
     SystemSettingsUpdate:
       type: object
       additionalProperties: false
-      required: [externalOrigin]
+      required: [ipapiApiKeyAction]
       properties:
         externalOrigin:
           type: string
           maxLength: 2048
+        ipapiApiKeyAction:
+          $ref: "#/components/schemas/IPAPIAPIKeyAction"
+        ipapiApiKey:
+          type: string
+          minLength: 1
+          maxLength: 256
+          writeOnly: true
     AgentEnrollmentSettings:
       type: object
       additionalProperties: false
@@ -2329,7 +2342,7 @@ components:
       properties:
         schemaVersion:
           type: integer
-          enum: [7]
+          enum: [9]
         revision:
           type: integer
           format: int64
@@ -2345,6 +2358,10 @@ components:
           $ref: "#/components/schemas/ProbeSchedule"
         probeLowMemoryOverride:
           type: boolean
+        ipapiApiKey:
+          type: string
+          minLength: 1
+          maxLength: 256
         discoveryPaths:
           type: array
           maxItems: 64

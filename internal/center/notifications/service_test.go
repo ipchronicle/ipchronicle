@@ -19,6 +19,10 @@ import (
 	"github.com/ipchronicle/ipchronicle/internal/center/systemsettings"
 )
 
+type discardConfigurationWaker struct{}
+
+func (discardConfigurationWaker) Wake(string) {}
+
 func TestMain(m *testing.M) {
 	if len(os.Args) == 2 && os.Args[1] == "notification-worker" {
 		if err := RunJavaScriptWorker(os.Stdin, os.Stdout); err != nil {
@@ -115,20 +119,28 @@ func TestNotificationLinksReadCurrentExternalOriginSetting(t *testing.T) {
 	if err != nil || link != nil {
 		t.Fatalf("automatic notification link = %v, %v", link, err)
 	}
-	if _, err := service.systemSettings.Update(context.Background(), "https://first.example"); err != nil {
+	if _, err := service.systemSettings.Update(context.Background(), systemsettings.Update{
+		ExternalOrigin: notificationStringPointer("https://first.example"), IPAPIAPIKeyAction: "keep",
+	}); err != nil {
 		t.Fatal(err)
 	}
 	link, err = service.eventLink(context.Background(), event)
 	if err != nil || link == nil || *link != "https://first.example/history" {
 		t.Fatalf("first notification link = %v, %v", link, err)
 	}
-	if _, err := service.systemSettings.Update(context.Background(), "https://second.example"); err != nil {
+	if _, err := service.systemSettings.Update(context.Background(), systemsettings.Update{
+		ExternalOrigin: notificationStringPointer("https://second.example"), IPAPIAPIKeyAction: "keep",
+	}); err != nil {
 		t.Fatal(err)
 	}
 	link, err = service.eventLink(context.Background(), event)
 	if err != nil || link == nil || *link != "https://second.example/history" {
 		t.Fatalf("updated notification link = %v, %v", link, err)
 	}
+}
+
+func notificationStringPointer(value string) *string {
+	return &value
 }
 
 func TestWebhookTestDeliveryUsesRealPayloadPath(t *testing.T) {
@@ -411,7 +423,11 @@ func newNotificationTestService(t *testing.T) (*Service, *database.Store, uuid.U
 	service := NewService(ServiceOptions{
 		ConfigDatabase: store.Config, HistoryDatabase: store.History,
 		ConfigQueries: store.ConfigQueries, HistoryQueries: store.HistoryQueries,
-		MasterKey: store.MasterKey, SystemSettings: systemsettings.NewService(store.ConfigQueries), Executable: os.Args[0],
+		MasterKey: store.MasterKey,
+		SystemSettings: systemsettings.NewService(
+			store.Config, store.ConfigQueries, store.MasterKey, discardConfigurationWaker{},
+		),
+		Executable: os.Args[0],
 	})
 	return service, store, nodeID, publicAddressID
 }

@@ -30,7 +30,7 @@ func newProbeServiceFixture(t *testing.T, physicalMemoryBytes int64) *probeServi
 		now: time.Date(2026, 8, 9, 12, 0, 0, 0, time.UTC),
 		metadata: Metadata{
 			Hostname: "probe.example", AgentVersion: "0.1.0", OperatingSystem: "linux", Architecture: "amd64",
-			Capabilities:        []string{"control-v1", "configuration-v8", "complete-probe-v1"},
+			Capabilities:        []string{"control-v1", "configuration-v9", "complete-probe-v1"},
 			PhysicalMemoryBytes: physicalMemoryBytes,
 		},
 	}

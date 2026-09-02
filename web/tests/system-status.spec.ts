@@ -246,6 +246,39 @@ test("customizes and restores the automatic external address", async ({
   await expect(automatic).not.toBeChecked();
   await expect(externalAddress).toHaveValue("https://ip.example.com");
 
+  const ipapiCard = page
+    .getByText("ipapi data source", { exact: true })
+    .locator('xpath=ancestor::*[@data-slot="card"]');
+  await expect(
+    ipapiCard.getByRole("link", { name: "Create an ipapi account" }),
+  ).toHaveAttribute("href", "https://ipapi.is/app/signup");
+  await ipapiCard
+    .getByLabel("ipapi API Key (optional)")
+    .fill("playwright-ipapi-key");
+  await ipapiCard.getByRole("button", { name: "Save key" }).click();
+  await expect(
+    ipapiCard.getByText("ipapi API key settings saved."),
+  ).toBeVisible();
+  await expect(
+    ipapiCard.getByText("Configured", { exact: true }),
+  ).toBeVisible();
+  await expect(ipapiCard.getByLabel("ipapi API Key (optional)")).toHaveValue(
+    "",
+  );
+  await page.reload();
+  await expect(
+    ipapiCard.getByText("Configured", { exact: true }),
+  ).toBeVisible();
+  await ipapiCard.getByRole("button", { name: "Clear key" }).click();
+  await page
+    .getByRole("button", { name: "Clear key", exact: true })
+    .last()
+    .click();
+  await expect(
+    ipapiCard.getByText("Not configured", { exact: true }),
+  ).toBeVisible();
+  await expect(externalAddress).toHaveValue("https://ip.example.com");
+
   await page.screenshot({
     path: testInfo.outputPath("system-settings.png"),
     fullPage: true,
@@ -317,7 +350,7 @@ test("generates an Agent installation command from the nodes page", async ({
         physicalMemoryBytes: 536870912,
         capabilities: [
           "control-v1",
-          "configuration-v8",
+          "configuration-v9",
           "complete-probe-v1",
           "network-inventory-v1",
           "sync-wakeup-v1",
@@ -364,7 +397,7 @@ test("generates an Agent installation command from the nodes page", async ({
         physicalMemoryBytes: 536870912,
         capabilities: [
           "control-v1",
-          "configuration-v8",
+          "configuration-v9",
           "complete-probe-v1",
           "network-inventory-v1",
           "sync-wakeup-v1",
@@ -446,7 +479,7 @@ test("generates an Agent installation command from the nodes page", async ({
         physicalMemoryBytes: 536870912,
         capabilities: [
           "control-v1",
-          "configuration-v8",
+          "configuration-v9",
           "network-inventory-v1",
           "address-observation-v1",
           "complete-probe-v1",
@@ -711,7 +744,7 @@ test("generates an Agent installation command from the nodes page", async ({
           physicalMemoryBytes: 536870912,
           capabilities: [
             "control-v1",
-            "configuration-v8",
+            "configuration-v9",
             "network-inventory-v1",
             "address-observation-v1",
             "complete-probe-v1",
@@ -746,7 +779,7 @@ test("generates an Agent installation command from the nodes page", async ({
         physicalMemoryBytes: 536870912,
         capabilities: [
           "control-v1",
-          "configuration-v8",
+          "configuration-v9",
           "network-inventory-v1",
           "address-observation-v1",
           "complete-probe-v1",
@@ -983,7 +1016,7 @@ test("generates an Agent installation command from the nodes page", async ({
         physicalMemoryBytes: 536870912,
         capabilities: [
           "control-v1",
-          "configuration-v8",
+          "configuration-v9",
           "network-inventory-v1",
           "address-observation-v1",
           "complete-probe-v1",
@@ -1461,7 +1494,7 @@ test("updates one registered Agent and keeps the task phase visible", async ({
     operatingSystem: "linux",
     architecture: "amd64",
     physicalMemoryBytes: 536870912,
-    capabilities: ["control-v1", "configuration-v8", "agent-update-v1"],
+    capabilities: ["control-v1", "configuration-v9", "agent-update-v1"],
   } as const;
   const registration = await page.request.post("/api/v1/agent/enroll", {
     data: {

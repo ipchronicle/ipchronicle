@@ -1028,9 +1028,14 @@ export interface components {
             externalOrigin: string;
             /** Format: uri */
             effectiveOrigin: string;
+            ipapiApiKeyConfigured: boolean;
         };
+        /** @enum {string} */
+        IPAPIAPIKeyAction: "keep" | "replace" | "clear";
         SystemSettingsUpdate: {
-            externalOrigin: string;
+            externalOrigin?: string;
+            ipapiApiKeyAction: components["schemas"]["IPAPIAPIKeyAction"];
+            ipapiApiKey?: string;
         };
         AgentEnrollmentSettings: {
             enabled: boolean;
@@ -1106,7 +1111,7 @@ export interface components {
         };
         AgentConfigurationSnapshot: {
             /** @enum {integer} */
-            schemaVersion: 7;
+            schemaVersion: 9;
             /** Format: int64 */
             revision: number;
             enabled: boolean;
@@ -1114,6 +1119,7 @@ export interface components {
             discoveryServices: components["schemas"]["NetworkObservationSettingsUpdate"];
             probeSchedule: components["schemas"]["ProbeSchedule"];
             probeLowMemoryOverride: boolean;
+            ipapiApiKey?: string;
             discoveryPaths: components["schemas"]["AgentDiscoveryPath"][];
             probeTargets: components["schemas"]["AgentProbeTarget"][];
             proxies: components["schemas"]["AgentProxyConfiguration"][];

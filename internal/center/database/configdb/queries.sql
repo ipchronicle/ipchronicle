@@ -94,10 +94,32 @@ SELECT external_origin
 FROM system_state
 WHERE id = 1;
 
+-- name: GetSystemSettings :one
+SELECT external_origin, ipapi_api_key_encrypted
+FROM system_state
+WHERE id = 1;
+
 -- name: SetExternalOrigin :execrows
 UPDATE system_state
 SET external_origin = ?
 WHERE id = 1 AND external_origin != ?;
+
+-- name: SetIPAPIAPIKey :exec
+UPDATE system_state
+SET ipapi_api_key_encrypted = ?
+WHERE id = 1;
+
+-- name: AdvanceAllNodeConfigurationRevisions :many
+UPDATE nodes
+SET desired_configuration_revision = desired_configuration_revision + 1,
+    configuration_error = NULL,
+    configuration_error_revision = NULL
+WHERE revoked_at IS NULL
+  AND NOT EXISTS (
+      SELECT 1 FROM node_deletion_operations
+      WHERE node_id = nodes.id AND status != 'completed'
+  )
+RETURNING id;
 
 -- name: SetReleaseChannel :execrows
 UPDATE system_state

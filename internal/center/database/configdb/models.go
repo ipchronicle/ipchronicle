@@ -266,4 +266,5 @@ type SystemState struct {
 	HistoryResetAt           *int64
 	ReleaseChannel           string
 	ExternalOrigin           string
+	IpapiApiKeyEncrypted     []byte
 }

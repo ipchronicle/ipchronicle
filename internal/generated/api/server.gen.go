@@ -124,13 +124,13 @@ func (e AgentArchitecture) Valid() bool {
 
 // Defines values for AgentConfigurationSnapshotSchemaVersion.
 const (
-	N7 AgentConfigurationSnapshotSchemaVersion = 7
+	N9 AgentConfigurationSnapshotSchemaVersion = 9
 )
 
 // Valid indicates whether the value is a known member of the AgentConfigurationSnapshotSchemaVersion enum.
 func (e AgentConfigurationSnapshotSchemaVersion) Valid() bool {
 	switch e {
-	case N7:
+	case N9:
 		return true
 	default:
 		return false
@@ -593,6 +593,27 @@ func (e HistoryRetentionMode) Valid() bool {
 	}
 }
 
+// Defines values for IPAPIAPIKeyAction.
+const (
+	IPAPIAPIKeyActionClear   IPAPIAPIKeyAction = "clear"
+	IPAPIAPIKeyActionKeep    IPAPIAPIKeyAction = "keep"
+	IPAPIAPIKeyActionReplace IPAPIAPIKeyAction = "replace"
+)
+
+// Valid indicates whether the value is a known member of the IPAPIAPIKeyAction enum.
+func (e IPAPIAPIKeyAction) Valid() bool {
+	switch e {
+	case IPAPIAPIKeyActionClear:
+		return true
+	case IPAPIAPIKeyActionKeep:
+		return true
+	case IPAPIAPIKeyActionReplace:
+		return true
+	default:
+		return false
+	}
+}
+
 // Defines values for KnownProbeFieldStatus.
 const (
 	KnownProbeFieldStatusAvailable    KnownProbeFieldStatus = "available"
@@ -724,19 +745,19 @@ func (e NetworkProxyFamilyStatus) Valid() bool {
 
 // Defines values for NetworkProxyPasswordAction.
 const (
-	Clear   NetworkProxyPasswordAction = "clear"
-	Keep    NetworkProxyPasswordAction = "keep"
-	Replace NetworkProxyPasswordAction = "replace"
+	NetworkProxyPasswordActionClear   NetworkProxyPasswordAction = "clear"
+	NetworkProxyPasswordActionKeep    NetworkProxyPasswordAction = "keep"
+	NetworkProxyPasswordActionReplace NetworkProxyPasswordAction = "replace"
 )
 
 // Valid indicates whether the value is a known member of the NetworkProxyPasswordAction enum.
 func (e NetworkProxyPasswordAction) Valid() bool {
 	switch e {
-	case Clear:
+	case NetworkProxyPasswordActionClear:
 		return true
-	case Keep:
+	case NetworkProxyPasswordActionKeep:
 		return true
-	case Replace:
+	case NetworkProxyPasswordActionReplace:
 		return true
 	default:
 		return false
@@ -1483,6 +1504,7 @@ type AgentConfigurationSnapshot struct {
 	DiscoveryServices      NetworkObservationSettingsUpdate        `json:"discoveryServices"`
 	Enabled                bool                                    `json:"enabled"`
 	HistoryGeneration      string                                  `json:"historyGeneration"`
+	IpapiApiKey            *string                                 `json:"ipapiApiKey,omitempty"`
 	ProbeLowMemoryOverride bool                                    `json:"probeLowMemoryOverride"`
 	ProbeSchedule          ProbeSchedule                           `json:"probeSchedule"`
 	ProbeTargets           []AgentProbeTarget                      `json:"probeTargets"`
@@ -1911,6 +1933,9 @@ type HistoryUsage struct {
 	SharedMemoryBytes     int64 `json:"sharedMemoryBytes"`
 	WalBytes              int64 `json:"walBytes"`
 }
+
+// IPAPIAPIKeyAction defines model for IPAPIAPIKeyAction.
+type IPAPIAPIKeyAction string
 
 // JavaScriptSenderConfiguration defines model for JavaScriptSenderConfiguration.
 type JavaScriptSenderConfiguration struct {
@@ -2623,14 +2648,17 @@ type SupportedLocale string
 
 // SystemSettings defines model for SystemSettings.
 type SystemSettings struct {
-	Automatic       bool   `json:"automatic"`
-	EffectiveOrigin string `json:"effectiveOrigin"`
-	ExternalOrigin  string `json:"externalOrigin"`
+	Automatic             bool   `json:"automatic"`
+	EffectiveOrigin       string `json:"effectiveOrigin"`
+	ExternalOrigin        string `json:"externalOrigin"`
+	IpapiApiKeyConfigured bool   `json:"ipapiApiKeyConfigured"`
 }
 
 // SystemSettingsUpdate defines model for SystemSettingsUpdate.
 type SystemSettingsUpdate struct {
-	ExternalOrigin string `json:"externalOrigin"`
+	ExternalOrigin    *string           `json:"externalOrigin,omitempty"`
+	IpapiApiKey       *string           `json:"ipapiApiKey,omitempty"`
+	IpapiApiKeyAction IPAPIAPIKeyAction `json:"ipapiApiKeyAction"`
 }
 
 // SystemStatus defines model for SystemStatus.

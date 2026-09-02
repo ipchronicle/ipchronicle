@@ -37,6 +37,7 @@ CREATE TABLE system_state(
   CHECK(release_channel IN('stable', 'rc')),
   external_origin TEXT NOT NULL DEFAULT ''
   CHECK(length(external_origin) <= 2048),
+  ipapi_api_key_encrypted BLOB,
   CHECK(pending_history_generation IS NULL OR pending_history_generation != history_generation)
 );
 CREATE TABLE agent_enrollment(
