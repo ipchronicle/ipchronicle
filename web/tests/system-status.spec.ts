@@ -863,7 +863,6 @@ test("generates an Agent installation command from the nodes page", async ({
                   SCAMALYTICS: "US",
                   ipdata: "US",
                   IPinfo: "US",
-                  IPWHOIS: "US",
                   DBIP: "US",
                 },
                 Proxy: {
@@ -874,7 +873,6 @@ test("generates an Agent installation command from the nodes page", async ({
                   SCAMALYTICS: false,
                   ipdata: false,
                   IPinfo: false,
-                  IPWHOIS: false,
                   DBIP: null,
                 },
                 Tor: {
@@ -885,7 +883,6 @@ test("generates an Agent installation command from the nodes page", async ({
                   SCAMALYTICS: false,
                   ipdata: false,
                   IPinfo: false,
-                  IPWHOIS: false,
                   DBIP: null,
                 },
                 VPN: {
@@ -896,7 +893,6 @@ test("generates an Agent installation command from the nodes page", async ({
                   SCAMALYTICS: false,
                   ipdata: null,
                   IPinfo: false,
-                  IPWHOIS: false,
                   DBIP: null,
                 },
                 Server: {
@@ -907,7 +903,6 @@ test("generates an Agent installation command from the nodes page", async ({
                   SCAMALYTICS: false,
                   ipdata: false,
                   IPinfo: false,
-                  IPWHOIS: false,
                   DBIP: null,
                 },
                 Abuser: {
@@ -918,7 +913,6 @@ test("generates an Agent installation command from the nodes page", async ({
                   SCAMALYTICS: false,
                   ipdata: false,
                   IPinfo: null,
-                  IPWHOIS: null,
                   DBIP: false,
                 },
                 Robot: {
@@ -929,7 +923,6 @@ test("generates an Agent installation command from the nodes page", async ({
                   SCAMALYTICS: false,
                   ipdata: null,
                   IPinfo: null,
-                  IPWHOIS: null,
                   DBIP: false,
                 },
               },
@@ -1068,7 +1061,7 @@ test("generates an Agent installation command from the nodes page", async ({
     /text-amber-700/,
   );
   await expect(
-    page.getByRole("row", { name: /^Region US US US US US US US US US/ }),
+    page.getByRole("row", { name: /^Region US US US US US US US US/ }),
   ).toBeVisible();
   await expect(
     page.getByRole("row", {

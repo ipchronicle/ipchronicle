@@ -316,7 +316,7 @@ func buildCatalog() []FieldDefinition {
 	for _, path := range []string{"Head.Command", "Head.GitHub", "Head.Time", "Head.Version"} {
 		add(path, false, JSONTypeString)
 	}
-	providers := []string{"IP2LOCATION", "ipapi", "ipregistry", "IPQS", "SCAMALYTICS", "ipdata", "IPinfo", "IPWHOIS", "DBIP"}
+	providers := []string{"IP2LOCATION", "ipapi", "ipregistry", "IPQS", "SCAMALYTICS", "ipdata", "IPinfo", "DBIP"}
 	for _, provider := range providers {
 		add("Factor.CountryCode."+provider, true, JSONTypeString)
 		for _, factor := range []string{"Proxy", "Tor", "VPN", "Server", "Abuser", "Robot"} {

@@ -176,7 +176,7 @@ func (engine *nativeEngine) buildReport(
 func buildFactors(providers map[string]providerFinding) map[string]any {
 	providerNames := []string{
 		"IP2LOCATION", "ipapi", "ipregistry", "IPQS", "SCAMALYTICS",
-		"ipdata", "IPinfo", "IPWHOIS", "DBIP",
+		"ipdata", "IPinfo", "DBIP",
 	}
 	result := make(map[string]any, 7)
 	countries := make(map[string]any, len(providerNames))

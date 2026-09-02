@@ -594,7 +594,6 @@ const factorProviders = [
   "SCAMALYTICS",
   "ipdata",
   "IPinfo",
-  "IPWHOIS",
   "DBIP",
 ] as const;
 

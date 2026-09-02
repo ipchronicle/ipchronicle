@@ -10,7 +10,10 @@ import (
 	"regexp"
 	"strconv"
 	"strings"
+	"time"
 )
+
+const ipqsProbeAttempts = 3
 
 type providerFinding struct {
 	CountryCode string
@@ -117,7 +120,6 @@ func (engine *nativeEngine) probeProviders(ctx context.Context) map[string]provi
 		"DBIP":        engine.probeDBIP(ctx),
 		"ipdata":      engine.probeIPData(ctx),
 		"IPQS":        engine.probeIPQS(ctx),
-		"IPWHOIS":     {},
 	}
 }
 
@@ -280,13 +282,51 @@ func (engine *nativeEngine) probeIPData(ctx context.Context) providerFinding {
 }
 
 func (engine *nativeEngine) probeIPQS(ctx context.Context) providerFinding {
-	document := engine.checkPlaceDocument(ctx, "ipqualityscore")
+	document := engine.checkPlaceDocumentWithRetry(ctx, "ipqualityscore", ipqsProbeAttempts)
 	return providerFinding{
 		CountryCode: documentString(document, "country_code"),
 		Proxy:       documentBool(document, "proxy"), Tor: documentBool(document, "tor"),
 		VPN: documentBool(document, "vpn"), Abuser: documentBool(document, "recent_abuse"),
 		Robot: documentBool(document, "bot_status"), Score: documentString(document, "fraud_score"),
 	}
+}
+
+func (engine *nativeEngine) checkPlaceDocumentWithRetry(
+	ctx context.Context,
+	database string,
+	attempts int,
+) map[string]any {
+	for attempt := 0; attempt < attempts; attempt++ {
+		response, err := engine.http.do(ctx, http.MethodGet, engine.checkPlaceURL("db="+database), nil, nil)
+		retry := false
+		if err == nil && response.StatusCode >= 200 && response.StatusCode < 300 {
+			if document := decodeJSONDocument(response.Body); document != nil {
+				return document
+			}
+			retry = true
+		} else {
+			retry = transientProviderFailure(ctx, response.StatusCode, err)
+		}
+		if attempt+1 >= attempts || !retry {
+			return nil
+		}
+		delay := 250 * time.Millisecond * time.Duration(1<<attempt)
+		timer := time.NewTimer(delay)
+		select {
+		case <-ctx.Done():
+			timer.Stop()
+			return nil
+		case <-timer.C:
+		}
+	}
+	return nil
+}
+
+func transientProviderFailure(ctx context.Context, statusCode int, err error) bool {
+	if err != nil {
+		return ctx.Err() == nil
+	}
+	return statusCode == http.StatusRequestTimeout || statusCode == http.StatusTooEarly || statusCode >= 500
 }
 
 func (engine *nativeEngine) checkPlaceDocument(ctx context.Context, database string) map[string]any {

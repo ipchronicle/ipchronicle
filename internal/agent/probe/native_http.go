@@ -102,7 +102,11 @@ func (client probeHTTP) json(
 	if err != nil || response.StatusCode < 200 || response.StatusCode >= 300 {
 		return nil
 	}
-	decoder := json.NewDecoder(bytes.NewReader(response.Body))
+	return decodeJSONDocument(response.Body)
+}
+
+func decodeJSONDocument(contents []byte) map[string]any {
+	decoder := json.NewDecoder(bytes.NewReader(contents))
 	decoder.UseNumber()
 	var document map[string]any
 	if err := decoder.Decode(&document); err != nil {

@@ -58,6 +58,10 @@ func TestNativeReportMatchesCenterFieldContract(t *testing.T) {
 	if masked := maskAddress(netip.MustParseAddr("2001:db8:1234::10")); masked != "2001:db8:1234:*:*:*:*:*" {
 		t.Fatalf("masked IPv6 = %q", masked)
 	}
+	countries := report.Factor["CountryCode"].(map[string]any)
+	if _, present := countries["IPWHOIS"]; present {
+		t.Fatal("native report still contains the unused IPWHOIS provider")
+	}
 }
 
 func TestNativeProviderParsersMapUpstreamFields(t *testing.T) {
@@ -133,6 +137,55 @@ func TestNativeIPv6ProviderRequestsUseRawPathsAndExplicitLookupClient(t *testing
 		lookupRequests[0].URL.Path != "/widget/demo/2001:db8:1234::10" ||
 		lookupRequests[1].URL.Query().Get("q") != "2001:db8:1234::10" {
 		t.Fatalf("explicit lookup requests = %#v", lookupRequests)
+	}
+}
+
+func TestIPQSProviderRetriesOnlyTransientFailures(t *testing.T) {
+	requests := 0
+	client := &http.Client{Transport: roundTripFunc(func(request *http.Request) (*http.Response, error) {
+		requests++
+		status := http.StatusServiceUnavailable
+		body := `{}`
+		if requests == 2 {
+			status = http.StatusOK
+			body = `{"success":true,"country_code":"US","fraud_score":73,"proxy":false}`
+		}
+		return &http.Response{
+			StatusCode: status, Body: io.NopCloser(strings.NewReader(body)),
+			Header: make(http.Header), Request: request,
+		}, nil
+	})}
+	engine := nativeEngine{
+		input: nativeProbeInput{Target: "203.0.113.10"},
+		http:  probeHTTP{client: client},
+	}
+
+	finding := engine.probeIPQS(context.Background())
+	if requests != 2 || finding.Score != "73" || finding.CountryCode != "US" || finding.Proxy == nil || *finding.Proxy {
+		t.Fatalf("IPQS requests = %d, finding = %#v", requests, finding)
+	}
+}
+
+func TestIPQSProviderDoesNotRetryQuotaResponse(t *testing.T) {
+	requests := 0
+	client := &http.Client{Transport: roundTripFunc(func(request *http.Request) (*http.Response, error) {
+		requests++
+		return &http.Response{
+			StatusCode: http.StatusOK,
+			Body: io.NopCloser(strings.NewReader(
+				`{"success":false,"message":"You have exceeded your request quota of 200 per day."}`,
+			)),
+			Header: make(http.Header), Request: request,
+		}, nil
+	})}
+	engine := nativeEngine{
+		input: nativeProbeInput{Target: "203.0.113.10"},
+		http:  probeHTTP{client: client},
+	}
+
+	finding := engine.probeIPQS(context.Background())
+	if requests != 1 || finding != (providerFinding{}) {
+		t.Fatalf("IPQS quota requests = %d, finding = %#v", requests, finding)
 	}
 }
 
