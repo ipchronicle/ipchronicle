@@ -1080,30 +1080,46 @@ test("generates an Agent installation command from the nodes page", async ({
     page.getByRole("heading", { name: "IP type attributes" }),
   ).toBeVisible();
   await expect(
-    page.getByRole("row", {
-      name: /^Usage Hosting Business ISP Line ISP Line ISP/,
-    }),
-  ).toBeVisible();
+    page.locator('[data-report-path="Type.Usage.IPinfo"]'),
+  ).toHaveText("Hosting");
+  await expect(
+    page.locator('[data-report-path="Type.Usage.ipregistry"]'),
+  ).toHaveText("Business");
+  for (const provider of ["ipapi", "IP2LOCATION", "AbuseIPDB"]) {
+    await expect(
+      page.locator(`[data-report-path="Type.Usage.${provider}"]`),
+    ).toHaveText("Residential ISP");
+  }
   await expect(
     page.getByRole("heading", { name: "Risk scores" }),
   ).toBeVisible();
-  await expect(page.getByText("Hosting", { exact: true })).toHaveClass(
-    /text-destructive/,
-  );
-  await expect(page.getByText("Business", { exact: true })).toHaveClass(
-    /text-amber-700/,
-  );
   await expect(
-    page.getByRole("row", { name: /^Region US US US US US US US US/ }),
-  ).toBeVisible();
+    page
+      .locator('[data-report-path="Type.Usage.IPinfo"]')
+      .getByText("Hosting", { exact: true }),
+  ).toHaveClass(/text-destructive/);
   await expect(
-    page.getByRole("row", {
-      name: /^Status Unlocked Pending Unlocked Unlocked Unlocked Blocked Unlocked/,
-    }),
-  ).toBeVisible();
-  await expect(page.getByText("Pending", { exact: true })).toHaveClass(
-    /text-amber-700/,
-  );
+    page
+      .locator('[data-report-path="Type.Usage.ipregistry"]')
+      .getByText("Business", { exact: true }),
+  ).toHaveClass(/text-amber-700/);
+  await expect(
+    page.locator('[data-report-path="Factor.CountryCode.IP2LOCATION"]'),
+  ).toHaveText("United States (US)");
+  await expect(
+    page.locator('[data-report-path="Media.TikTok.Status"]'),
+  ).toHaveText("Unlocked");
+  await expect(
+    page.locator('[data-report-path="Media.DisneyPlus.Status"]'),
+  ).toHaveText("Not yet supported");
+  await expect(
+    page.locator('[data-report-path="Media.Reddit.Status"]'),
+  ).toHaveText("Blocked");
+  await expect(
+    page
+      .locator('[data-report-path="Media.DisneyPlus.Status"]')
+      .getByText("Not yet supported", { exact: true }),
+  ).toHaveClass(/text-amber-700/);
   await expect(
     page.locator('[data-report-path="Media.Reddit.Region"]'),
   ).toHaveText("—");

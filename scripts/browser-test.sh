@@ -12,10 +12,15 @@ receiver_name="${project_name}-notification-receiver"
 receiver_started=false
 
 cleanup() {
+  status=$?
+  if (( status != 0 )); then
+    IPCHRONICLE_HTTP_PORT="$browser_port" docker compose --project-name "$project_name" -f "$compose_file" logs --no-color center >&2 || true
+  fi
   if [[ "$receiver_started" == "true" ]]; then
     docker rm --force "$receiver_name" >/dev/null 2>&1 || true
   fi
   IPCHRONICLE_HTTP_PORT="$browser_port" docker compose --project-name "$project_name" -f "$compose_file" down --volumes --remove-orphans >/dev/null
+  return "$status"
 }
 trap cleanup EXIT
 
