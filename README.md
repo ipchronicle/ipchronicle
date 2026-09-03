@@ -30,23 +30,25 @@ IPChronicle 采用 `AGPL-3.0-only` 许可证。产品范围和架构决策维护
 ## 快速开始
 
 从[最新稳定版](https://github.com/ipchronicle/ipchronicle/releases/latest)获取
-受控发布产物，并按照[运维指南](OPERATOR_GUIDE.md)使用 Docker Compose 部署
-Center。登录后，节点页面会生成一条命令，用于注册并启动每个 root Agent。
+受控发布产物，并按照[在线部署指南](https://ipchronicle.github.io/guide/deploy-center)
+使用 Docker Compose 部署 Center。登录后，节点页面会生成一条命令，用于注册并
+启动每个 root Agent。对应版本的 Release 同时提供冻结的离线运维指南。
 
 Center 不终止 TLS，也不管理反向代理。建议使用 HTTPS，但证书和反向代理仍由
 自托管管理员负责。
 
 ## 文档
 
-- [运维指南](OPERATOR_GUIDE.md) · [English](OPERATOR_GUIDE.en.md)
-- [通知发送器与投递行为](NOTIFICATIONS.md) · [English](NOTIFICATIONS.en.md)
+- [在线文档](https://ipchronicle.github.io/) · [English](https://ipchronicle.github.io/en/)
+- [随当前源码冻结的运维指南](OPERATOR_GUIDE.md) · [English](OPERATOR_GUIDE.en.md)
+- [随当前源码冻结的通知说明](NOTIFICATIONS.md) · [English](NOTIFICATIONS.en.md)
 - [版本说明](RELEASE_NOTES.md) · [English](RELEASE_NOTES.en.md)
 - [发布就绪报告](RELEASE_READINESS.md) · [English](RELEASE_READINESS.en.md)
 - [产品与架构决策](https://github.com/ipchronicle/workspace/tree/main/docs)
 
-运维指南是安装、反向代理、Agent 注册、公网 IP 发现、探测、历史、更新、恢复
-和卸载的入口。每个发布版本都会附带对应版本的 Compose 文件、Agent 安装器、
-校验和、清单、SBOM、构建元数据和发布就绪报告。
+在线文档是最新稳定版安装、反向代理、Agent 注册、公网 IP 发现、探测、历史、
+更新、恢复和卸载的入口。每个发布版本都会附带对应版本的冻结文档、Compose
+文件、Agent 安装器、校验和、清单、SBOM、构建元数据和发布就绪报告。
 
 ## 开发
 

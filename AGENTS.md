@@ -6,6 +6,10 @@
   [workspace repository](https://github.com/ipchronicle/workspace/tree/main/docs).
   Read the product definition, system architecture, UI information architecture,
   and relevant ADRs before changing behavior.
+- Online documentation for the latest stable release lives in
+  [`ipchronicle/ipchronicle.github.io`](https://github.com/ipchronicle/ipchronicle.github.io).
+  This repository retains version-frozen offline documentation that is shipped
+  with release assets.
 - This repository contains the complete product. A new component repository
   requires an accepted repository-boundary decision; do not split code merely
   because Center, Web, Agent, and deployment assets have different runtime roles.

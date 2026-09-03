@@ -184,13 +184,18 @@ accepted; HTTP produces a warning. An address is confirmed only when the
 configured services agree, so service failures remain visible instead of being
 presented as an address change.
 
-Reusable HTTP, HTTPS, and SOCKS5 proxies are configured on the same page. Proxy
-passwords are encrypted in `config.db`, sent only to Agents with a referencing
-proxy discovery path, and are never displayed again. Leaving a password blank during an edit
-preserves it unless **Clear password** is selected.
-
 Open a node's **Public IPs** page to manage the canonical public addresses that
-the node can reach:
+the node can reach. Select **Manage proxies** in the upper right to add, edit,
+enable, disable, or delete HTTP, HTTPS, and SOCKS5 proxies that belong only to
+that node. After a new proxy is saved or an existing proxy changes, the Agent
+automatically checks its IPv4 and IPv6 public egresses.
+
+Proxy passwords are encrypted in `config.db`, sent only to the owning node's
+Agent, and never displayed again. Leaving a password blank during an edit
+preserves it unless **Clear password** is selected. Disabling a proxy stops
+discovery and probing through it while retaining its configuration.
+
+The Public IPs page follows these rules:
 
 - usable default routes and stable routable sources are discovered
   automatically as hidden paths;
@@ -198,8 +203,8 @@ the node can reach:
   proxies, or nodes appears once across the Center;
 - a newly discovered public IP is enabled for complete probing by default and
   can be disabled by the administrator; and
-- explicit proxy discovery paths bind one reusable proxy and address family to
-  one node because they cannot be inferred from network inventory.
+- node proxies automatically check single-stack or dual-stack public egresses,
+  because those egresses cannot be inferred from direct network inventory.
 
 Interfaces, routes, local source addresses, selectors, and automatic path IDs
 are internal execution details and are not displayed as user objects. Temporary

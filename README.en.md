@@ -39,9 +39,11 @@ decisions are maintained in the
 ## Getting Started
 
 Use the [latest stable release](https://github.com/ipchronicle/ipchronicle/releases/latest)
-and follow the [operator guide](OPERATOR_GUIDE.en.md) to deploy the Center with
-Docker Compose. After signing in, the Nodes page generates a one-line command
-that enrolls and starts each root Agent.
+and follow the [online deployment
+guide](https://ipchronicle.github.io/en/guide/deploy-center) to deploy the Center
+with Docker Compose. After signing in, the Nodes page generates a one-line
+command that enrolls and starts each root Agent. The corresponding Release also
+provides a frozen offline operator guide.
 
 The Center does not terminate TLS or manage a reverse proxy. HTTPS is
 recommended, while certificate and reverse-proxy operation remain under the
@@ -49,17 +51,18 @@ self-hosting administrator's control.
 
 ## Documentation
 
-- [Operator guide](OPERATOR_GUIDE.en.md) · [简体中文](OPERATOR_GUIDE.md)
-- [Notification senders and delivery behavior](NOTIFICATIONS.en.md) · [简体中文](NOTIFICATIONS.md)
+- [Online documentation](https://ipchronicle.github.io/en/) · [简体中文](https://ipchronicle.github.io/)
+- [Operator guide frozen with the current source](OPERATOR_GUIDE.en.md) · [简体中文](OPERATOR_GUIDE.md)
+- [Notification guide frozen with the current source](NOTIFICATIONS.en.md) · [简体中文](NOTIFICATIONS.md)
 - [Release notes](RELEASE_NOTES.en.md) · [简体中文](RELEASE_NOTES.md)
 - [Release readiness](RELEASE_READINESS.en.md) · [简体中文](RELEASE_READINESS.md)
 - [Product and architecture decisions](https://github.com/ipchronicle/workspace/tree/main/docs)
 
-The operator guide is the starting point for installation, reverse proxying,
-Agent enrollment, public-IP discovery, probes, history, updates, recovery, and
-uninstallation. Every published release contains these documents together
-with its versioned Compose file, Agent installer, checksums, manifest, SBOMs,
-build metadata, and release-readiness report.
+The online documentation is the starting point for installation, reverse
+proxying, Agent enrollment, public-IP discovery, probing, history, upgrades,
+recovery, and removal for the latest stable release. Every release includes
+matching frozen documentation, the Compose file, Agent installer, checksums,
+manifest, SBOMs, build metadata, and release-readiness report.
 
 ## Development
 
