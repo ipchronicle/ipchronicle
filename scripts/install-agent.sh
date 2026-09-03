@@ -197,8 +197,13 @@ if [ "$skip_packages" != "1" ]; then
         curl jq ca-certificates
       ;;
     dnf)
-      dnf install --assumeyes \
-        curl jq ca-certificates
+      if command -v curl >/dev/null 2>&1; then
+        dnf install --assumeyes \
+          jq ca-certificates
+      else
+        dnf install --assumeyes \
+          curl jq ca-certificates
+      fi
       ;;
     apk)
       apk add --no-cache \

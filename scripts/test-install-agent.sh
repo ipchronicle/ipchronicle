@@ -77,8 +77,12 @@ case "$url" in
   *) exit 22 ;;
 esac
 EOF
+cat > "$fake_bin/dnf" <<'EOF'
+#!/bin/sh
+printf 'dnf %s\n' "$*" >> "$FAKE_DNF_LOG"
+EOF
 chmod 0755 "$fake_bin/systemctl" "$fake_bin/rc-service" "$fake_bin/rc-update" "$fake_bin/curl" \
-  "$fake_bin/curl"
+  "$fake_bin/dnf"
 
 run_installer() {
   local root=$1
@@ -86,7 +90,7 @@ run_installer() {
   shift 2
   IPCHRONICLE_INSTALL_ROOT="$root" \
   IPCHRONICLE_OS_RELEASE="$os_release" \
-  IPCHRONICLE_SKIP_PACKAGES=1 \
+  IPCHRONICLE_SKIP_PACKAGES="${IPCHRONICLE_SKIP_PACKAGES:-1}" \
   FAKE_AGENT_LOG="$root/enroll.log" \
   FAKE_SERVICE_LOG="$root/service.log" \
   FAKE_CURL_LOG="${FAKE_CURL_LOG:-$root/curl.log}" \
@@ -94,6 +98,7 @@ run_installer() {
   FAKE_CHECKSUMS="${FAKE_CHECKSUMS:-/dev/null}" \
   FAKE_RELEASE_AGENT="${FAKE_RELEASE_AGENT:-/dev/null}" \
   FAKE_GITHUB_RELEASES="${FAKE_GITHUB_RELEASES:-/dev/null}" \
+  FAKE_DNF_LOG="${FAKE_DNF_LOG:-$root/dnf.log}" \
   PATH="$fake_bin:$PATH" \
     "$installer" "$@"
 }
@@ -125,6 +130,20 @@ EOF
 run_installer "$systemd_root" "$systemd_os_release" \
   --center-url https://center.example --registration-key test-key --agent-binary "$fake_agent"
 assert_installed "$systemd_root" systemd
+
+rhel_root="$test_root/rhel-root"
+mkdir -p "$rhel_root"
+rhel_os_release="$test_root/rhel-os-release"
+cat > "$rhel_os_release" <<'EOF'
+ID=rhel
+VERSION_ID=9.7
+NAME="Red Hat Enterprise Linux"
+EOF
+IPCHRONICLE_SKIP_PACKAGES=0 run_installer "$rhel_root" "$rhel_os_release" \
+  --center-url https://center.example --registration-key test-key --agent-binary "$fake_agent"
+assert_installed "$rhel_root" systemd
+grep -Fx 'dnf install --assumeyes jq ca-certificates' "$rhel_root/dnf.log" >/dev/null
+
 run_installer "$systemd_root" "$systemd_os_release" \
   --center-url https://center.example --registration-key test-key --agent-binary "$fake_agent"
 [ "$(wc -l < "$systemd_root/enroll.log")" -eq 2 ]
