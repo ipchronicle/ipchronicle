@@ -104,12 +104,13 @@ rules that would make this file ambiguous. Do not create empty rule files.
 
 - Run `make generate` after changing OpenAPI or generator configuration.
 - Run focused tests while developing, then run `make preflight` before pushing.
-  It checks release-version consistency, committed generated-file drift,
-  formatting, lint, types, ordinary unit tests, OpenAPI, Go vet, module tidiness,
-  and source hygiene without race instrumentation or release builds.
-- `make check` remains the complete GitHub Actions gate for regeneration,
-  production builds, no-CGO Agent builds, and Go race tests. Run it locally only
-  when capacity permits or when diagnosing a CI failure.
+  Keep this local gate fast: it checks release-version consistency, generated
+  file state, diff integrity, forbidden artifacts, and obvious committed
+  secrets without installing dependencies or running builds and test suites.
+- `make check` is the GitHub Actions gate for dependency installation,
+  regeneration, formatting, lint, types, ordinary unit tests, OpenAPI, Go vet,
+  module tidiness, production builds, no-CGO Agent builds, and Go race tests.
+  Run the relevant part locally only when diagnosing a CI failure.
 - Compose, desktop/mobile browser, dual-architecture image, distribution,
   resource-limit, reproducibility, and release failure tests run in GitHub
   Actions. Use their local targets only for focused diagnosis.

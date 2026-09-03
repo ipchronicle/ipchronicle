@@ -52,8 +52,6 @@ check: release-version-check generate
 
 preflight: release-version-check
 	./scripts/check-generated.sh
-	$(MAKE) web-preflight
-	$(MAKE) go-preflight
 	./scripts/check-hygiene.sh
 
 build: generate web-assets
