@@ -195,12 +195,12 @@ jobs:
           cp RELEASE_NOTES.md "$notes_file"
           cat >>"$notes_file" <<EOF
 
-          ## Verified Candidate
+          ## 已验证候选产物
 
-          - Source revision: \`$REVISION\`
-          - Candidate validation: https://github.com/$GITHUB_REPOSITORY/actions/runs/$CANDIDATE_RUN_ID
-          - Center image: \`ghcr.io/${GITHUB_REPOSITORY_OWNER,,}/ipchronicle-center:$TAG\`
-          - Supported image platforms: \`linux/amd64\`, \`linux/arm64\`
+          - 源码提交：\`$REVISION\`
+          - 候选产物验证：https://github.com/$GITHUB_REPOSITORY/actions/runs/$CANDIDATE_RUN_ID
+          - Center 镜像：\`ghcr.io/${GITHUB_REPOSITORY_OWNER,,}/ipchronicle-center:$TAG\`
+          - 支持的镜像平台：\`linux/amd64\`、\`linux/arm64\`
           EOF
 
           if gh release view "$TAG" --json isDraft,isPrerelease >"$RUNNER_TEMP/release.json" 2>/dev/null; then

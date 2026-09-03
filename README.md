@@ -1,69 +1,58 @@
 # IPChronicle
 
+简体中文 | [English](README.en.md)
+
 [![CI](https://github.com/ipchronicle/ipchronicle/actions/workflows/ci.yml/badge.svg)](https://github.com/ipchronicle/ipchronicle/actions/workflows/ci.yml)
-[![Latest release](https://img.shields.io/github/v/release/ipchronicle/ipchronicle?display_name=tag&sort=semver)](https://github.com/ipchronicle/ipchronicle/releases/latest)
-[![License: AGPL-3.0-only](https://img.shields.io/badge/license-AGPL--3.0--only-0f766e)](LICENSE)
+[![最新版本](https://img.shields.io/github/v/release/ipchronicle/ipchronicle?display_name=tag&sort=semver&label=%E6%9C%80%E6%96%B0%E7%89%88%E6%9C%AC)](https://github.com/ipchronicle/ipchronicle/releases/latest)
+[![许可证：AGPL-3.0-only](https://img.shields.io/badge/%E8%AE%B8%E5%8F%AF%E8%AF%81-AGPL--3.0--only-0f766e)](LICENSE)
 
-IPChronicle is a self-hosted IP address and IP quality history product for one
-administrator managing Linux nodes under their control. It discovers durable
-public IPv4 and IPv6 addresses through managed nodes, records confirmed address
-changes, runs the built-in complete IP-quality probe on demand or on a local
-schedule, compares retained reports,
-and delivers change notifications.
+IPChronicle 是面向个人自托管用户的公网 IP 与 IP 质量历史系统。它通过用户
+管理的 Linux 节点发现稳定的公网 IPv4 和 IPv6 地址，记录已确认的地址变化，
+按需或按本地计划执行内置的完整 IP 质量探测，比较保留的报告，并发送变化通知。
 
-The product is one repository containing the Go Center, root Linux Agent,
-React web interface, OpenAPI contract, Docker Compose deployment, tests, and
-release tooling. The Center runs on Linux with Docker Compose. Agents make only
-outbound connections and require no inbound management port.
+本仓库包含完整产品：Go Center、root Linux Agent、React Web 界面、OpenAPI
+契约、Docker Compose 部署、测试和发布工具。Center 在 Linux 上通过 Docker
+Compose 运行；Agent 只主动连接 Center，不需要开放入站管理端口。
 
-IPChronicle is licensed under `AGPL-3.0-only`. Product scope and architecture
-decisions are maintained in the
-[IPChronicle workspace](https://github.com/ipchronicle/workspace/tree/main/docs).
+IPChronicle 采用 `AGPL-3.0-only` 许可证。产品范围和架构决策维护在
+[IPChronicle workspace](https://github.com/ipchronicle/workspace/tree/main/docs) 中。
 
-## Highlights
+## 核心能力
 
-- Discover distinct public IPv4 and IPv6 egresses across direct and node-scoped
-  proxy paths without exposing interface-level topology as the product model.
-- Run complete probes manually, on local schedules, or when an established node
-  discovers a new public address.
-- Retain address changes and report history, compare snapshots, and export or
-  copy report images.
-- Deliver configurable Telegram, webhook, and JavaScript notifications in text
-  or image form.
-- Use the administrator interface in Simplified Chinese or English with
-  optional TOTP two-factor authentication.
-- Run outbound-only AMD64 or ARM64 Linux Agents under systemd or Alpine/OpenRC.
+- 通过直连和节点级代理路径发现不同的公网 IPv4/IPv6 出口，同时避免把网卡级
+  拓扑暴露成用户需要管理的产品对象。
+- 支持手动探测、本地周期计划，以及已建立节点发现新公网地址后的自动探测。
+- 保留地址变化和报告历史，比较快照，并下载或复制报告图片。
+- 通过 Telegram、Webhook 或 JavaScript 发送可配置的文字或图片通知。
+- 管理界面支持简体中文和英文，可选启用 TOTP 两步验证。
+- AMD64/ARM64 Linux Agent 支持 systemd 和 Alpine/OpenRC。
 
-## Getting Started
+## 快速开始
 
-Use the [latest stable release](https://github.com/ipchronicle/ipchronicle/releases/latest)
-and follow the [operator guide](OPERATOR_GUIDE.md) to deploy the Center with
-Docker Compose. After signing in, the Nodes page generates a one-line command
-that enrolls and starts each root Agent.
+从[最新稳定版](https://github.com/ipchronicle/ipchronicle/releases/latest)获取
+受控发布产物，并按照[运维指南](OPERATOR_GUIDE.md)使用 Docker Compose 部署
+Center。登录后，节点页面会生成一条命令，用于注册并启动每个 root Agent。
 
-The Center does not terminate TLS or manage a reverse proxy. HTTPS is
-recommended, while certificate and reverse-proxy operation remain under the
-self-hosting administrator's control.
+Center 不终止 TLS，也不管理反向代理。建议使用 HTTPS，但证书和反向代理仍由
+自托管管理员负责。
 
-## Documentation
+## 文档
 
-- [Operator guide](OPERATOR_GUIDE.md)
-- [Notification senders and delivery behavior](NOTIFICATIONS.md)
-- [Release notes](RELEASE_NOTES.md)
-- [Release readiness](RELEASE_READINESS.md)
-- [Product and architecture decisions](https://github.com/ipchronicle/workspace/tree/main/docs)
+- [运维指南](OPERATOR_GUIDE.md) · [English](OPERATOR_GUIDE.en.md)
+- [通知发送器与投递行为](NOTIFICATIONS.md) · [English](NOTIFICATIONS.en.md)
+- [版本说明](RELEASE_NOTES.md) · [English](RELEASE_NOTES.en.md)
+- [发布就绪报告](RELEASE_READINESS.md) · [English](RELEASE_READINESS.en.md)
+- [产品与架构决策](https://github.com/ipchronicle/workspace/tree/main/docs)
 
-The operator guide is the starting point for installation, reverse proxying,
-Agent enrollment, public-IP discovery, probes, history, updates, recovery, and
-uninstallation. Every published release contains these documents together
-with its versioned Compose file, Agent installer, checksums, manifest, SBOMs,
-build metadata, and release-readiness report.
+运维指南是安装、反向代理、Agent 注册、公网 IP 发现、探测、历史、更新、恢复
+和卸载的入口。每个发布版本都会附带对应版本的 Compose 文件、Agent 安装器、
+校验和、清单、SBOM、构建元数据和发布就绪报告。
 
-## Development
+## 开发
 
-Repository-level development requires Docker with Docker Compose, GNU Make,
-`curl`, and `jq`. Direct frontend work uses Node.js 24.19.0 and npm 11.17.0;
-direct Go work uses Go 1.26.5. The standard checks use pinned containers:
+仓库级开发需要 Docker 与 Docker Compose、GNU Make、`curl` 和 `jq`。直接开发
+前端使用 Node.js 24.19.0 和 npm 11.17.0；直接开发 Go 使用 Go 1.26.5。标准
+检查使用固定版本的容器：
 
 ```sh
 make generate
@@ -72,26 +61,21 @@ make compose-smoke
 make browser-test
 ```
 
-Direct Center builds must set `GOEXPERIMENT=nogreenteagc`; the Make and Docker
-builds apply it automatically to preserve the JavaScript worker memory-limit
-boundary under Go 1.26.
+直接构建 Center 时必须设置 `GOEXPERIMENT=nogreenteagc`；Make 和 Docker 构建
+会自动应用该设置，以维持 Go 1.26 下 JavaScript worker 的内存限制边界。
 
-- `make generate` regenerates the Go and TypeScript OpenAPI bindings and the
-  separate `config.db` and `history.db` sqlc packages.
-- `make check` validates generated drift, formatting, lint, types, unit and
-  race tests, the native Center, no-CGO AMD64/ARM64 Agents, and the production
-  web build.
-- `make compose-smoke` validates the production image and Compose boundary.
-- `make browser-test` validates desktop and mobile Chromium workflows in
-  Simplified Chinese and English.
+- `make generate` 重新生成 Go/TypeScript OpenAPI 绑定，以及相互独立的
+  `config.db`、`history.db` sqlc 包。
+- `make check` 检查生成文件漂移、格式、Lint、类型、单元与竞态测试、原生
+  Center、AMD64/ARM64 无 CGO Agent 和生产前端构建。
+- `make compose-smoke` 验证生产镜像与 Compose 边界。
+- `make browser-test` 验证简体中文和英文的桌面端、移动端 Chromium 流程。
 
-See [AGENTS.md](AGENTS.md) for repository ownership and engineering rules.
+仓库所有权和工程规则见 [AGENTS.md](AGENTS.md)。
 
-## Contributing And Security
+## 贡献与安全
 
-Read the organization-wide
-[contribution guide](https://github.com/ipchronicle/.github/blob/main/CONTRIBUTING.md)
-before opening a pull request. Use a structured
-[issue](https://github.com/ipchronicle/ipchronicle/issues/new/choose) for bugs
-and feature requests. Report suspected vulnerabilities privately through the
-[security policy](https://github.com/ipchronicle/.github/blob/main/SECURITY.md).
+提交 Pull Request 前请阅读组织级[贡献指南](https://github.com/ipchronicle/.github/blob/main/CONTRIBUTING.md)。
+Bug 和功能建议请使用结构化 [Issue](https://github.com/ipchronicle/ipchronicle/issues/new/choose)。
+疑似安全漏洞请按照[安全政策](https://github.com/ipchronicle/.github/blob/main/SECURITY.md)
+进行私密报告。

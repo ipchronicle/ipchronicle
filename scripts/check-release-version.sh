@@ -8,7 +8,7 @@ version=${1:-}
 if [ -z "$version" ]; then
   # Backticks are literal Markdown delimiters in the readiness document.
   # shellcheck disable=SC2016
-  version=$(sed -n 's/^- Version: `\([^`]*\)`$/\1/p' "$root_dir/RELEASE_READINESS.md")
+  version=$(sed -n 's/^- 版本：`\([^`]*\)`$/\1/p' "$root_dir/RELEASE_READINESS.md")
 fi
 
 semver_number='(0|[1-9][0-9]*)'
@@ -26,18 +26,26 @@ require_exact_line() {
   fi
 }
 
-require_exact_line "$root_dir/RELEASE_READINESS.md" "# IPChronicle v$version Release Readiness"
-require_exact_line "$root_dir/RELEASE_READINESS.md" "- Version: \`$version\`"
-require_exact_line "$root_dir/RELEASE_READINESS.md" "- Proposed tag: \`v$version\`"
+require_exact_line "$root_dir/RELEASE_READINESS.md" "# IPChronicle v$version 发布就绪报告"
+require_exact_line "$root_dir/RELEASE_READINESS.md" "- 版本：\`$version\`"
+require_exact_line "$root_dir/RELEASE_READINESS.md" "- Tag：\`v$version\`"
 require_exact_line "$root_dir/OPERATOR_GUIDE.md" "IPCHRONICLE_VERSION=$version"
 require_exact_line "$root_dir/RELEASE_NOTES.md" "# IPChronicle v$version"
+require_exact_line "$root_dir/RELEASE_READINESS.en.md" "# IPChronicle v$version Release Readiness"
+require_exact_line "$root_dir/RELEASE_READINESS.en.md" "- Version: \`$version\`"
+require_exact_line "$root_dir/RELEASE_READINESS.en.md" "- Tag: \`v$version\`"
+require_exact_line "$root_dir/OPERATOR_GUIDE.en.md" "IPCHRONICLE_VERSION=$version"
+require_exact_line "$root_dir/RELEASE_NOTES.en.md" "# IPChronicle v$version"
 require_exact_line "$root_dir/.github/workflows/release-candidate.yml" "        default: $version"
 require_exact_line "$root_dir/.github/workflows/publish-release.yml" "        default: $version"
 
 release_files=(
   "$root_dir/RELEASE_READINESS.md"
+  "$root_dir/RELEASE_READINESS.en.md"
   "$root_dir/OPERATOR_GUIDE.md"
+  "$root_dir/OPERATOR_GUIDE.en.md"
   "$root_dir/RELEASE_NOTES.md"
+  "$root_dir/RELEASE_NOTES.en.md"
   "$root_dir/.github/workflows/release-candidate.yml"
   "$root_dir/.github/workflows/publish-release.yml"
 )

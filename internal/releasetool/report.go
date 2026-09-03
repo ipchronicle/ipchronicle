@@ -13,8 +13,8 @@ import (
 
 const (
 	releaseReadinessName = "RELEASE_READINESS.md"
-	pendingReportStatus  = "Status: Pre-publication validation in progress"
-	readyReportStatus    = "Status: Ready for publication decision"
+	pendingReportStatus  = "状态：发布前验证中"
+	readyReportStatus    = "状态：已通过验证，等待发布决定"
 	reportEvidenceStart  = "<!-- release-evidence:start -->"
 	reportEvidenceEnd    = "<!-- release-evidence:end -->"
 )
@@ -71,17 +71,15 @@ func Finalize(options FinalizeOptions) (Summary, error) {
 
 	evidence := fmt.Sprintf(`%s
 
-Final candidate validation completed on **%s**.
+最终候选验证于 **%s** 完成。
 
-- Candidate revision: `+"`%s`"+`
-- Ordinary CI: <%s> (**passed**)
-- Release candidate workflow: <%s> (**passed**)
-- Reproducibility: **passed**. Two independent clean builds from the candidate
-  revision matched exactly by file name, mode, size, and SHA-256 digest before
-  and after this evidence was applied.
-- Required release gates: **passed**. Candidate verification, deterministic
-  failure tests, all 34 distribution/architecture lifecycle jobs, both native
-  resource jobs, and live built-in complete-probe execution completed successfully.
+- 候选提交：`+"`%s`"+`
+- 普通 CI：<%s>（**通过**）
+- 候选发布工作流：<%s>（**通过**）
+- 可复现构建：**通过**。从候选提交执行的两次独立干净构建，在应用本段证据前后，
+  所有文件的名称、模式、大小和 SHA-256 摘要均完全一致。
+- 必需发布门禁：**通过**。候选验证、确定性失败测试、全部 34 个发行版/架构
+  生命周期任务、两个原生资源任务和内置完整探测真实执行均已成功完成。
 %s`, reportEvidenceStart, options.ValidationDate, summary.Revision,
 		options.CIRunURL, options.RCRunURL, reportEvidenceEnd)
 	contents = contents[:start] + evidence + contents[end+len(reportEvidenceEnd):]

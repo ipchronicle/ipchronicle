@@ -9,14 +9,14 @@ import (
 
 const testRevision = "0123456789abcdef0123456789abcdef01234567"
 
-const testReadinessReport = `# Release Readiness
+const testReadinessReport = `# 发布就绪报告
 
-Status: Pre-publication validation in progress
+状态：发布前验证中
 
-## Validation Results
+## 验证结果
 
 <!-- release-evidence:start -->
-Validation is pending.
+等待验证。
 <!-- release-evidence:end -->
 `
 
@@ -128,7 +128,7 @@ func TestFinalizeReleaseReport(t *testing.T) {
 		"https://github.com/ipchronicle/ipchronicle/actions/runs/123",
 		"https://github.com/ipchronicle/ipchronicle/actions/runs/456",
 		"2026-08-11",
-		"Reproducibility: **passed**",
+		"可复现构建：**通过**",
 	} {
 		if !strings.Contains(string(report), expected) {
 			t.Fatalf("final report does not contain %q", expected)

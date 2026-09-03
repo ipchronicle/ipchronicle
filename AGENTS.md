@@ -59,6 +59,15 @@ rules that would make this file ambiguous. Do not create empty rule files.
 - Cover loading, empty, offline, partial-success, failure, recovery, and
   destructive-confirmation states where the owning workflow can produce them.
 
+## Documentation Language
+
+- Public documentation for users, operators, and contributors defaults to
+  Simplified Chinese. Put the English counterpart in a same-directory `.en.md`
+  file and add reciprocal language links near the top of both versions.
+- Keep both language versions aligned whenever their shared subject changes.
+  Licenses, third-party notices, and other material that must retain prescribed
+  legal text are exempt.
+
 ## Center And API
 
 - HTTP handlers stay at the transport boundary. Domain invariants,
