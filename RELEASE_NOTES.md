@@ -1,13 +1,12 @@
-# IPChronicle v0.1.0-rc.5
+# IPChronicle v0.1.0
 
 IPChronicle is a personal self-hosted service for discovering the public IPs
 reachable from managed Linux nodes, running complete IP-quality probes, and
 tracking meaningful result changes over time.
 
-This release candidate is intended for evaluation before the first stable
-release. Development and release-candidate databases and Agent state do not
-carry an upgrade-compatibility promise until a stable release is published and
-put into use.
+This is the first stable IPChronicle release. Persistent-data compatibility
+starts with clean `v0.1.0` deployments; development and release-candidate data
+remain outside the supported upgrade path.
 
 ## Highlights
 

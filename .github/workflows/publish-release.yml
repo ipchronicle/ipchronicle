@@ -4,9 +4,9 @@ on:
   workflow_dispatch:
     inputs:
       version:
-        description: Canonical release candidate version without the v prefix
+        description: Canonical release version without the v prefix
         required: true
-        default: 0.1.0-rc.5
+        default: 0.1.0
         type: string
       candidate_run_id:
         description: Successful Release candidate artifact workflow run ID
@@ -36,8 +36,8 @@ jobs:
         run: |
           set -euo pipefail
           semver_number='(0|[1-9][0-9]*)'
-          if [[ ! $VERSION =~ ^${semver_number}\.${semver_number}\.${semver_number}-rc\.${semver_number}$ ]]; then
-            echo "version is not a supported canonical release candidate version" >&2
+          if [[ ! $VERSION =~ ^${semver_number}\.${semver_number}\.${semver_number}(-rc\.${semver_number})?$ ]]; then
+            echo "version is not a supported canonical release version" >&2
             exit 1
           fi
           if [[ ! $CANDIDATE_RUN_ID =~ ^[1-9][0-9]*$ ]]; then
@@ -61,6 +61,11 @@ jobs:
 
           {
             echo "artifact_name=$artifact_name"
+            if [[ $VERSION == *-rc.* ]]; then
+              echo "prerelease=true"
+            else
+              echo "prerelease=false"
+            fi
             echo "revision=$revision"
             echo "tag=v$VERSION"
           } >>"$GITHUB_OUTPUT"
@@ -120,7 +125,7 @@ jobs:
           registry: ghcr.io
           username: ${{ github.actor }}
 
-      - name: Publish candidate images
+      - name: Publish release images
         id: image
         env:
           RELEASE_DIRECTORY: ${{ github.workspace }}/dist/publish/${{ inputs.version }}
@@ -175,10 +180,11 @@ jobs:
             .component == "center" and .os == "linux" and .arch == "amd64"
           ' <<<"$metadata" >/dev/null
 
-      - name: Create or update draft prerelease
+      - name: Create or update draft release
         env:
           CANDIDATE_RUN_ID: ${{ inputs.candidate_run_id }}
           GH_TOKEN: ${{ github.token }}
+          PRERELEASE: ${{ steps.candidate.outputs.prerelease }}
           RELEASE_DIRECTORY: dist/publish/${{ inputs.version }}
           REVISION: ${{ steps.candidate.outputs.revision }}
           TAG: ${{ steps.candidate.outputs.tag }}
@@ -198,18 +204,21 @@ jobs:
           EOF
 
           if gh release view "$TAG" --json isDraft,isPrerelease >"$RUNNER_TEMP/release.json" 2>/dev/null; then
-            jq -e '.isDraft == true and .isPrerelease == true' "$RUNNER_TEMP/release.json" >/dev/null
+            jq -e --argjson prerelease "$PRERELEASE" \
+              '.isDraft == true and .isPrerelease == $prerelease' \
+              "$RUNNER_TEMP/release.json" >/dev/null
           else
-            gh release create "$TAG" --verify-tag --draft --prerelease --latest=false \
+            gh release create "$TAG" --verify-tag --draft --prerelease="$PRERELEASE" --latest=false \
               --title "IPChronicle $TAG" --notes-file "$notes_file"
           fi
-          gh release edit "$TAG" --draft --prerelease --latest=false \
+          gh release edit "$TAG" --draft --prerelease="$PRERELEASE" --latest=false \
             --title "IPChronicle $TAG" --notes-file "$notes_file"
           gh release upload "$TAG" --clobber "$RELEASE_DIRECTORY"/*
 
-      - name: Verify and publish prerelease
+      - name: Verify and publish release
         env:
           GH_TOKEN: ${{ github.token }}
+          PRERELEASE: ${{ steps.candidate.outputs.prerelease }}
           RELEASE_DIRECTORY: dist/publish/${{ inputs.version }}
           TAG: ${{ steps.candidate.outputs.tag }}
         run: |
@@ -226,9 +235,13 @@ jobs:
             '.assets[] | [.name, (.size | tostring), .digest] | @tsv' |
             LC_ALL=C sort >"$actual"
           diff --unified "$expected" "$actual"
-          gh release edit "$TAG" --draft=false --prerelease --latest=false >/dev/null
+          latest=true
+          if [ "$PRERELEASE" = true ]; then
+            latest=false
+          fi
+          gh release edit "$TAG" --draft=false --prerelease="$PRERELEASE" --latest="$latest" >/dev/null
           release_json=$(gh release view "$TAG" --json isDraft,isPrerelease,tagName,url)
-          jq -e --arg tag "$TAG" '
-            .isDraft == false and .isPrerelease == true and .tagName == $tag
+          jq -e --arg tag "$TAG" --argjson prerelease "$PRERELEASE" '
+            .isDraft == false and .isPrerelease == $prerelease and .tagName == $tag
           ' <<<"$release_json" >/dev/null
           jq -r '.url' <<<"$release_json"

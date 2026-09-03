@@ -1,8 +1,8 @@
-# IPChronicle v0.1.0-rc.5 Release Readiness
+# IPChronicle v0.1.0 Release Readiness
 
 Status: Pre-publication validation in progress
 
-This report maps this public release candidate to its product scope,
+This report maps this public release to its product scope,
 automated validation, artifacts, operational documentation, and publication
 gate. The source revision and artifact digests in `release-manifest.json` and
 `checksums.txt` identify a particular build. A candidate is not ready to
@@ -11,13 +11,13 @@ for the manifest revision, and the final run links must be recorded here.
 
 ## Candidate Identity
 
-- Version: `0.1.0-rc.5`
-- Proposed tag: `v0.1.0-rc.5`
-- Channel: `rc`
+- Version: `0.1.0`
+- Proposed tag: `v0.1.0`
+- Channel: `stable`
 - License: `AGPL-3.0-only`
 - Source: <https://github.com/ipchronicle/ipchronicle>
 - Publication state: no tag, GitHub Release, public Center image, or stable
-  channel entry is authorized by this report
+  channel entry exists until every gate below passes
 
 ## Product Scope Evidence
 
@@ -46,7 +46,7 @@ not a pass.
 | Production Center image and Compose boundary | `make compose-smoke`; GitHub Actions `CI / compose` | Pass |
 | Simplified Chinese and English desktop/mobile workflows | `make browser-test`; GitHub Actions `CI / browser` | Pass |
 | AMD64 and ARM64 Center image metadata | GitHub Actions `CI / image (linux/amd64)` and `CI / image (linux/arm64)` | Pass |
-| Candidate creation, manifest, checksums, SBOMs, and artifact contract | `make release-candidate VERSION=0.1.0-rc.5`; `make verify-release-candidate VERSION=0.1.0-rc.5`; `Release candidate artifact / candidate` | Pass |
+| Candidate creation, manifest, checksums, SBOMs, and artifact contract | `make release-candidate VERSION=0.1.0`; `make verify-release-candidate VERSION=0.1.0`; `Release candidate artifact / candidate` | Pass |
 | Install, reinstall, uninstall, migration, history reset, outage, restart, unavailable selector, update rollback, and queue overflow | `make release-failure-gate`; `Release candidate artifact / candidate` | Pass |
 | Supported distribution and init lifecycle | 17 distributions x AMD64/ARM64 in `Release candidate artifact / distribution` | All 34 pass |
 | Native resource limits and live complete-probe execution | AMD64 and ARM64 `Release candidate artifact / resources` | Both pass at 64 MiB Agent and 512 MiB Center limits |
@@ -83,7 +83,7 @@ or unexpectedly non-executable files. The manifest records the source revision,
 channel, capabilities, size, SHA-256, operating system, and architecture where
 applicable.
 
-`RELEASE_NOTES.md` is the source for the GitHub prerelease description. The
+`RELEASE_NOTES.md` is the source for the GitHub Release description. The
 candidate builder rejects release-facing documentation and workflow defaults
 that do not identify the same version.
 
@@ -98,7 +98,7 @@ recovery, and backup/disaster-recovery boundaries. `NOTIFICATIONS.md` defines
 sender configuration, the JavaScript API, queue limits, retries, failure
 isolation, and redaction behavior.
 
-## RC Limitations And Boundaries
+## Limitations And Boundaries
 
 - The product serves one personal self-hosting administrator. It has no
   multi-user, tenant, role, or public-result feature.
@@ -108,10 +108,9 @@ isolation, and redaction behavior.
   distribution matrix with systemd or OpenRC.
 - The first release has no built-in backup or restore command. The operator is
   responsible for consistent volume and Agent-state backups.
-- Development and RC `config.db`, `history.db`, and Agent-state data are not
-  promised to remain compatible before the first stable release is published
-  and put into use. Incompatible development data fails explicitly and is
-  rebuilt or purged by the operator.
+- Persistent-data compatibility begins with clean `v0.1.0` deployments.
+  Development and RC `config.db`, `history.db`, and Agent-state data remain
+  unsupported upgrade sources and must be rebuilt or purged by the operator.
 - The built-in Go probe is derived from the AGPL-licensed IPQuality behavior at
   the revision recorded in `THIRD_PARTY_NOTICES.md`. Its database, media, AI,
   DNSBL, and mail checks still depend on third-party services whose availability
@@ -128,5 +127,5 @@ and successful run URLs. Publication then still requires an explicit human
 decision and an immutable tag for that revision. An explicit dispatch of the
 `Publish release` workflow revalidates the final candidate artifact, publishes
 and anonymously verifies both Center image platforms, verifies every GitHub
-Release asset, and only then publishes the prerelease. Publication must not
-happen implicitly, and changing a stable channel remains outside this workflow.
+Release asset, and only then publishes the stable release as the repository's
+latest release. Publication never happens implicitly.

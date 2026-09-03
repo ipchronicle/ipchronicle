@@ -4,9 +4,9 @@ on:
   workflow_dispatch:
     inputs:
       version:
-        description: Canonical release candidate version without the v prefix
+        description: Canonical release version without the v prefix
         required: true
-        default: 0.1.0-rc.5
+        default: 0.1.0
         type: string
 
 permissions:

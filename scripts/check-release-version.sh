@@ -34,14 +34,21 @@ require_exact_line "$root_dir/RELEASE_NOTES.md" "# IPChronicle v$version"
 require_exact_line "$root_dir/.github/workflows/release-candidate.yml" "        default: $version"
 require_exact_line "$root_dir/.github/workflows/publish-release.yml" "        default: $version"
 
-if grep -EHn '[0-9]+\.[0-9]+\.[0-9]+-rc\.[0-9]+' \
-  "$root_dir/RELEASE_READINESS.md" \
-  "$root_dir/OPERATOR_GUIDE.md" \
-  "$root_dir/RELEASE_NOTES.md" \
-  "$root_dir/.github/workflows/release-candidate.yml" \
-  "$root_dir/.github/workflows/publish-release.yml" |
-  grep -Fv -- "$version" >/dev/null; then
-  echo "release-facing files contain a different release candidate version" >&2
+release_files=(
+  "$root_dir/RELEASE_READINESS.md"
+  "$root_dir/OPERATOR_GUIDE.md"
+  "$root_dir/RELEASE_NOTES.md"
+  "$root_dir/.github/workflows/release-candidate.yml"
+  "$root_dir/.github/workflows/publish-release.yml"
+)
+if [[ $version == *-rc.* ]]; then
+  if grep -EHn '[0-9]+\.[0-9]+\.[0-9]+-rc\.[0-9]+' "${release_files[@]}" |
+    grep -Fv -- "$version" >/dev/null; then
+    echo "release-facing files contain a different release version" >&2
+    exit 1
+  fi
+elif grep -EHn '[0-9]+\.[0-9]+\.[0-9]+-rc\.[0-9]+' "${release_files[@]}" >/dev/null; then
+  echo "stable release-facing files contain a release candidate version" >&2
   exit 1
 fi
 
