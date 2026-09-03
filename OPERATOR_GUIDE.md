@@ -36,7 +36,7 @@ Choose the release version, create an empty installation directory, and
 download the deployment assets. The version must omit the leading `v`.
 
 ```sh
-IPCHRONICLE_VERSION=0.1.0-rc.4
+IPCHRONICLE_VERSION=0.1.0-rc.5
 mkdir ipchronicle
 cd ipchronicle
 curl --proto '=https' --tlsv1.2 -fLO \

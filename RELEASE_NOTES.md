@@ -1,4 +1,4 @@
-# IPChronicle v0.1.0-rc.4
+# IPChronicle v0.1.0-rc.5
 
 IPChronicle is a personal self-hosted service for discovering the public IPs
 reachable from managed Linux nodes, running complete IP-quality probes, and
@@ -31,6 +31,9 @@ put into use.
   or English while raw JSON and machine event values remain unchanged.
 - Adds an optional centrally managed ipapi API key, removes the unused IPWHOIS
   field, and bounds retries for transient IPQS failures.
+- Keeps Center-delivered probes and Agent updates recoverable when the two
+  hosts' clocks differ. An RC4 Agent stuck retrying an out-of-window task
+  report recovers after a non-purge reinstall of this release.
 
 ## Deployment
 
