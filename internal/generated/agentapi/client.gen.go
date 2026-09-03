@@ -2700,16 +2700,15 @@ type SystemSettingsUpdate struct {
 
 // SystemStatus defines model for SystemStatus.
 type SystemStatus struct {
-	ConfigSchemaVersion    int64                          `json:"configSchemaVersion"`
-	ExternalOriginMode     SystemStatusExternalOriginMode `json:"externalOriginMode"`
-	HistorySchemaVersion   int64                          `json:"historySchemaVersion"`
-	Service                SystemStatusService            `json:"service"`
-	SourceRevision         string                         `json:"sourceRevision"`
-	Status                 SystemStatusStatus             `json:"status"`
-	TransportSecurity      SystemStatusTransportSecurity  `json:"transportSecurity"`
-	TransportWarning       bool                           `json:"transportWarning"`
-	TrustedProxyConfigured bool                           `json:"trustedProxyConfigured"`
-	Version                string                         `json:"version"`
+	ConfigSchemaVersion  int64                          `json:"configSchemaVersion"`
+	ExternalOriginMode   SystemStatusExternalOriginMode `json:"externalOriginMode"`
+	HistorySchemaVersion int64                          `json:"historySchemaVersion"`
+	Service              SystemStatusService            `json:"service"`
+	SourceRevision       string                         `json:"sourceRevision"`
+	Status               SystemStatusStatus             `json:"status"`
+	TransportSecurity    SystemStatusTransportSecurity  `json:"transportSecurity"`
+	TransportWarning     bool                           `json:"transportWarning"`
+	Version              string                         `json:"version"`
 }
 
 // SystemStatusExternalOriginMode defines model for SystemStatus.ExternalOriginMode.

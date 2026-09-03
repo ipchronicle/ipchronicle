@@ -172,7 +172,7 @@ func VerifyCenterOCI(path, architecture, version, revision string) (OCIImageInfo
 	if err := decodeJSON(configBlob.data, &config); err != nil {
 		return OCIImageInfo{}, fmt.Errorf("decode Center OCI config: %w", err)
 	}
-	if config.OS != "linux" || config.Architecture != architecture || config.Config.User != "ipchronicle" ||
+	if config.OS != "linux" || config.Architecture != architecture || config.Config.User != "" ||
 		len(config.Config.Entrypoint) != 1 || config.Config.Entrypoint[0] != "/usr/local/bin/ipchronicle-center" ||
 		config.RootFS.Type != "layers" || len(config.RootFS.DiffIDs) != len(manifest.Layers) {
 		return OCIImageInfo{}, errors.New("Center OCI runtime configuration is invalid")

@@ -977,7 +977,6 @@ export interface components {
             transportWarning: boolean;
             /** @enum {string} */
             externalOriginMode: "automatic" | "custom";
-            trustedProxyConfigured: boolean;
         };
         Overview: {
             /** Format: date-time */

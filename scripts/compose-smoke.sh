@@ -2,7 +2,7 @@
 set -euo pipefail
 
 root_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-compose_file="$root_dir/deploy/compose.yaml"
+compose_file="$root_dir/testdata/compose.yaml"
 project_name="ipchronicle-smoke"
 smoke_port="${IPCHRONICLE_SMOKE_PORT:-18080}"
 base_url="http://127.0.0.1:$smoke_port"

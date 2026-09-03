@@ -107,16 +107,13 @@ image_loaded=true
 
 mkdir -p "$scratch_directory/config" "$scratch_directory/history" "$scratch_directory/agent-state"
 chmod 0700 "$scratch_directory/agent-state"
-docker run --rm --platform "linux/$architecture" \
-  -v "$scratch_directory/config:/config" -v "$scratch_directory/history:/history" \
-  "$ALPINE_IMAGE" chown 10001:10001 /config /history
 docker network create "$network_name" >/dev/null
 network_created=true
 
 docker run --detach --name "$center_name" --platform "linux/$architecture" \
   --network "$network_name" --network-alias center \
   --memory 512m --memory-swap 512m --cpus 1 --pids-limit 256 \
-  --read-only --user 10001:10001 --cap-drop ALL --security-opt no-new-privileges \
+  --read-only --cap-drop ALL --security-opt no-new-privileges \
   --env IPCHRONICLE_LISTEN_ADDRESS=:8080 \
   --env IPCHRONICLE_CONFIG_DATABASE_PATH=/var/lib/ipchronicle/config/config.db \
   --env IPCHRONICLE_HISTORY_DATABASE_PATH=/var/lib/ipchronicle/history/history.db \

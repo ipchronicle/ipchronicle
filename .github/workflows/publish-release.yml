@@ -173,7 +173,7 @@ jobs:
           ' <<<"$index" >/dev/null
           docker pull --platform linux/amd64 "$IMAGE"
           metadata=$(docker run --rm --platform linux/amd64 --network none --read-only \
-            --cap-drop ALL --security-opt no-new-privileges --user 10001:10001 \
+            --cap-drop ALL --security-opt no-new-privileges \
             --memory 64m --cpus 1 --pids-limit 64 "$IMAGE" version --json)
           jq -e --arg version "$VERSION" --arg revision "$REVISION" '
             .version == $version and .revision == $revision and
@@ -238,6 +238,9 @@ jobs:
           latest=true
           if [ "$PRERELEASE" = true ]; then
             latest=false
+          else
+            image="ghcr.io/${GITHUB_REPOSITORY_OWNER,,}/ipchronicle-center"
+            docker buildx imagetools create --tag "$image:latest" "$image:$TAG"
           fi
           gh release edit "$TAG" --draft=false --prerelease="$PRERELEASE" --latest="$latest" >/dev/null
           release_json=$(gh release view "$TAG" --json isDraft,isPrerelease,tagName,url)

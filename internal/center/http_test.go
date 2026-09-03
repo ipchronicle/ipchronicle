@@ -8,7 +8,6 @@ import (
 	"log"
 	"net/http"
 	"net/http/httptest"
-	"net/netip"
 	"net/url"
 	"strings"
 	"testing"
@@ -27,7 +26,7 @@ import (
 )
 
 func TestHealthDoesNotRequireAuthentication(t *testing.T) {
-	handler := newTestHTTPHandler(t, nil)
+	handler := newTestHTTPHandler(t)
 	response := performRequest(handler, http.MethodGet, "/healthz", nil, "", nil)
 	if response.Code != http.StatusOK || response.Body.String() != "ok\n" {
 		t.Fatalf("health response = %d %q", response.Code, response.Body.String())
@@ -35,7 +34,7 @@ func TestHealthDoesNotRequireAuthentication(t *testing.T) {
 }
 
 func TestAdministratorLoginStatusAndLogout(t *testing.T) {
-	handler := newTestHTTPHandler(t, nil)
+	handler := newTestHTTPHandler(t)
 	unauthenticated := performRequest(handler, http.MethodGet, "/api/v1/system/status", nil, "", nil)
 	assertErrorCode(t, unauthenticated, http.StatusUnauthorized, api.Unauthenticated)
 	unauthenticatedOverview := performRequest(handler, http.MethodGet, "/api/v1/overview", nil, "", nil)
@@ -101,13 +100,13 @@ func TestAdministratorLoginStatusAndLogout(t *testing.T) {
 }
 
 func TestMalformedJSONUsesStructuredError(t *testing.T) {
-	handler := newTestHTTPHandler(t, nil)
+	handler := newTestHTTPHandler(t)
 	response := performRequest(handler, http.MethodPost, "/api/v1/auth/login", []byte("{"), "http://example.test", nil)
 	assertErrorCode(t, response, http.StatusBadRequest, api.InvalidRequest)
 }
 
 func TestExternalOriginSystemSettingDoesNotAuthorizeBrowserRequests(t *testing.T) {
-	handler, nodeService, _ := newTestHTTPHandlerWithNodes(t, nil)
+	handler, nodeService, _ := newTestHTTPHandlerWithNodes(t)
 	if _, err := nodeService.RotateEnrollmentKey(context.Background(), "UTC"); err != nil {
 		t.Fatal(err)
 	}
@@ -228,7 +227,7 @@ func TestNotificationAPIConfigurationRulesAndDeliveryHistory(t *testing.T) {
 	}))
 	t.Cleanup(receiver.Close)
 
-	handler, _, notificationService, _ := newTestHTTPHandlerWithNotifications(t, nil)
+	handler, _, notificationService, _ := newTestHTTPHandlerWithNotifications(t)
 	workerContext, stopWorkers := context.WithCancel(context.Background())
 	workersDone := make(chan struct{})
 	go func() {
@@ -416,7 +415,7 @@ func TestNotificationAPIConfigurationRulesAndDeliveryHistory(t *testing.T) {
 }
 
 func TestHistoryAPIAuthorizationMutationAndRetention(t *testing.T) {
-	handler, nodeService, _ := newTestHTTPHandlerWithNodes(t, nil)
+	handler, nodeService, _ := newTestHTTPHandlerWithNodes(t)
 	fixture := seedHTTPHistory(t, nodeService)
 
 	unauthenticated := performRequest(handler, http.MethodGet, "/api/v1/history/probe-snapshots", nil, "", nil)
@@ -494,7 +493,7 @@ func TestHistoryAPIAuthorizationMutationAndRetention(t *testing.T) {
 }
 
 func TestHistoryAPIFiltersOrderingAndComparison(t *testing.T) {
-	handler, nodeService, _ := newTestHTTPHandlerWithNodes(t, nil)
+	handler, nodeService, _ := newTestHTTPHandlerWithNodes(t)
 	fixture := seedHTTPHistory(t, nodeService)
 	cookie, _ := loginTestAdministrator(t, handler)
 
@@ -631,7 +630,7 @@ func TestHistoryAPIFiltersOrderingAndComparison(t *testing.T) {
 }
 
 func TestNetworkProxyAPINeverRevealsStoredPassword(t *testing.T) {
-	handler, nodeService, _ := newTestHTTPHandlerWithNodes(t, nil)
+	handler, nodeService, _ := newTestHTTPHandlerWithNodes(t)
 	login := performRequest(handler, http.MethodPost, "/api/v1/auth/login", loginBody(), "http://example.test", nil)
 	if login.Code != http.StatusOK {
 		t.Fatalf("login status = %d, body = %s", login.Code, login.Body.String())
@@ -682,7 +681,7 @@ func TestNetworkProxyAPINeverRevealsStoredPassword(t *testing.T) {
 }
 
 func TestNetworkObservationAndPublicAddressAPIWorkflow(t *testing.T) {
-	handler, nodeService, _ := newTestHTTPHandlerWithNodes(t, nil)
+	handler, nodeService, _ := newTestHTTPHandlerWithNodes(t)
 	login := performRequest(handler, http.MethodPost, "/api/v1/auth/login", loginBody(), "http://example.test", nil)
 	if login.Code != http.StatusOK {
 		t.Fatalf("login status = %d, body = %s", login.Code, login.Body.String())
@@ -866,7 +865,7 @@ func TestAgentControlRequestBodyHasBoundedInventoryHeadroom(t *testing.T) {
 }
 
 func TestAdministratorEnrollmentAndAgentCredentialBoundaries(t *testing.T) {
-	handler, nodeService, _ := newTestHTTPHandlerWithNodes(t, nil)
+	handler, nodeService, _ := newTestHTTPHandlerWithNodes(t)
 	unauthenticated := performRequest(handler, http.MethodGet, "/api/v1/agent-enrollment", nil, "", nil)
 	assertErrorCode(t, unauthenticated, http.StatusUnauthorized, api.Unauthenticated)
 
@@ -1021,7 +1020,7 @@ func TestAdministratorEnrollmentAndAgentCredentialBoundaries(t *testing.T) {
 }
 
 func TestProbeSchedulePreviewUsesSharedScheduleSemantics(t *testing.T) {
-	handler := newTestHTTPHandler(t, nil)
+	handler := newTestHTTPHandler(t)
 	query := url.Values{
 		"cron":     {"0 0 0 * * *"},
 		"timezone": {"Asia/Shanghai"},
@@ -1061,7 +1060,7 @@ func TestProbeSchedulePreviewUsesSharedScheduleSemantics(t *testing.T) {
 
 func TestTemporarySyncWebSocketAuthenticationWakeAndStop(t *testing.T) {
 	ctx := context.Background()
-	handler, nodeService, syncHub := newTestHTTPHandlerWithNodes(t, nil)
+	handler, nodeService, syncHub := newTestHTTPHandlerWithNodes(t)
 	enrollment, err := nodeService.RotateEnrollmentKey(ctx, "UTC")
 	if err != nil {
 		t.Fatal(err)
@@ -1145,11 +1144,10 @@ func responseStatus(response *http.Response) any {
 	return response.StatusCode
 }
 
-func TestTrustedProxyControlsForwardedHTTPS(t *testing.T) {
-	prefix := netip.MustParsePrefix("10.0.0.0/8")
-	handler := newTestHTTPHandler(t, []netip.Prefix{prefix})
+func TestForwardedHTTPSDoesNotRequireProxyConfiguration(t *testing.T) {
+	handler := newTestHTTPHandler(t)
 	request := httptest.NewRequest(http.MethodPost, "http://example.test/api/v1/auth/login", bytes.NewReader(loginBody()))
-	request.RemoteAddr = "10.0.0.10:1234"
+	request.RemoteAddr = "192.0.2.10:1234"
 	request.Header.Set("Content-Type", "application/json")
 	request.Header.Set("Origin", "https://example.test")
 	request.Header.Set("X-Forwarded-Proto", "https")
@@ -1161,35 +1159,22 @@ func TestTrustedProxyControlsForwardedHTTPS(t *testing.T) {
 	}
 	cookies := response.Result().Cookies()
 	if len(cookies) != 1 || !cookies[0].Secure {
-		t.Fatalf("trusted HTTPS proxy did not produce a Secure cookie: %#v", cookies)
+		t.Fatalf("forwarded HTTPS did not produce a Secure cookie: %#v", cookies)
 	}
 }
 
-func TestUntrustedClientCannotSupplyForwardedHTTPS(t *testing.T) {
-	handler := newTestHTTPHandler(t, nil)
-	request := httptest.NewRequest(http.MethodPost, "http://example.test/api/v1/auth/login", bytes.NewReader(loginBody()))
-	request.RemoteAddr = "192.0.2.10:1234"
-	request.Header.Set("Content-Type", "application/json")
-	request.Header.Set("Origin", "https://example.test")
-	request.Header.Set("X-Forwarded-Proto", "https")
-	request.Header.Set("X-Forwarded-For", "198.51.100.20")
-	response := httptest.NewRecorder()
-	handler.ServeHTTP(response, request)
-	assertErrorCode(t, response, http.StatusForbidden, api.OriginNotAllowed)
-}
-
-func newTestHTTPHandler(t *testing.T, trustedProxies []netip.Prefix) http.Handler {
+func newTestHTTPHandler(t *testing.T) http.Handler {
 	t.Helper()
-	handler, _, _ := newTestHTTPHandlerWithNodes(t, trustedProxies)
+	handler, _, _ := newTestHTTPHandlerWithNodes(t)
 	return handler
 }
 
-func newTestHTTPHandlerWithNodes(t *testing.T, trustedProxies []netip.Prefix) (http.Handler, *nodes.Service, *syncws.Hub) {
-	handler, nodeService, _, syncHub := newTestHTTPHandlerWithNotifications(t, trustedProxies)
+func newTestHTTPHandlerWithNodes(t *testing.T) (http.Handler, *nodes.Service, *syncws.Hub) {
+	handler, nodeService, _, syncHub := newTestHTTPHandlerWithNotifications(t)
 	return handler, nodeService, syncHub
 }
 
-func newTestHTTPHandlerWithNotifications(t *testing.T, trustedProxies []netip.Prefix) (http.Handler, *nodes.Service, *notifications.Service, *syncws.Hub) {
+func newTestHTTPHandlerWithNotifications(t *testing.T) (http.Handler, *nodes.Service, *notifications.Service, *syncws.Hub) {
 	t.Helper()
 	store, err := database.Open(context.Background(), database.PathsFromDataDirectory(t.TempDir()))
 	if err != nil {
@@ -1215,7 +1200,7 @@ func newTestHTTPHandlerWithNotifications(t *testing.T, trustedProxies []netip.Pr
 	return NewHTTPHandler(HTTPOptions{
 		Version: "0.0.0-test", Revision: "test-revision", Web: http.NotFoundHandler(),
 		Administrator: administrator, Nodes: nodeService, Notifications: notificationService, Updates: updateService, SyncHub: syncHub,
-		SystemSettings: systemSettingsService, Store: store, TrustedProxies: trustedProxies,
+		SystemSettings: systemSettingsService, Store: store,
 	}), nodeService, notificationService, syncHub
 }
 

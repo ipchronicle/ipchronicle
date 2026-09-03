@@ -1,0 +1,30 @@
+services:
+  center:
+    image: ghcr.io/ipchronicle/ipchronicle-center:latest
+    restart: unless-stopped
+    environment:
+      IPCHRONICLE_ADMIN_USERNAME: ${IPCHRONICLE_ADMIN_USERNAME:-admin}
+      IPCHRONICLE_ADMIN_PASSWORD: ${IPCHRONICLE_ADMIN_PASSWORD:-admin}
+    volumes:
+      - ./data/config:/var/lib/ipchronicle/config
+      - ./data/history:/var/lib/ipchronicle/history
+    networks:
+      - ipchronicle_network
+
+  cftunnel:
+    image: cloudflare/cloudflared:latest
+    restart: unless-stopped
+    environment:
+      TUNNEL_TOKEN: ${CLOUDFLARE_TUNNEL_TOKEN:?CLOUDFLARE_TUNNEL_TOKEN is required}
+    command:
+      - tunnel
+      - --no-autoupdate
+      - run
+      - --url
+      - http://center:8080
+    networks:
+      - ipchronicle_network
+
+networks:
+  ipchronicle_network:
+    name: ipchronicle_network

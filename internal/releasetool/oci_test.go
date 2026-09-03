@@ -57,7 +57,7 @@ func writeTestOCI(t *testing.T, path, architecture, version, revision string, wr
 		"architecture": architecture,
 		"os":           "linux",
 		"config": map[string]any{
-			"User":       "ipchronicle",
+			"User":       "",
 			"Entrypoint": []string{"/usr/local/bin/ipchronicle-center"},
 			"Labels":     labels,
 		},

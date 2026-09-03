@@ -2,9 +2,15 @@ name: CI
 
 on:
   pull_request:
+    paths-ignore:
+      - "**/*.md"
+      - "docs/**"
   push:
     branches:
       - main
+    paths-ignore:
+      - "**/*.md"
+      - "docs/**"
 
 permissions:
   contents: read
@@ -49,7 +55,7 @@ jobs:
           jq -e --arg arch "$architecture" \
             '.version == "dev" and .component == "center" and .os == "linux" and .arch == $arch' \
             <<<"$metadata" >/dev/null
-          test "$(docker run --rm --platform "$PLATFORM" --entrypoint id ipchronicle-center:ci -u)" = 10001
+          test "$(docker run --rm --platform "$PLATFORM" --entrypoint id ipchronicle-center:ci -u)" = 0
 
   compose:
     needs: check

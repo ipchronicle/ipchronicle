@@ -1,7 +1,6 @@
 package center
 
 import (
-	"net/netip"
 	"path/filepath"
 	"testing"
 )
@@ -21,9 +20,6 @@ func TestLoadRuntimeConfigDefaults(t *testing.T) {
 		configuration.DatabasePaths.MasterKey != "/var/lib/ipchronicle/config/master.key" {
 		t.Fatalf("unexpected default paths: %#v", configuration.DatabasePaths)
 	}
-	if len(configuration.TrustedProxies) != 0 {
-		t.Fatalf("unexpected default network configuration: %#v", configuration)
-	}
 }
 
 func TestLoadRuntimeConfigOverrides(t *testing.T) {
@@ -35,7 +31,6 @@ func TestLoadRuntimeConfigOverrides(t *testing.T) {
 	t.Setenv("IPCHRONICLE_LISTEN_ADDRESS", "127.0.0.1:9090")
 	t.Setenv("IPCHRONICLE_ADMIN_USERNAME", "owner")
 	t.Setenv("IPCHRONICLE_ADMIN_PASSWORD", "bootstrap-password")
-	t.Setenv("IPCHRONICLE_TRUSTED_PROXIES", "10.1.2.3/8, 2001:db8::1/48")
 
 	configuration, err := LoadRuntimeConfig()
 	if err != nil {
@@ -49,18 +44,6 @@ func TestLoadRuntimeConfigOverrides(t *testing.T) {
 		configuration.DatabasePaths.MasterKey != filepath.Join(dataDirectory, "config", "master.key") {
 		t.Fatalf("unexpected overridden paths: %#v", configuration.DatabasePaths)
 	}
-	wantProxies := []netip.Prefix{
-		netip.MustParsePrefix("10.0.0.0/8"),
-		netip.MustParsePrefix("2001:db8::/48"),
-	}
-	if len(configuration.TrustedProxies) != len(wantProxies) {
-		t.Fatalf("trusted proxies = %v", configuration.TrustedProxies)
-	}
-	for index := range wantProxies {
-		if configuration.TrustedProxies[index] != wantProxies[index] {
-			t.Fatalf("trusted proxies = %v, want %v", configuration.TrustedProxies, wantProxies)
-		}
-	}
 }
 
 func TestLoadRuntimeConfigRejectsInvalidValues(t *testing.T) {
@@ -70,7 +53,6 @@ func TestLoadRuntimeConfigRejectsInvalidValues(t *testing.T) {
 		value string
 	}{
 		{name: "relative persistent path", key: "IPCHRONICLE_MASTER_KEY_PATH", value: "master.key"},
-		{name: "invalid trusted proxy", key: "IPCHRONICLE_TRUSTED_PROXIES", value: "192.0.2.1"},
 	}
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
@@ -93,7 +75,6 @@ func clearRuntimeEnvironment(t *testing.T) {
 		"IPCHRONICLE_LISTEN_ADDRESS",
 		"IPCHRONICLE_ADMIN_USERNAME",
 		"IPCHRONICLE_ADMIN_PASSWORD",
-		"IPCHRONICLE_TRUSTED_PROXIES",
 	} {
 		t.Setenv(name, "")
 	}

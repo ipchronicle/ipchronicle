@@ -102,7 +102,6 @@ func serve() error {
 			SyncHub:        syncHub,
 			SystemSettings: systemSettingsService,
 			Store:          store,
-			TrustedProxies: configuration.TrustedProxies,
 		}),
 		ReadHeaderTimeout: 5 * time.Second,
 		IdleTimeout:       60 * time.Second,

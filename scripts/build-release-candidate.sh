@@ -109,12 +109,14 @@ cp "$root_dir/THIRD_PARTY_NOTICES.md" "$payload_directory/THIRD_PARTY_NOTICES.md
 cp "$root_dir/.env.example" "$payload_directory/default.env.example"
 cp "$root_dir/scripts/install-agent.sh" "$payload_directory/install-agent.sh"
 chmod 0755 "$payload_directory/install-agent.sh"
-sed "s|IPCHRONICLE_VERSION_PLACEHOLDER|v$version|g" \
-  "$root_dir/deploy/compose.release.yaml" > "$payload_directory/compose.yaml"
-if grep -q 'IPCHRONICLE_VERSION_PLACEHOLDER' "$payload_directory/compose.yaml"; then
-  echo "release Compose template still contains its version placeholder" >&2
-  exit 1
-fi
+for compose_name in compose.yaml compose.cloudflare-tunnel.yaml; do
+  sed "s|ghcr.io/ipchronicle/ipchronicle-center:latest|ghcr.io/ipchronicle/ipchronicle-center:v$version|g" \
+    "$root_dir/deploy/$compose_name" > "$payload_directory/$compose_name"
+  if grep -q 'ghcr.io/ipchronicle/ipchronicle-center:latest' "$payload_directory/$compose_name"; then
+    echo "release $compose_name still uses the latest Center image" >&2
+    exit 1
+  fi
+done
 
 jq -n -S \
   --arg version "$version" \

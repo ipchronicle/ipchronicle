@@ -2,10 +2,8 @@ package center
 
 import (
 	"fmt"
-	"net/netip"
 	"os"
 	"path/filepath"
-	"strings"
 
 	"github.com/ipchronicle/ipchronicle/internal/center/database"
 )
@@ -16,11 +14,10 @@ const (
 )
 
 type RuntimeConfig struct {
-	ListenAddress  string
-	DatabasePaths  database.Paths
-	AdminUsername  string
-	AdminPassword  string
-	TrustedProxies []netip.Prefix
+	ListenAddress string
+	DatabasePaths database.Paths
+	AdminUsername string
+	AdminPassword string
 }
 
 func LoadRuntimeConfig() (RuntimeConfig, error) {
@@ -29,16 +26,11 @@ func LoadRuntimeConfig() (RuntimeConfig, error) {
 		return RuntimeConfig{}, err
 	}
 
-	trustedProxies, err := parseTrustedProxies(os.Getenv("IPCHRONICLE_TRUSTED_PROXIES"))
-	if err != nil {
-		return RuntimeConfig{}, err
-	}
 	return RuntimeConfig{
-		ListenAddress:  environmentOrDefault("IPCHRONICLE_LISTEN_ADDRESS", defaultListenAddress),
-		DatabasePaths:  paths,
-		AdminUsername:  environmentOrDefault("IPCHRONICLE_ADMIN_USERNAME", "admin"),
-		AdminPassword:  environmentOrDefault("IPCHRONICLE_ADMIN_PASSWORD", "admin"),
-		TrustedProxies: trustedProxies,
+		ListenAddress: environmentOrDefault("IPCHRONICLE_LISTEN_ADDRESS", defaultListenAddress),
+		DatabasePaths: paths,
+		AdminUsername: environmentOrDefault("IPCHRONICLE_ADMIN_USERNAME", "admin"),
+		AdminPassword: environmentOrDefault("IPCHRONICLE_ADMIN_PASSWORD", "admin"),
 	}, nil
 }
 
@@ -54,22 +46,6 @@ func LoadDatabasePaths() (database.Paths, error) {
 		}
 	}
 	return paths, nil
-}
-
-func parseTrustedProxies(value string) ([]netip.Prefix, error) {
-	if strings.TrimSpace(value) == "" {
-		return nil, nil
-	}
-	parts := strings.Split(value, ",")
-	prefixes := make([]netip.Prefix, 0, len(parts))
-	for _, part := range parts {
-		prefix, err := netip.ParsePrefix(strings.TrimSpace(part))
-		if err != nil {
-			return nil, fmt.Errorf("parse IPCHRONICLE_TRUSTED_PROXIES entry %q: %w", part, err)
-		}
-		prefixes = append(prefixes, prefix.Masked())
-	}
-	return prefixes, nil
 }
 
 func environmentOrDefault(name, fallback string) string {

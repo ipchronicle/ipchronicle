@@ -24,31 +24,16 @@ type requestSecurity struct {
 
 type requestSecurityKey struct{}
 
-type proxyPolicy struct {
-	trustedProxies []netip.Prefix
-}
-
-func newProxyPolicy(trustedProxies []netip.Prefix) proxyPolicy {
-	return proxyPolicy{trustedProxies: trustedProxies}
-}
-
-func (p proxyPolicy) middleware(next http.Handler) http.Handler {
+func requestSecurityMiddleware(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		peer := remoteAddress(r.RemoteAddr)
 		scheme := "http"
 		if r.TLS != nil {
 			scheme = "https"
 		}
-		client := peer
-		if p.trusted(peer) {
-			if forwardedScheme := firstForwardedValue(r.Header.Get("X-Forwarded-Proto")); forwardedScheme == "http" || forwardedScheme == "https" {
-				scheme = forwardedScheme
-			}
-			if forwardedClient, ok := p.forwardedClient(r.Header.Get("X-Forwarded-For"), peer); ok {
-				client = forwardedClient
-			}
+		if forwardedScheme := firstForwardedValue(r.Header.Get("X-Forwarded-Proto")); forwardedScheme == "http" || forwardedScheme == "https" {
+			scheme = forwardedScheme
 		}
-
 		expectedOrigin := scheme + "://" + r.Host
 		cookieSecure := scheme == "https"
 		sessionToken := ""
@@ -57,7 +42,7 @@ func (p proxyPolicy) middleware(next http.Handler) http.Handler {
 		}
 		security := requestSecurity{
 			Authorization:  r.Header.Get("Authorization"),
-			ClientAddress:  client.String(),
+			ClientAddress:  peer.String(),
 			Scheme:         scheme,
 			ExpectedOrigin: expectedOrigin,
 			Origin:         r.Header.Get("Origin"),
@@ -72,40 +57,6 @@ func (p proxyPolicy) middleware(next http.Handler) http.Handler {
 func requestSecurityFromContext(ctx context.Context) requestSecurity {
 	security, _ := ctx.Value(requestSecurityKey{}).(requestSecurity)
 	return security
-}
-
-func (p proxyPolicy) trusted(address netip.Addr) bool {
-	if !address.IsValid() {
-		return false
-	}
-	for _, prefix := range p.trustedProxies {
-		if prefix.Contains(address.Unmap()) {
-			return true
-		}
-	}
-	return false
-}
-
-func (p proxyPolicy) forwardedClient(header string, peer netip.Addr) (netip.Addr, bool) {
-	if header == "" {
-		return netip.Addr{}, false
-	}
-	parts := strings.Split(header, ",")
-	addresses := make([]netip.Addr, 0, len(parts)+1)
-	for _, part := range parts {
-		address, err := netip.ParseAddr(strings.TrimSpace(part))
-		if err != nil {
-			return netip.Addr{}, false
-		}
-		addresses = append(addresses, address.Unmap())
-	}
-	addresses = append(addresses, peer.Unmap())
-	for index := len(addresses) - 1; index >= 0; index-- {
-		if !p.trusted(addresses[index]) {
-			return addresses[index], true
-		}
-	}
-	return addresses[0], true
 }
 
 func remoteAddress(value string) netip.Addr {

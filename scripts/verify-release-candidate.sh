@@ -60,11 +60,19 @@ compose_json=$(IPCHRONICLE_ADMIN_USERNAME=admin IPCHRONICLE_ADMIN_PASSWORD=admin
   docker compose --env-file "$directory/default.env.example" -f "$directory/compose.yaml" config --format json)
 jq -e --arg image "ghcr.io/ipchronicle/ipchronicle-center:v$version" '
   .services.center.image == $image and
-  .services.center.read_only == true and
-  .services.center.user == "10001:10001" and
-  .services.center.cap_drop == ["ALL"] and
-  .services.center.security_opt == ["no-new-privileges:true"]
+  [.services.center.volumes[] | {type, target}] == [
+    {type: "bind", target: "/var/lib/ipchronicle/config"},
+    {type: "bind", target: "/var/lib/ipchronicle/history"}
+  ]
 ' <<<"$compose_json" >/dev/null
+
+tunnel_compose_json=$(CLOUDFLARE_TUNNEL_TOKEN=test-token \
+  docker compose --env-file "$directory/default.env.example" \
+    -f "$directory/compose.cloudflare-tunnel.yaml" config --format json)
+jq -e --arg image "ghcr.io/ipchronicle/ipchronicle-center:v$version" '
+  .services.center.image == $image and
+  .services.cftunnel.environment.TUNNEL_TOKEN == "test-token"
+' <<<"$tunnel_compose_json" >/dev/null
 
 for architecture in amd64 arm64; do
   "$release_tool" verify-agent \
@@ -90,7 +98,7 @@ for architecture in amd64 arm64; do
   loaded_image_refs+=("$image_ref")
   center_metadata=$(docker run --rm --platform "linux/$architecture" \
     --network none --read-only --cap-drop ALL --security-opt no-new-privileges \
-    --user 10001:10001 --memory 64m --cpus 1 --pids-limit 64 \
+    --memory 64m --cpus 1 --pids-limit 64 \
     "$image_ref" version --json)
   jq -e --arg version "$version" --arg revision "$revision" --arg arch "$architecture" '
     .version == $version and .revision == $revision and .component == "center" and

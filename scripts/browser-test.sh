@@ -2,7 +2,7 @@
 set -euo pipefail
 
 root_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-compose_file="$root_dir/deploy/compose.yaml"
+compose_file="$root_dir/testdata/compose.yaml"
 project_name="ipchronicle-browser"
 browser_port="${IPCHRONICLE_BROWSER_PORT:-18081}"
 receiver_port="${IPCHRONICLE_BROWSER_RECEIVER_PORT:-19090}"

@@ -35,6 +35,7 @@ var ArtifactDefinitions = []ArtifactDefinition{
 	{Name: "RELEASE_READINESS.md", Component: "documentation"},
 	{Name: "THIRD_PARTY_NOTICES.md", Component: "notices"},
 	{Name: "build-metadata.json", Component: "build-metadata"},
+	{Name: "compose.cloudflare-tunnel.yaml", Component: "compose"},
 	{Name: "compose.yaml", Component: "compose"},
 	{Name: "default.env.example", Component: "environment"},
 	{Name: "install-agent.sh", Component: "installer", Executable: true},

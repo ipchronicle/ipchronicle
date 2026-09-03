@@ -39,16 +39,12 @@ LABEL org.opencontainers.image.title="IPChronicle Center" \
 COPY --from=go-build /etc/ssl/certs/ca-certificates.crt /etc/ssl/certs/ca-certificates.crt
 COPY --from=go-build /usr/share/zoneinfo /usr/share/zoneinfo
 
-RUN groupadd --system --gid 10001 ipchronicle \
-    && useradd --system --uid 10001 --gid ipchronicle --home-dir /var/lib/ipchronicle ipchronicle \
-    && install -d -o ipchronicle -g ipchronicle \
-      /var/lib/ipchronicle /var/lib/ipchronicle/config \
-      /var/lib/ipchronicle/history /licenses
+RUN install -d /var/lib/ipchronicle /var/lib/ipchronicle/config \
+    /var/lib/ipchronicle/history /licenses
 
 COPY --from=go-build /out/ipchronicle-center /usr/local/bin/ipchronicle-center
 COPY LICENSE THIRD_PARTY_NOTICES.md /licenses/
 
-USER ipchronicle
 WORKDIR /var/lib/ipchronicle
 VOLUME ["/var/lib/ipchronicle/config", "/var/lib/ipchronicle/history"]
 EXPOSE 8080

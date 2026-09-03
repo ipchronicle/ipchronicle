@@ -398,15 +398,6 @@ function RuntimeInformation() {
               )}
             />
             <ReleaseField
-              icon={<ShieldCheck aria-hidden="true" />}
-              label={t("systemSettings.runtime.trustedProxy")}
-              value={t(
-                state.value.trustedProxyConfigured
-                  ? "systemSettings.runtime.configured"
-                  : "systemSettings.runtime.notConfigured",
-              )}
-            />
-            <ReleaseField
               icon={<GitCommitHorizontal aria-hidden="true" />}
               label={t("systemSettings.runtime.sourceRevision")}
               value={state.value.sourceRevision}

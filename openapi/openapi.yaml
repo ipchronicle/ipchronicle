@@ -1930,7 +1930,6 @@ components:
         - transportSecurity
         - transportWarning
         - externalOriginMode
-        - trustedProxyConfigured
       properties:
         service:
           type: string
@@ -1960,8 +1959,6 @@ components:
         externalOriginMode:
           type: string
           enum: [automatic, custom]
-        trustedProxyConfigured:
-          type: boolean
     Overview:
       type: object
       additionalProperties: false

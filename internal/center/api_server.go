@@ -21,16 +21,15 @@ import (
 )
 
 type apiServer struct {
-	version                string
-	revision               string
-	administrator          *admin.Service
-	nodes                  *nodes.Service
-	notifications          *notifications.Service
-	updates                *centerupdates.Service
-	systemSettings         *systemsettings.Service
-	configSchemaVersion    int64
-	historySchemaVersion   int64
-	trustedProxyConfigured bool
+	version              string
+	revision             string
+	administrator        *admin.Service
+	nodes                *nodes.Service
+	notifications        *notifications.Service
+	updates              *centerupdates.Service
+	systemSettings       *systemsettings.Service
+	configSchemaVersion  int64
+	historySchemaVersion int64
 }
 
 func (s apiServer) Login(ctx context.Context, request api.LoginRequestObject) (api.LoginResponseObject, error) {
@@ -308,16 +307,15 @@ func (s apiServer) GetSystemStatus(ctx context.Context, _ api.GetSystemStatusReq
 		externalOriginMode = api.Custom
 	}
 	return api.GetSystemStatus200JSONResponse{
-		Service:                api.IpchronicleCenter,
-		Status:                 api.Ok,
-		Version:                s.version,
-		SourceRevision:         s.revision,
-		ConfigSchemaVersion:    s.configSchemaVersion,
-		HistorySchemaVersion:   s.historySchemaVersion,
-		TransportSecurity:      transport,
-		TransportWarning:       transport == api.SystemStatusTransportSecurityHttp,
-		ExternalOriginMode:     externalOriginMode,
-		TrustedProxyConfigured: s.trustedProxyConfigured,
+		Service:              api.IpchronicleCenter,
+		Status:               api.Ok,
+		Version:              s.version,
+		SourceRevision:       s.revision,
+		ConfigSchemaVersion:  s.configSchemaVersion,
+		HistorySchemaVersion: s.historySchemaVersion,
+		TransportSecurity:    transport,
+		TransportWarning:     transport == api.SystemStatusTransportSecurityHttp,
+		ExternalOriginMode:   externalOriginMode,
 	}, nil
 }
 

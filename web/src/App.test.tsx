@@ -269,7 +269,6 @@ const healthyStatus = {
   transportSecurity: "http" as const,
   transportWarning: true,
   externalOriginMode: "automatic" as const,
-  trustedProxyConfigured: false,
 };
 
 const healthyOverview = {

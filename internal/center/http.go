@@ -6,7 +6,6 @@ import (
 	"errors"
 	"log"
 	"net/http"
-	"net/netip"
 	"strings"
 	"time"
 
@@ -42,7 +41,6 @@ type HTTPOptions struct {
 	SyncHub        *syncws.Hub
 	SystemSettings *systemsettings.Service
 	Store          *database.Store
-	TrustedProxies []netip.Prefix
 }
 
 func NewHTTPHandler(options HTTPOptions) http.Handler {
@@ -53,23 +51,21 @@ func NewHTTPHandler(options HTTPOptions) http.Handler {
 		panic("center HTTP dependencies must not be nil")
 	}
 
-	proxy := newProxyPolicy(options.TrustedProxies)
 	server := apiServer{
-		version:                options.Version,
-		revision:               options.Revision,
-		administrator:          options.Administrator,
-		nodes:                  options.Nodes,
-		notifications:          options.Notifications,
-		updates:                options.Updates,
-		systemSettings:         options.SystemSettings,
-		configSchemaVersion:    options.Store.ConfigSchemaVersion,
-		historySchemaVersion:   options.Store.HistorySchemaVersion,
-		trustedProxyConfigured: len(options.TrustedProxies) > 0,
+		version:              options.Version,
+		revision:             options.Revision,
+		administrator:        options.Administrator,
+		nodes:                options.Nodes,
+		notifications:        options.Notifications,
+		updates:              options.Updates,
+		systemSettings:       options.SystemSettings,
+		configSchemaVersion:  options.Store.ConfigSchemaVersion,
+		historySchemaVersion: options.Store.HistorySchemaVersion,
 	}
 	router := chi.NewRouter()
 	router.Use(middleware.RequestID)
 	router.Use(middleware.Recoverer)
-	router.Use(proxy.middleware)
+	router.Use(requestSecurityMiddleware)
 	router.Use(limitAPIRequestBody)
 
 	router.Get("/healthz", func(w http.ResponseWriter, _ *http.Request) {
