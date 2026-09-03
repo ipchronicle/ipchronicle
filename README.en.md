@@ -72,9 +72,8 @@ direct Go work uses Go 1.26.5. The standard checks use pinned containers:
 
 ```sh
 make generate
-make check
-make compose-smoke
-make browser-test
+make ci
+make preflight
 ```
 
 Direct Center builds must set `GOEXPERIMENT=nogreenteagc`; the Make and Docker
@@ -83,12 +82,14 @@ boundary under Go 1.26.
 
 - `make generate` regenerates the Go and TypeScript OpenAPI bindings and the
   separate `config.db` and `history.db` sqlc packages.
-- `make check` validates generated drift, formatting, lint, types, unit and
-  race tests, the native Center, no-CGO AMD64/ARM64 Agents, and the production
-  web build.
-- `make compose-smoke` validates the production image and Compose boundary.
-- `make browser-test` validates desktop and mobile Chromium workflows in
-  Simplified Chinese and English.
+- `make ci` runs the generated-file, formatting, lint, type, unit-test,
+  static-analysis, and production Web build checks used for daily changes.
+- `make preflight` is the lightweight repository-integrity check to run before
+  pushing.
+- `make check`, Compose, browser, dual-architecture, and release-matrix checks
+  run in GitHub Actions on a schedule or according to changed paths and release
+  risk. Their local targets are primarily for diagnosing the corresponding CI
+  failure.
 
 See [AGENTS.md](AGENTS.md) for repository ownership and engineering rules.
 

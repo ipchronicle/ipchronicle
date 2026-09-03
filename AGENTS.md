@@ -107,13 +107,17 @@ rules that would make this file ambiguous. Do not create empty rule files.
   Keep this local gate fast: it checks release-version consistency, generated
   file state, diff integrity, forbidden artifacts, and obvious committed
   secrets without installing dependencies or running builds and test suites.
-- `make check` is the GitHub Actions gate for dependency installation,
+- `make ci` is the fast GitHub Actions gate for dependency installation,
   regeneration, formatting, lint, types, ordinary unit tests, OpenAPI, Go vet,
-  module tidiness, production builds, no-CGO Agent builds, and Go race tests.
-  Run the relevant part locally only when diagnosing a CI failure.
+  module tidiness, and the production Web build.
+- `make check` adds native release builds, no-CGO Agent builds, and Go race
+  tests. It runs in scheduled, manually requested, and full release validation;
+  run the relevant part locally only when diagnosing a CI failure.
 - Compose, desktop/mobile browser, dual-architecture image, distribution,
   resource-limit, reproducibility, and release failure tests run in GitHub
-  Actions. Use their local targets only for focused diagnosis.
+  Actions. Daily CI selects direct dependencies by changed path, while release
+  candidates run the gates required by their version and risk classification.
+  Use the local targets only for focused diagnosis.
 - A push is not release-ready until ordinary CI for that exact revision passes.
 - Before finishing, inspect `git diff` for secrets, generated artifacts,
   unrelated edits, duplicate logic, and unmentioned behavior changes.

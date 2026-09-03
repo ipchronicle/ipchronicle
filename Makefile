@@ -14,9 +14,9 @@ GO_RUN := docker run --rm --user $(CONTAINER_USER) -e HOME=/tmp -e GOCACHE=/tmp/
 NODE_RUN := docker run --rm --user $(CONTAINER_USER) -e HOME=/tmp -v $(CURDIR):$(ROOT) -w $(ROOT)/web $(NODE_IMAGE)
 SQLC_RUN := docker run --rm --user $(CONTAINER_USER) -v $(CURDIR):/src -w /src $(SQLC_IMAGE)
 
-.PHONY: all browser-test build check compose-smoke format generate go-check go-preflight preflight release-candidate release-failure-gate release-version-check secret-scan verify-release-candidate web-assets web-check web-preflight
+.PHONY: all browser-test build check ci compose-smoke format generate go-check go-preflight preflight release-candidate release-failure-gate release-version-check secret-scan validation-classifier-test verify-release-candidate web-assets web-check web-preflight
 
-all: check
+all: ci
 
 generate:
 	$(GO_RUN) sh -ceu 'go mod download; go tool oapi-codegen -config openapi/oapi-codegen-server.yaml openapi/openapi.yaml; go tool oapi-codegen -config openapi/oapi-codegen-agent.yaml openapi/openapi.yaml'
@@ -45,9 +45,17 @@ go-preflight:
 	git diff --exit-code -- go.mod go.sum
 
 check: release-version-check generate
+	$(MAKE) validation-classifier-test
 	./scripts/check-generated.sh
 	$(MAKE) web-assets
 	$(MAKE) go-check
+	./scripts/check-hygiene.sh
+
+ci: release-version-check generate
+	$(MAKE) validation-classifier-test
+	./scripts/check-generated.sh
+	$(MAKE) web-assets
+	$(MAKE) go-preflight
 	./scripts/check-hygiene.sh
 
 preflight: release-version-check
@@ -78,3 +86,6 @@ release-failure-gate:
 
 secret-scan:
 	docker run --rm -v $(CURDIR):/repo $(GITLEAKS_IMAGE) dir /repo --redact --no-banner
+
+validation-classifier-test:
+	./scripts/test-classify-release-validation.sh

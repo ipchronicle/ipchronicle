@@ -58,9 +58,8 @@ Center 不终止 TLS，也不管理反向代理。建议使用 HTTPS，但证书
 
 ```sh
 make generate
-make check
-make compose-smoke
-make browser-test
+make ci
+make preflight
 ```
 
 直接构建 Center 时必须设置 `GOEXPERIMENT=nogreenteagc`；Make 和 Docker 构建
@@ -68,10 +67,11 @@ make browser-test
 
 - `make generate` 重新生成 Go/TypeScript OpenAPI 绑定，以及相互独立的
   `config.db`、`history.db` sqlc 包。
-- `make check` 检查生成文件漂移、格式、Lint、类型、单元与竞态测试、原生
-  Center、AMD64/ARM64 无 CGO Agent 和生产前端构建。
-- `make compose-smoke` 验证生产镜像与 Compose 边界。
-- `make browser-test` 验证简体中文和英文的桌面端、移动端 Chromium 流程。
+- `make ci` 执行日常提交使用的生成文件、格式、Lint、类型、单元测试、静态分析
+  和生产前端构建检查。
+- `make preflight` 是推送前的轻量仓库完整性检查。
+- `make check`、Compose、浏览器、双架构和发布矩阵等扩展检查由 GitHub Actions
+  定时执行，或按改动路径和发布风险执行。本地目标主要用于定位对应的 CI 失败。
 
 仓库所有权和工程规则见 [AGENTS.md](AGENTS.md)。
 

@@ -11,54 +11,157 @@ on:
     paths-ignore:
       - "**/*.md"
       - "docs/**"
+  schedule:
+    - cron: "17 3 * * 0"
+  workflow_dispatch:
 
 permissions:
   contents: read
 
+concurrency:
+  group: ci-${{ github.event_name }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'push' || github.event_name == 'pull_request' }}
+
 jobs:
+  changes:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    outputs:
+      browser: ${{ steps.scope.outputs.browser }}
+      compose: ${{ steps.scope.outputs.compose }}
+      container: ${{ steps.scope.outputs.container }}
+      extended: ${{ steps.scope.outputs.extended }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+      - name: Classify validation scope
+        id: scope
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha || github.event.before }}
+          EVENT_NAME: ${{ github.event_name }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+        run: |
+          set -euo pipefail
+          browser=false
+          compose=false
+          container=false
+          extended=false
+
+          case "$EVENT_NAME" in
+            schedule|workflow_dispatch)
+              browser=true
+              compose=true
+              container=true
+              extended=true
+              ;;
+            *)
+              if [[ -z "$BASE_SHA" || "$BASE_SHA" =~ ^0+$ ]] || ! git cat-file -e "$BASE_SHA^{commit}"; then
+                BASE_SHA=$(git rev-list --max-parents=0 "$HEAD_SHA" | tail -n 1)
+              fi
+              while IFS= read -r path; do
+                case "$path" in
+                  Dockerfile|.dockerignore|.env.example|deploy/*|testdata/compose.yaml|scripts/compose-smoke.sh|scripts/release-images.env)
+                    container=true
+                    compose=true
+                    ;;
+                esac
+                case "$path" in
+                  cmd/ipchronicle-center/*|internal/center/database/migrations/*|internal/webui/*)
+                    compose=true
+                    ;;
+                esac
+                case "$path" in
+                  web/*|openapi/*|cmd/ipchronicle-center/*|internal/center/*|internal/webui/*|scripts/browser-test.sh|scripts/sync-web-assets.sh|testdata/compose.yaml)
+                    browser=true
+                    ;;
+                esac
+                case "$path" in
+                  .github/workflows/ci.yml|Makefile)
+                    browser=true
+                    compose=true
+                    container=true
+                    ;;
+                esac
+              done < <(git diff --name-only "$BASE_SHA" "$HEAD_SHA")
+              ;;
+          esac
+
+          {
+            echo "browser=$browser"
+            echo "compose=$compose"
+            echo "container=$container"
+            echo "extended=$extended"
+          } >>"$GITHUB_OUTPUT"
+
   check:
+    needs: changes
     runs-on: ubuntu-24.04
     timeout-minutes: 30
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - name: Run repository checks
-        run: make check
+        env:
+          EXTENDED: ${{ needs.changes.outputs.extended }}
+        run: |
+          if [[ "$EXTENDED" == true ]]; then
+            make check
+          else
+            make ci
+          fi
       - name: Scan committed source for secrets
         run: docker run --rm -v "$PWD:/repo" zricethezav/gitleaks:v8.30.1@sha256:c00b6bd0aeb3071cbcb79009cb16a60dd9e0a7c60e2be9ab65d25e6bc8abbb7f git /repo --redact --no-banner
 
-  image:
-    needs: check
+  image-amd64:
+    if: needs.changes.outputs.extended == 'true' || needs.changes.outputs.container == 'true'
+    needs: [changes, check]
     runs-on: ubuntu-24.04
     timeout-minutes: 30
-    strategy:
-      matrix:
-        platform:
-          - linux/amd64
-          - linux/arm64
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-      - uses: docker/setup-qemu-action@96fe6ef7f33517b61c61be40b68a1882f3264fb8 # v4.2.0
       - uses: docker/setup-buildx-action@bb05f3f5519dd87d3ba754cc423b652a5edd6d2c # v4.2.0
         with:
           version: v0.36.1
       - name: Build center image
-        run: docker buildx build --platform "${{ matrix.platform }}" --load --tag ipchronicle-center:ci .
+        run: docker buildx build --platform linux/amd64 --load --tag ipchronicle-center:ci .
       - name: Check image metadata
-        env:
-          PLATFORM: ${{ matrix.platform }}
         run: |
           docker image inspect ipchronicle-center:ci --format '{{ index .Config.Labels "org.opencontainers.image.licenses" }}' | grep -Fx AGPL-3.0-only
-          architecture=${PLATFORM#linux/}
-          metadata=$(docker run --rm --platform "$PLATFORM" \
+          metadata=$(docker run --rm --platform linux/amd64 \
             --network none --read-only --cap-drop ALL --security-opt no-new-privileges \
             --memory 64m --cpus 1 --pids-limit 64 ipchronicle-center:ci version --json)
-          jq -e --arg arch "$architecture" \
-            '.version == "dev" and .component == "center" and .os == "linux" and .arch == $arch' \
+          jq -e \
+            '.version == "dev" and .component == "center" and .os == "linux" and .arch == "amd64"' \
             <<<"$metadata" >/dev/null
-          test "$(docker run --rm --platform "$PLATFORM" --entrypoint id ipchronicle-center:ci -u)" = 0
+          test "$(docker run --rm --platform linux/amd64 --entrypoint id ipchronicle-center:ci -u)" = 0
+
+  image-arm64:
+    if: needs.changes.outputs.extended == 'true'
+    needs: [changes, check]
+    runs-on: ubuntu-24.04-arm
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: docker/setup-buildx-action@bb05f3f5519dd87d3ba754cc423b652a5edd6d2c # v4.2.0
+        with:
+          version: v0.36.1
+      - name: Build center image
+        run: docker buildx build --platform linux/arm64 --load --tag ipchronicle-center:ci .
+      - name: Check image metadata
+        run: |
+          docker image inspect ipchronicle-center:ci --format '{{ index .Config.Labels "org.opencontainers.image.licenses" }}' | grep -Fx AGPL-3.0-only
+          metadata=$(docker run --rm --platform linux/arm64 \
+            --network none --read-only --cap-drop ALL --security-opt no-new-privileges \
+            --memory 64m --cpus 1 --pids-limit 64 ipchronicle-center:ci version --json)
+          jq -e \
+            '.version == "dev" and .component == "center" and .os == "linux" and .arch == "arm64"' \
+            <<<"$metadata" >/dev/null
+          test "$(docker run --rm --platform linux/arm64 --entrypoint id ipchronicle-center:ci -u)" = 0
 
   compose:
-    needs: check
+    if: needs.changes.outputs.extended == 'true' || needs.changes.outputs.compose == 'true'
+    needs: [changes, check]
     runs-on: ubuntu-24.04
     timeout-minutes: 20
     steps:
@@ -67,10 +170,21 @@ jobs:
         run: make compose-smoke
 
   browser:
-    needs: compose
+    if: needs.changes.outputs.extended == 'true' || needs.changes.outputs.browser == 'true'
+    needs: [changes, check]
     runs-on: ubuntu-24.04
     timeout-minutes: 30
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - name: Run desktop and mobile browser tests
         run: make browser-test
+
+  failure-gate:
+    if: needs.changes.outputs.extended == 'true'
+    needs: [changes, check]
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - name: Run deterministic failure gate
+        run: make release-failure-gate
