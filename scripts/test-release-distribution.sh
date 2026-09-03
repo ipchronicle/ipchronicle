@@ -34,8 +34,8 @@ case "$distribution" in
   almalinux-8) image="almalinux:8@sha256:4a87d2615a770506e204c27d6248ac97f4df67f4e41e2e9c47c81f0ed0be98cb"; expected_id=almalinux; version_prefix=8; init_system=systemd ;;
   almalinux-9) image="almalinux:9@sha256:d2515c769e7b73f95c4fde38c0a505336ff38f14990c0b7253b77060a049a743"; expected_id=almalinux; version_prefix=9; init_system=systemd ;;
   almalinux-10) image="almalinux:10@sha256:cc24bc5b6ac7e284f2f62a07bdaa1b15d3319fdcf46413c6b8fe9fa245068ddd"; expected_id=almalinux; version_prefix=10; init_system=systemd ;;
-  centos-stream-9) image="quay.io/centos/centos:stream9@sha256:04bad0b08ac68a63b1810ea78a9d2ed4fb431e11d9c4c3916418edd4932856bd"; expected_id=centos; version_prefix=9; init_system=systemd ;;
-  centos-stream-10) image="quay.io/centos/centos:stream10@sha256:b7f85bb8be4c471bc62842156a51bbf224b15243943733bd54e86ba5fd79b1fc"; expected_id=centos; version_prefix=10; init_system=systemd ;;
+  centos-stream-9) image="quay.io/centos/centos:stream9@sha256:d323b7623e947245a8eb506fbb0ad0e55eb2ae2d2407b66741a15f372caf9bdc"; expected_id=centos; version_prefix=9; init_system=systemd ;;
+  centos-stream-10) image="quay.io/centos/centos:stream10@sha256:301bc4e6d5af2b6e707bec46aa71c21dc91ebc97422373cca37ea98d0e1aed63"; expected_id=centos; version_prefix=10; init_system=systemd ;;
   alpine-3.23) image="alpine:3.23@sha256:fd791d74b68913cbb027c6546007b3f0d3bc45125f797758156952bc2d6daf40"; expected_id=alpine; version_prefix=3.23; init_system=openrc ;;
   alpine-3.24) image="alpine:3.24@sha256:28bd5fe8b56d1bd048e5babf5b10710ebe0bae67db86916198a6eec434943f8b"; expected_id=alpine; version_prefix=3.24; init_system=openrc ;;
   *) echo "unknown release distribution: $distribution" >&2; exit 2 ;;
