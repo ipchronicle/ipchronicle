@@ -6,9 +6,9 @@
   [workspace repository](https://github.com/ipchronicle/workspace/tree/main/docs).
   Read the product definition, system architecture, UI information architecture,
   and relevant ADRs before changing behavior.
-- This repository contains the complete first-release product. Do not recreate
-  the reserved `server`, `web`, `agent`, or `deploy` repositories as component
-  boundaries.
+- This repository contains the complete product. A new component repository
+  requires an accepted repository-boundary decision; do not split code merely
+  because Center, Web, Agent, and deployment assets have different runtime roles.
 - When these instructions conflict with an accepted ADR, the ADR is
   authoritative. Do not preserve a conflicting scaffold default.
 
