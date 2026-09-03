@@ -32,6 +32,7 @@ const (
 	maximumJavaScriptRequests       = 10
 	maximumJavaScriptBodyBytes      = 1024 * 1024
 	maximumWorkerOutputBytes        = 16 * 1024
+	maximumWorkerDiagnosticBytes    = 16 * 1024
 	maximumWorkerInputBytes         = 2 * 1024 * 1024
 	workerReadyEnvironment          = "IPCHRONICLE_NOTIFICATION_WORKER_READY_FD"
 	workerReadyDescriptor           = 3
@@ -109,6 +110,8 @@ func (r ProcessJavaScriptRunner) Run(ctx context.Context, request JavaScriptRequ
 	command.Env = environmentWithValue(command.Env, workerReadyEnvironment, strconv.Itoa(workerReadyDescriptor))
 	command.Stdin = inputFile
 	command.Stdout = outputFile
+	diagnostics := &boundedWorkerDiagnostics{limit: maximumWorkerDiagnosticBytes}
+	command.Stderr = diagnostics
 	command.ExtraFiles = []*os.File{readyWriter}
 	command.SysProcAttr = &syscall.SysProcAttr{Setpgid: true, Pdeathsig: syscall.SIGKILL}
 	if err := command.Start(); err != nil {
@@ -124,13 +127,7 @@ func (r ProcessJavaScriptRunner) Run(ctx context.Context, request JavaScriptRequ
 	err = command.Wait()
 	close(completed)
 	if err != nil {
-		if workerExitedWithSignal(err, syscall.SIGKILL) {
-			if canceled.Load() {
-				return DeliveryError{Code: "worker-canceled", Retryable: true}
-			}
-			return DeliveryError{Code: "worker-timeout", Retryable: true}
-		}
-		return DeliveryError{Code: "worker-failed"}
+		return classifyWorkerExit(err, diagnostics.Bytes(), canceled.Load())
 	}
 	if _, err := outputFile.Seek(0, io.SeekStart); err != nil {
 		return DeliveryError{Code: "worker-failed"}
@@ -154,6 +151,50 @@ func (r ProcessJavaScriptRunner) Run(ctx context.Context, request JavaScriptRequ
 	code := safeWorkerCode(response.Code)
 	retryable := code == "http-failed" || code == "http-timeout" || code == "worker-timeout"
 	return DeliveryError{Code: code, Retryable: retryable}
+}
+
+type boundedWorkerDiagnostics struct {
+	value []byte
+	limit int
+}
+
+func (b *boundedWorkerDiagnostics) Write(value []byte) (int, error) {
+	written := len(value)
+	if remaining := b.limit - len(b.value); remaining > 0 {
+		b.value = append(b.value, value[:min(len(value), remaining)]...)
+	}
+	return written, nil
+}
+
+func (b *boundedWorkerDiagnostics) Bytes() []byte {
+	return b.value
+}
+
+func classifyWorkerExit(err error, diagnostics []byte, canceled bool) DeliveryError {
+	if workerExitedWithSignal(err, syscall.SIGKILL) {
+		if canceled {
+			return DeliveryError{Code: "worker-canceled", Retryable: true}
+		}
+		return DeliveryError{Code: "worker-timeout", Retryable: true}
+	}
+	if workerExceededMemoryLimit(diagnostics) {
+		return DeliveryError{Code: "worker-memory-limit"}
+	}
+	return DeliveryError{Code: "worker-failed"}
+}
+
+func workerExceededMemoryLimit(diagnostics []byte) bool {
+	for _, marker := range [][]byte{
+		[]byte("fatal error: out of memory"),
+		[]byte("runtime: out of memory"),
+		[]byte("runtime: cannot allocate memory"),
+	} {
+		if bytes.Contains(diagnostics, marker) {
+			return true
+		}
+	}
+	return bytes.HasPrefix(diagnostics, []byte("SIGSEGV: segmentation violation")) &&
+		bytes.Contains(diagnostics, []byte("runtime/mgcmark_greenteagc.go"))
 }
 
 func RunJavaScriptWorker(input io.Reader, output io.Writer) error {

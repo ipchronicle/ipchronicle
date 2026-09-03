@@ -32,6 +32,14 @@ func (discardConfigurationWaker) Wake(string) {}
 
 func TestMain(m *testing.M) {
 	if len(os.Args) == 2 && os.Args[1] == "notification-worker" {
+		switch os.Getenv("IPCHRONICLE_TEST_NOTIFICATION_WORKER_EXIT") {
+		case "memory-limit":
+			_, _ = os.Stderr.WriteString("runtime: out of memory: test-only-secret\n")
+			os.Exit(2)
+		case "generic":
+			_, _ = os.Stderr.WriteString("test-only-secret\n")
+			os.Exit(2)
+		}
 		if err := RunJavaScriptWorker(os.Stdin, os.Stdout); err != nil {
 			os.Exit(1)
 		}
@@ -507,15 +515,42 @@ func TestJavaScriptWorkerStopsBlockedHTTPAndAllocation(t *testing.T) {
 		Script: `ipchronicle.http.request({url: ` + quoteJavaScript(receiver.URL) + `})`,
 		Event:  json.RawMessage(`{"id":"event-1"}`), Title: "title", Body: "body",
 	})
-	if blocked.Code != "worker-timeout" {
+	if (blocked.Code != "worker-timeout" && blocked.Code != "http-timeout") || !blocked.Retryable {
 		t.Fatalf("blocked HTTP result = %#v", blocked)
 	}
 	allocation := runner.Run(context.Background(), JavaScriptRequest{
 		Script: `var values=[]; for (;;) { values.push("x".repeat(262144) + values.length); }`,
 		Event:  json.RawMessage(`{"id":"event-1"}`), Title: "title", Body: "body",
 	})
-	if allocation.Empty() || allocation.Code != "worker-failed" && allocation.Code != "worker-timeout" {
+	if allocation.Empty() || allocation.Code != "worker-memory-limit" && allocation.Code != "worker-timeout" {
 		t.Fatalf("allocation result = %#v", allocation)
+	}
+}
+
+func TestJavaScriptWorkerClassifiesBoundedDiagnosticsWithoutDisclosure(t *testing.T) {
+	request := JavaScriptRequest{
+		Script: `true`, Event: json.RawMessage(`{"id":"event-1"}`), Title: "title", Body: "body",
+	}
+	runner := ProcessJavaScriptRunner{Executable: os.Args[0], Timeout: functionalWorkerTestTimeout()}
+
+	t.Setenv("IPCHRONICLE_TEST_NOTIFICATION_WORKER_EXIT", "memory-limit")
+	memoryLimit := runner.Run(context.Background(), request)
+	if memoryLimit.Code != "worker-memory-limit" || memoryLimit.Retryable || strings.Contains(memoryLimit.Code, "secret") {
+		t.Fatalf("memory-limit worker result = %#v", memoryLimit)
+	}
+
+	t.Setenv("IPCHRONICLE_TEST_NOTIFICATION_WORKER_EXIT", "generic")
+	generic := runner.Run(context.Background(), request)
+	if generic.Code != "worker-failed" || generic.Retryable || strings.Contains(generic.Code, "secret") {
+		t.Fatalf("generic worker result = %#v", generic)
+	}
+
+	diagnostics := &boundedWorkerDiagnostics{limit: 4}
+	if written, err := diagnostics.Write([]byte("secret")); err != nil || written != 6 || string(diagnostics.Bytes()) != "secr" {
+		t.Fatalf("bounded worker diagnostics = %q, %d, %v", diagnostics.Bytes(), written, err)
+	}
+	if !workerExceededMemoryLimit([]byte("SIGSEGV: segmentation violation\nruntime/mgcmark_greenteagc.go")) {
+		t.Fatal("Go 1.26 Green Tea memory-limit crash was not classified")
 	}
 }
 

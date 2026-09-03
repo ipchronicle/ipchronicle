@@ -20,7 +20,7 @@ COPY . .
 COPY --from=web-build /src/web/dist ./internal/webui/dist
 RUN --mount=type=cache,target=/go/pkg/mod \
     --mount=type=cache,target=/root/.cache/go-build \
-    CGO_ENABLED=1 go build -trimpath -buildvcs=false \
+    GOEXPERIMENT=nogreenteagc CGO_ENABLED=1 go build -trimpath -buildvcs=false \
       -ldflags "-s -w -buildid= -extldflags=-Wl,--build-id=none -X github.com/ipchronicle/ipchronicle/internal/version.Value=${VERSION} -X github.com/ipchronicle/ipchronicle/internal/version.Revision=${REVISION}" \
       -o /out/ipchronicle-center ./cmd/ipchronicle-center
 

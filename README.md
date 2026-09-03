@@ -41,6 +41,10 @@ make compose-smoke
 make browser-test
 ```
 
+Direct Center builds must set `GOEXPERIMENT=nogreenteagc`; the Make and Docker
+builds apply it automatically to preserve the JavaScript worker memory-limit
+boundary under Go 1.26.
+
 - `make generate` regenerates the Go and TypeScript OpenAPI bindings and the
   separate `config.db` and `history.db` sqlc packages.
 - `make check` validates generated drift, formatting, lint, types, unit and

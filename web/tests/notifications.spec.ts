@@ -216,7 +216,7 @@ test("configures and delivers notifications through local receivers", async ({
   expect(receiverInternalURL).toBeTruthy();
   await page.request.post(`${receiverURL}/reset`);
   const csrfToken = await signIn(page);
-  const suffix = testInfo.project.name;
+  const suffix = `${testInfo.project.name}-${testInfo.repeatEachIndex}-${testInfo.retry}`;
   const nodeName = `notify-node-${suffix}`;
   const webhookName = `Local webhook ${suffix}`;
   const updatedWebhookName = `${webhookName} updated`;
