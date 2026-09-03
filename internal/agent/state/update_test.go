@@ -82,6 +82,42 @@ func TestAgentUpdateRollbackPreservesPreviousVersion(t *testing.T) {
 	}
 }
 
+func TestAgentUpdateBoundsClockSkewToTaskWindow(t *testing.T) {
+	createdAt := time.Date(2026, 8, 10, 1, 2, 3, 0, time.UTC)
+	expiresAt := createdAt.Add(2 * time.Minute)
+	for _, test := range []struct {
+		name       string
+		observedAt time.Time
+		want       time.Time
+	}{
+		{name: "behind center", observedAt: createdAt.Add(-10 * time.Minute), want: createdAt},
+		{name: "ahead of center", observedAt: expiresAt.Add(10 * time.Minute), want: expiresAt},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			store, err := Open(filepath.Join(t.TempDir(), "agent"))
+			if err != nil {
+				t.Fatal(err)
+			}
+			defer store.Close()
+			delivery := AgentUpdateDelivery{
+				ID: uuid.NewString(), TargetVersion: "0.1.1", CreatedAt: createdAt, ExpiresAt: expiresAt,
+			}
+			acknowledged, err := store.AcceptAgentUpdate(delivery, "0.1.0", test.observedAt)
+			if err != nil || !acknowledged.AcknowledgedAt.Equal(test.want) {
+				t.Fatalf("acknowledged update = %#v, %v", acknowledged, err)
+			}
+			verifying, err := store.BeginAgentUpdate(delivery.ID, "0.1.0", test.observedAt)
+			if err != nil || verifying.StartedAt == nil || verifying.StartedAt.Before(acknowledged.AcknowledgedAt) {
+				t.Fatalf("verifying update = %#v, %v", verifying, err)
+			}
+			failed, err := store.FailAgentUpdate(delivery.ID, "test-failure", "test failure", test.observedAt)
+			if err != nil || failed.CompletedAt == nil || failed.CompletedAt.Before(*verifying.StartedAt) {
+				t.Fatalf("failed update = %#v, %v", failed, err)
+			}
+		})
+	}
+}
+
 func TestAgentUpdateAndCompleteProbeAreMutuallyExclusive(t *testing.T) {
 	store, _ := openProbeTestStore(t, filepath.Join(t.TempDir(), "agent"), 1)
 	defer store.Close()

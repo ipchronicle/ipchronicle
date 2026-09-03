@@ -373,6 +373,9 @@ func (s *Store) ProbeControlReport() (ProbeStatus, *ProbeTaskReport, error) {
 				return errors.New("multiple unconfirmed probe tasks in Agent state")
 			}
 			value := record.ProbeTaskReport
+			value.AcknowledgedAt, value.StartedAt, value.CompletedAt = normalizeTaskReportTimeline(
+				record.CreatedAt, record.ExpiresAt, value.AcknowledgedAt, value.StartedAt, value.CompletedAt,
+			)
 			task = &value
 			return nil
 		})

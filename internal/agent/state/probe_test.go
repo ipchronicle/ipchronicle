@@ -192,6 +192,39 @@ func TestProbeTaskDeliveryIsDeduplicated(t *testing.T) {
 	}
 }
 
+func TestProbeControlReportBoundsClockSkewToTaskWindow(t *testing.T) {
+	store, egresses := openProbeTestStore(t, filepath.Join(t.TempDir(), "agent"), 1)
+	defer store.Close()
+	createdAt := time.Date(2026, 8, 9, 12, 0, 0, 0, time.UTC)
+	expiresAt := createdAt.Add(2 * time.Minute)
+	for _, test := range []struct {
+		name       string
+		observedAt time.Time
+		want       time.Time
+	}{
+		{name: "behind center", observedAt: createdAt.Add(-10 * time.Minute), want: createdAt},
+		{name: "ahead of center", observedAt: expiresAt.Add(10 * time.Minute), want: expiresAt},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			task := ProbeTaskDelivery{
+				ID: uuid.NewString(), Trigger: "manual", PublicAddressIDs: egresses,
+				CreatedAt: createdAt, ExpiresAt: expiresAt,
+			}
+			if _, err := store.RejectProbeTask(task, "disabled", test.observedAt); err != nil {
+				t.Fatal(err)
+			}
+			_, report, err := store.ProbeControlReport()
+			if err != nil || report == nil || !report.AcknowledgedAt.Equal(test.want) ||
+				report.CompletedAt == nil || !report.CompletedAt.Equal(test.want) {
+				t.Fatalf("normalized report = %#v, %v", report, err)
+			}
+			if err := store.ConfirmTerminalProbeTask(task.ID, expiresAt.Add(time.Second)); err != nil {
+				t.Fatal(err)
+			}
+		})
+	}
+}
+
 func TestNewAddressTaskFreezesOnlyRequestedTargets(t *testing.T) {
 	store, publicAddressIDs := openProbeTestStore(t, filepath.Join(t.TempDir(), "agent"), 3)
 	defer store.Close()

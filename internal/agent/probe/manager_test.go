@@ -67,16 +67,16 @@ func TestManagerAppliesProbeEnablementByTrigger(t *testing.T) {
 		PublicAddressIDs: []string{configuration.ProbeTargets[0].ID},
 		CreatedAt:        now, ExpiresAt: now.Add(2 * time.Minute),
 	}
-	if reason := manager.ineligibleReason(configuration, &manual, now); reason != "" {
+	if reason := manager.ineligibleReason(configuration, &manual); reason != "" {
 		t.Fatalf("manual disabled-target reason = %q", reason)
 	}
 	newAddress := manual
 	newAddress.ID = uuid.NewString()
 	newAddress.Trigger = "new-address"
-	if reason := manager.ineligibleReason(configuration, &newAddress, now); reason != "no-egress" {
+	if reason := manager.ineligibleReason(configuration, &newAddress); reason != "no-egress" {
 		t.Fatalf("new-address disabled-target reason = %q, want no-egress", reason)
 	}
-	if reason := manager.ineligibleReason(configuration, nil, now); reason != "no-egress" {
+	if reason := manager.ineligibleReason(configuration, nil); reason != "no-egress" {
 		t.Fatalf("scheduled disabled-target reason = %q, want no-egress", reason)
 	}
 }
@@ -115,6 +115,33 @@ func TestManagerPausesLowMemoryUntilOverride(t *testing.T) {
 	}
 	runner.release <- struct{}{}
 	waitManagerIdle(t, manager)
+}
+
+func TestManagerTrustsCenterDeliveredTaskDespiteLocalClockSkew(t *testing.T) {
+	store, configuration := openManagerTestStore(t, 1)
+	defer store.Close()
+	runner := &blockingRunner{started: make(chan string, 1), release: make(chan struct{}, 1)}
+	manager := NewManager(store, minimumProbeMemoryBytes, nil)
+	centerNow := time.Date(2026, 8, 9, 12, 0, 0, 0, time.UTC)
+	manager.now = func() time.Time { return centerNow.Add(12 * time.Minute) }
+	manager.runner = runner
+	task := state.ProbeTaskDelivery{
+		ID: uuid.NewString(), Trigger: "manual",
+		PublicAddressIDs: []string{configuration.ProbeTargets[0].ID},
+		CreatedAt:        centerNow, ExpiresAt: centerNow.Add(2 * time.Minute),
+	}
+	if err := manager.AcceptTask(context.Background(), task); err != nil {
+		t.Fatal(err)
+	}
+	if actual := receiveWithin(t, runner.started); actual != configuration.ProbeTargets[0].ID {
+		t.Fatalf("started egress = %s", actual)
+	}
+	runner.release <- struct{}{}
+	waitManagerIdle(t, manager)
+	_, report, err := store.ProbeControlReport()
+	if err != nil || report == nil || report.Status != "succeeded" || !report.AcknowledgedAt.Equal(task.ExpiresAt) {
+		t.Fatalf("clock-skewed task report = %#v, %v", report, err)
+	}
 }
 
 func TestManagerSkipsPersistedMissedScheduleWithoutCatchUp(t *testing.T) {

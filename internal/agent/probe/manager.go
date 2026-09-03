@@ -209,7 +209,7 @@ func (manager *Manager) tryStart(
 		if err != nil {
 			return err
 		}
-		if reason := manager.ineligibleReason(configuration, task, at); reason != "" {
+		if reason := manager.ineligibleReason(configuration, task); reason != "" {
 			return manager.rejectOccurrence(trigger, task, reason, at)
 		}
 		run, err := manager.store.StartProbeRunAtRevision(
@@ -239,11 +239,7 @@ func (manager *Manager) tryStart(
 func (manager *Manager) ineligibleReason(
 	configuration state.Configuration,
 	task *state.ProbeTaskDelivery,
-	at time.Time,
 ) string {
-	if task != nil && !task.ExpiresAt.After(at) {
-		return "missed"
-	}
 	if !configuration.Enabled {
 		return "disabled"
 	}

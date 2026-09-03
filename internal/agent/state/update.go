@@ -57,10 +57,7 @@ func (s *Store) AcceptAgentUpdate(delivery AgentUpdateDelivery, previousVersion 
 	if err := validateAgentUpdateDelivery(delivery); err != nil || !validAgentVersion(previousVersion) || now.IsZero() {
 		return AgentUpdateReport{}, ErrInvalidAgentUpdate
 	}
-	now = now.UTC().Truncate(time.Second)
-	if now.Before(delivery.CreatedAt) || now.After(delivery.ExpiresAt) {
-		return AgentUpdateReport{}, ErrInvalidAgentUpdate
-	}
+	now = boundedTaskTime(delivery.CreatedAt, delivery.ExpiresAt, now)
 	var report AgentUpdateReport
 	err := s.database.Update(func(transaction *bolt.Tx) error {
 		bucket := transaction.Bucket(agentUpdatesBucket)
@@ -105,6 +102,7 @@ func (s *Store) BeginAgentUpdate(id, previousVersion string, now time.Time) (Age
 		if update.Status != "acknowledged" {
 			return ErrInvalidAgentUpdate
 		}
+		now = taskProgressTime(now, update.AcknowledgedAt)
 		update.Status = "verifying"
 		update.StartedAt = cloneTime(&now)
 		update.PreviousVersion = cloneString(&previousVersion)
@@ -141,6 +139,7 @@ func (s *Store) FailAgentUpdate(id, failureCode, diagnostic string, now time.Tim
 		if update.Status != "verifying" && update.Status != "installing" {
 			return ErrInvalidAgentUpdate
 		}
+		now = taskProgressTime(now, *update.StartedAt)
 		update.Status = "failed"
 		update.CompletedAt = cloneTime(&now)
 		update.FailureCode = cloneString(&failureCode)
@@ -158,6 +157,7 @@ func (s *Store) CommitAgentUpdateHealth(id, runningVersion string, now time.Time
 		if update.Status != "restarting" || update.TargetVersion != runningVersion {
 			return ErrInvalidAgentUpdate
 		}
+		now = taskProgressTime(now, *update.StartedAt)
 		update.Status = "succeeded"
 		update.CompletedAt = cloneTime(&now)
 		update.ResultVersion = cloneString(&runningVersion)
@@ -174,6 +174,7 @@ func (s *Store) RollbackAgentUpdate(id, failureCode, diagnostic string, now time
 		if (update.Status != "installing" && update.Status != "restarting") || update.PreviousVersion == nil {
 			return ErrInvalidAgentUpdate
 		}
+		now = taskProgressTime(now, *update.StartedAt)
 		update.Status = "rolled-back"
 		update.CompletedAt = cloneTime(&now)
 		update.ResultVersion = cloneString(update.PreviousVersion)
@@ -236,6 +237,7 @@ func (s *Store) ConfirmTerminalAgentUpdate(id string, confirmedAt time.Time) (bo
 			return ErrInvalidAgentUpdate
 		}
 		if record.ConfirmedAt == nil {
+			confirmedAt = taskProgressTime(confirmedAt, *record.CompletedAt)
 			record.ConfirmedAt = cloneTime(&confirmedAt)
 		}
 		return putJSON(bucket, []byte(id), record)
