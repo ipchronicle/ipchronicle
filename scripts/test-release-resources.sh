@@ -113,7 +113,7 @@ network_created=true
 docker run --detach --name "$center_name" --platform "linux/$architecture" \
   --network "$network_name" --network-alias center \
   --memory 512m --memory-swap 512m --cpus 1 --pids-limit 256 \
-  --read-only --cap-drop ALL --security-opt no-new-privileges \
+  --read-only --security-opt no-new-privileges \
   --env IPCHRONICLE_LISTEN_ADDRESS=:8080 \
   --env IPCHRONICLE_CONFIG_DATABASE_PATH=/var/lib/ipchronicle/config/config.db \
   --env IPCHRONICLE_HISTORY_DATABASE_PATH=/var/lib/ipchronicle/history/history.db \
