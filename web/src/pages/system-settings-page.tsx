@@ -35,6 +35,7 @@ import {
   type ReleaseChannel,
 } from "@/api/updates";
 import { useAuth } from "@/auth-context";
+import { LogRetentionSettings } from "@/components/log-retention-settings";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -138,6 +139,8 @@ export function SystemSettingsPage() {
       <ExternalOriginSettings csrfToken={csrfToken} />
 
       <IPAPISettings csrfToken={csrfToken} />
+
+      <LogRetentionSettings csrfToken={csrfToken} />
 
       <Card className="mt-8" aria-live="polite">
         <CardHeader>
@@ -384,6 +387,11 @@ function RuntimeInformation() {
               icon={<Database aria-hidden="true" />}
               label={t("systemSettings.runtime.historySchema")}
               value={String(state.value.historySchemaVersion)}
+            />
+            <ReleaseField
+              icon={<Database aria-hidden="true" />}
+              label={t("systemSettings.runtime.logsSchema")}
+              value={String(state.value.logsSchemaVersion)}
             />
             <ReleaseField
               icon={<ShieldCheck aria-hidden="true" />}

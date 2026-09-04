@@ -16,6 +16,7 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/ipchronicle/ipchronicle/internal/agent/agentlogs"
 	"github.com/ipchronicle/ipchronicle/internal/agent/state"
 	agentupdate "github.com/ipchronicle/ipchronicle/internal/agent/update"
 	"github.com/ipchronicle/ipchronicle/internal/generated/agentapi"
@@ -36,8 +37,93 @@ func TestConfigurationRejectsUnknownFields(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if _, err := client.configuration(context.Background(), "credential", 1); err == nil || !strings.Contains(err.Error(), "unknown field") {
+	logs := &capturedAgentLogs{}
+	if _, err := client.configuration(context.Background(), state.Identity{
+		CenterURL: server.URL, Credential: "credential",
+	}, 1, logs); err == nil || !strings.Contains(err.Error(), "unknown field") {
 		t.Fatalf("unknown configuration field error = %v", err)
+	}
+	if len(logs.events) != 1 || logs.events[0].EventType != "snapshot-invalid" ||
+		logs.events[0].FailureCategory == nil || *logs.events[0].FailureCategory != "invalid-response" ||
+		!bytes.Contains(logs.events[0].ResponseBody, []byte(`"unexpected":true`)) {
+		t.Fatalf("configuration diagnostics = %#v", logs.events)
+	}
+}
+
+type capturedAgentLogs struct {
+	events []agentlogs.Event
+}
+
+func (logs *capturedAgentLogs) Emit(event agentlogs.Event) {
+	logs.events = append(logs.events, event)
+}
+
+func TestAgentLogUploadRequiresACompleteReceiptBeforeAcknowledgement(t *testing.T) {
+	event := state.LogEvent{
+		ID: uuid.NewString(), OccurredAt: time.Now().UTC(), Level: "warn",
+		Component: "test", EventType: "request-failed", Message: "request failed",
+		RateLimitHeaders: map[string]string{"Retry-After": "30"},
+	}
+	store, err := state.Open(filepath.Join(t.TempDir(), "state"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = store.Close() })
+	if err := store.EnqueueAgentLog(event); err != nil {
+		t.Fatal(err)
+	}
+
+	requestCount := 0
+	server := httptest.NewServer(http.HandlerFunc(func(response http.ResponseWriter, request *http.Request) {
+		if request.URL.Path != "/api/v1/agent/logs" {
+			http.NotFound(response, request)
+			return
+		}
+		if request.Header.Get("Authorization") != "Bearer test-credential" {
+			t.Errorf("authorization = %q", request.Header.Get("Authorization"))
+		}
+		var uploaded agentapi.AgentLogBatch
+		if err := json.NewDecoder(request.Body).Decode(&uploaded); err != nil || len(uploaded.Events) != 1 ||
+			uploaded.Events[0].RateLimitHeaders == nil || (*uploaded.Events[0].RateLimitHeaders)["Retry-After"] != "30" {
+			t.Errorf("uploaded logs = %#v, %v", uploaded, err)
+		}
+		requestCount++
+		response.Header().Set("Content-Type", "application/json")
+		if requestCount == 1 {
+			_, _ = io.WriteString(response, `{"acceptedEventIds":[],"discardedEventIds":[]}`)
+			return
+		}
+		_, _ = io.WriteString(response, `{"acceptedEventIds":["`+event.ID+`"],"discardedEventIds":[]}`)
+	}))
+	defer server.Close()
+	client, err := NewControlClient(server.URL)
+	if err != nil {
+		t.Fatal(err)
+	}
+	identity := state.Identity{CenterURL: server.URL, Credential: "test-credential"}
+	batch, err := store.PendingAgentLogs(64, 8*1024*1024)
+	if err != nil {
+		t.Fatal(err)
+	}
+	logs := &capturedAgentLogs{}
+	if err := client.uploadAgentLogs(context.Background(), store, identity, batch, logs); err == nil {
+		t.Fatal("incomplete receipt was accepted")
+	}
+	remaining, err := store.PendingAgentLogs(64, 8*1024*1024)
+	if err != nil || len(remaining) != 1 || remaining[0].ID != event.ID {
+		t.Fatalf("unacknowledged batch = %#v, %v", remaining, err)
+	}
+	if len(logs.events) != 1 || logs.events[0].EventType != "upload-receipt-invalid" ||
+		logs.events[0].FailureCategory == nil || *logs.events[0].FailureCategory != "invalid-response" ||
+		len(logs.events[0].ResponseBody) == 0 {
+		t.Fatalf("invalid receipt diagnostics = %#v", logs.events)
+	}
+	if err := client.uploadAgentLogs(context.Background(), store, identity, batch, logs); err != nil {
+		t.Fatal(err)
+	}
+	remaining, err = store.PendingAgentLogs(64, 8*1024*1024)
+	if err != nil || len(remaining) != 0 {
+		t.Fatalf("acknowledged logs remain queued: %#v, %v", remaining, err)
 	}
 }
 
@@ -83,7 +169,9 @@ func TestConfigurationMapsV6TransportSemantics(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	configuration, err := client.configuration(context.Background(), "credential", 7)
+	configuration, err := client.configuration(context.Background(), state.Identity{
+		CenterURL: server.URL, Credential: "credential",
+	}, 7, nil)
 	if err != nil {
 		t.Fatal(err)
 	}

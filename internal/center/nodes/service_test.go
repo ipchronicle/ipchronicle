@@ -168,6 +168,47 @@ func TestAgentMetadataValidation(t *testing.T) {
 	}
 }
 
+func TestAgentLogCapabilityNegotiatesConfigurationOnce(t *testing.T) {
+	ctx := context.Background()
+	store, err := database.Open(ctx, database.PathsFromDataDirectory(t.TempDir()))
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = store.Close() })
+	service := NewService(store.Config, store.History, store.ConfigQueries, store.MasterKey, &testSyncConnections{})
+	enrollment, err := service.RotateEnrollmentKey(ctx, "UTC")
+	if err != nil {
+		t.Fatal(err)
+	}
+	metadata := testMetadata()
+	metadata.Capabilities = []string{"configuration-v9", "control-v1"}
+	registration, err := service.Register(ctx, enrollment.Key, metadata)
+	if err != nil {
+		t.Fatal(err)
+	}
+	legacy, err := service.Configuration(ctx, registration.Credential)
+	if err != nil || legacy.SchemaVersion != 9 || legacy.LogLevel != "" {
+		t.Fatalf("legacy configuration = %#v, %v", legacy, err)
+	}
+	if _, err := service.Poll(ctx, registration.Credential, metadata, 1, nil, nil, nil, nil); err != nil {
+		t.Fatal(err)
+	}
+
+	metadata.Capabilities = []string{"agent-logs-v1", "configuration-v10", "configuration-v9", "control-v1"}
+	upgraded, err := service.Poll(ctx, registration.Credential, metadata, 1, nil, nil, nil, nil)
+	if err != nil || upgraded.DesiredConfigurationRevision != 2 {
+		t.Fatalf("upgraded poll = %#v, %v", upgraded, err)
+	}
+	repeated, err := service.Poll(ctx, registration.Credential, metadata, 1, nil, nil, nil, nil)
+	if err != nil || repeated.DesiredConfigurationRevision != 2 {
+		t.Fatalf("repeated upgraded poll = %#v, %v", repeated, err)
+	}
+	configuration, err := service.Configuration(ctx, registration.Credential)
+	if err != nil || configuration.SchemaVersion != 10 || configuration.Revision != 2 || configuration.LogLevel != "info" {
+		t.Fatalf("log-capable configuration = %#v, %v", configuration, err)
+	}
+}
+
 func TestConfigurationFailureAndNodeLifecycle(t *testing.T) {
 	ctx := context.Background()
 	store, err := database.Open(ctx, database.PathsFromDataDirectory(t.TempDir()))
@@ -187,12 +228,12 @@ func TestConfigurationFailureAndNodeLifecycle(t *testing.T) {
 		t.Fatal(err)
 	}
 	renamedName := "edge-primary"
-	renamed, err := service.Update(ctx, registration.NodeID, &renamedName, true)
+	renamed, err := service.Update(ctx, registration.NodeID, &renamedName, true, nil)
 	if err != nil || renamed.Name != renamedName || renamed.DesiredConfigurationRevision != 1 {
 		t.Fatalf("renamed node = %#v, %v", renamed, err)
 	}
 	invalidName := "  "
-	if _, err := service.Update(ctx, registration.NodeID, &invalidName, true); !errors.Is(err, ErrInvalidNodeName) {
+	if _, err := service.Update(ctx, registration.NodeID, &invalidName, true, nil); !errors.Is(err, ErrInvalidNodeName) {
 		t.Fatalf("invalid node name error = %v", err)
 	}
 

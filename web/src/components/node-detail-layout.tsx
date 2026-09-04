@@ -9,6 +9,7 @@ import {
   RadioTower,
   RefreshCw,
   ScanSearch,
+  ScrollText,
   Settings,
   TriangleAlert,
   Unplug,
@@ -128,11 +129,13 @@ export function NodeDetailLayout() {
     ? "network"
     : pathname.endsWith("/probe")
       ? "probe"
-      : pathname.endsWith("/changes")
-        ? "changes"
-        : pathname.endsWith("/settings")
-          ? "settings"
-          : "overview";
+      : pathname.endsWith("/logs")
+        ? "logs"
+        : pathname.endsWith("/changes")
+          ? "changes"
+          : pathname.endsWith("/settings")
+            ? "settings"
+            : "overview";
   const csrfToken =
     authState.status === "authenticated" ? authState.session.csrfToken : "";
 
@@ -303,6 +306,16 @@ export function NodeDetailLayout() {
                       <Link to={`/nodes/${nodeId}/probe`}>
                         <Activity aria-hidden="true" />
                         {t("nodeDetail.tabs.probe")}
+                      </Link>
+                    </TabsTrigger>
+                    <TabsTrigger
+                      value="logs"
+                      asChild
+                      className="flex-none px-2.5"
+                    >
+                      <Link to={`/nodes/${nodeId}/logs`}>
+                        <ScrollText aria-hidden="true" />
+                        {t("nodeDetail.tabs.logs")}
                       </Link>
                     </TabsTrigger>
                     <TabsTrigger

@@ -17,17 +17,19 @@ import (
 
 	"github.com/ipchronicle/ipchronicle/internal/center/database/configdb"
 	"github.com/ipchronicle/ipchronicle/internal/center/database/historydb"
+	"github.com/ipchronicle/ipchronicle/internal/center/database/logsdb"
 	_ "github.com/mattn/go-sqlite3"
 	"github.com/pressly/goose/v3"
 )
 
 const (
 	MasterKeySize        = 32
-	configSchemaVersion  = 1
+	configSchemaVersion  = 2
 	historySchemaVersion = 1
+	logsSchemaVersion    = 1
 )
 
-//go:embed migrations/config/*.sql migrations/history/*.sql
+//go:embed migrations/config/*.sql migrations/history/*.sql migrations/logs/*.sql
 var migrationFiles embed.FS
 
 var migrationMu sync.Mutex
@@ -35,6 +37,7 @@ var migrationMu sync.Mutex
 type Paths struct {
 	ConfigDatabase  string
 	HistoryDatabase string
+	LogsDatabase    string
 	MasterKey       string
 }
 
@@ -42,6 +45,7 @@ func PathsFromDataDirectory(dataDirectory string) Paths {
 	return Paths{
 		ConfigDatabase:  filepath.Join(dataDirectory, "config", "config.db"),
 		HistoryDatabase: filepath.Join(dataDirectory, "history", "history.db"),
+		LogsDatabase:    filepath.Join(dataDirectory, "logs", "logs.db"),
 		MasterKey:       filepath.Join(dataDirectory, "config", "master.key"),
 	}
 }
@@ -49,12 +53,15 @@ func PathsFromDataDirectory(dataDirectory string) Paths {
 type Store struct {
 	Config               *sql.DB
 	History              *sql.DB
+	Logs                 *sql.DB
 	ConfigQueries        *configdb.Queries
 	HistoryQueries       *historydb.Queries
+	LogsQueries          *logsdb.Queries
 	MasterKey            [MasterKeySize]byte
 	HistoryGeneration    string
 	ConfigSchemaVersion  int64
 	HistorySchemaVersion int64
+	LogsSchemaVersion    int64
 }
 
 type ConfigurationStore struct {
@@ -134,12 +141,20 @@ func Open(ctx context.Context, paths Paths) (*Store, error) {
 		_ = configDatabase.Close()
 		return nil, fmt.Errorf("open history database: %w", err)
 	}
+	logsDatabase, err := openSQLite(ctx, paths.LogsDatabase)
+	if err != nil {
+		_ = configDatabase.Close()
+		_ = historyDatabase.Close()
+		return nil, fmt.Errorf("open logs database: %w", err)
+	}
 
 	store := &Store{
 		Config:         configDatabase,
 		History:        historyDatabase,
+		Logs:           logsDatabase,
 		ConfigQueries:  configdb.New(configDatabase),
 		HistoryQueries: historydb.New(historyDatabase),
+		LogsQueries:    logsdb.New(logsDatabase),
 		MasterKey:      masterKey,
 	}
 	closeOnError := func(cause error) (*Store, error) {
@@ -154,6 +169,10 @@ func Open(ctx context.Context, paths Paths) (*Store, error) {
 	if err != nil {
 		return closeOnError(fmt.Errorf("migrate history database: %w", err))
 	}
+	logsVersion, err := migrate(ctx, logsDatabase, "migrations/logs", logsSchemaVersion)
+	if err != nil {
+		return closeOnError(fmt.Errorf("migrate logs database: %w", err))
+	}
 	generation, err := reconcileHistoryGeneration(ctx, store, historyExisted)
 	if err != nil {
 		return closeOnError(fmt.Errorf("reconcile history database: %w", err))
@@ -161,6 +180,7 @@ func Open(ctx context.Context, paths Paths) (*Store, error) {
 
 	store.ConfigSchemaVersion = configVersion
 	store.HistorySchemaVersion = historyVersion
+	store.LogsSchemaVersion = logsVersion
 	store.HistoryGeneration = generation
 	return store, nil
 }
@@ -169,27 +189,28 @@ func (s *Store) Close() error {
 	if s == nil {
 		return nil
 	}
-	return errors.Join(s.Config.Close(), s.History.Close())
+	return errors.Join(s.Config.Close(), s.History.Close(), s.Logs.Close())
 }
 
 func validatePaths(paths Paths) error {
 	for name, value := range map[string]string{
 		"configuration database": paths.ConfigDatabase,
 		"history database":       paths.HistoryDatabase,
+		"logs database":          paths.LogsDatabase,
 		"master key":             paths.MasterKey,
 	} {
 		if value == "" {
 			return fmt.Errorf("%s path must not be empty", name)
 		}
 	}
-	if paths.ConfigDatabase == paths.HistoryDatabase {
-		return errors.New("configuration and history databases must use different paths")
+	if paths.ConfigDatabase == paths.HistoryDatabase || paths.ConfigDatabase == paths.LogsDatabase || paths.HistoryDatabase == paths.LogsDatabase {
+		return errors.New("configuration, history, and logs databases must use different paths")
 	}
 	return nil
 }
 
 func prepareDirectories(paths Paths) error {
-	for _, path := range []string{paths.ConfigDatabase, paths.HistoryDatabase, paths.MasterKey} {
+	for _, path := range []string{paths.ConfigDatabase, paths.HistoryDatabase, paths.LogsDatabase, paths.MasterKey} {
 		if err := os.MkdirAll(filepath.Dir(path), 0o700); err != nil {
 			return fmt.Errorf("create data directory for %s: %w", path, err)
 		}

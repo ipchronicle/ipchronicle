@@ -76,9 +76,14 @@ func runNativeProbe(ctx context.Context, input nativeProbeInput) ([]byte, error)
 	if lookupClient == nil {
 		lookupClient = input.HTTPClient
 	}
+	requestContext := requestLogContext{
+		publicAddressID: input.PublicAddressID, publicAddress: &input.Target, family: &input.Family,
+		taskID: input.TaskID, proxyID: input.ProxyID, configurationRevision: input.ConfigurationRevision,
+		discoveryPath: input.DiscoveryPath,
+	}
 	engine := &nativeEngine{
-		input: input, http: probeHTTP{client: input.HTTPClient},
-		explicitLookupHTTP: probeHTTP{client: lookupClient},
+		input: input, http: probeHTTP{client: input.HTTPClient, events: input.Events, context: requestContext},
+		explicitLookupHTTP: probeHTTP{client: lookupClient, events: input.Events, context: requestContext},
 	}
 	basic := engine.probeBasic(ctx)
 	if err := ctx.Err(); err != nil {

@@ -12,6 +12,7 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/ipchronicle/ipchronicle/internal/center/admin"
+	"github.com/ipchronicle/ipchronicle/internal/center/agentlogs"
 	"github.com/ipchronicle/ipchronicle/internal/center/database"
 	"github.com/ipchronicle/ipchronicle/internal/center/nodes"
 	"github.com/ipchronicle/ipchronicle/internal/center/notifications"
@@ -190,7 +191,8 @@ func newUpdateHTTPFixture(t *testing.T) updateHTTPFixture {
 	})
 	handler := NewHTTPHandler(HTTPOptions{
 		Version: "0.1.0", Revision: centerRevision, Web: http.NotFoundHandler(),
-		Administrator: administrator, Nodes: nodeService, Notifications: notificationService,
+		Administrator: administrator, AgentLogs: agentlogs.NewService(store.Logs, store.LogsQueries, store.ConfigQueries),
+		Nodes: nodeService, Notifications: notificationService,
 		Updates: updateService, SyncHub: syncHub, SystemSettings: systemSettingsService, Store: store,
 	})
 

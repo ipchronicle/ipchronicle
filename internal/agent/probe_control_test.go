@@ -6,6 +6,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"path/filepath"
+	"strings"
 	"testing"
 	"time"
 
@@ -69,7 +70,7 @@ func TestPollCarriesProbeStatusAndTaskReportAndAcceptsTask(t *testing.T) {
 	outcome, err := client.poll(context.Background(), store, identity, agentapi.AgentMetadata{
 		Hostname: "node", AgentVersion: "test", OperatingSystem: agentapi.Linux,
 		Architecture: agentapi.Amd64, Capabilities: []string{"complete-probe-v1"}, PhysicalMemoryBytes: minimumTestMemory,
-	}, controlState, nil, nil)
+	}, controlState, nil, nil, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -149,8 +150,14 @@ func TestProbeUploaderSurvivesCenterOutageAndRetransmitsWithoutExecuting(t *test
 	if err != nil || queuedBeforeOutage.ID == "" {
 		t.Fatalf("queued artifact before outage = %#v, %v", queuedBeforeOutage, err)
 	}
-	if found, err := client.uploadNextProbeArtifact(context.Background(), store, identity); err == nil || found {
+	logs := &capturedAgentLogs{}
+	if found, err := client.uploadNextProbeArtifact(context.Background(), store, identity, logs); err == nil || found {
 		t.Fatalf("upload during Center outage = %v, %v", found, err)
+	}
+	if len(logs.events) != 1 || logs.events[0].EventType != "artifact-upload-rejected" ||
+		logs.events[0].HTTPStatus == nil || *logs.events[0].HTTPStatus != http.StatusServiceUnavailable ||
+		!strings.Contains(string(logs.events[0].ResponseBody), "temporarily unavailable") {
+		t.Fatalf("probe upload diagnostics = %#v", logs.events)
 	}
 	queuedAfterOutage, err := store.NextProbeArtifact()
 	if err != nil || queuedAfterOutage.ID != queuedBeforeOutage.ID || queuedAfterOutage.Revision != queuedBeforeOutage.Revision {

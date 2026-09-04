@@ -35,7 +35,7 @@ curl --fail --silent --show-error \
 csrf_token="$(jq -er '.csrfToken' "$login_file")"
 curl --fail --silent --show-error --cookie "$cookie_file" \
   "$base_url/api/v1/system/status" >"$status_file"
-if ! jq -e '.service == "ipchronicle-center" and .status == "ok" and .configSchemaVersion == 1 and .historySchemaVersion == 1 and (.version | length > 0)' "$status_file" >/dev/null; then
+if ! jq -e '.service == "ipchronicle-center" and .status == "ok" and .configSchemaVersion == 2 and .historySchemaVersion == 1 and .logsSchemaVersion == 1 and (.version | length > 0)' "$status_file" >/dev/null; then
   echo "system status did not report the expected service and schema versions" >&2
   jq . "$status_file" >&2
   exit 1
@@ -88,6 +88,35 @@ curl --fail --silent --show-error \
   --cookie "$cookie_file" \
   "$base_url/api/v1/nodes" | \
   jq -e '.items | length == 1 and .[0].name == "smoke-node" and .[0].status == "online" and .[0].configurationStatus == "current"' >/dev/null
+
+jq -n '{appliedConfigurationRevision:1,metadata:{hostname:"smoke-node",agentVersion:"dev",operatingSystem:"linux",architecture:"amd64",physicalMemoryBytes:536870912,capabilities:["agent-logs-v1","control-v1","configuration-v9","configuration-v10","complete-probe-v1"]}}' | \
+  curl --fail --silent --show-error \
+    --header 'Content-Type: application/json' \
+    --header "Authorization: Bearer $agent_credential" \
+    --data-binary @- \
+    "$base_url/api/v1/agent/control" | \
+  jq -e '.desiredConfigurationRevision == 2' >/dev/null
+configuration_file="$(mktemp)"
+curl --fail --silent --show-error \
+  --header "Authorization: Bearer $agent_credential" \
+  "$base_url/api/v1/agent/configuration" >"$configuration_file"
+if ! jq -e '.schemaVersion == 10 and .revision == 2 and .logLevel == "info"' "$configuration_file" >/dev/null; then
+  echo "Agent configuration did not negotiate the agent-logs-v1 contract" >&2
+  jq . "$configuration_file" >&2
+  rm -f "$configuration_file"
+  exit 1
+fi
+rm -f "$configuration_file"
+jq -n '{appliedConfigurationRevision:2,metadata:{hostname:"smoke-node",agentVersion:"dev",operatingSystem:"linux",architecture:"amd64",physicalMemoryBytes:536870912,capabilities:["agent-logs-v1","control-v1","configuration-v9","configuration-v10","complete-probe-v1"]}}' | \
+  curl --fail --silent --show-error \
+    --header 'Content-Type: application/json' \
+    --header "Authorization: Bearer $agent_credential" \
+    --data-binary @- \
+    "$base_url/api/v1/agent/control" >/dev/null
+curl --fail --silent --show-error \
+  --cookie "$cookie_file" \
+  "$base_url/api/v1/nodes" | \
+  jq -e '.items | length == 1 and .[0].configurationStatus == "current" and .[0].logLevel == "info"' >/dev/null
 
 logout_status="$(curl --silent --output /dev/null --write-out '%{http_code}' \
   --cookie "$cookie_file" \

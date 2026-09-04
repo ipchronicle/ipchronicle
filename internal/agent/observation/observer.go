@@ -10,6 +10,7 @@ import (
 	"log"
 	"time"
 
+	"github.com/ipchronicle/ipchronicle/internal/agent/agentlogs"
 	"github.com/ipchronicle/ipchronicle/internal/agent/state"
 )
 
@@ -31,16 +32,14 @@ type Observer struct {
 	now     func() time.Time
 }
 
-func NewObserver(store *state.Store, logger *log.Logger) *Observer {
+func NewObserver(store *state.Store, logger *log.Logger, sinks ...agentlogs.Sink) *Observer {
 	if store == nil {
 		panic("address observer store must not be nil")
 	}
 	if logger == nil {
 		logger = log.Default()
 	}
-	return &Observer{
-		store: store, checker: NewChecker(), logger: logger, now: time.Now,
-	}
+	return &Observer{store: store, checker: NewChecker(sinks...), logger: logger, now: time.Now}
 }
 
 func (o *Observer) Run(ctx context.Context) error {

@@ -10,6 +10,7 @@ import (
 	"testing"
 
 	_ "github.com/mattn/go-sqlite3"
+	"github.com/pressly/goose/v3"
 )
 
 func TestFreshOpenAndRestart(t *testing.T) {
@@ -19,8 +20,9 @@ func TestFreshOpenAndRestart(t *testing.T) {
 		t.Fatal(err)
 	}
 	firstGeneration := store.HistoryGeneration
-	if store.ConfigSchemaVersion != configSchemaVersion || store.HistorySchemaVersion != historySchemaVersion {
-		t.Fatalf("unexpected schema versions: %d/%d", store.ConfigSchemaVersion, store.HistorySchemaVersion)
+	if store.ConfigSchemaVersion != configSchemaVersion || store.HistorySchemaVersion != historySchemaVersion ||
+		store.LogsSchemaVersion != logsSchemaVersion {
+		t.Fatalf("unexpected schema versions: %d/%d/%d", store.ConfigSchemaVersion, store.HistorySchemaVersion, store.LogsSchemaVersion)
 	}
 	if err := store.Close(); err != nil {
 		t.Fatal(err)
@@ -135,6 +137,100 @@ func TestCorruptHistoryFailsExplicitly(t *testing.T) {
 	_, err = Open(context.Background(), paths)
 	if err == nil || !strings.Contains(err.Error(), "history database") {
 		t.Fatalf("error = %v, want explicit corrupt history failure", err)
+	}
+}
+
+func TestDeletedLogsDatabaseRebuildsWithoutChangingConfiguration(t *testing.T) {
+	ctx := context.Background()
+	paths := PathsFromDataDirectory(t.TempDir())
+	store, err := Open(ctx, paths)
+	if err != nil {
+		t.Fatal(err)
+	}
+	nodeID := "7289cfa3-a75d-4a3f-ac06-8f1074446a85"
+	if _, err := store.Config.ExecContext(ctx, `
+		INSERT INTO nodes (
+			id, name, hostname, credential_digest, agent_version,
+			operating_system, architecture, desired_configuration_revision, registered_at
+		) VALUES (?, ?, ?, ?, ?, ?, ?, 1, ?)
+	`, nodeID, "retained-edge", "retained-edge", make([]byte, 32), "0.1.1", "linux", "amd64", 1); err != nil {
+		t.Fatal(err)
+	}
+	if err := store.Close(); err != nil {
+		t.Fatal(err)
+	}
+	removeSQLiteFiles(t, paths.LogsDatabase)
+
+	restarted, err := Open(ctx, paths)
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = restarted.Close() })
+	node, err := restarted.ConfigQueries.GetNodeByID(ctx, nodeID)
+	if err != nil || node.Name != "retained-edge" || node.LogLevel != "info" {
+		t.Fatalf("configuration after log reset = %#v, %v", node, err)
+	}
+	count, err := restarted.LogsQueries.CountLogEvents(ctx)
+	if err != nil || count != 0 || restarted.LogsSchemaVersion != logsSchemaVersion {
+		t.Fatalf("rebuilt logs database = count %d, version %d, %v", count, restarted.LogsSchemaVersion, err)
+	}
+}
+
+func TestV011ConfigurationMigratesToAgentLogSettings(t *testing.T) {
+	ctx := context.Background()
+	paths := PathsFromDataDirectory(t.TempDir())
+	if err := prepareDirectories(paths); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(paths.MasterKey, make([]byte, MasterKeySize), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	database, err := openSQLite(ctx, paths.ConfigDatabase)
+	if err != nil {
+		t.Fatal(err)
+	}
+	migrationMu.Lock()
+	goose.SetBaseFS(migrationFiles)
+	if err := goose.SetDialect("sqlite3"); err == nil {
+		err = goose.UpToContext(ctx, database, "migrations/config", 1)
+	}
+	migrationMu.Unlock()
+	if err != nil {
+		_ = database.Close()
+		t.Fatal(err)
+	}
+	nodeID := "7289cfa3-a75d-4a3f-ac06-8f1074446a85"
+	registeredAt := int64(1_725_440_000)
+	if _, err := database.ExecContext(ctx, `
+		INSERT INTO nodes (
+			id, name, hostname, credential_digest, agent_version,
+			operating_system, architecture, desired_configuration_revision,
+			applied_configuration_revision, registered_at
+		) VALUES (?, ?, ?, ?, ?, ?, ?, 7, 7, ?)
+	`, nodeID, "stable-edge", "stable-edge", make([]byte, 32), "0.1.1", "linux", "amd64", registeredAt); err != nil {
+		_ = database.Close()
+		t.Fatal(err)
+	}
+	if err := database.Close(); err != nil {
+		t.Fatal(err)
+	}
+
+	upgraded, err := OpenConfigurationForRecovery(ctx, paths)
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = upgraded.Close() })
+	if upgraded.SchemaVersion != 2 {
+		t.Fatalf("configuration schema version = %d", upgraded.SchemaVersion)
+	}
+	node, err := upgraded.Queries.GetNodeByID(ctx, nodeID)
+	if err != nil || node.Name != "stable-edge" || node.DesiredConfigurationRevision != 7 ||
+		node.LogLevel != "info" || node.DesiredConfigurationUpdatedAt != registeredAt {
+		t.Fatalf("migrated v0.1.1 node = %#v, %v", node, err)
+	}
+	retention, err := upgraded.Queries.GetLogRetentionSettings(ctx)
+	if err != nil || retention.Mode != "age" || retention.MaxAgeDays == nil || *retention.MaxAgeDays != 7 {
+		t.Fatalf("migrated log retention = %#v, %v", retention, err)
 	}
 }
 

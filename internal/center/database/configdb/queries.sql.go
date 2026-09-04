@@ -12,6 +12,7 @@ import (
 const advanceAllNodeConfigurationRevisions = `-- name: AdvanceAllNodeConfigurationRevisions :many
 UPDATE nodes
 SET desired_configuration_revision = desired_configuration_revision + 1,
+    desired_configuration_updated_at = unixepoch(),
     configuration_error = NULL,
     configuration_error_revision = NULL
 WHERE revoked_at IS NULL
@@ -281,21 +282,22 @@ const createNode = `-- name: CreateNode :exec
 INSERT INTO nodes (
     id, name, hostname, credential_digest, agent_version, agent_revision,
     operating_system, architecture, desired_configuration_revision,
-    probe_schedule_timezone, registered_at
-) VALUES (?, ?, ?, ?, ?, ?, ?, ?, 1, ?, ?)
+    probe_schedule_timezone, registered_at, desired_configuration_updated_at
+) VALUES (?, ?, ?, ?, ?, ?, ?, ?, 1, ?, ?, ?)
 `
 
 type CreateNodeParams struct {
-	ID                    string
-	Name                  string
-	Hostname              string
-	CredentialDigest      []byte
-	AgentVersion          string
-	AgentRevision         *string
-	OperatingSystem       string
-	Architecture          string
-	ProbeScheduleTimezone string
-	RegisteredAt          int64
+	ID                            string
+	Name                          string
+	Hostname                      string
+	CredentialDigest              []byte
+	AgentVersion                  string
+	AgentRevision                 *string
+	OperatingSystem               string
+	Architecture                  string
+	ProbeScheduleTimezone         string
+	RegisteredAt                  int64
+	DesiredConfigurationUpdatedAt int64
 }
 
 func (q *Queries) CreateNode(ctx context.Context, arg CreateNodeParams) error {
@@ -310,6 +312,7 @@ func (q *Queries) CreateNode(ctx context.Context, arg CreateNodeParams) error {
 		arg.Architecture,
 		arg.ProbeScheduleTimezone,
 		arg.RegisteredAt,
+		arg.DesiredConfigurationUpdatedAt,
 	)
 	return err
 }
@@ -1129,6 +1132,29 @@ func (q *Queries) GetLatestProbeTask(ctx context.Context, nodeID string) (ProbeT
 	return i, err
 }
 
+const getLogRetentionSettings = `-- name: GetLogRetentionSettings :one
+SELECT id, mode, max_age_days, max_logical_bytes, updated_at,
+       last_cleanup_at, last_cleanup_deleted_items, last_cleanup_error
+FROM log_retention_settings
+WHERE id = 1
+`
+
+func (q *Queries) GetLogRetentionSettings(ctx context.Context) (LogRetentionSetting, error) {
+	row := q.db.QueryRowContext(ctx, getLogRetentionSettings)
+	var i LogRetentionSetting
+	err := row.Scan(
+		&i.ID,
+		&i.Mode,
+		&i.MaxAgeDays,
+		&i.MaxLogicalBytes,
+		&i.UpdatedAt,
+		&i.LastCleanupAt,
+		&i.LastCleanupDeletedItems,
+		&i.LastCleanupError,
+	)
+	return i, err
+}
+
 const getNetworkEgressByID = `-- name: GetNetworkEgressByID :one
 SELECT id, node_id, name, kind, family, interface_name, source_address, proxy_id,
        enabled, available, automatic, lightweight_interval_seconds,
@@ -1184,34 +1210,37 @@ SELECT id, name, hostname, credential_digest, enabled, revoked_at,
        configuration_error, registered_at, last_seen_at,
        configuration_error_revision, physical_memory_bytes,
        probe_schedule_enabled, probe_schedule_cron, probe_schedule_timezone,
-       probe_low_memory_override, probe_on_new_address
+       probe_low_memory_override, probe_on_new_address, log_level,
+       desired_configuration_updated_at
 FROM nodes
 WHERE credential_digest = ?
 `
 
 type GetNodeByCredentialDigestRow struct {
-	ID                           string
-	Name                         string
-	Hostname                     string
-	CredentialDigest             []byte
-	Enabled                      int64
-	RevokedAt                    *int64
-	AgentVersion                 string
-	AgentRevision                *string
-	OperatingSystem              string
-	Architecture                 string
-	DesiredConfigurationRevision int64
-	AppliedConfigurationRevision int64
-	ConfigurationError           *string
-	RegisteredAt                 int64
-	LastSeenAt                   *int64
-	ConfigurationErrorRevision   *int64
-	PhysicalMemoryBytes          *int64
-	ProbeScheduleEnabled         int64
-	ProbeScheduleCron            string
-	ProbeScheduleTimezone        string
-	ProbeLowMemoryOverride       int64
-	ProbeOnNewAddress            int64
+	ID                            string
+	Name                          string
+	Hostname                      string
+	CredentialDigest              []byte
+	Enabled                       int64
+	RevokedAt                     *int64
+	AgentVersion                  string
+	AgentRevision                 *string
+	OperatingSystem               string
+	Architecture                  string
+	DesiredConfigurationRevision  int64
+	AppliedConfigurationRevision  int64
+	ConfigurationError            *string
+	RegisteredAt                  int64
+	LastSeenAt                    *int64
+	ConfigurationErrorRevision    *int64
+	PhysicalMemoryBytes           *int64
+	ProbeScheduleEnabled          int64
+	ProbeScheduleCron             string
+	ProbeScheduleTimezone         string
+	ProbeLowMemoryOverride        int64
+	ProbeOnNewAddress             int64
+	LogLevel                      string
+	DesiredConfigurationUpdatedAt int64
 }
 
 func (q *Queries) GetNodeByCredentialDigest(ctx context.Context, credentialDigest []byte) (GetNodeByCredentialDigestRow, error) {
@@ -1240,6 +1269,8 @@ func (q *Queries) GetNodeByCredentialDigest(ctx context.Context, credentialDiges
 		&i.ProbeScheduleTimezone,
 		&i.ProbeLowMemoryOverride,
 		&i.ProbeOnNewAddress,
+		&i.LogLevel,
+		&i.DesiredConfigurationUpdatedAt,
 	)
 	return i, err
 }
@@ -1251,34 +1282,37 @@ SELECT id, name, hostname, credential_digest, enabled, revoked_at,
        configuration_error, registered_at, last_seen_at,
        configuration_error_revision, physical_memory_bytes,
        probe_schedule_enabled, probe_schedule_cron, probe_schedule_timezone,
-       probe_low_memory_override, probe_on_new_address
+       probe_low_memory_override, probe_on_new_address, log_level,
+       desired_configuration_updated_at
 FROM nodes
 WHERE id = ?
 `
 
 type GetNodeByIDRow struct {
-	ID                           string
-	Name                         string
-	Hostname                     string
-	CredentialDigest             []byte
-	Enabled                      int64
-	RevokedAt                    *int64
-	AgentVersion                 string
-	AgentRevision                *string
-	OperatingSystem              string
-	Architecture                 string
-	DesiredConfigurationRevision int64
-	AppliedConfigurationRevision int64
-	ConfigurationError           *string
-	RegisteredAt                 int64
-	LastSeenAt                   *int64
-	ConfigurationErrorRevision   *int64
-	PhysicalMemoryBytes          *int64
-	ProbeScheduleEnabled         int64
-	ProbeScheduleCron            string
-	ProbeScheduleTimezone        string
-	ProbeLowMemoryOverride       int64
-	ProbeOnNewAddress            int64
+	ID                            string
+	Name                          string
+	Hostname                      string
+	CredentialDigest              []byte
+	Enabled                       int64
+	RevokedAt                     *int64
+	AgentVersion                  string
+	AgentRevision                 *string
+	OperatingSystem               string
+	Architecture                  string
+	DesiredConfigurationRevision  int64
+	AppliedConfigurationRevision  int64
+	ConfigurationError            *string
+	RegisteredAt                  int64
+	LastSeenAt                    *int64
+	ConfigurationErrorRevision    *int64
+	PhysicalMemoryBytes           *int64
+	ProbeScheduleEnabled          int64
+	ProbeScheduleCron             string
+	ProbeScheduleTimezone         string
+	ProbeLowMemoryOverride        int64
+	ProbeOnNewAddress             int64
+	LogLevel                      string
+	DesiredConfigurationUpdatedAt int64
 }
 
 func (q *Queries) GetNodeByID(ctx context.Context, id string) (GetNodeByIDRow, error) {
@@ -1307,6 +1341,8 @@ func (q *Queries) GetNodeByID(ctx context.Context, id string) (GetNodeByIDRow, e
 		&i.ProbeScheduleTimezone,
 		&i.ProbeLowMemoryOverride,
 		&i.ProbeOnNewAddress,
+		&i.LogLevel,
+		&i.DesiredConfigurationUpdatedAt,
 	)
 	return i, err
 }
@@ -1471,24 +1507,27 @@ const getNodeProbeSettings = `-- name: GetNodeProbeSettings :one
 SELECT id, enabled, revoked_at, last_seen_at, applied_configuration_revision,
        desired_configuration_revision, physical_memory_bytes,
        probe_schedule_enabled, probe_schedule_cron, probe_schedule_timezone,
-       probe_low_memory_override, probe_on_new_address
+       probe_low_memory_override, probe_on_new_address, log_level,
+       desired_configuration_updated_at
 FROM nodes
 WHERE id = ?
 `
 
 type GetNodeProbeSettingsRow struct {
-	ID                           string
-	Enabled                      int64
-	RevokedAt                    *int64
-	LastSeenAt                   *int64
-	AppliedConfigurationRevision int64
-	DesiredConfigurationRevision int64
-	PhysicalMemoryBytes          *int64
-	ProbeScheduleEnabled         int64
-	ProbeScheduleCron            string
-	ProbeScheduleTimezone        string
-	ProbeLowMemoryOverride       int64
-	ProbeOnNewAddress            int64
+	ID                            string
+	Enabled                       int64
+	RevokedAt                     *int64
+	LastSeenAt                    *int64
+	AppliedConfigurationRevision  int64
+	DesiredConfigurationRevision  int64
+	PhysicalMemoryBytes           *int64
+	ProbeScheduleEnabled          int64
+	ProbeScheduleCron             string
+	ProbeScheduleTimezone         string
+	ProbeLowMemoryOverride        int64
+	ProbeOnNewAddress             int64
+	LogLevel                      string
+	DesiredConfigurationUpdatedAt int64
 }
 
 func (q *Queries) GetNodeProbeSettings(ctx context.Context, id string) (GetNodeProbeSettingsRow, error) {
@@ -1507,6 +1546,8 @@ func (q *Queries) GetNodeProbeSettings(ctx context.Context, id string) (GetNodeP
 		&i.ProbeScheduleTimezone,
 		&i.ProbeLowMemoryOverride,
 		&i.ProbeOnNewAddress,
+		&i.LogLevel,
+		&i.DesiredConfigurationUpdatedAt,
 	)
 	return i, err
 }
@@ -1824,6 +1865,7 @@ func (q *Queries) GetSystemState(ctx context.Context) (GetSystemStateRow, error)
 const incrementAllNodeDesiredConfigurationRevisions = `-- name: IncrementAllNodeDesiredConfigurationRevisions :exec
 UPDATE nodes
 SET desired_configuration_revision = desired_configuration_revision + 1,
+    desired_configuration_updated_at = unixepoch(),
     configuration_error = NULL,
     configuration_error_revision = NULL
 WHERE revoked_at IS NULL
@@ -1837,6 +1879,7 @@ func (q *Queries) IncrementAllNodeDesiredConfigurationRevisions(ctx context.Cont
 const incrementNodeDesiredConfigurationRevision = `-- name: IncrementNodeDesiredConfigurationRevision :execrows
 UPDATE nodes
 SET desired_configuration_revision = desired_configuration_revision + 1,
+    desired_configuration_updated_at = unixepoch(),
     configuration_error = NULL,
     configuration_error_revision = NULL
 WHERE id = ? AND revoked_at IS NULL
@@ -2694,34 +2737,37 @@ SELECT id, name, hostname, credential_digest, enabled, revoked_at,
        configuration_error, registered_at, last_seen_at,
        configuration_error_revision, physical_memory_bytes,
        probe_schedule_enabled, probe_schedule_cron, probe_schedule_timezone,
-       probe_low_memory_override, probe_on_new_address
+       probe_low_memory_override, probe_on_new_address, log_level,
+       desired_configuration_updated_at
 FROM nodes
 ORDER BY name COLLATE NOCASE, id
 `
 
 type ListNodesRow struct {
-	ID                           string
-	Name                         string
-	Hostname                     string
-	CredentialDigest             []byte
-	Enabled                      int64
-	RevokedAt                    *int64
-	AgentVersion                 string
-	AgentRevision                *string
-	OperatingSystem              string
-	Architecture                 string
-	DesiredConfigurationRevision int64
-	AppliedConfigurationRevision int64
-	ConfigurationError           *string
-	RegisteredAt                 int64
-	LastSeenAt                   *int64
-	ConfigurationErrorRevision   *int64
-	PhysicalMemoryBytes          *int64
-	ProbeScheduleEnabled         int64
-	ProbeScheduleCron            string
-	ProbeScheduleTimezone        string
-	ProbeLowMemoryOverride       int64
-	ProbeOnNewAddress            int64
+	ID                            string
+	Name                          string
+	Hostname                      string
+	CredentialDigest              []byte
+	Enabled                       int64
+	RevokedAt                     *int64
+	AgentVersion                  string
+	AgentRevision                 *string
+	OperatingSystem               string
+	Architecture                  string
+	DesiredConfigurationRevision  int64
+	AppliedConfigurationRevision  int64
+	ConfigurationError            *string
+	RegisteredAt                  int64
+	LastSeenAt                    *int64
+	ConfigurationErrorRevision    *int64
+	PhysicalMemoryBytes           *int64
+	ProbeScheduleEnabled          int64
+	ProbeScheduleCron             string
+	ProbeScheduleTimezone         string
+	ProbeLowMemoryOverride        int64
+	ProbeOnNewAddress             int64
+	LogLevel                      string
+	DesiredConfigurationUpdatedAt int64
 }
 
 func (q *Queries) ListNodes(ctx context.Context) ([]ListNodesRow, error) {
@@ -2756,6 +2802,8 @@ func (q *Queries) ListNodes(ctx context.Context) ([]ListNodesRow, error) {
 			&i.ProbeScheduleTimezone,
 			&i.ProbeLowMemoryOverride,
 			&i.ProbeOnNewAddress,
+			&i.LogLevel,
+			&i.DesiredConfigurationUpdatedAt,
 		); err != nil {
 			return nil, err
 		}
@@ -3322,6 +3370,23 @@ func (q *Queries) RecordHistoryRetentionCleanup(ctx context.Context, arg RecordH
 	return err
 }
 
+const recordLogRetentionCleanup = `-- name: RecordLogRetentionCleanup :exec
+UPDATE log_retention_settings
+SET last_cleanup_at = ?, last_cleanup_deleted_items = ?, last_cleanup_error = ?
+WHERE id = 1
+`
+
+type RecordLogRetentionCleanupParams struct {
+	LastCleanupAt           *int64
+	LastCleanupDeletedItems int64
+	LastCleanupError        *string
+}
+
+func (q *Queries) RecordLogRetentionCleanup(ctx context.Context, arg RecordLogRetentionCleanupParams) error {
+	_, err := q.db.ExecContext(ctx, recordLogRetentionCleanup, arg.LastCleanupAt, arg.LastCleanupDeletedItems, arg.LastCleanupError)
+	return err
+}
+
 const recordNodeNetworkInventoryError = `-- name: RecordNodeNetworkInventoryError :exec
 INSERT INTO node_network_inventories (
     node_id, payload, captured_at, received_at, last_error
@@ -3530,6 +3595,7 @@ const setNodeEnabled = `-- name: SetNodeEnabled :execrows
 UPDATE nodes
 SET enabled = ?,
     desired_configuration_revision = desired_configuration_revision + 1,
+    desired_configuration_updated_at = unixepoch(),
     configuration_error = NULL,
     configuration_error_revision = NULL
 WHERE id = ? AND enabled != ? AND revoked_at IS NULL
@@ -3547,6 +3613,34 @@ type SetNodeEnabledParams struct {
 
 func (q *Queries) SetNodeEnabled(ctx context.Context, arg SetNodeEnabledParams) (int64, error) {
 	result, err := q.db.ExecContext(ctx, setNodeEnabled, arg.Enabled, arg.ID, arg.Enabled_2)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected()
+}
+
+const setNodeLogLevel = `-- name: SetNodeLogLevel :execrows
+UPDATE nodes
+SET log_level = ?,
+    desired_configuration_revision = desired_configuration_revision + 1,
+    desired_configuration_updated_at = unixepoch(),
+    configuration_error = NULL,
+    configuration_error_revision = NULL
+WHERE id = ? AND log_level != ? AND revoked_at IS NULL
+  AND NOT EXISTS (
+      SELECT 1 FROM node_deletion_operations
+      WHERE node_id = nodes.id AND status != 'completed'
+  )
+`
+
+type SetNodeLogLevelParams struct {
+	LogLevel   string
+	ID         string
+	LogLevel_2 string
+}
+
+func (q *Queries) SetNodeLogLevel(ctx context.Context, arg SetNodeLogLevelParams) (int64, error) {
+	result, err := q.db.ExecContext(ctx, setNodeLogLevel, arg.LogLevel, arg.ID, arg.LogLevel_2)
 	if err != nil {
 		return 0, err
 	}
@@ -3718,6 +3812,32 @@ func (q *Queries) UpdateHistoryRetentionSettings(ctx context.Context, arg Update
 	return result.RowsAffected()
 }
 
+const updateLogRetentionSettings = `-- name: UpdateLogRetentionSettings :execrows
+UPDATE log_retention_settings
+SET mode = ?, max_age_days = ?, max_logical_bytes = ?, updated_at = ?
+WHERE id = 1
+`
+
+type UpdateLogRetentionSettingsParams struct {
+	Mode            string
+	MaxAgeDays      *int64
+	MaxLogicalBytes *int64
+	UpdatedAt       int64
+}
+
+func (q *Queries) UpdateLogRetentionSettings(ctx context.Context, arg UpdateLogRetentionSettingsParams) (int64, error) {
+	result, err := q.db.ExecContext(ctx, updateLogRetentionSettings,
+		arg.Mode,
+		arg.MaxAgeDays,
+		arg.MaxLogicalBytes,
+		arg.UpdatedAt,
+	)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected()
+}
+
 const updateNetworkObservationSettings = `-- name: UpdateNetworkObservationSettings :exec
 UPDATE network_observation_settings
 SET ipv4_services = ?, ipv6_services = ?, updated_at = ?
@@ -3839,6 +3959,7 @@ SET probe_schedule_enabled = ?, probe_schedule_cron = ?,
     probe_schedule_timezone = ?, probe_low_memory_override = ?,
     probe_on_new_address = ?,
     desired_configuration_revision = desired_configuration_revision + 1,
+    desired_configuration_updated_at = unixepoch(),
     configuration_error = NULL, configuration_error_revision = NULL
 WHERE id = ? AND revoked_at IS NULL
   AND NOT EXISTS (

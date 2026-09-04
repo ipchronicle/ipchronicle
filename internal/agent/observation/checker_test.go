@@ -21,6 +21,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/ipchronicle/ipchronicle/internal/agent/agentlogs"
 	agentnetwork "github.com/ipchronicle/ipchronicle/internal/agent/network"
 	"github.com/ipchronicle/ipchronicle/internal/agent/state"
 )
@@ -186,6 +187,37 @@ func TestQueryServiceEnforcesResponseBoundary(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestCheckerLogsEachFailedAddressServiceRequest(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(response http.ResponseWriter, _ *http.Request) {
+		response.Header().Set("Content-Type", "text/plain")
+		response.WriteHeader(http.StatusServiceUnavailable)
+		_, _ = io.WriteString(response, "upstream unavailable")
+	}))
+	defer server.Close()
+	logs := &capturedObservationLogs{}
+	checker := NewChecker(logs)
+	egress := state.Egress{ID: "d099bad9-e7c4-42a9-bd19-ad85408321c5", Kind: "default", Family: "ipv4"}
+	_, _ = checker.firstValid(context.Background(), selectedPath{egress: egress},
+		[]string{server.URL + "?token=secret-value"}, 0, 7, nil)
+	if len(logs.events) != 1 {
+		t.Fatalf("address service events = %#v", logs.events)
+	}
+	event := logs.events[0]
+	if event.FailureCategory == nil || *event.FailureCategory != "http-status" ||
+		event.RequestTarget == nil || strings.Contains(*event.RequestTarget, "secret-value") ||
+		string(event.ResponseBody) != "upstream unavailable" {
+		t.Fatalf("address service failure event = %#v", event)
+	}
+}
+
+type capturedObservationLogs struct {
+	events []agentlogs.Event
+}
+
+func (logs *capturedObservationLogs) Emit(event agentlogs.Event) {
+	logs.events = append(logs.events, event)
 }
 
 func TestHTTPAndHTTPSProxyTransportsAuthenticate(t *testing.T) {

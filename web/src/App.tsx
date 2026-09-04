@@ -11,6 +11,8 @@ import { AccountPage } from "@/pages/account-page";
 import { HistorySettingsPage } from "@/pages/history-settings-page";
 import { HistoryPage } from "@/pages/history-page";
 import { LoginPage } from "@/pages/login-page";
+import { LogsPage } from "@/pages/logs-page";
+import { NodeLogsPage } from "@/pages/node-logs-page";
 import { NodeNetworkPage } from "@/pages/node-network-page";
 import { NodeProbePage } from "@/pages/node-probe-page";
 import { NetworkSettingsPage } from "@/pages/network-settings-page";
@@ -56,11 +58,13 @@ function App() {
         <Routes>
           <Route path="/" element={<SystemStatusPage />} />
           <Route path="/nodes" element={<NodesPage />} />
+          <Route path="/logs" element={<LogsPage />} />
           <Route path="/nodes/:nodeId" element={<NodeDetailLayout />}>
             <Route index element={<NodeOverviewPage />} />
             <Route path="network" element={<NodeNetworkPage />} />
             <Route path="probe" element={<NodeProbePage />} />
             <Route path="changes" element={<NodeChangesPage />} />
+            <Route path="logs" element={<NodeLogsPage />} />
             <Route path="settings" element={<NodeSettingsPage />} />
           </Route>
           <Route path="/probe-runs/:runId" element={<ProbeRunPage />} />

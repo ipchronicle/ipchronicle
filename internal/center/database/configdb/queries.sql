@@ -112,6 +112,7 @@ WHERE id = 1;
 -- name: AdvanceAllNodeConfigurationRevisions :many
 UPDATE nodes
 SET desired_configuration_revision = desired_configuration_revision + 1,
+    desired_configuration_updated_at = unixepoch(),
     configuration_error = NULL,
     configuration_error_revision = NULL
 WHERE revoked_at IS NULL
@@ -185,8 +186,8 @@ WHERE id = 1;
 INSERT INTO nodes (
     id, name, hostname, credential_digest, agent_version, agent_revision,
     operating_system, architecture, desired_configuration_revision,
-    probe_schedule_timezone, registered_at
-) VALUES (?, ?, ?, ?, ?, ?, ?, ?, 1, ?, ?);
+    probe_schedule_timezone, registered_at, desired_configuration_updated_at
+) VALUES (?, ?, ?, ?, ?, ?, ?, ?, 1, ?, ?, ?);
 
 -- name: GetNodeByCredentialDigest :one
 SELECT id, name, hostname, credential_digest, enabled, revoked_at,
@@ -195,7 +196,8 @@ SELECT id, name, hostname, credential_digest, enabled, revoked_at,
        configuration_error, registered_at, last_seen_at,
        configuration_error_revision, physical_memory_bytes,
        probe_schedule_enabled, probe_schedule_cron, probe_schedule_timezone,
-       probe_low_memory_override, probe_on_new_address
+       probe_low_memory_override, probe_on_new_address, log_level,
+       desired_configuration_updated_at
 FROM nodes
 WHERE credential_digest = ?;
 
@@ -206,7 +208,8 @@ SELECT id, name, hostname, credential_digest, enabled, revoked_at,
        configuration_error, registered_at, last_seen_at,
        configuration_error_revision, physical_memory_bytes,
        probe_schedule_enabled, probe_schedule_cron, probe_schedule_timezone,
-       probe_low_memory_override, probe_on_new_address
+       probe_low_memory_override, probe_on_new_address, log_level,
+       desired_configuration_updated_at
 FROM nodes
 WHERE id = ?;
 
@@ -224,7 +227,8 @@ SELECT id, name, hostname, credential_digest, enabled, revoked_at,
        configuration_error, registered_at, last_seen_at,
        configuration_error_revision, physical_memory_bytes,
        probe_schedule_enabled, probe_schedule_cron, probe_schedule_timezone,
-       probe_low_memory_override, probe_on_new_address
+       probe_low_memory_override, probe_on_new_address, log_level,
+       desired_configuration_updated_at
 FROM nodes
 ORDER BY name COLLATE NOCASE, id;
 
@@ -274,6 +278,7 @@ ORDER BY created_at, id;
 UPDATE nodes
 SET enabled = ?,
     desired_configuration_revision = desired_configuration_revision + 1,
+    desired_configuration_updated_at = unixepoch(),
     configuration_error = NULL,
     configuration_error_revision = NULL
 WHERE id = ? AND enabled != ? AND revoked_at IS NULL
@@ -300,6 +305,7 @@ WHERE id = ? AND revoked_at IS NULL;
 -- name: IncrementAllNodeDesiredConfigurationRevisions :exec
 UPDATE nodes
 SET desired_configuration_revision = desired_configuration_revision + 1,
+    desired_configuration_updated_at = unixepoch(),
     configuration_error = NULL,
     configuration_error_revision = NULL
 WHERE revoked_at IS NULL;
@@ -568,6 +574,7 @@ WHERE id = ? AND node_id = ?;
 -- name: IncrementNodeDesiredConfigurationRevision :execrows
 UPDATE nodes
 SET desired_configuration_revision = desired_configuration_revision + 1,
+    desired_configuration_updated_at = unixepoch(),
     configuration_error = NULL,
     configuration_error_revision = NULL
 WHERE id = ? AND revoked_at IS NULL;
@@ -894,7 +901,8 @@ WHERE id = ? AND revoked_at IS NULL;
 SELECT id, enabled, revoked_at, last_seen_at, applied_configuration_revision,
        desired_configuration_revision, physical_memory_bytes,
        probe_schedule_enabled, probe_schedule_cron, probe_schedule_timezone,
-       probe_low_memory_override, probe_on_new_address
+       probe_low_memory_override, probe_on_new_address, log_level,
+       desired_configuration_updated_at
 FROM nodes
 WHERE id = ?;
 
@@ -904,6 +912,7 @@ SET probe_schedule_enabled = ?, probe_schedule_cron = ?,
     probe_schedule_timezone = ?, probe_low_memory_override = ?,
     probe_on_new_address = ?,
     desired_configuration_revision = desired_configuration_revision + 1,
+    desired_configuration_updated_at = unixepoch(),
     configuration_error = NULL, configuration_error_revision = NULL
 WHERE id = ? AND revoked_at IS NULL
   AND NOT EXISTS (
@@ -1038,6 +1047,35 @@ INSERT INTO notification_senders (
 SELECT id, name, kind, enabled, configuration_encrypted, created_at, updated_at
 FROM notification_senders
 WHERE id = ?;
+
+-- name: SetNodeLogLevel :execrows
+UPDATE nodes
+SET log_level = ?,
+    desired_configuration_revision = desired_configuration_revision + 1,
+    desired_configuration_updated_at = unixepoch(),
+    configuration_error = NULL,
+    configuration_error_revision = NULL
+WHERE id = ? AND log_level != ? AND revoked_at IS NULL
+  AND NOT EXISTS (
+      SELECT 1 FROM node_deletion_operations
+      WHERE node_id = nodes.id AND status != 'completed'
+  );
+
+-- name: GetLogRetentionSettings :one
+SELECT id, mode, max_age_days, max_logical_bytes, updated_at,
+       last_cleanup_at, last_cleanup_deleted_items, last_cleanup_error
+FROM log_retention_settings
+WHERE id = 1;
+
+-- name: UpdateLogRetentionSettings :execrows
+UPDATE log_retention_settings
+SET mode = ?, max_age_days = ?, max_logical_bytes = ?, updated_at = ?
+WHERE id = 1;
+
+-- name: RecordLogRetentionCleanup :exec
+UPDATE log_retention_settings
+SET last_cleanup_at = ?, last_cleanup_deleted_items = ?, last_cleanup_error = ?
+WHERE id = 1;
 
 -- name: ListNotificationSenders :many
 SELECT id, name, kind, enabled, configuration_encrypted, created_at, updated_at

@@ -17,6 +17,7 @@ func TestLoadRuntimeConfigDefaults(t *testing.T) {
 	}
 	if configuration.DatabasePaths.ConfigDatabase != "/var/lib/ipchronicle/config/config.db" ||
 		configuration.DatabasePaths.HistoryDatabase != "/var/lib/ipchronicle/history/history.db" ||
+		configuration.DatabasePaths.LogsDatabase != "/var/lib/ipchronicle/logs/logs.db" ||
 		configuration.DatabasePaths.MasterKey != "/var/lib/ipchronicle/config/master.key" {
 		t.Fatalf("unexpected default paths: %#v", configuration.DatabasePaths)
 	}
@@ -41,6 +42,7 @@ func TestLoadRuntimeConfigOverrides(t *testing.T) {
 	}
 	if configuration.DatabasePaths.ConfigDatabase != configDatabase ||
 		configuration.DatabasePaths.HistoryDatabase != filepath.Join(dataDirectory, "history", "history.db") ||
+		configuration.DatabasePaths.LogsDatabase != filepath.Join(dataDirectory, "logs", "logs.db") ||
 		configuration.DatabasePaths.MasterKey != filepath.Join(dataDirectory, "config", "master.key") {
 		t.Fatalf("unexpected overridden paths: %#v", configuration.DatabasePaths)
 	}
@@ -71,6 +73,7 @@ func clearRuntimeEnvironment(t *testing.T) {
 		"IPCHRONICLE_DATA_DIR",
 		"IPCHRONICLE_CONFIG_DATABASE_PATH",
 		"IPCHRONICLE_HISTORY_DATABASE_PATH",
+		"IPCHRONICLE_LOGS_DATABASE_PATH",
 		"IPCHRONICLE_MASTER_KEY_PATH",
 		"IPCHRONICLE_LISTEN_ADDRESS",
 		"IPCHRONICLE_ADMIN_USERNAME",

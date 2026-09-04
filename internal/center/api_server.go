@@ -2,8 +2,10 @@ package center
 
 import (
 	"context"
+	"database/sql"
 	"errors"
 	"fmt"
+	"maps"
 	"math"
 	"net/http"
 	"strings"
@@ -11,6 +13,7 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/ipchronicle/ipchronicle/internal/center/admin"
+	"github.com/ipchronicle/ipchronicle/internal/center/agentlogs"
 	centerhistory "github.com/ipchronicle/ipchronicle/internal/center/history"
 	"github.com/ipchronicle/ipchronicle/internal/center/nodes"
 	"github.com/ipchronicle/ipchronicle/internal/center/notifications"
@@ -28,8 +31,10 @@ type apiServer struct {
 	notifications        *notifications.Service
 	updates              *centerupdates.Service
 	systemSettings       *systemsettings.Service
+	agentLogs            *agentlogs.Service
 	configSchemaVersion  int64
 	historySchemaVersion int64
+	logsSchemaVersion    int64
 }
 
 func (s apiServer) Login(ctx context.Context, request api.LoginRequestObject) (api.LoginResponseObject, error) {
@@ -313,6 +318,7 @@ func (s apiServer) GetSystemStatus(ctx context.Context, _ api.GetSystemStatusReq
 		SourceRevision:       s.revision,
 		ConfigSchemaVersion:  s.configSchemaVersion,
 		HistorySchemaVersion: s.historySchemaVersion,
+		LogsSchemaVersion:    s.logsSchemaVersion,
 		TransportSecurity:    transport,
 		TransportWarning:     transport == api.SystemStatusTransportSecurityHttp,
 		ExternalOriginMode:   externalOriginMode,
@@ -332,6 +338,116 @@ func (s apiServer) GetOverview(ctx context.Context, _ api.GetOverviewRequestObje
 		return nil, err
 	}
 	return api.GetOverview200JSONResponse(overviewResponse(overview)), nil
+}
+
+func (s apiServer) ListLogs(ctx context.Context, request api.ListLogsRequestObject) (api.ListLogsResponseObject, error) {
+	_, failure, err := s.authorize(ctx, false, "")
+	if err != nil {
+		return nil, err
+	}
+	if failure != "" {
+		return api.ListLogs401JSONResponse{UnauthorizedJSONResponse: unauthorized(failure)}, nil
+	}
+	filter := agentlogs.Filter{
+		From: request.Params.From, To: request.Params.To,
+		NodeID: request.Params.NodeId, PublicAddress: request.Params.PublicAddress,
+		TaskID: request.Params.TaskId, ProxyID: request.Params.ProxyId,
+		Component: request.Params.Component, EventType: request.Params.EventType,
+		Keyword: request.Params.Keyword, Cursor: request.Params.Cursor,
+	}
+	if request.Params.Level != nil {
+		value := string(*request.Params.Level)
+		filter.Level = &value
+	}
+	if request.Params.PageSize != nil {
+		filter.PageSize = *request.Params.PageSize
+	}
+	page, err := s.agentLogs.List(ctx, filter)
+	if errors.Is(err, agentlogs.ErrInvalidFilter) {
+		return api.ListLogs400JSONResponse{BadRequestJSONResponse: badRequest(api.InvalidRequest)}, nil
+	}
+	if err != nil {
+		return nil, err
+	}
+	return api.ListLogs200JSONResponse(logEventPageResponse(page)), nil
+}
+
+func (s apiServer) GetLog(ctx context.Context, request api.GetLogRequestObject) (api.GetLogResponseObject, error) {
+	_, failure, err := s.authorize(ctx, false, "")
+	if err != nil {
+		return nil, err
+	}
+	if failure != "" {
+		return api.GetLog401JSONResponse{UnauthorizedJSONResponse: unauthorized(failure)}, nil
+	}
+	detail, err := s.agentLogs.Get(ctx, request.LogId)
+	if errors.Is(err, sql.ErrNoRows) {
+		return api.GetLog404JSONResponse{NotFoundJSONResponse: notFound(api.LogNotFound)}, nil
+	}
+	if err != nil {
+		return nil, err
+	}
+	return api.GetLog200JSONResponse(logEventDetailResponse(detail)), nil
+}
+
+func (s apiServer) GetLogRetention(ctx context.Context, _ api.GetLogRetentionRequestObject) (api.GetLogRetentionResponseObject, error) {
+	_, failure, err := s.authorize(ctx, false, "")
+	if err != nil {
+		return nil, err
+	}
+	if failure != "" {
+		return api.GetLogRetention401JSONResponse{UnauthorizedJSONResponse: unauthorized(failure)}, nil
+	}
+	state, err := s.agentLogs.Retention(ctx)
+	if err != nil {
+		return nil, err
+	}
+	return api.GetLogRetention200JSONResponse(logRetentionResponse(state)), nil
+}
+
+func (s apiServer) UpdateLogRetention(ctx context.Context, request api.UpdateLogRetentionRequestObject) (api.UpdateLogRetentionResponseObject, error) {
+	_, failure, err := s.authorize(ctx, true, csrfValue(request.Params.XCSRFToken))
+	if err != nil {
+		return nil, err
+	}
+	if failure == api.Unauthenticated {
+		return api.UpdateLogRetention401JSONResponse{UnauthorizedJSONResponse: unauthorized(failure)}, nil
+	}
+	if failure != "" {
+		return api.UpdateLogRetention403JSONResponse{ForbiddenJSONResponse: forbidden(failure)}, nil
+	}
+	if request.Body == nil {
+		return api.UpdateLogRetention400JSONResponse{BadRequestJSONResponse: badRequest(api.InvalidRequest)}, nil
+	}
+	state, err := s.agentLogs.UpdateRetention(ctx, agentlogs.RetentionUpdate{
+		Mode: string(request.Body.Mode), MaxAgeDays: request.Body.MaxAgeDays,
+		MaxLogicalBytes: request.Body.MaxLogicalBytes,
+	})
+	if errors.Is(err, agentlogs.ErrInvalidRetention) {
+		return api.UpdateLogRetention400JSONResponse{BadRequestJSONResponse: badRequest(api.InvalidLogRetention)}, nil
+	}
+	if err != nil {
+		return nil, err
+	}
+	return api.UpdateLogRetention200JSONResponse(logRetentionResponse(state)), nil
+}
+
+func (s apiServer) CleanupLogs(ctx context.Context, request api.CleanupLogsRequestObject) (api.CleanupLogsResponseObject, error) {
+	_, failure, err := s.authorize(ctx, true, csrfValue(request.Params.XCSRFToken))
+	if err != nil {
+		return nil, err
+	}
+	if failure == api.Unauthenticated {
+		return api.CleanupLogs401JSONResponse{UnauthorizedJSONResponse: unauthorized(failure)}, nil
+	}
+	if failure != "" {
+		return api.CleanupLogs403JSONResponse{ForbiddenJSONResponse: forbidden(failure)}, nil
+	}
+	state, err := s.agentLogs.Cleanup(ctx)
+	if err != nil {
+		return nil, err
+	}
+	return api.CleanupLogs200JSONResponse(logRetentionResponse(state)), nil
 }
 
 func (s apiServer) GetSystemSettings(ctx context.Context, _ api.GetSystemSettingsRequestObject) (api.GetSystemSettingsResponseObject, error) {
@@ -409,9 +525,14 @@ func (s apiServer) UpdateNode(ctx context.Context, request api.UpdateNodeRequest
 	if request.Body == nil {
 		return api.UpdateNode400JSONResponse{BadRequestJSONResponse: badRequest(api.InvalidRequest)}, nil
 	}
-	node, err := s.nodes.Update(ctx, request.NodeId, request.Body.Name, request.Body.Enabled)
+	var logLevel *string
+	if request.Body.LogLevel != nil {
+		value := string(*request.Body.LogLevel)
+		logLevel = &value
+	}
+	node, err := s.nodes.Update(ctx, request.NodeId, request.Body.Name, request.Body.Enabled, logLevel)
 	switch {
-	case errors.Is(err, nodes.ErrInvalidNodeName):
+	case errors.Is(err, nodes.ErrInvalidNodeName), errors.Is(err, nodes.ErrInvalidMetadata):
 		return api.UpdateNode400JSONResponse{BadRequestJSONResponse: badRequest(api.InvalidRequest)}, nil
 	case errors.Is(err, nodes.ErrNodeNotFound):
 		return api.UpdateNode404JSONResponse{NotFoundJSONResponse: notFound(api.NodeNotFound)}, nil
@@ -1300,6 +1421,10 @@ func (s apiServer) GetAgentConfiguration(ctx context.Context, _ api.GetAgentConf
 			Ipv6Services: configuration.DiscoveryServices.IPv6,
 		},
 	}
+	if configuration.LogLevel != "" {
+		value := api.LogLevel(configuration.LogLevel)
+		response.LogLevel = &value
+	}
 	if ipapiAPIKey != "" {
 		response.IpapiApiKey = &ipapiAPIKey
 	}
@@ -1325,6 +1450,36 @@ func (s apiServer) UploadProbeArtifact(ctx context.Context, request api.UploadPr
 	return api.UploadProbeArtifact200JSONResponse{
 		ArtifactId: receipt.ID, Revision: receipt.Revision,
 		Disposition: api.AgentProbeArtifactDisposition(receipt.Disposition),
+	}, nil
+}
+
+func (s apiServer) UploadAgentLogs(ctx context.Context, request api.UploadAgentLogsRequestObject) (api.UploadAgentLogsResponseObject, error) {
+	if request.Body == nil {
+		return api.UploadAgentLogs400JSONResponse{BadRequestJSONResponse: badRequest(api.InvalidRequest)}, nil
+	}
+	credential := bearerToken(requestSecurityFromContext(ctx).Authorization)
+	nodeID, err := s.nodes.AuthorizeAgent(ctx, credential)
+	switch {
+	case errors.Is(err, nodes.ErrAgentUnauthenticated):
+		return api.UploadAgentLogs401JSONResponse{AgentUnauthorizedJSONResponse: agentUnauthorized(api.AgentUnauthenticated)}, nil
+	case errors.Is(err, nodes.ErrAgentRevoked):
+		return api.UploadAgentLogs403JSONResponse{AgentForbiddenJSONResponse: agentForbidden(api.AgentRevoked)}, nil
+	case err != nil:
+		return nil, err
+	}
+	events := make([]agentlogs.Event, 0, len(request.Body.Events))
+	for _, event := range request.Body.Events {
+		events = append(events, agentLogEventFromAPI(event))
+	}
+	accepted, discarded, err := s.agentLogs.Upload(ctx, nodeID, events)
+	if errors.Is(err, agentlogs.ErrInvalidEvent) {
+		return api.UploadAgentLogs400JSONResponse{BadRequestJSONResponse: badRequest(api.InvalidRequest)}, nil
+	}
+	if err != nil {
+		return nil, err
+	}
+	return api.UploadAgentLogs200JSONResponse{
+		AcceptedEventIds: accepted, DiscardedEventIds: discarded,
 	}, nil
 }
 
@@ -1410,6 +1565,39 @@ func metadataFromAPI(metadata api.AgentMetadata) nodes.Metadata {
 	}
 }
 
+func agentLogEventFromAPI(event api.AgentLogEvent) agentlogs.Event {
+	result := agentlogs.Event{
+		ID: event.Id, OccurredAt: event.OccurredAt, Level: string(event.Level),
+		Component: event.Component, EventType: event.EventType, Message: event.Message,
+		PublicAddressID: event.PublicAddressId, PublicAddress: event.PublicAddress,
+		TaskID: event.TaskId, ProxyID: event.ProxyId,
+		ConfigurationRevision: event.ConfigurationRevision, DiscoveryPath: event.DiscoveryPath,
+		RequestMethod: event.RequestMethod, RequestTarget: event.RequestTarget,
+		HTTPStatus: event.HttpStatus, DurationMilliseconds: event.DurationMilliseconds,
+		ResponseContentType: event.ResponseContentType, ResponseTruncated: valueOrZero(event.ResponseTruncated),
+		DroppedCount: event.DroppedCount, DroppedFrom: event.DroppedFrom, DroppedTo: event.DroppedTo,
+	}
+	if event.RateLimitHeaders != nil {
+		result.RateLimitHeaders = maps.Clone(*event.RateLimitHeaders)
+	}
+	if event.Family != nil {
+		value := string(*event.Family)
+		result.Family = &value
+	}
+	if event.FailureCategory != nil {
+		value := string(*event.FailureCategory)
+		result.FailureCategory = &value
+	}
+	if event.ResponseBody != nil {
+		result.ResponseBody = append([]byte(nil), (*event.ResponseBody)...)
+	}
+	return result
+}
+
+func valueOrZero(value *bool) bool {
+	return value != nil && *value
+}
+
 func networkInventoryFromAPI(inventory *api.NetworkInventory) *nodes.NetworkInventory {
 	if inventory == nil {
 		return nil
@@ -1471,6 +1659,7 @@ func nodeResponse(node nodes.Node) api.Node {
 		DesiredConfigurationRevision: node.DesiredConfigurationRevision,
 		AppliedConfigurationRevision: node.AppliedConfigurationRevision,
 		ConfigurationStatus:          api.NodeConfigurationStatus(node.ConfigurationStatus),
+		LogLevel:                     api.LogLevel(node.LogLevel),
 		ConfigurationError:           node.ConfigurationError,
 		DeletionStatus:               deletionStatus(node.DeletionStatus),
 		DeletionError:                node.DeletionError,
@@ -1486,6 +1675,68 @@ func nodeResponse(node nodes.Node) api.Node {
 		})
 	}
 	return response
+}
+
+func logEventPageResponse(page agentlogs.Page) api.LogEventPage {
+	items := make([]api.LogEventSummary, 0, len(page.Items))
+	for _, event := range page.Items {
+		items = append(items, logEventSummaryResponse(event))
+	}
+	return api.LogEventPage{Items: items, NextCursor: page.NextCursor}
+}
+
+func logEventDetailResponse(detail agentlogs.EventDetail) api.LogEventDetail {
+	response := api.LogEventDetail{
+		Event:         logEventSummaryResponse(detail.Summary),
+		DiscoveryPath: detail.Summary.DiscoveryPath,
+	}
+	if len(detail.Summary.RateLimitHeaders) > 0 {
+		value := maps.Clone(detail.Summary.RateLimitHeaders)
+		response.RateLimitHeaders = &value
+	}
+	if detail.Summary.ResponseBody != nil {
+		body := append([]byte(nil), detail.Summary.ResponseBody...)
+		response.ResponseBody = &body
+	}
+	return response
+}
+
+func logEventSummaryResponse(event agentlogs.EventSummary) api.LogEventSummary {
+	response := api.LogEventSummary{
+		Id: event.ID, Source: api.LogEventSummarySource(event.Source),
+		NodeId: event.NodeID, NodeName: event.NodeName,
+		OccurredAt: event.OccurredAt, ReceivedAt: event.ReceivedAt,
+		Level: api.LogLevel(event.Level), Component: event.Component,
+		EventType: event.EventType, Message: event.Message,
+		PublicAddressId: event.PublicAddressID, PublicAddress: event.PublicAddress,
+		TaskId: event.TaskID, ProxyId: event.ProxyID,
+		ConfigurationRevision: event.ConfigurationRevision,
+		RequestMethod:         event.RequestMethod, RequestTarget: event.RequestTarget,
+		HttpStatus: event.HTTPStatus, DurationMilliseconds: event.DurationMilliseconds,
+		ResponseContentType: event.ResponseContentType, ResponseBodyBytes: event.ResponseBodyBytes,
+		ResponseTruncated: event.ResponseTruncated, DroppedCount: event.DroppedCount,
+		DroppedFrom: event.DroppedFrom, DroppedTo: event.DroppedTo,
+	}
+	if event.Family != nil {
+		value := api.AddressFamily(*event.Family)
+		response.Family = &value
+	}
+	if event.FailureCategory != nil {
+		value := api.LogFailureCategory(*event.FailureCategory)
+		response.FailureCategory = &value
+	}
+	return response
+}
+
+func logRetentionResponse(state agentlogs.RetentionState) api.LogRetentionState {
+	return api.LogRetentionState{
+		Mode: api.HistoryRetentionMode(state.Mode), MaxAgeDays: state.MaxAgeDays,
+		MaxLogicalBytes: state.MaxLogicalBytes, UpdatedAt: state.UpdatedAt,
+		LastCleanupAt:           state.LastCleanupAt,
+		LastCleanupDeletedItems: state.LastCleanupDeletedItems,
+		LastCleanupError:        state.LastCleanupError,
+		LogicalBytes:            state.LogicalBytes, RecordCount: state.RecordCount,
+	}
 }
 
 func overviewResponse(overview nodes.Overview) api.Overview {

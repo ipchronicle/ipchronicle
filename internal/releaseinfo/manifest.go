@@ -23,8 +23,10 @@ const (
 
 var RequiredAgentCapabilities = []string{
 	"address-observation-v1",
+	"agent-logs-v1",
 	"agent-update-v1",
 	"complete-probe-v1",
+	"configuration-v10",
 	"configuration-v9",
 	"control-v1",
 	"network-inventory-v1",

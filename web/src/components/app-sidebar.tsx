@@ -6,6 +6,7 @@ import {
   History,
   Network,
   Radar,
+  ScrollText,
   Server,
   Settings2,
 } from "lucide-react";
@@ -75,6 +76,23 @@ export function AppSidebar() {
                     >
                       <Gauge aria-hidden="true" />
                       <span>{t("navigation.systemStatus")}</span>
+                    </SidebarLink>
+                  </SidebarMenuButton>
+                </SidebarMenuItem>
+                <SidebarMenuItem>
+                  <SidebarMenuButton
+                    asChild
+                    isActive={location.pathname === "/logs"}
+                    tooltip={t("navigation.logs")}
+                  >
+                    <SidebarLink
+                      to="/logs"
+                      aria-current={
+                        location.pathname === "/logs" ? "page" : undefined
+                      }
+                    >
+                      <ScrollText aria-hidden="true" />
+                      <span>{t("navigation.logs")}</span>
                     </SidebarLink>
                   </SidebarMenuButton>
                 </SidebarMenuItem>

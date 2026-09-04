@@ -16,6 +16,7 @@ import (
 	"github.com/coder/websocket"
 	"github.com/google/uuid"
 	"github.com/ipchronicle/ipchronicle/internal/center/admin"
+	"github.com/ipchronicle/ipchronicle/internal/center/agentlogs"
 	"github.com/ipchronicle/ipchronicle/internal/center/database"
 	"github.com/ipchronicle/ipchronicle/internal/center/nodes"
 	"github.com/ipchronicle/ipchronicle/internal/center/notifications"
@@ -31,6 +32,100 @@ func TestHealthDoesNotRequireAuthentication(t *testing.T) {
 	if response.Code != http.StatusOK || response.Body.String() != "ok\n" {
 		t.Fatalf("health response = %d %q", response.Code, response.Body.String())
 	}
+}
+
+func TestAgentLogUploadConfigurationAndAdministratorQueries(t *testing.T) {
+	handler, nodeService, _ := newTestHTTPHandlerWithNodes(t)
+	cookie, session := loginTestAdministrator(t, handler)
+	enrollment, err := nodeService.RotateEnrollmentKey(context.Background(), "UTC")
+	if err != nil {
+		t.Fatal(err)
+	}
+	metadata := nodes.Metadata{
+		Hostname: "log-edge", AgentVersion: "test", OperatingSystem: "linux", Architecture: "amd64",
+		Capabilities:        []string{"agent-logs-v1", "configuration-v10", "configuration-v9", "control-v1"},
+		PhysicalMemoryBytes: 512 * 1024 * 1024,
+	}
+	registration, err := nodeService.Register(context.Background(), enrollment.Key, metadata)
+	if err != nil {
+		t.Fatal(err)
+	}
+	updated := performRequestWithCSRF(
+		handler, http.MethodPatch, "/api/v1/nodes/"+registration.NodeID.String(),
+		[]byte(`{"enabled":true,"logLevel":"debug"}`), "http://example.test", cookie, session.CsrfToken,
+	)
+	if updated.Code != http.StatusOK {
+		t.Fatalf("log level update = %d, %s", updated.Code, updated.Body.String())
+	}
+	configurationRequest := httptest.NewRequest(http.MethodGet, "http://example.test/api/v1/agent/configuration", nil)
+	configurationRequest.Header.Set("Authorization", "Bearer "+registration.Credential)
+	configurationResponse := httptest.NewRecorder()
+	handler.ServeHTTP(configurationResponse, configurationRequest)
+	var configuration api.AgentConfigurationSnapshot
+	if err := json.NewDecoder(configurationResponse.Body).Decode(&configuration); err != nil ||
+		configurationResponse.Code != http.StatusOK || configuration.SchemaVersion != 10 ||
+		configuration.LogLevel == nil || *configuration.LogLevel != api.Debug {
+		t.Fatalf("Agent log configuration = %#v, status %d, %v", configuration, configurationResponse.Code, err)
+	}
+	eventID := uuid.New()
+	responseBody := []byte("upstream rejected request")
+	category := api.LogFailureCategoryHttpStatus
+	status := http.StatusTooManyRequests
+	target := "https://provider.example/check"
+	rateLimits := map[string]string{"Retry-After": "60", "X-RateLimit-Remaining": "0"}
+	payload, err := json.Marshal(api.AgentLogBatch{Events: []api.AgentLogEvent{{
+		Id: eventID, OccurredAt: time.Now().UTC(), Level: api.Warn,
+		Component: "ip-quality", EventType: "provider-request-failed", Message: "provider request failed",
+		FailureCategory: &category, HttpStatus: &status, RequestTarget: &target,
+		RateLimitHeaders: &rateLimits, ResponseBody: &responseBody,
+	}}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	unauthenticatedUpload := performRequest(handler, http.MethodPost, "/api/v1/agent/logs", payload, "", nil)
+	assertErrorCode(t, unauthenticatedUpload, http.StatusUnauthorized, api.AgentUnauthenticated)
+	uploadRequest := httptest.NewRequest(http.MethodPost, "http://example.test/api/v1/agent/logs", bytes.NewReader(payload))
+	uploadRequest.Header.Set("Content-Type", "application/json")
+	uploadRequest.Header.Set("Authorization", "Bearer "+registration.Credential)
+	uploadResponse := httptest.NewRecorder()
+	handler.ServeHTTP(uploadResponse, uploadRequest)
+	if uploadResponse.Code != http.StatusOK || !strings.Contains(uploadResponse.Body.String(), eventID.String()) {
+		t.Fatalf("log upload = %d, %s", uploadResponse.Code, uploadResponse.Body.String())
+	}
+	unauthenticated := performRequest(handler, http.MethodGet, "/api/v1/logs", nil, "", nil)
+	assertErrorCode(t, unauthenticated, http.StatusUnauthorized, api.Unauthenticated)
+	listed := performRequest(handler, http.MethodGet, "/api/v1/logs?nodeId="+registration.NodeID.String(), nil, "", cookie)
+	var page api.LogEventPage
+	if err := json.NewDecoder(listed.Body).Decode(&page); err != nil || listed.Code != http.StatusOK ||
+		len(page.Items) != 1 || page.Items[0].Id != eventID || page.Items[0].ResponseBodyBytes != int64(len(responseBody)) {
+		t.Fatalf("listed logs = %#v, status %d, %v", page, listed.Code, err)
+	}
+	detailResponse := performRequest(handler, http.MethodGet, "/api/v1/logs/"+eventID.String(), nil, "", cookie)
+	var detail api.LogEventDetail
+	if err := json.NewDecoder(detailResponse.Body).Decode(&detail); err != nil || detailResponse.Code != http.StatusOK ||
+		detail.ResponseBody == nil || !bytes.Equal(*detail.ResponseBody, responseBody) ||
+		detail.RateLimitHeaders == nil || (*detail.RateLimitHeaders)["Retry-After"] != "60" {
+		t.Fatalf("log detail = %#v, status %d, %v", detail, detailResponse.Code, err)
+	}
+	if _, err := nodeService.Revoke(context.Background(), registration.NodeID); err != nil {
+		t.Fatal(err)
+	}
+	revokedRequest := httptest.NewRequest(http.MethodPost, "http://example.test/api/v1/agent/logs", bytes.NewReader(payload))
+	revokedRequest.Header.Set("Content-Type", "application/json")
+	revokedRequest.Header.Set("Authorization", "Bearer "+registration.Credential)
+	revokedResponse := httptest.NewRecorder()
+	handler.ServeHTTP(revokedResponse, revokedRequest)
+	assertErrorCode(t, revokedResponse, http.StatusForbidden, api.AgentRevoked)
+}
+
+func TestAgentLogUploadRejectsBodiesLargerThanEightMiB(t *testing.T) {
+	handler := newTestHTTPHandler(t)
+	body := strings.NewReader(`{"events":[]}` + strings.Repeat(" ", maxAgentLogsRequestBodySize))
+	request := httptest.NewRequest(http.MethodPost, "http://example.test/api/v1/agent/logs", body)
+	request.Header.Set("Content-Type", "application/json")
+	response := httptest.NewRecorder()
+	handler.ServeHTTP(response, request)
+	assertErrorCode(t, response, http.StatusRequestEntityTooLarge, api.InvalidRequest)
 }
 
 func TestAdministratorLoginStatusAndLogout(t *testing.T) {
@@ -72,7 +167,8 @@ func TestAdministratorLoginStatusAndLogout(t *testing.T) {
 		t.Fatal(err)
 	}
 	if status.Service != api.IpchronicleCenter || status.Status != api.Ok || status.SourceRevision != "test-revision" ||
-		!status.TransportWarning || status.ConfigSchemaVersion != 1 || status.HistorySchemaVersion != 1 {
+		!status.TransportWarning || status.ConfigSchemaVersion != 2 || status.HistorySchemaVersion != 1 ||
+		status.LogsSchemaVersion != 1 {
 		t.Fatalf("unexpected status response: %#v", status)
 	}
 	overviewResponse := performRequest(handler, http.MethodGet, "/api/v1/overview", nil, "", cookie)
@@ -1199,7 +1295,8 @@ func newTestHTTPHandlerWithNotifications(t *testing.T) (http.Handler, *nodes.Ser
 	})
 	return NewHTTPHandler(HTTPOptions{
 		Version: "0.0.0-test", Revision: "test-revision", Web: http.NotFoundHandler(),
-		Administrator: administrator, Nodes: nodeService, Notifications: notificationService, Updates: updateService, SyncHub: syncHub,
+		Administrator: administrator, AgentLogs: agentlogs.NewService(store.Logs, store.LogsQueries, store.ConfigQueries),
+		Nodes: nodeService, Notifications: notificationService, Updates: updateService, SyncHub: syncHub,
 		SystemSettings: systemSettingsService, Store: store,
 	}), nodeService, notificationService, syncHub
 }

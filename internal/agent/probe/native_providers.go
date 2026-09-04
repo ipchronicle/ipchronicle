@@ -194,7 +194,11 @@ func (engine *nativeEngine) probeIPAPI(ctx context.Context) providerFinding {
 		headers.Set("Content-Type", "application/json")
 		body, _ = json.Marshal(map[string]string{"q": engine.input.Target, "key": engine.input.IPAPIAPIKey})
 	}
-	document := engine.explicitLookupHTTP.json(ctx, method, target, headers, body)
+	document, response := engine.explicitLookupHTTP.jsonWithResponse(ctx, method, target, headers, body)
+	if document != nil && !hasIPAPIResult(document) {
+		engine.explicitLookupHTTP.emitInvalidResponse(response, "ipapi response did not contain IP quality data")
+		document = nil
+	}
 	score := documentString(document, "company", "abuser_score")
 	if score == "" {
 		score = documentString(document, "abuser_score")
@@ -221,6 +225,19 @@ func (engine *nativeEngine) probeIPAPI(ctx context.Context) providerFinding {
 		Usage: documentString(document, "asn", "type"), Company: documentString(document, "company", "type"),
 		Score: score,
 	}
+}
+
+func hasIPAPIResult(document map[string]any) bool {
+	for _, path := range [][]string{
+		{"location", "country_code"}, {"cc"}, {"company", "abuser_score"}, {"abuser_score"},
+		{"is_proxy"}, {"is_tor"}, {"is_vpn"}, {"is_datacenter"}, {"is_abuser"}, {"is_crawler"},
+		{"asn", "type"}, {"company", "type"},
+	} {
+		if documentValue(document, path...) != nil {
+			return true
+		}
+	}
+	return false
 }
 
 func (engine *nativeEngine) probeAbuseIPDB(ctx context.Context) providerFinding {
@@ -311,10 +328,16 @@ func (engine *nativeEngine) checkPlaceDocumentWithRetry(
 		response, err := engine.http.do(ctx, http.MethodGet, engine.checkPlaceURL("db="+database), nil, nil)
 		retry := false
 		if err == nil && response.StatusCode >= 200 && response.StatusCode < 300 {
-			if document := decodeJSONDocument(response.Body); document != nil {
+			document := decodeJSONDocument(response.Body)
+			if document == nil {
+				engine.http.emitInvalidResponse(response, "Probe provider returned invalid JSON")
+				retry = true
+			} else if documentReportsFailure(document) {
+				engine.http.emitInvalidResponse(response, "Probe provider reported an unsuccessful result")
+				return nil
+			} else {
 				return document
 			}
-			retry = true
 		} else {
 			retry = transientProviderFailure(ctx, response.StatusCode, err)
 		}

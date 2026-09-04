@@ -23,10 +23,11 @@ import (
 )
 
 const (
-	PollInterval       = 30 * time.Second
-	OnlineWindow       = 2 * time.Minute
-	SyncSessionLease   = 10 * time.Minute
-	SyncWakeCapability = "sync-wakeup-v1"
+	PollInterval        = 30 * time.Second
+	OnlineWindow        = 2 * time.Minute
+	SyncSessionLease    = 10 * time.Minute
+	SyncWakeCapability  = "sync-wakeup-v1"
+	AgentLogsCapability = "agent-logs-v1"
 )
 
 var (
@@ -120,6 +121,7 @@ type Configuration struct {
 	DiscoveryServices      DiscoveryServices
 	ProbeSchedule          ProbeSchedule
 	ProbeLowMemoryOverride bool
+	LogLevel               string
 }
 
 type ProbeSchedule struct {
@@ -151,6 +153,8 @@ type Node struct {
 	ConfigurationStatus          string
 	ConfigurationError           *string
 	ConfigurationErrorRevision   *int64
+	ConfigurationUpdatedAt       time.Time
+	LogLevel                     string
 	DeletionStatus               *string
 	DeletionError                *string
 	SyncStatus                   *string
@@ -278,7 +282,7 @@ func (s *Service) Register(ctx context.Context, registrationKey string, metadata
 		AgentVersion: metadata.AgentVersion, AgentRevision: metadata.AgentRevision,
 		OperatingSystem: metadata.OperatingSystem,
 		Architecture:    metadata.Architecture, ProbeScheduleTimezone: enrollment.DefaultProbeTimezone,
-		RegisteredAt: now.Unix(),
+		RegisteredAt: now.Unix(), DesiredConfigurationUpdatedAt: now.Unix(),
 	}); err != nil {
 		return Registration{}, err
 	}
@@ -333,6 +337,13 @@ func (s *Service) Poll(
 	}
 	defer transaction.Rollback()
 	queries := s.queries.WithTx(transaction)
+	_, capabilityErr := queries.GetNodeCapability(ctx, configdb.GetNodeCapabilityParams{
+		NodeID: node.ID, Capability: AgentLogsCapability,
+	})
+	hadLogCapability := capabilityErr == nil
+	if capabilityErr != nil && !errors.Is(capabilityErr, sql.ErrNoRows) {
+		return Poll{}, capabilityErr
+	}
 	changed, err := queries.UpdateNodeHeartbeat(ctx, configdb.UpdateNodeHeartbeatParams{
 		Hostname: metadata.Hostname, AgentVersion: metadata.AgentVersion, AgentRevision: metadata.AgentRevision,
 		OperatingSystem: metadata.OperatingSystem, Architecture: metadata.Architecture,
@@ -347,6 +358,11 @@ func (s *Service) Poll(
 	}
 	if err := replaceCapabilities(ctx, queries, node.ID, metadata.Capabilities); err != nil {
 		return Poll{}, err
+	}
+	if !hadLogCapability && slices.Contains(metadata.Capabilities, AgentLogsCapability) {
+		if err := incrementNodeConfiguration(ctx, queries, node.ID); err != nil {
+			return Poll{}, err
+		}
 	}
 	if changed, err := queries.UpdateNodePhysicalMemory(ctx, configdb.UpdateNodePhysicalMemoryParams{
 		PhysicalMemoryBytes: &metadata.PhysicalMemoryBytes, ID: node.ID,
@@ -442,6 +458,14 @@ func (s *Service) AuthorizeSync(ctx context.Context, credential string, sessionI
 	}, nil
 }
 
+func (s *Service) AuthorizeAgent(ctx context.Context, credential string) (uuid.UUID, error) {
+	node, err := s.authenticateAgent(ctx, credential)
+	if err != nil {
+		return uuid.Nil, err
+	}
+	return uuid.Parse(node.ID)
+}
+
 func (s *Service) Configuration(ctx context.Context, credential string) (Configuration, error) {
 	node, err := s.authenticateAgent(ctx, credential)
 	if err != nil {
@@ -521,12 +545,27 @@ func (s *Service) Configuration(ctx context.Context, credential string) (Configu
 	if err := sharedschedule.ValidateProbe(probeSchedule.Cron, probeSchedule.Timezone); err != nil {
 		return Configuration{}, fmt.Errorf("read stored probe schedule: %w", err)
 	}
+	schemaVersion := 9
+	logLevel := ""
+	if _, err := s.queries.GetNodeCapability(ctx, configdb.GetNodeCapabilityParams{
+		NodeID: node.ID, Capability: AgentLogsCapability,
+	}); err == nil {
+		schemaVersion = 10
+		record, err := s.queries.GetNodeByID(ctx, node.ID)
+		if err != nil {
+			return Configuration{}, err
+		}
+		logLevel = record.LogLevel
+	} else if !errors.Is(err, sql.ErrNoRows) {
+		return Configuration{}, err
+	}
 	return Configuration{
-		SchemaVersion: 9, Revision: node.DesiredConfigurationRevision,
+		SchemaVersion: schemaVersion, Revision: node.DesiredConfigurationRevision,
 		Enabled: node.Enabled == 1, HistoryGeneration: state.HistoryGeneration,
 		DiscoveryPaths: discoveryPaths, ProbeTargets: probeTargets,
 		Proxies: proxies, DiscoveryServices: discoveryServices,
 		ProbeSchedule: probeSchedule, ProbeLowMemoryOverride: settings.ProbeLowMemoryOverride == 1,
+		LogLevel: logLevel,
 	}, nil
 }
 
@@ -611,6 +650,8 @@ func (s *Service) List(ctx context.Context) ([]Node, error) {
 			AppliedConfigurationRevision: record.AppliedConfigurationRevision,
 			ConfigurationStatus:          configurationStatus, ConfigurationError: record.ConfigurationError,
 			ConfigurationErrorRevision: record.ConfigurationErrorRevision,
+			ConfigurationUpdatedAt:     time.Unix(record.DesiredConfigurationUpdatedAt, 0).UTC(),
+			LogLevel:                   record.LogLevel,
 			RegisteredAt:               time.Unix(record.RegisteredAt, 0).UTC(), LastSeenAt: lastSeenAt,
 			PublicAddresses: append([]NodePublicAddressSummary{}, publicAddresses[record.ID]...),
 		}
@@ -651,12 +692,15 @@ func (s *Service) Get(ctx context.Context, id uuid.UUID) (Node, error) {
 }
 
 func (s *Service) SetEnabled(ctx context.Context, id uuid.UUID, enabled bool) (Node, error) {
-	return s.Update(ctx, id, nil, enabled)
+	return s.Update(ctx, id, nil, enabled, nil)
 }
 
-func (s *Service) Update(ctx context.Context, id uuid.UUID, name *string, enabled bool) (Node, error) {
+func (s *Service) Update(ctx context.Context, id uuid.UUID, name *string, enabled bool, logLevel *string) (Node, error) {
 	if name != nil && !validBoundedText(*name, 128) {
 		return Node{}, ErrInvalidNodeName
+	}
+	if logLevel != nil && !validLogLevel(*logLevel) {
+		return Node{}, ErrInvalidMetadata
 	}
 	transaction, err := s.database.BeginTx(ctx, nil)
 	if err != nil {
@@ -703,6 +747,18 @@ func (s *Service) Update(ctx context.Context, id uuid.UUID, name *string, enable
 			return Node{}, ErrNodeDeletionPending
 		}
 	}
+	if logLevel != nil && record.LogLevel != *logLevel {
+		changed, err := queries.SetNodeLogLevel(ctx, configdb.SetNodeLogLevelParams{
+			LogLevel: *logLevel, ID: id.String(), LogLevel_2: *logLevel,
+		})
+		if err != nil {
+			return Node{}, err
+		}
+		if changed != 1 {
+			return Node{}, ErrNodeDeletionPending
+		}
+		changedConfiguration = true
+	}
 	if err := transaction.Commit(); err != nil {
 		return Node{}, err
 	}
@@ -710,6 +766,10 @@ func (s *Service) Update(ctx context.Context, id uuid.UUID, name *string, enable
 		s.sync.Wake(id.String())
 	}
 	return s.Get(ctx, id)
+}
+
+func validLogLevel(value string) bool {
+	return value == "error" || value == "warn" || value == "info" || value == "debug"
 }
 
 func (s *Service) StartSyncSession(ctx context.Context, id uuid.UUID) (Node, error) {

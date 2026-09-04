@@ -247,6 +247,7 @@ func (runner *blockingRunner) Run(
 	_ state.Configuration,
 	egress state.Egress,
 	startedAt time.Time,
+	_ *string,
 ) (state.ProbeExecutionOutcome, error) {
 	runner.mu.Lock()
 	runner.calls = append(runner.calls, egress.ID)

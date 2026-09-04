@@ -18,6 +18,7 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/ipchronicle/ipchronicle/internal/agent/agentlogs"
 	"github.com/ipchronicle/ipchronicle/internal/agent/state"
 	"github.com/ipchronicle/ipchronicle/internal/releaseinfo"
 )
@@ -78,6 +79,49 @@ func TestManagerStagesValidatedAgentAndStartsSupervisor(t *testing.T) {
 	if err != nil || info.Mode().Perm() != 0o755 {
 		t.Fatalf("staged Agent mode = %v, %v", info, err)
 	}
+}
+
+func TestManifestFailureLogsSanitizedResponse(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(response http.ResponseWriter, _ *http.Request) {
+		response.Header().Set("Content-Type", "application/json")
+		response.WriteHeader(http.StatusTooManyRequests)
+		_, _ = io.WriteString(response, `{"error":"release quota"}`)
+	}))
+	defer server.Close()
+	store, err := state.Open(filepath.Join(t.TempDir(), "agent"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer store.Close()
+	logs := &capturedUpdateLogs{}
+	manager, err := NewManager(ManagerOptions{
+		Store: store, CurrentVersion: "0.1.0", Events: logs,
+		ReleaseDownloadURL: server.URL + "?secret=value",
+		Config: Config{
+			InitSystem: "systemd", AgentPath: "/usr/local/bin/ipchronicle-agent",
+			UpdaterPath: "/usr/local/bin/ipchronicle-agent-updater",
+		},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := manager.fetchManifest(context.Background(), "0.1.1", uuid.NewString()); err == nil {
+		t.Fatal("rate-limited manifest unexpectedly succeeded")
+	}
+	if len(logs.events) != 1 || logs.events[0].FailureCategory == nil ||
+		*logs.events[0].FailureCategory != "rate-limit" || logs.events[0].RequestTarget == nil ||
+		strings.Contains(*logs.events[0].RequestTarget, "secret=value") ||
+		string(logs.events[0].ResponseBody) != `{"error":"release quota"}` {
+		t.Fatalf("manifest diagnostics = %#v", logs.events)
+	}
+}
+
+type capturedUpdateLogs struct {
+	events []agentlogs.Event
+}
+
+func (logs *capturedUpdateLogs) Emit(event agentlogs.Event) {
+	logs.events = append(logs.events, event)
 }
 
 func TestManagerRecordsChecksumFailureWithoutStartingSupervisor(t *testing.T) {

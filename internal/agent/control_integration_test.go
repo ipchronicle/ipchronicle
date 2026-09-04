@@ -15,6 +15,7 @@ import (
 	agentstate "github.com/ipchronicle/ipchronicle/internal/agent/state"
 	"github.com/ipchronicle/ipchronicle/internal/center"
 	"github.com/ipchronicle/ipchronicle/internal/center/admin"
+	"github.com/ipchronicle/ipchronicle/internal/center/agentlogs"
 	"github.com/ipchronicle/ipchronicle/internal/center/database"
 	"github.com/ipchronicle/ipchronicle/internal/center/nodes"
 	"github.com/ipchronicle/ipchronicle/internal/center/notifications"
@@ -52,7 +53,8 @@ func TestAgentEnrollsOnceAndBecomesOnline(t *testing.T) {
 	}
 	handler := center.NewHTTPHandler(center.HTTPOptions{
 		Version: "0.1.0-test", Revision: "test-revision", Web: http.NotFoundHandler(), Administrator: administrator,
-		Nodes: nodeService, Notifications: notificationService, Updates: updateService, SyncHub: syncHub,
+		AgentLogs: agentlogs.NewService(centerStore.Logs, centerStore.LogsQueries, centerStore.ConfigQueries),
+		Nodes:     nodeService, Notifications: notificationService, Updates: updateService, SyncHub: syncHub,
 		SystemSettings: systemSettingsService, Store: centerStore,
 	})
 	server := httptest.NewServer(handler)

@@ -9,6 +9,7 @@ import (
 	"fmt"
 	"io"
 	"log"
+	"maps"
 	"net/http"
 	"net/url"
 	"os"
@@ -20,6 +21,7 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/ipchronicle/ipchronicle/internal/agent/agentlogs"
 	agentnetwork "github.com/ipchronicle/ipchronicle/internal/agent/network"
 	"github.com/ipchronicle/ipchronicle/internal/agent/observation"
 	agentprobe "github.com/ipchronicle/ipchronicle/internal/agent/probe"
@@ -154,6 +156,12 @@ func RunWithOptions(ctx context.Context, store *state.Store, version string, log
 	if err != nil {
 		return err
 	}
+	logRecorder := agentlogs.NewRecorder(store, logger)
+	if configuration, configurationErr := store.Configuration(); configurationErr == nil && configuration.LogLevel != "" {
+		if err := logRecorder.SetLevel(configuration.LogLevel); err != nil {
+			return err
+		}
+	}
 	var updateManager *agentupdate.Manager
 	if options.UpdateConfig != nil {
 		if err := options.UpdateConfig.Validate(); err != nil {
@@ -163,7 +171,7 @@ func RunWithOptions(ctx context.Context, store *state.Store, version string, log
 			logger.Printf("Agent updates disabled for non-release version %q: %v", version, versionErr)
 		} else {
 			updateManager, err = agentupdate.NewManager(agentupdate.ManagerOptions{
-				Store: store, CurrentVersion: version, Config: *options.UpdateConfig, Logger: logger,
+				Store: store, CurrentVersion: version, Config: *options.UpdateConfig, Logger: logger, Events: logRecorder,
 				HTTPClient: options.UpdateHTTPClient, ReleaseDownloadURL: options.UpdateReleaseDownloadURL,
 				Trigger: options.UpdateTrigger, Now: options.UpdateNow,
 			})
@@ -233,7 +241,19 @@ func RunWithOptions(ctx context.Context, store *state.Store, version string, log
 		stopWorkers()
 		workers.Wait()
 	}()
-	probeManager := agentprobe.NewManager(store, metadata.PhysicalMemoryBytes, logger)
+	logRecorderDone := make(chan error, 1)
+	workers.Add(1)
+	go func() {
+		defer workers.Done()
+		logRecorderDone <- logRecorder.Run(workerContext)
+	}()
+	logUploaderDone := make(chan error, 1)
+	workers.Add(1)
+	go func() {
+		defer workers.Done()
+		logUploaderDone <- client.runLogUploader(workerContext, store, identity, logRecorder)
+	}()
+	probeManager := agentprobe.NewManager(store, metadata.PhysicalMemoryBytes, logger, logRecorder)
 	probeDone := make(chan error, 1)
 	workers.Add(1)
 	go func() {
@@ -244,14 +264,14 @@ func RunWithOptions(ctx context.Context, store *state.Store, version string, log
 	workers.Add(1)
 	go func() {
 		defer workers.Done()
-		observer := observation.NewObserver(store, logger)
+		observer := observation.NewObserver(store, logger, logRecorder)
 		observerDone <- observer.Run(workerContext)
 	}()
 	uploaderDone := make(chan error, 1)
 	workers.Add(1)
 	go func() {
 		defer workers.Done()
-		uploaderDone <- client.runProbeUploader(workerContext, store, identity, probeManager.UploadWake(), logger)
+		uploaderDone <- client.runProbeUploader(workerContext, store, identity, probeManager.UploadWake(), logger, logRecorder)
 	}()
 	var updateDone <-chan error
 	if updateManager != nil {
@@ -264,8 +284,28 @@ func RunWithOptions(ctx context.Context, store *state.Store, version string, log
 		}()
 	}
 	logger.Printf("Agent %s polling %s", identity.NodeID, identity.CenterURL)
+	logRecorder.Emit(agentlogs.Event{
+		Level: "info", Component: "agent", EventType: "agent-started",
+		Message: "Agent control loop started",
+	})
 	for {
 		select {
+		case recorderErr := <-logRecorderDone:
+			if recorderErr != nil {
+				return fmt.Errorf("run Agent log recorder: %w", recorderErr)
+			}
+			return nil
+		case logUploadErr := <-logUploaderDone:
+			if errors.Is(logUploadErr, ErrAgentRevoked) {
+				if markErr := store.MarkRevoked(); markErr != nil {
+					return errors.Join(logUploadErr, markErr)
+				}
+				return nil
+			}
+			if logUploadErr != nil {
+				return fmt.Errorf("run Agent log uploader: %w", logUploadErr)
+			}
+			return nil
 		case probeErr := <-probeDone:
 			if probeErr != nil {
 				return fmt.Errorf("run complete-probe manager: %w", probeErr)
@@ -303,16 +343,13 @@ func RunWithOptions(ctx context.Context, store *state.Store, version string, log
 			return nil
 		}
 		inventory, inventoryError := captureNetworkInventory()
-		outcome, err := client.poll(ctx, store, identity, metadata, controlState, inventory, inventoryError)
+		outcome, err := client.poll(ctx, store, identity, metadata, controlState, inventory, inventoryError, logRecorder)
 		if errors.Is(err, ErrAgentRevoked) {
 			if markErr := store.MarkRevoked(); markErr != nil {
 				return errors.Join(err, markErr)
 			}
 			logger.Printf("Agent %s was revoked by the center; control polling has stopped", identity.NodeID)
 			return nil
-		}
-		if err != nil && !errors.Is(err, context.Canceled) {
-			logger.Printf("control poll failed: %v", err)
 		}
 		if outcome.received {
 			syncManager.Update(outcome.syncSession)
@@ -334,6 +371,21 @@ func RunWithOptions(ctx context.Context, store *state.Store, version string, log
 			interval = outcome.interval
 		}
 		if outcome.applied {
+			configuration, configurationErr := store.Configuration()
+			if configurationErr != nil {
+				return configurationErr
+			}
+			level := configuration.LogLevel
+			if level == "" {
+				level = "info"
+			}
+			if err := logRecorder.SetLevel(level); err != nil {
+				return err
+			}
+			logRecorder.Emit(agentlogs.Event{
+				Level: "info", Component: "configuration", EventType: "configuration-applied",
+				Message: "Agent configuration applied", ConfigurationRevision: &configuration.Revision,
+			})
 			continue
 		}
 		timer := time.NewTimer(interval)
@@ -390,6 +442,28 @@ func RunWithOptions(ctx context.Context, store *state.Store, version string, log
 				return fmt.Errorf("run Agent update manager: %w", updateErr)
 			}
 			return nil
+		case recorderErr := <-logRecorderDone:
+			if !timer.Stop() {
+				<-timer.C
+			}
+			if recorderErr != nil {
+				return fmt.Errorf("run Agent log recorder: %w", recorderErr)
+			}
+			return nil
+		case logUploadErr := <-logUploaderDone:
+			if !timer.Stop() {
+				<-timer.C
+			}
+			if errors.Is(logUploadErr, ErrAgentRevoked) {
+				if markErr := store.MarkRevoked(); markErr != nil {
+					return errors.Join(logUploadErr, markErr)
+				}
+				return nil
+			}
+			if logUploadErr != nil {
+				return fmt.Errorf("run Agent log uploader: %w", logUploadErr)
+			}
+			return nil
 		}
 	}
 }
@@ -411,7 +485,7 @@ func waitForUpdateHealth(
 			return pollOutcome{}, err
 		}
 		inventory, inventoryError := captureNetworkInventory()
-		outcome, pollErr := client.poll(ctx, store, identity, metadata, controlState, inventory, inventoryError)
+		outcome, pollErr := client.poll(ctx, store, identity, metadata, controlState, inventory, inventoryError, nil)
 		if outcome.received {
 			syncManager.Update(outcome.syncSession)
 		}
@@ -450,6 +524,7 @@ func (c *ControlClient) poll(
 	controlState state.ControlState,
 	inventory *agentapi.NetworkInventory,
 	inventoryError *string,
+	events agentlogs.Sink,
 ) (pollOutcome, error) {
 	upload, err := store.AddressUpload(64)
 	if err != nil {
@@ -484,6 +559,7 @@ func (c *ControlClient) poll(
 			return pollOutcome{}, err
 		}
 	}
+	startedAt := time.Now()
 	response, err := c.client.PollAgentWithResponse(ctx, agentapi.AgentPollRequest{
 		AppliedConfigurationRevision: controlState.AppliedConfigurationRevision,
 		ConfigurationError:           controlState.ConfigurationError,
@@ -500,12 +576,19 @@ func (c *ControlClient) poll(
 		request.Header.Set("Authorization", "Bearer "+identity.Credential)
 		return nil
 	})
+	duration := time.Since(startedAt).Milliseconds()
+	target := identity.CenterURL + "/api/v1/agent/control"
 	if err != nil {
+		emitAgentRequestFailure(events, "control", "poll-failed", "Center control poll failed", http.MethodPost, target, 0, "", nil, duration, err)
 		return pollOutcome{}, err
 	}
 	if response.JSON200 == nil {
+		emitAgentRequestFailure(events, "control", "poll-rejected", "Center control poll was rejected", http.MethodPost,
+			target, response.StatusCode(), response.ContentType(), response.Body, duration, nil)
 		return pollOutcome{}, responseError("poll center", response.StatusCode(), response.JSON400, response.JSON401, response.JSON403)
 	}
+	emitAgentRequestSuccess(events, "control", "poll-succeeded", "Center control poll succeeded", http.MethodPost, target,
+		response.StatusCode(), duration)
 	if err := store.AcknowledgeAddressUpload(addressReceiptFromAPI(response.JSON200.AddressUploadReceipt)); err != nil {
 		return pollOutcome{}, fmt.Errorf("acknowledge address upload: %w", err)
 	}
@@ -562,7 +645,7 @@ func (c *ControlClient) poll(
 		return outcome, errors.New("center desired configuration revision moved backwards")
 	}
 	desiredRevision := response.JSON200.DesiredConfigurationRevision
-	configuration, err := c.configuration(ctx, identity.Credential, desiredRevision)
+	configuration, err := c.configuration(ctx, identity, desiredRevision, events)
 	if err == nil {
 		err = store.ApplyConfiguration(configuration)
 	}
@@ -579,34 +662,257 @@ func (c *ControlClient) poll(
 	return outcome, nil
 }
 
-func (c *ControlClient) configuration(ctx context.Context, credential string, desiredRevision int64) (state.Configuration, error) {
+func (c *ControlClient) configuration(
+	ctx context.Context,
+	identity state.Identity,
+	desiredRevision int64,
+	events agentlogs.Sink,
+) (state.Configuration, error) {
+	startedAt := time.Now()
 	response, err := c.client.GetAgentConfigurationWithResponse(ctx, func(_ context.Context, request *http.Request) error {
-		request.Header.Set("Authorization", "Bearer "+credential)
+		request.Header.Set("Authorization", "Bearer "+identity.Credential)
 		return nil
 	})
+	duration := time.Since(startedAt).Milliseconds()
+	target := identity.CenterURL + "/api/v1/agent/configuration"
 	if err != nil {
+		emitAgentRequestFailure(events, "configuration", "fetch-failed", "Agent configuration request failed", http.MethodGet,
+			target, 0, "", nil, duration, err)
 		return state.Configuration{}, err
 	}
 	if response.JSON200 == nil {
+		emitAgentRequestFailure(events, "configuration", "fetch-rejected", "Agent configuration request was rejected", http.MethodGet,
+			target, response.StatusCode(), response.ContentType(), response.Body, duration, nil)
 		return state.Configuration{}, responseError("fetch Agent configuration", response.StatusCode(), response.JSON401, response.JSON403)
 	}
 	if len(response.Body) > maxAgentAPIResponseSize {
+		emitAgentInvalidResponse(events, "configuration", "snapshot-too-large", "Agent configuration response exceeded 512 KiB",
+			http.MethodGet, target, response.StatusCode(), response.ContentType(), response.Body, duration, "response-too-large")
 		return state.Configuration{}, errors.New("Agent configuration snapshot exceeds 512 KiB")
 	}
 	var snapshot agentapi.AgentConfigurationSnapshot
 	decoder := json.NewDecoder(bytes.NewReader(response.Body))
 	decoder.DisallowUnknownFields()
 	if err := decoder.Decode(&snapshot); err != nil {
+		emitAgentInvalidResponse(events, "configuration", "snapshot-invalid", "Agent configuration response was invalid",
+			http.MethodGet, target, response.StatusCode(), response.ContentType(), response.Body, duration, "invalid-response")
 		return state.Configuration{}, fmt.Errorf("decode Agent configuration snapshot: %w", err)
 	}
 	if err := ensureJSONEnd(decoder); err != nil {
+		emitAgentInvalidResponse(events, "configuration", "snapshot-invalid", "Agent configuration response was invalid",
+			http.MethodGet, target, response.StatusCode(), response.ContentType(), response.Body, duration, "invalid-response")
 		return state.Configuration{}, err
 	}
 	configuration := configurationFromAPI(snapshot)
 	if configuration.Revision != desiredRevision {
+		emitAgentInvalidResponse(events, "configuration", "revision-mismatch", "Agent configuration revision did not match",
+			http.MethodGet, target, response.StatusCode(), response.ContentType(), response.Body, duration, "invalid-response")
 		return state.Configuration{}, fmt.Errorf("configuration revision is %d, expected %d", configuration.Revision, desiredRevision)
 	}
+	emitAgentRequestSuccess(events, "configuration", "fetch-succeeded", "Agent configuration request succeeded", http.MethodGet,
+		target, response.StatusCode(), duration)
 	return configuration, nil
+}
+
+func (c *ControlClient) runLogUploader(
+	ctx context.Context,
+	store *state.Store,
+	identity state.Identity,
+	recorder *agentlogs.Recorder,
+) error {
+	const (
+		batchSize       = 64
+		batchBytes      = 8*1024*1024 - 1024
+		idleInterval    = 30 * time.Second
+		failureInterval = 10 * time.Second
+	)
+	for {
+		events, err := store.PendingAgentLogs(batchSize, batchBytes)
+		if err != nil {
+			return err
+		}
+		if len(events) == 0 {
+			timer := time.NewTimer(idleInterval)
+			select {
+			case <-ctx.Done():
+				if !timer.Stop() {
+					<-timer.C
+				}
+				return nil
+			case <-timer.C:
+			case <-recorder.UploadWake():
+				if !timer.Stop() {
+					<-timer.C
+				}
+			}
+			continue
+		}
+		err = c.uploadAgentLogs(ctx, store, identity, events, recorder)
+		if errors.Is(err, ErrAgentRevoked) {
+			return err
+		}
+		if err == nil {
+			continue
+		}
+		timer := time.NewTimer(failureInterval)
+		select {
+		case <-ctx.Done():
+			if !timer.Stop() {
+				<-timer.C
+			}
+			return nil
+		case <-timer.C:
+		}
+	}
+}
+
+func (c *ControlClient) uploadAgentLogs(
+	ctx context.Context,
+	store *state.Store,
+	identity state.Identity,
+	events []state.LogEvent,
+	eventSink agentlogs.Sink,
+) error {
+	payload := agentapi.AgentLogBatch{Events: make([]agentapi.AgentLogEvent, 0, len(events))}
+	for _, event := range events {
+		converted, err := agentLogEventToAPI(event)
+		if err != nil {
+			return err
+		}
+		payload.Events = append(payload.Events, converted)
+	}
+	startedAt := time.Now()
+	response, err := c.client.UploadAgentLogsWithResponse(ctx, payload, func(_ context.Context, request *http.Request) error {
+		request.Header.Set("Authorization", "Bearer "+identity.Credential)
+		return nil
+	})
+	duration := time.Since(startedAt).Milliseconds()
+	target := agentlogs.SanitizeRequestTarget(identity.CenterURL + "/api/v1/agent/logs")
+	method := http.MethodPost
+	if err != nil {
+		category := agentlogs.ClassifyRequestError(err)
+		eventSink.Emit(agentlogs.Event{
+			Level: "warn", Component: "log-uploader", EventType: "upload-failed",
+			Message: "Agent log upload failed: " + err.Error(), FailureCategory: &category,
+			RequestMethod: &method, RequestTarget: target, DurationMilliseconds: &duration,
+		})
+		return err
+	}
+	if response.JSON200 == nil {
+		category := "http-status"
+		if response.StatusCode() == http.StatusTooManyRequests {
+			category = "rate-limit"
+		}
+		status := response.StatusCode()
+		contentType := response.ContentType()
+		eventSink.Emit(agentlogs.Event{
+			Level: "warn", Component: "log-uploader", EventType: "upload-rejected",
+			Message:         fmt.Sprintf("Center rejected Agent log upload with HTTP %d", status),
+			FailureCategory: &category, RequestMethod: &method, RequestTarget: target,
+			HTTPStatus: &status, DurationMilliseconds: &duration,
+			ResponseContentType: &contentType, RateLimitHeaders: agentlogs.RateLimitHeaders(response.HTTPResponse.Header),
+			ResponseBody: response.Body,
+		})
+		return responseError("upload Agent logs", status, response.JSON400, response.JSON401, response.JSON403)
+	}
+	acknowledged := make([]string, 0, len(response.JSON200.AcceptedEventIds)+len(response.JSON200.DiscardedEventIds))
+	for _, id := range response.JSON200.AcceptedEventIds {
+		acknowledged = append(acknowledged, id.String())
+	}
+	for _, id := range response.JSON200.DiscardedEventIds {
+		acknowledged = append(acknowledged, id.String())
+	}
+	if !sameLogEventIDs(events, acknowledged) {
+		category := "invalid-response"
+		status := response.StatusCode()
+		contentType := response.ContentType()
+		eventSink.Emit(agentlogs.Event{
+			Level: "warn", Component: "log-uploader", EventType: "upload-receipt-invalid",
+			Message:         "Center Agent log receipt did not match the uploaded batch",
+			FailureCategory: &category, RequestMethod: &method, RequestTarget: target,
+			HTTPStatus: &status, DurationMilliseconds: &duration,
+			ResponseContentType: &contentType, RateLimitHeaders: agentlogs.RateLimitHeaders(response.HTTPResponse.Header),
+			ResponseBody: response.Body,
+		})
+		return errors.New("Center Agent log receipt does not match the uploaded batch")
+	}
+	return store.AcknowledgeAgentLogs(acknowledged)
+}
+
+func agentLogEventToAPI(event state.LogEvent) (agentapi.AgentLogEvent, error) {
+	id, err := uuid.Parse(event.ID)
+	if err != nil {
+		return agentapi.AgentLogEvent{}, err
+	}
+	result := agentapi.AgentLogEvent{
+		Id: id, OccurredAt: event.OccurredAt, Level: agentapi.LogLevel(event.Level),
+		Component: event.Component, EventType: event.EventType, Message: event.Message,
+		PublicAddress: event.PublicAddress, ConfigurationRevision: event.ConfigurationRevision,
+		DiscoveryPath: event.DiscoveryPath, RequestMethod: event.RequestMethod,
+		RequestTarget: event.RequestTarget, HttpStatus: event.HTTPStatus,
+		DurationMilliseconds: event.DurationMilliseconds,
+		ResponseContentType:  event.ResponseContentType,
+		DroppedCount:         event.DroppedCount, DroppedFrom: event.DroppedFrom, DroppedTo: event.DroppedTo,
+	}
+	if len(event.RateLimitHeaders) > 0 {
+		value := maps.Clone(event.RateLimitHeaders)
+		result.RateLimitHeaders = &value
+	}
+	if event.PublicAddressID != nil {
+		value, err := uuid.Parse(*event.PublicAddressID)
+		if err != nil {
+			return agentapi.AgentLogEvent{}, err
+		}
+		result.PublicAddressId = &value
+	}
+	if event.TaskID != nil {
+		value, err := uuid.Parse(*event.TaskID)
+		if err != nil {
+			return agentapi.AgentLogEvent{}, err
+		}
+		result.TaskId = &value
+	}
+	if event.ProxyID != nil {
+		value, err := uuid.Parse(*event.ProxyID)
+		if err != nil {
+			return agentapi.AgentLogEvent{}, err
+		}
+		result.ProxyId = &value
+	}
+	if event.Family != nil {
+		value := agentapi.AddressFamily(*event.Family)
+		result.Family = &value
+	}
+	if event.FailureCategory != nil {
+		value := agentapi.LogFailureCategory(*event.FailureCategory)
+		result.FailureCategory = &value
+	}
+	if event.ResponseBody != nil {
+		value := append([]byte(nil), event.ResponseBody...)
+		result.ResponseBody = &value
+	}
+	if event.ResponseTruncated {
+		value := true
+		result.ResponseTruncated = &value
+	}
+	return result, nil
+}
+
+func sameLogEventIDs(events []state.LogEvent, acknowledged []string) bool {
+	if len(events) != len(acknowledged) {
+		return false
+	}
+	expected := make(map[string]struct{}, len(events))
+	for _, event := range events {
+		expected[event.ID] = struct{}{}
+	}
+	for _, id := range acknowledged {
+		if _, exists := expected[id]; !exists {
+			return false
+		}
+		delete(expected, id)
+	}
+	return len(expected) == 0
 }
 
 func configurationFromAPI(snapshot agentapi.AgentConfigurationSnapshot) state.Configuration {
@@ -625,6 +931,9 @@ func configurationFromAPI(snapshot agentapi.AgentConfigurationSnapshot) state.Co
 			Cron:    snapshot.ProbeSchedule.Cron, Timezone: snapshot.ProbeSchedule.Timezone,
 		},
 		ProbeLowMemoryOverride: snapshot.ProbeLowMemoryOverride,
+	}
+	if snapshot.LogLevel != nil {
+		configuration.LogLevel = string(*snapshot.LogLevel)
 	}
 	if snapshot.IpapiApiKey != nil {
 		configuration.IPAPIAPIKey = *snapshot.IpapiApiKey
@@ -709,7 +1018,7 @@ func currentMetadata(version string, updateCapable bool) (agentapi.AgentMetadata
 	if err != nil {
 		return agentapi.AgentMetadata{}, fmt.Errorf("read physical memory: %w", err)
 	}
-	capabilities := []string{controlCapability, "configuration-v9", "network-inventory-v1", "address-observation-v1", "complete-probe-v1", syncWakeCapability}
+	capabilities := []string{controlCapability, "configuration-v9", "configuration-v10", "agent-logs-v1", "network-inventory-v1", "address-observation-v1", "complete-probe-v1", syncWakeCapability}
 	if updateCapable {
 		capabilities = append(capabilities, "agent-update-v1")
 	}
@@ -880,6 +1189,86 @@ func boundedMessage(value string, limit int) string {
 		return "network inventory failed without diagnostics"
 	}
 	return string(runes)
+}
+
+func stringPointer(value string) *string {
+	return &value
+}
+
+func emitAgentRequestFailure(
+	events agentlogs.Sink,
+	component, eventType, message, method, target string,
+	status int,
+	contentType string,
+	body []byte,
+	duration int64,
+	requestErr error,
+) {
+	if events == nil {
+		return
+	}
+	category := "http-status"
+	if requestErr != nil {
+		category = agentlogs.ClassifyRequestError(requestErr)
+	} else if status == http.StatusTooManyRequests {
+		category = "rate-limit"
+	}
+	event := agentlogs.Event{
+		Level: "warn", Component: component, EventType: eventType, Message: message,
+		FailureCategory: &category, RequestMethod: &method, RequestTarget: agentlogs.SanitizeRequestTarget(target),
+		DurationMilliseconds: &duration, ResponseBody: append([]byte(nil), body...),
+		ResponseTruncated: len(body) > maxAgentAPIResponseSize,
+	}
+	if status != 0 {
+		event.HTTPStatus = &status
+	}
+	if contentType != "" {
+		event.ResponseContentType = &contentType
+	}
+	events.Emit(event)
+}
+
+func emitAgentInvalidResponse(
+	events agentlogs.Sink,
+	component, eventType, message, method, target string,
+	status int,
+	contentType string,
+	body []byte,
+	duration int64,
+	category string,
+) {
+	if events == nil {
+		return
+	}
+	event := agentlogs.Event{
+		Level: "warn", Component: component, EventType: eventType, Message: message,
+		FailureCategory: &category, RequestMethod: &method, RequestTarget: agentlogs.SanitizeRequestTarget(target),
+		DurationMilliseconds: &duration, ResponseBody: append([]byte(nil), body...),
+		ResponseTruncated: len(body) > maxAgentAPIResponseSize,
+	}
+	if status != 0 {
+		event.HTTPStatus = &status
+	}
+	if contentType != "" {
+		event.ResponseContentType = &contentType
+	}
+	events.Emit(event)
+}
+
+func emitAgentRequestSuccess(
+	events agentlogs.Sink,
+	component, eventType, message, method, target string,
+	status int,
+	duration int64,
+) {
+	if events == nil {
+		return
+	}
+	events.Emit(agentlogs.Event{
+		Level: "debug", Component: component, EventType: eventType, Message: message,
+		RequestMethod: &method, RequestTarget: agentlogs.SanitizeRequestTarget(target),
+		HTTPStatus: &status, DurationMilliseconds: &duration,
+	})
 }
 
 func responseError(operation string, status int, responses ...*agentapi.ErrorResponse) error {

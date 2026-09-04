@@ -9,6 +9,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/ipchronicle/ipchronicle/internal/agent/agentlogs"
 	"github.com/ipchronicle/ipchronicle/internal/agent/state"
 	sharedschedule "github.com/ipchronicle/ipchronicle/internal/schedule"
 )
@@ -20,13 +21,14 @@ const (
 )
 
 type executionRunner interface {
-	Run(context.Context, state.Configuration, state.Egress, time.Time) (state.ProbeExecutionOutcome, error)
+	Run(context.Context, state.Configuration, state.Egress, time.Time, *string) (state.ProbeExecutionOutcome, error)
 }
 
 type Manager struct {
 	store               *state.Store
 	runner              executionRunner
 	logger              *log.Logger
+	events              agentlogs.Sink
 	physicalMemoryBytes int64
 	now                 func() time.Time
 
@@ -38,7 +40,7 @@ type Manager struct {
 	wg         sync.WaitGroup
 }
 
-func NewManager(store *state.Store, physicalMemoryBytes int64, logger *log.Logger) *Manager {
+func NewManager(store *state.Store, physicalMemoryBytes int64, logger *log.Logger, sinks ...agentlogs.Sink) *Manager {
 	if store == nil {
 		panic("probe manager store must not be nil")
 	}
@@ -48,11 +50,15 @@ func NewManager(store *state.Store, physicalMemoryBytes int64, logger *log.Logge
 	if logger == nil {
 		logger = log.Default()
 	}
-	return &Manager{
-		store: store, runner: NewRunner(), logger: logger,
+	manager := &Manager{
+		store: store, runner: NewRunner(sinks...), logger: logger,
 		physicalMemoryBytes: physicalMemoryBytes, now: time.Now,
 		errors: make(chan error, 1), wake: make(chan struct{}, 1), uploadWake: make(chan struct{}, 1),
 	}
+	if len(sinks) > 0 {
+		manager.events = sinks[0]
+	}
+	return manager
 }
 
 func (manager *Manager) Wake() <-chan struct{} {
@@ -228,6 +234,7 @@ func (manager *Manager) tryStart(
 			return err
 		}
 		manager.active = true
+		manager.emitRunStarted(run)
 		manager.signalWake()
 		manager.wg.Add(1)
 		go manager.execute(ctx, configuration, run)
@@ -281,6 +288,19 @@ func (manager *Manager) rejectOccurrence(trigger string, task *state.ProbeTaskDe
 	} else if err := manager.store.RecordSkippedProbe(trigger, reason, at); err != nil {
 		return err
 	}
+	if manager.events != nil {
+		event := agentlogs.Event{
+			Level: "info", Component: "complete-probe", EventType: "run-skipped",
+			Message: "Complete-probe run was skipped", OccurredAt: at.UTC(),
+		}
+		if task != nil {
+			event.TaskID = &task.ID
+		}
+		if reason == "low-memory" || reason == "busy" {
+			event.Level = "warn"
+		}
+		manager.events.Emit(event)
+	}
 	manager.signalWake()
 	return nil
 }
@@ -316,12 +336,13 @@ func (manager *Manager) execute(ctx context.Context, configuration state.Configu
 			manager.reportError(err)
 			return
 		}
-		outcome, runErr := manager.runner.Run(ctx, configuration, egress, *execution.StartedAt)
+		outcome, runErr := manager.runner.Run(ctx, configuration, egress, *execution.StartedAt, run.TaskID)
 		if outcome.Status != "" {
 			if _, err := manager.store.CompleteProbeExecution(run.ID, manifest.ID, outcome); err != nil {
 				manager.reportError(err)
 				return
 			}
+			manager.emitExecutionCompleted(run, egress, outcome)
 			manager.signalWake()
 		}
 		if runErr != nil {
@@ -333,7 +354,53 @@ func (manager *Manager) execute(ctx context.Context, configuration state.Configu
 		manager.reportError(err)
 		return
 	}
+	if manager.events != nil {
+		manager.events.Emit(agentlogs.Event{
+			Level: "info", Component: "complete-probe", EventType: "run-completed",
+			Message: "Complete-probe run completed", TaskID: run.TaskID,
+			ConfigurationRevision: &run.ConfigurationRevision,
+		})
+	}
 	manager.signalWake()
+}
+
+func (manager *Manager) emitRunStarted(run state.ProbeRun) {
+	if manager.events == nil {
+		return
+	}
+	manager.events.Emit(agentlogs.Event{
+		Level: "info", Component: "complete-probe", EventType: "run-started",
+		Message: "Complete-probe run started", TaskID: run.TaskID,
+		ConfigurationRevision: &run.ConfigurationRevision,
+	})
+}
+
+func (manager *Manager) emitExecutionCompleted(
+	run state.ProbeRun,
+	egress state.Egress,
+	outcome state.ProbeExecutionOutcome,
+) {
+	if manager.events == nil {
+		return
+	}
+	event := agentlogs.Event{
+		Level: "info", Component: "complete-probe", EventType: "target-succeeded",
+		Message: "IP quality probe completed", PublicAddressID: &egress.ID,
+		PublicAddress: egress.PublicAddress, Family: &egress.Family, TaskID: run.TaskID,
+		ProxyID: egress.ProxyID, ConfigurationRevision: &run.ConfigurationRevision,
+		DiscoveryPath: egress.PathID,
+	}
+	if outcome.Status != "succeeded" {
+		event.Level = "warn"
+		event.EventType = "target-failed"
+		event.Message = "IP quality probe did not complete successfully"
+		category := "internal"
+		if outcome.FailureStage == "timeout" {
+			category = "timeout"
+		}
+		event.FailureCategory = &category
+	}
+	manager.events.Emit(event)
 }
 
 func (manager *Manager) reportError(err error) {

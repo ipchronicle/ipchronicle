@@ -53,7 +53,7 @@ export async function rotateAgentEnrollmentKey(
 
 export async function updateNode(
   nodeId: string,
-  update: { enabled: boolean; name?: string },
+  update: components["schemas"]["NodeUpdate"],
   csrfToken: string,
 ) {
   const result = await apiClient.PATCH("/api/v1/nodes/{nodeId}", {

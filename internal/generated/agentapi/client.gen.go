@@ -125,12 +125,15 @@ func (e AgentArchitecture) Valid() bool {
 
 // Defines values for AgentConfigurationSnapshotSchemaVersion.
 const (
-	N9 AgentConfigurationSnapshotSchemaVersion = 9
+	N10 AgentConfigurationSnapshotSchemaVersion = 10
+	N9  AgentConfigurationSnapshotSchemaVersion = 9
 )
 
 // Valid indicates whether the value is a known member of the AgentConfigurationSnapshotSchemaVersion enum.
 func (e AgentConfigurationSnapshotSchemaVersion) Valid() bool {
 	switch e {
+	case N10:
+		return true
 	case N9:
 		return true
 	default:
@@ -406,6 +409,7 @@ const (
 	InternalError                    ErrorCode = "internal_error"
 	InvalidCredentials               ErrorCode = "invalid_credentials"
 	InvalidEgressCandidate           ErrorCode = "invalid_egress_candidate"
+	InvalidLogRetention              ErrorCode = "invalid_log_retention"
 	InvalidNetworkProxy              ErrorCode = "invalid_network_proxy"
 	InvalidNotificationDeliveryQuery ErrorCode = "invalid_notification_delivery_query"
 	InvalidNotificationRule          ErrorCode = "invalid_notification_rule"
@@ -415,6 +419,7 @@ const (
 	InvalidRequest                   ErrorCode = "invalid_request"
 	InvalidSystemSettings            ErrorCode = "invalid_system_settings"
 	InvalidTotp                      ErrorCode = "invalid_totp"
+	LogNotFound                      ErrorCode = "log_not_found"
 	NetworkInventoryUnavailable      ErrorCode = "network_inventory_unavailable"
 	NetworkProxyAlreadyExists        ErrorCode = "network_proxy_already_exists"
 	NetworkProxyDeletionPending      ErrorCode = "network_proxy_deletion_pending"
@@ -479,6 +484,8 @@ func (e ErrorCode) Valid() bool {
 		return true
 	case InvalidEgressCandidate:
 		return true
+	case InvalidLogRetention:
+		return true
 	case InvalidNetworkProxy:
 		return true
 	case InvalidNotificationDeliveryQuery:
@@ -496,6 +503,8 @@ func (e ErrorCode) Valid() bool {
 	case InvalidSystemSettings:
 		return true
 	case InvalidTotp:
+		return true
+	case LogNotFound:
 		return true
 	case NetworkInventoryUnavailable:
 		return true
@@ -636,6 +645,87 @@ func (e KnownProbeFieldStatus) Valid() bool {
 	case KnownProbeFieldStatusMissing:
 		return true
 	case KnownProbeFieldStatusUnavailable:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for LogEventSummarySource.
+const (
+	Agent  LogEventSummarySource = "agent"
+	Center LogEventSummarySource = "center"
+)
+
+// Valid indicates whether the value is a known member of the LogEventSummarySource enum.
+func (e LogEventSummarySource) Valid() bool {
+	switch e {
+	case Agent:
+		return true
+	case Center:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for LogFailureCategory.
+const (
+	LogFailureCategoryConnect          LogFailureCategory = "connect"
+	LogFailureCategoryDns              LogFailureCategory = "dns"
+	LogFailureCategoryHttpStatus       LogFailureCategory = "http-status"
+	LogFailureCategoryInternal         LogFailureCategory = "internal"
+	LogFailureCategoryInvalidResponse  LogFailureCategory = "invalid-response"
+	LogFailureCategoryRateLimit        LogFailureCategory = "rate-limit"
+	LogFailureCategoryResponseTooLarge LogFailureCategory = "response-too-large"
+	LogFailureCategoryTimeout          LogFailureCategory = "timeout"
+	LogFailureCategoryTls              LogFailureCategory = "tls"
+)
+
+// Valid indicates whether the value is a known member of the LogFailureCategory enum.
+func (e LogFailureCategory) Valid() bool {
+	switch e {
+	case LogFailureCategoryConnect:
+		return true
+	case LogFailureCategoryDns:
+		return true
+	case LogFailureCategoryHttpStatus:
+		return true
+	case LogFailureCategoryInternal:
+		return true
+	case LogFailureCategoryInvalidResponse:
+		return true
+	case LogFailureCategoryRateLimit:
+		return true
+	case LogFailureCategoryResponseTooLarge:
+		return true
+	case LogFailureCategoryTimeout:
+		return true
+	case LogFailureCategoryTls:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for LogLevel.
+const (
+	Debug LogLevel = "debug"
+	Error LogLevel = "error"
+	Info  LogLevel = "info"
+	Warn  LogLevel = "warn"
+)
+
+// Valid indicates whether the value is a known member of the LogLevel enum.
+func (e LogLevel) Valid() bool {
+	switch e {
+	case Debug:
+		return true
+	case Error:
+		return true
+	case Info:
+		return true
+	case Warn:
 		return true
 	default:
 		return false
@@ -1097,28 +1187,28 @@ func (e ProbeExecutionStatus) Valid() bool {
 
 // Defines values for ProbeFailureStage.
 const (
-	Adapter  ProbeFailureStage = "adapter"
-	Output   ProbeFailureStage = "output"
-	Process  ProbeFailureStage = "process"
-	Restart  ProbeFailureStage = "restart"
-	Selector ProbeFailureStage = "selector"
-	Timeout  ProbeFailureStage = "timeout"
+	ProbeFailureStageAdapter  ProbeFailureStage = "adapter"
+	ProbeFailureStageOutput   ProbeFailureStage = "output"
+	ProbeFailureStageProcess  ProbeFailureStage = "process"
+	ProbeFailureStageRestart  ProbeFailureStage = "restart"
+	ProbeFailureStageSelector ProbeFailureStage = "selector"
+	ProbeFailureStageTimeout  ProbeFailureStage = "timeout"
 )
 
 // Valid indicates whether the value is a known member of the ProbeFailureStage enum.
 func (e ProbeFailureStage) Valid() bool {
 	switch e {
-	case Adapter:
+	case ProbeFailureStageAdapter:
 		return true
-	case Output:
+	case ProbeFailureStageOutput:
 		return true
-	case Process:
+	case ProbeFailureStageProcess:
 		return true
-	case Restart:
+	case ProbeFailureStageRestart:
 		return true
-	case Selector:
+	case ProbeFailureStageSelector:
 		return true
-	case Timeout:
+	case ProbeFailureStageTimeout:
 		return true
 	default:
 		return false
@@ -1530,6 +1620,7 @@ type AgentConfigurationSnapshot struct {
 	Enabled                bool                                    `json:"enabled"`
 	HistoryGeneration      string                                  `json:"historyGeneration"`
 	IpapiApiKey            *string                                 `json:"ipapiApiKey,omitempty"`
+	LogLevel               *LogLevel                               `json:"logLevel,omitempty"`
 	ProbeLowMemoryOverride bool                                    `json:"probeLowMemoryOverride"`
 	ProbeSchedule          ProbeSchedule                           `json:"probeSchedule"`
 	ProbeTargets           []AgentProbeTarget                      `json:"probeTargets"`
@@ -1569,6 +1660,46 @@ type AgentEnrollmentSettings struct {
 // AgentEnrollmentUpdate defines model for AgentEnrollmentUpdate.
 type AgentEnrollmentUpdate struct {
 	Enabled bool `json:"enabled"`
+}
+
+// AgentLogBatch defines model for AgentLogBatch.
+type AgentLogBatch struct {
+	Events []AgentLogEvent `json:"events"`
+}
+
+// AgentLogBatchReceipt defines model for AgentLogBatchReceipt.
+type AgentLogBatchReceipt struct {
+	AcceptedEventIds  []openapi_types.UUID `json:"acceptedEventIds"`
+	DiscardedEventIds []openapi_types.UUID `json:"discardedEventIds"`
+}
+
+// AgentLogEvent defines model for AgentLogEvent.
+type AgentLogEvent struct {
+	Component             string              `json:"component"`
+	ConfigurationRevision *int64              `json:"configurationRevision,omitempty"`
+	DiscoveryPath         *string             `json:"discoveryPath,omitempty"`
+	DroppedCount          *int64              `json:"droppedCount,omitempty"`
+	DroppedFrom           *time.Time          `json:"droppedFrom,omitempty"`
+	DroppedTo             *time.Time          `json:"droppedTo,omitempty"`
+	DurationMilliseconds  *int64              `json:"durationMilliseconds,omitempty"`
+	EventType             string              `json:"eventType"`
+	FailureCategory       *LogFailureCategory `json:"failureCategory,omitempty"`
+	Family                *AddressFamily      `json:"family,omitempty"`
+	HttpStatus            *int                `json:"httpStatus,omitempty"`
+	Id                    openapi_types.UUID  `json:"id"`
+	Level                 LogLevel            `json:"level"`
+	Message               string              `json:"message"`
+	OccurredAt            time.Time           `json:"occurredAt"`
+	ProxyId               *openapi_types.UUID `json:"proxyId,omitempty"`
+	PublicAddress         *string             `json:"publicAddress,omitempty"`
+	PublicAddressId       *openapi_types.UUID `json:"publicAddressId,omitempty"`
+	RateLimitHeaders      *map[string]string  `json:"rateLimitHeaders,omitempty"`
+	RequestMethod         *string             `json:"requestMethod,omitempty"`
+	RequestTarget         *string             `json:"requestTarget,omitempty"`
+	ResponseBody          *[]byte             `json:"responseBody,omitempty"`
+	ResponseContentType   *string             `json:"responseContentType,omitempty"`
+	ResponseTruncated     *bool               `json:"responseTruncated,omitempty"`
+	TaskId                *openapi_types.UUID `json:"taskId,omitempty"`
 }
 
 // AgentMetadata defines model for AgentMetadata.
@@ -1988,6 +2119,80 @@ type LocaleUpdateRequest struct {
 	Locale SupportedLocale `json:"locale"`
 }
 
+// LogEventDetail defines model for LogEventDetail.
+type LogEventDetail struct {
+	DiscoveryPath    *string            `json:"discoveryPath,omitempty"`
+	Event            LogEventSummary    `json:"event"`
+	RateLimitHeaders *map[string]string `json:"rateLimitHeaders,omitempty"`
+	ResponseBody     *[]byte            `json:"responseBody,omitempty"`
+}
+
+// LogEventPage defines model for LogEventPage.
+type LogEventPage struct {
+	Items      []LogEventSummary `json:"items"`
+	NextCursor *string           `json:"nextCursor,omitempty"`
+}
+
+// LogEventSummary defines model for LogEventSummary.
+type LogEventSummary struct {
+	Component             string                `json:"component"`
+	ConfigurationRevision *int64                `json:"configurationRevision,omitempty"`
+	DroppedCount          *int64                `json:"droppedCount,omitempty"`
+	DroppedFrom           *time.Time            `json:"droppedFrom,omitempty"`
+	DroppedTo             *time.Time            `json:"droppedTo,omitempty"`
+	DurationMilliseconds  *int64                `json:"durationMilliseconds,omitempty"`
+	EventType             string                `json:"eventType"`
+	FailureCategory       *LogFailureCategory   `json:"failureCategory,omitempty"`
+	Family                *AddressFamily        `json:"family,omitempty"`
+	HttpStatus            *int                  `json:"httpStatus,omitempty"`
+	Id                    openapi_types.UUID    `json:"id"`
+	Level                 LogLevel              `json:"level"`
+	Message               string                `json:"message"`
+	NodeId                *openapi_types.UUID   `json:"nodeId,omitempty"`
+	NodeName              *string               `json:"nodeName,omitempty"`
+	OccurredAt            time.Time             `json:"occurredAt"`
+	ProxyId               *openapi_types.UUID   `json:"proxyId,omitempty"`
+	PublicAddress         *string               `json:"publicAddress,omitempty"`
+	PublicAddressId       *openapi_types.UUID   `json:"publicAddressId,omitempty"`
+	ReceivedAt            time.Time             `json:"receivedAt"`
+	RequestMethod         *string               `json:"requestMethod,omitempty"`
+	RequestTarget         *string               `json:"requestTarget,omitempty"`
+	ResponseBodyBytes     int64                 `json:"responseBodyBytes"`
+	ResponseContentType   *string               `json:"responseContentType,omitempty"`
+	ResponseTruncated     bool                  `json:"responseTruncated"`
+	Source                LogEventSummarySource `json:"source"`
+	TaskId                *openapi_types.UUID   `json:"taskId,omitempty"`
+}
+
+// LogEventSummarySource defines model for LogEventSummary.Source.
+type LogEventSummarySource string
+
+// LogFailureCategory defines model for LogFailureCategory.
+type LogFailureCategory string
+
+// LogLevel defines model for LogLevel.
+type LogLevel string
+
+// LogRetentionState defines model for LogRetentionState.
+type LogRetentionState struct {
+	LastCleanupAt           *time.Time           `json:"lastCleanupAt,omitempty"`
+	LastCleanupDeletedItems int64                `json:"lastCleanupDeletedItems"`
+	LastCleanupError        *string              `json:"lastCleanupError,omitempty"`
+	LogicalBytes            int64                `json:"logicalBytes"`
+	MaxAgeDays              *int64               `json:"maxAgeDays,omitempty"`
+	MaxLogicalBytes         *int64               `json:"maxLogicalBytes,omitempty"`
+	Mode                    HistoryRetentionMode `json:"mode"`
+	RecordCount             int64                `json:"recordCount"`
+	UpdatedAt               time.Time            `json:"updatedAt"`
+}
+
+// LogRetentionUpdate defines model for LogRetentionUpdate.
+type LogRetentionUpdate struct {
+	MaxAgeDays      *int64               `json:"maxAgeDays,omitempty"`
+	MaxLogicalBytes *int64               `json:"maxLogicalBytes,omitempty"`
+	Mode            HistoryRetentionMode `json:"mode"`
+}
+
 // LoginRequest defines model for LoginRequest.
 type LoginRequest struct {
 	Password string  `json:"password"`
@@ -2138,6 +2343,7 @@ type Node struct {
 	Hostname                     string                     `json:"hostname"`
 	Id                           openapi_types.UUID         `json:"id"`
 	LastSeenAt                   *time.Time                 `json:"lastSeenAt,omitempty"`
+	LogLevel                     LogLevel                   `json:"logLevel"`
 	Name                         string                     `json:"name"`
 	OperatingSystem              AgentPlatform              `json:"operatingSystem"`
 	PublicAddresses              []NodePublicAddressSummary `json:"publicAddresses"`
@@ -2212,8 +2418,9 @@ type NodeSyncStatus string
 
 // NodeUpdate defines model for NodeUpdate.
 type NodeUpdate struct {
-	Enabled bool    `json:"enabled"`
-	Name    *string `json:"name,omitempty"`
+	Enabled  bool      `json:"enabled"`
+	LogLevel *LogLevel `json:"logLevel,omitempty"`
+	Name     *string   `json:"name,omitempty"`
 }
 
 // NotificationDelivery defines model for NotificationDelivery.
@@ -2703,6 +2910,7 @@ type SystemStatus struct {
 	ConfigSchemaVersion  int64                          `json:"configSchemaVersion"`
 	ExternalOriginMode   SystemStatusExternalOriginMode `json:"externalOriginMode"`
 	HistorySchemaVersion int64                          `json:"historySchemaVersion"`
+	LogsSchemaVersion    int64                          `json:"logsSchemaVersion"`
 	Service              SystemStatusService            `json:"service"`
 	SourceRevision       string                         `json:"sourceRevision"`
 	Status               SystemStatusStatus             `json:"status"`
@@ -2992,6 +3200,32 @@ type UpdateHistoryRetentionParams struct {
 	XCSRFToken *CSRFToken `json:"X-CSRF-Token,omitempty"`
 }
 
+// ListLogsParams defines parameters for ListLogs.
+type ListLogsParams struct {
+	From          *time.Time          `form:"from,omitempty" json:"from,omitempty"`
+	To            *time.Time          `form:"to,omitempty" json:"to,omitempty"`
+	NodeId        *openapi_types.UUID `form:"nodeId,omitempty" json:"nodeId,omitempty"`
+	Level         *LogLevel           `form:"level,omitempty" json:"level,omitempty"`
+	Component     *string             `form:"component,omitempty" json:"component,omitempty"`
+	EventType     *string             `form:"eventType,omitempty" json:"eventType,omitempty"`
+	PublicAddress *string             `form:"publicAddress,omitempty" json:"publicAddress,omitempty"`
+	TaskId        *openapi_types.UUID `form:"taskId,omitempty" json:"taskId,omitempty"`
+	ProxyId       *openapi_types.UUID `form:"proxyId,omitempty" json:"proxyId,omitempty"`
+	Keyword       *string             `form:"keyword,omitempty" json:"keyword,omitempty"`
+	Cursor        *string             `form:"cursor,omitempty" json:"cursor,omitempty"`
+	PageSize      *int                `form:"pageSize,omitempty" json:"pageSize,omitempty"`
+}
+
+// CleanupLogsParams defines parameters for CleanupLogs.
+type CleanupLogsParams struct {
+	XCSRFToken *CSRFToken `json:"X-CSRF-Token,omitempty"`
+}
+
+// UpdateLogRetentionParams defines parameters for UpdateLogRetention.
+type UpdateLogRetentionParams struct {
+	XCSRFToken *CSRFToken `json:"X-CSRF-Token,omitempty"`
+}
+
 // UpdateNetworkObservationSettingsParams defines parameters for UpdateNetworkObservationSettings.
 type UpdateNetworkObservationSettingsParams struct {
 	XCSRFToken *CSRFToken `json:"X-CSRF-Token,omitempty"`
@@ -3154,6 +3388,9 @@ type PollAgentJSONRequestBody = AgentPollRequest
 // RegisterAgentJSONRequestBody defines body for RegisterAgent for application/json ContentType.
 type RegisterAgentJSONRequestBody = AgentRegistrationRequest
 
+// UploadAgentLogsJSONRequestBody defines body for UploadAgentLogs for application/json ContentType.
+type UploadAgentLogsJSONRequestBody = AgentLogBatch
+
 // UploadProbeArtifactJSONRequestBody defines body for UploadProbeArtifact for application/json ContentType.
 type UploadProbeArtifactJSONRequestBody = AgentProbeArtifact
 
@@ -3162,6 +3399,9 @@ type LoginJSONRequestBody = LoginRequest
 
 // UpdateHistoryRetentionJSONRequestBody defines body for UpdateHistoryRetention for application/json ContentType.
 type UpdateHistoryRetentionJSONRequestBody = HistoryRetentionUpdate
+
+// UpdateLogRetentionJSONRequestBody defines body for UpdateLogRetention for application/json ContentType.
+type UpdateLogRetentionJSONRequestBody = LogRetentionUpdate
 
 // UpdateNetworkObservationSettingsJSONRequestBody defines body for UpdateNetworkObservationSettings for application/json ContentType.
 type UpdateNetworkObservationSettingsJSONRequestBody = NetworkObservationSettingsUpdate
@@ -3455,6 +3695,20 @@ type ClientInterface interface {
 	// Corresponds with POST /api/v1/agent/enroll (the `RegisterAgent` operationId).
 	RegisterAgent(ctx context.Context, body RegisterAgentJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
 
+	// UploadAgentLogsWithBody Idempotently upload a bounded batch of Agent log events
+	//
+	// Takes any type of body and a specified content type.
+	//
+	// Corresponds with POST /api/v1/agent/logs (the `UploadAgentLogs` operationId).
+	UploadAgentLogsWithBody(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// UploadAgentLogs Idempotently upload a bounded batch of Agent log events
+	//
+	// Takes a body of the `application/json` content type.
+	//
+	// Corresponds with POST /api/v1/agent/logs (the `UploadAgentLogs` operationId).
+	UploadAgentLogs(ctx context.Context, body UploadAgentLogsJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
+
 	// UploadProbeArtifactWithBody Idempotently upload one complete-probe run or execution revision
 	//
 	// Takes any type of body and a specified content type.
@@ -3546,6 +3800,40 @@ type ClientInterface interface {
 	//
 	// Corresponds with PUT /api/v1/history/retention (the `UpdateHistoryRetention` operationId).
 	UpdateHistoryRetention(ctx context.Context, params *UpdateHistoryRetentionParams, body UpdateHistoryRetentionJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// ListLogs List retained Agent operational log events
+	//
+	// Corresponds with GET /api/v1/logs (the `ListLogs` operationId).
+	ListLogs(ctx context.Context, params *ListLogsParams, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// CleanupLogs Apply the saved log retention settings now
+	//
+	// Corresponds with POST /api/v1/logs/cleanup (the `CleanupLogs` operationId).
+	CleanupLogs(ctx context.Context, params *CleanupLogsParams, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// GetLogRetention Read log retention settings and usage
+	//
+	// Corresponds with GET /api/v1/logs/retention (the `GetLogRetention` operationId).
+	GetLogRetention(ctx context.Context, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// UpdateLogRetentionWithBody Replace log retention settings and apply them
+	//
+	// Takes any type of body and a specified content type.
+	//
+	// Corresponds with PUT /api/v1/logs/retention (the `UpdateLogRetention` operationId).
+	UpdateLogRetentionWithBody(ctx context.Context, params *UpdateLogRetentionParams, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// UpdateLogRetention Replace log retention settings and apply them
+	//
+	// Takes a body of the `application/json` content type.
+	//
+	// Corresponds with PUT /api/v1/logs/retention (the `UpdateLogRetention` operationId).
+	UpdateLogRetention(ctx context.Context, params *UpdateLogRetentionParams, body UpdateLogRetentionJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// GetLog Read one log event including its failed response body
+	//
+	// Corresponds with GET /api/v1/logs/{logId} (the `GetLog` operationId).
+	GetLog(ctx context.Context, logId openapi_types.UUID, reqEditors ...RequestEditorFn) (*http.Response, error)
 
 	// GetNetworkObservationSettings Read global lightweight address discovery services
 	//
@@ -4304,6 +4592,40 @@ func (c *Client) RegisterAgent(ctx context.Context, body RegisterAgentJSONReques
 	return c.Client.Do(req)
 }
 
+// UploadAgentLogsWithBody Idempotently upload a bounded batch of Agent log events
+//
+// Takes any type of body and a specified content type.
+//
+// Corresponds with POST /api/v1/agent/logs (the `UploadAgentLogs` operationId).
+func (c *Client) UploadAgentLogsWithBody(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewUploadAgentLogsRequestWithBody(c.Server, contentType, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+// UploadAgentLogs Idempotently upload a bounded batch of Agent log events
+//
+// Takes a body of the `application/json` content type.
+//
+// Corresponds with POST /api/v1/agent/logs (the `UploadAgentLogs` operationId).
+func (c *Client) UploadAgentLogs(ctx context.Context, body UploadAgentLogsJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewUploadAgentLogsRequest(c.Server, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
 // UploadProbeArtifactWithBody Idempotently upload one complete-probe run or execution revision
 //
 // Takes any type of body and a specified content type.
@@ -4546,6 +4868,100 @@ func (c *Client) UpdateHistoryRetentionWithBody(ctx context.Context, params *Upd
 // Corresponds with PUT /api/v1/history/retention (the `UpdateHistoryRetention` operationId).
 func (c *Client) UpdateHistoryRetention(ctx context.Context, params *UpdateHistoryRetentionParams, body UpdateHistoryRetentionJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error) {
 	req, err := NewUpdateHistoryRetentionRequest(c.Server, params, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+// ListLogs List retained Agent operational log events
+//
+// Corresponds with GET /api/v1/logs (the `ListLogs` operationId).
+func (c *Client) ListLogs(ctx context.Context, params *ListLogsParams, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewListLogsRequest(c.Server, params)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+// CleanupLogs Apply the saved log retention settings now
+//
+// Corresponds with POST /api/v1/logs/cleanup (the `CleanupLogs` operationId).
+func (c *Client) CleanupLogs(ctx context.Context, params *CleanupLogsParams, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewCleanupLogsRequest(c.Server, params)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+// GetLogRetention Read log retention settings and usage
+//
+// Corresponds with GET /api/v1/logs/retention (the `GetLogRetention` operationId).
+func (c *Client) GetLogRetention(ctx context.Context, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewGetLogRetentionRequest(c.Server)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+// UpdateLogRetentionWithBody Replace log retention settings and apply them
+//
+// Takes any type of body and a specified content type.
+//
+// Corresponds with PUT /api/v1/logs/retention (the `UpdateLogRetention` operationId).
+func (c *Client) UpdateLogRetentionWithBody(ctx context.Context, params *UpdateLogRetentionParams, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewUpdateLogRetentionRequestWithBody(c.Server, params, contentType, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+// UpdateLogRetention Replace log retention settings and apply them
+//
+// Takes a body of the `application/json` content type.
+//
+// Corresponds with PUT /api/v1/logs/retention (the `UpdateLogRetention` operationId).
+func (c *Client) UpdateLogRetention(ctx context.Context, params *UpdateLogRetentionParams, body UpdateLogRetentionJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewUpdateLogRetentionRequest(c.Server, params, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+// GetLog Read one log event including its failed response body
+//
+// Corresponds with GET /api/v1/logs/{logId} (the `GetLog` operationId).
+func (c *Client) GetLog(ctx context.Context, logId openapi_types.UUID, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewGetLogRequest(c.Server, logId)
 	if err != nil {
 		return nil, err
 	}
@@ -6098,6 +6514,46 @@ func NewRegisterAgentRequestWithBody(server string, contentType string, body io.
 	return req, nil
 }
 
+// NewUploadAgentLogsRequest calls the generic UploadAgentLogs builder with application/json body
+func NewUploadAgentLogsRequest(server string, body UploadAgentLogsJSONRequestBody) (*http.Request, error) {
+	var bodyReader io.Reader
+	buf, err := json.Marshal(body)
+	if err != nil {
+		return nil, err
+	}
+	bodyReader = bytes.NewReader(buf)
+	return NewUploadAgentLogsRequestWithBody(server, "application/json", bodyReader)
+}
+
+// NewUploadAgentLogsRequestWithBody constructs an http.Request for the UploadAgentLogs method, with any body, and a specified content type
+func NewUploadAgentLogsRequestWithBody(server string, contentType string, body io.Reader) (*http.Request, error) {
+	var err error
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/api/v1/agent/logs")
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest(http.MethodPost, queryURL.String(), body)
+	if err != nil {
+		return nil, err
+	}
+
+	req.Header.Add("Content-Type", contentType)
+
+	return req, nil
+}
+
 // NewUploadProbeArtifactRequest calls the generic UploadProbeArtifact builder with application/json body
 func NewUploadProbeArtifactRequest(server string, body UploadProbeArtifactJSONRequestBody) (*http.Request, error) {
 	var bodyReader io.Reader
@@ -7006,6 +7462,350 @@ func NewUpdateHistoryRetentionRequestWithBody(server string, params *UpdateHisto
 			req.Header.Set("X-CSRF-Token", headerParam0)
 		}
 
+	}
+
+	return req, nil
+}
+
+// NewListLogsRequest constructs an http.Request for the ListLogs method
+func NewListLogsRequest(server string, params *ListLogsParams) (*http.Request, error) {
+	var err error
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/api/v1/logs")
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	if params != nil {
+		// queryValues collects non-styled parameters (passthrough, JSON)
+		// that are safe to round-trip through url.Values.Encode().
+		queryValues := queryURL.Query()
+		// rawQueryFragments collects pre-encoded query fragments from
+		// styled parameters, preserving literal commas as delimiters
+		// per the OpenAPI spec (e.g. "color=blue,black,brown").
+		var rawQueryFragments []string
+
+		if params.From != nil {
+
+			if queryFrag, err := runtime.StyleParamWithOptions("form", true, "from", *params.From, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationQuery, Type: "string", Format: "date-time"}); err != nil {
+				return nil, err
+			} else {
+				for _, qp := range strings.Split(queryFrag, "&") {
+					rawQueryFragments = append(rawQueryFragments, qp)
+				}
+			}
+
+		}
+
+		if params.To != nil {
+
+			if queryFrag, err := runtime.StyleParamWithOptions("form", true, "to", *params.To, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationQuery, Type: "string", Format: "date-time"}); err != nil {
+				return nil, err
+			} else {
+				for _, qp := range strings.Split(queryFrag, "&") {
+					rawQueryFragments = append(rawQueryFragments, qp)
+				}
+			}
+
+		}
+
+		if params.NodeId != nil {
+
+			if queryFrag, err := runtime.StyleParamWithOptions("form", true, "nodeId", *params.NodeId, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationQuery, Type: "string", Format: "uuid"}); err != nil {
+				return nil, err
+			} else {
+				for _, qp := range strings.Split(queryFrag, "&") {
+					rawQueryFragments = append(rawQueryFragments, qp)
+				}
+			}
+
+		}
+
+		if params.Level != nil {
+
+			if queryFrag, err := runtime.StyleParamWithOptions("form", true, "level", *params.Level, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationQuery, Type: "string", Format: ""}); err != nil {
+				return nil, err
+			} else {
+				for _, qp := range strings.Split(queryFrag, "&") {
+					rawQueryFragments = append(rawQueryFragments, qp)
+				}
+			}
+
+		}
+
+		if params.Component != nil {
+
+			if queryFrag, err := runtime.StyleParamWithOptions("form", true, "component", *params.Component, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationQuery, Type: "string", Format: ""}); err != nil {
+				return nil, err
+			} else {
+				for _, qp := range strings.Split(queryFrag, "&") {
+					rawQueryFragments = append(rawQueryFragments, qp)
+				}
+			}
+
+		}
+
+		if params.EventType != nil {
+
+			if queryFrag, err := runtime.StyleParamWithOptions("form", true, "eventType", *params.EventType, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationQuery, Type: "string", Format: ""}); err != nil {
+				return nil, err
+			} else {
+				for _, qp := range strings.Split(queryFrag, "&") {
+					rawQueryFragments = append(rawQueryFragments, qp)
+				}
+			}
+
+		}
+
+		if params.PublicAddress != nil {
+
+			if queryFrag, err := runtime.StyleParamWithOptions("form", true, "publicAddress", *params.PublicAddress, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationQuery, Type: "string", Format: ""}); err != nil {
+				return nil, err
+			} else {
+				for _, qp := range strings.Split(queryFrag, "&") {
+					rawQueryFragments = append(rawQueryFragments, qp)
+				}
+			}
+
+		}
+
+		if params.TaskId != nil {
+
+			if queryFrag, err := runtime.StyleParamWithOptions("form", true, "taskId", *params.TaskId, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationQuery, Type: "string", Format: "uuid"}); err != nil {
+				return nil, err
+			} else {
+				for _, qp := range strings.Split(queryFrag, "&") {
+					rawQueryFragments = append(rawQueryFragments, qp)
+				}
+			}
+
+		}
+
+		if params.ProxyId != nil {
+
+			if queryFrag, err := runtime.StyleParamWithOptions("form", true, "proxyId", *params.ProxyId, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationQuery, Type: "string", Format: "uuid"}); err != nil {
+				return nil, err
+			} else {
+				for _, qp := range strings.Split(queryFrag, "&") {
+					rawQueryFragments = append(rawQueryFragments, qp)
+				}
+			}
+
+		}
+
+		if params.Keyword != nil {
+
+			if queryFrag, err := runtime.StyleParamWithOptions("form", true, "keyword", *params.Keyword, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationQuery, Type: "string", Format: ""}); err != nil {
+				return nil, err
+			} else {
+				for _, qp := range strings.Split(queryFrag, "&") {
+					rawQueryFragments = append(rawQueryFragments, qp)
+				}
+			}
+
+		}
+
+		if params.Cursor != nil {
+
+			if queryFrag, err := runtime.StyleParamWithOptions("form", true, "cursor", *params.Cursor, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationQuery, Type: "string", Format: ""}); err != nil {
+				return nil, err
+			} else {
+				for _, qp := range strings.Split(queryFrag, "&") {
+					rawQueryFragments = append(rawQueryFragments, qp)
+				}
+			}
+
+		}
+
+		if params.PageSize != nil {
+
+			if queryFrag, err := runtime.StyleParamWithOptions("form", true, "pageSize", *params.PageSize, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationQuery, Type: "integer", Format: ""}); err != nil {
+				return nil, err
+			} else {
+				for _, qp := range strings.Split(queryFrag, "&") {
+					rawQueryFragments = append(rawQueryFragments, qp)
+				}
+			}
+
+		}
+
+		if encoded := queryValues.Encode(); encoded != "" {
+			rawQueryFragments = append(rawQueryFragments, encoded)
+		}
+		queryURL.RawQuery = strings.Join(rawQueryFragments, "&")
+	}
+
+	req, err := http.NewRequest(http.MethodGet, queryURL.String(), nil)
+	if err != nil {
+		return nil, err
+	}
+
+	return req, nil
+}
+
+// NewCleanupLogsRequest constructs an http.Request for the CleanupLogs method
+func NewCleanupLogsRequest(server string, params *CleanupLogsParams) (*http.Request, error) {
+	var err error
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/api/v1/logs/cleanup")
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest(http.MethodPost, queryURL.String(), nil)
+	if err != nil {
+		return nil, err
+	}
+
+	if params != nil {
+
+		if params.XCSRFToken != nil {
+			var headerParam0 string
+
+			headerParam0, err = runtime.StyleParamWithOptions("simple", false, "X-CSRF-Token", *params.XCSRFToken, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationHeader, Type: "string", Format: ""})
+			if err != nil {
+				return nil, err
+			}
+
+			req.Header.Set("X-CSRF-Token", headerParam0)
+		}
+
+	}
+
+	return req, nil
+}
+
+// NewGetLogRetentionRequest constructs an http.Request for the GetLogRetention method
+func NewGetLogRetentionRequest(server string) (*http.Request, error) {
+	var err error
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/api/v1/logs/retention")
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest(http.MethodGet, queryURL.String(), nil)
+	if err != nil {
+		return nil, err
+	}
+
+	return req, nil
+}
+
+// NewUpdateLogRetentionRequest calls the generic UpdateLogRetention builder with application/json body
+func NewUpdateLogRetentionRequest(server string, params *UpdateLogRetentionParams, body UpdateLogRetentionJSONRequestBody) (*http.Request, error) {
+	var bodyReader io.Reader
+	buf, err := json.Marshal(body)
+	if err != nil {
+		return nil, err
+	}
+	bodyReader = bytes.NewReader(buf)
+	return NewUpdateLogRetentionRequestWithBody(server, params, "application/json", bodyReader)
+}
+
+// NewUpdateLogRetentionRequestWithBody constructs an http.Request for the UpdateLogRetention method, with any body, and a specified content type
+func NewUpdateLogRetentionRequestWithBody(server string, params *UpdateLogRetentionParams, contentType string, body io.Reader) (*http.Request, error) {
+	var err error
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/api/v1/logs/retention")
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest(http.MethodPut, queryURL.String(), body)
+	if err != nil {
+		return nil, err
+	}
+
+	req.Header.Add("Content-Type", contentType)
+
+	if params != nil {
+
+		if params.XCSRFToken != nil {
+			var headerParam0 string
+
+			headerParam0, err = runtime.StyleParamWithOptions("simple", false, "X-CSRF-Token", *params.XCSRFToken, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationHeader, Type: "string", Format: ""})
+			if err != nil {
+				return nil, err
+			}
+
+			req.Header.Set("X-CSRF-Token", headerParam0)
+		}
+
+	}
+
+	return req, nil
+}
+
+// NewGetLogRequest constructs an http.Request for the GetLog method
+func NewGetLogRequest(server string, logId openapi_types.UUID) (*http.Request, error) {
+	var err error
+
+	var pathParam0 string
+
+	pathParam0, err = runtime.StyleParamWithOptions("simple", false, "logId", logId, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationPath, Type: "string", Format: "uuid"})
+	if err != nil {
+		return nil, err
+	}
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/api/v1/logs/%s", pathParam0)
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest(http.MethodGet, queryURL.String(), nil)
+	if err != nil {
+		return nil, err
 	}
 
 	return req, nil
@@ -9060,6 +9860,20 @@ type ClientWithResponsesInterface interface {
 	// Corresponds with POST /api/v1/agent/enroll (the `RegisterAgent` operationId).
 	RegisterAgentWithResponse(ctx context.Context, body RegisterAgentJSONRequestBody, reqEditors ...RequestEditorFn) (*RegisterAgentResponse, error)
 
+	// UploadAgentLogsWithBodyWithResponse Idempotently upload a bounded batch of Agent log events
+	//
+	// Takes any type of body and a specified content type, and returns a wrapper object for the known response body format(s).
+	//
+	// Corresponds with POST /api/v1/agent/logs (the `UploadAgentLogs` operationId).
+	UploadAgentLogsWithBodyWithResponse(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*UploadAgentLogsResponse, error)
+
+	// UploadAgentLogsWithResponse Idempotently upload a bounded batch of Agent log events
+	//
+	// Takes a body of the `application/json` content type, and returns a wrapper object for the known response body format(s).
+	//
+	// Corresponds with POST /api/v1/agent/logs (the `UploadAgentLogs` operationId).
+	UploadAgentLogsWithResponse(ctx context.Context, body UploadAgentLogsJSONRequestBody, reqEditors ...RequestEditorFn) (*UploadAgentLogsResponse, error)
+
 	// UploadProbeArtifactWithBodyWithResponse Idempotently upload one complete-probe run or execution revision
 	//
 	// Takes any type of body and a specified content type, and returns a wrapper object for the known response body format(s).
@@ -9171,6 +9985,48 @@ type ClientWithResponsesInterface interface {
 	//
 	// Corresponds with PUT /api/v1/history/retention (the `UpdateHistoryRetention` operationId).
 	UpdateHistoryRetentionWithResponse(ctx context.Context, params *UpdateHistoryRetentionParams, body UpdateHistoryRetentionJSONRequestBody, reqEditors ...RequestEditorFn) (*UpdateHistoryRetentionResponse, error)
+
+	// ListLogsWithResponse List retained Agent operational log events
+	//
+	// Returns a wrapper object for the known response body format(s).
+	//
+	// Corresponds with GET /api/v1/logs (the `ListLogs` operationId).
+	ListLogsWithResponse(ctx context.Context, params *ListLogsParams, reqEditors ...RequestEditorFn) (*ListLogsResponse, error)
+
+	// CleanupLogsWithResponse Apply the saved log retention settings now
+	//
+	// Returns a wrapper object for the known response body format(s).
+	//
+	// Corresponds with POST /api/v1/logs/cleanup (the `CleanupLogs` operationId).
+	CleanupLogsWithResponse(ctx context.Context, params *CleanupLogsParams, reqEditors ...RequestEditorFn) (*CleanupLogsResponse, error)
+
+	// GetLogRetentionWithResponse Read log retention settings and usage
+	//
+	// Returns a wrapper object for the known response body format(s).
+	//
+	// Corresponds with GET /api/v1/logs/retention (the `GetLogRetention` operationId).
+	GetLogRetentionWithResponse(ctx context.Context, reqEditors ...RequestEditorFn) (*GetLogRetentionResponse, error)
+
+	// UpdateLogRetentionWithBodyWithResponse Replace log retention settings and apply them
+	//
+	// Takes any type of body and a specified content type, and returns a wrapper object for the known response body format(s).
+	//
+	// Corresponds with PUT /api/v1/logs/retention (the `UpdateLogRetention` operationId).
+	UpdateLogRetentionWithBodyWithResponse(ctx context.Context, params *UpdateLogRetentionParams, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*UpdateLogRetentionResponse, error)
+
+	// UpdateLogRetentionWithResponse Replace log retention settings and apply them
+	//
+	// Takes a body of the `application/json` content type, and returns a wrapper object for the known response body format(s).
+	//
+	// Corresponds with PUT /api/v1/logs/retention (the `UpdateLogRetention` operationId).
+	UpdateLogRetentionWithResponse(ctx context.Context, params *UpdateLogRetentionParams, body UpdateLogRetentionJSONRequestBody, reqEditors ...RequestEditorFn) (*UpdateLogRetentionResponse, error)
+
+	// GetLogWithResponse Read one log event including its failed response body
+	//
+	// Returns a wrapper object for the known response body format(s).
+	//
+	// Corresponds with GET /api/v1/logs/{logId} (the `GetLog` operationId).
+	GetLogWithResponse(ctx context.Context, logId openapi_types.UUID, reqEditors ...RequestEditorFn) (*GetLogResponse, error)
 
 	// GetNetworkObservationSettingsWithResponse Read global lightweight address discovery services
 	//
@@ -10508,6 +11364,68 @@ func (r RegisterAgentResponse) ContentType() string {
 	return ""
 }
 
+type UploadAgentLogsResponse struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	// JSON200 the response for an HTTP 200 `application/json` response
+	JSON200 *AgentLogBatchReceipt
+	// JSON400 the response for an HTTP 400 `application/json` response
+	JSON400 *BadRequest
+	// JSON401 the response for an HTTP 401 `application/json` response
+	JSON401 *AgentUnauthorized
+	// JSON403 the response for an HTTP 403 `application/json` response
+	JSON403 *AgentForbidden
+}
+
+// GetJSON200 returns the response for an HTTP 200 `application/json` response
+func (r UploadAgentLogsResponse) GetJSON200() *AgentLogBatchReceipt {
+	return r.JSON200
+}
+
+// GetJSON400 returns the response for an HTTP 400 `application/json` response
+func (r UploadAgentLogsResponse) GetJSON400() *BadRequest {
+	return r.JSON400
+}
+
+// GetJSON401 returns the response for an HTTP 401 `application/json` response
+func (r UploadAgentLogsResponse) GetJSON401() *AgentUnauthorized {
+	return r.JSON401
+}
+
+// GetJSON403 returns the response for an HTTP 403 `application/json` response
+func (r UploadAgentLogsResponse) GetJSON403() *AgentForbidden {
+	return r.JSON403
+}
+
+// GetBody returns the raw response body bytes
+func (r UploadAgentLogsResponse) GetBody() []byte {
+	return r.Body
+}
+
+// Status returns HTTPResponse.Status
+func (r UploadAgentLogsResponse) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r UploadAgentLogsResponse) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+// ContentType is a convenience method to retrieve the Content-Type value from the HTTP response headers
+func (r UploadAgentLogsResponse) ContentType() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Header.Get("Content-Type")
+	}
+	return ""
+}
+
 type UploadProbeArtifactResponse struct {
 	Body         []byte
 	HTTPResponse *http.Response
@@ -11217,6 +12135,281 @@ func (r UpdateHistoryRetentionResponse) StatusCode() int {
 
 // ContentType is a convenience method to retrieve the Content-Type value from the HTTP response headers
 func (r UpdateHistoryRetentionResponse) ContentType() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Header.Get("Content-Type")
+	}
+	return ""
+}
+
+type ListLogsResponse struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	// JSON200 the response for an HTTP 200 `application/json` response
+	JSON200 *LogEventPage
+	// JSON400 the response for an HTTP 400 `application/json` response
+	JSON400 *BadRequest
+	// JSON401 the response for an HTTP 401 `application/json` response
+	JSON401 *Unauthorized
+}
+
+// GetJSON200 returns the response for an HTTP 200 `application/json` response
+func (r ListLogsResponse) GetJSON200() *LogEventPage {
+	return r.JSON200
+}
+
+// GetJSON400 returns the response for an HTTP 400 `application/json` response
+func (r ListLogsResponse) GetJSON400() *BadRequest {
+	return r.JSON400
+}
+
+// GetJSON401 returns the response for an HTTP 401 `application/json` response
+func (r ListLogsResponse) GetJSON401() *Unauthorized {
+	return r.JSON401
+}
+
+// GetBody returns the raw response body bytes
+func (r ListLogsResponse) GetBody() []byte {
+	return r.Body
+}
+
+// Status returns HTTPResponse.Status
+func (r ListLogsResponse) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r ListLogsResponse) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+// ContentType is a convenience method to retrieve the Content-Type value from the HTTP response headers
+func (r ListLogsResponse) ContentType() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Header.Get("Content-Type")
+	}
+	return ""
+}
+
+type CleanupLogsResponse struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	// JSON200 the response for an HTTP 200 `application/json` response
+	JSON200 *LogRetentionState
+	// JSON401 the response for an HTTP 401 `application/json` response
+	JSON401 *Unauthorized
+	// JSON403 the response for an HTTP 403 `application/json` response
+	JSON403 *Forbidden
+}
+
+// GetJSON200 returns the response for an HTTP 200 `application/json` response
+func (r CleanupLogsResponse) GetJSON200() *LogRetentionState {
+	return r.JSON200
+}
+
+// GetJSON401 returns the response for an HTTP 401 `application/json` response
+func (r CleanupLogsResponse) GetJSON401() *Unauthorized {
+	return r.JSON401
+}
+
+// GetJSON403 returns the response for an HTTP 403 `application/json` response
+func (r CleanupLogsResponse) GetJSON403() *Forbidden {
+	return r.JSON403
+}
+
+// GetBody returns the raw response body bytes
+func (r CleanupLogsResponse) GetBody() []byte {
+	return r.Body
+}
+
+// Status returns HTTPResponse.Status
+func (r CleanupLogsResponse) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r CleanupLogsResponse) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+// ContentType is a convenience method to retrieve the Content-Type value from the HTTP response headers
+func (r CleanupLogsResponse) ContentType() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Header.Get("Content-Type")
+	}
+	return ""
+}
+
+type GetLogRetentionResponse struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	// JSON200 the response for an HTTP 200 `application/json` response
+	JSON200 *LogRetentionState
+	// JSON401 the response for an HTTP 401 `application/json` response
+	JSON401 *Unauthorized
+}
+
+// GetJSON200 returns the response for an HTTP 200 `application/json` response
+func (r GetLogRetentionResponse) GetJSON200() *LogRetentionState {
+	return r.JSON200
+}
+
+// GetJSON401 returns the response for an HTTP 401 `application/json` response
+func (r GetLogRetentionResponse) GetJSON401() *Unauthorized {
+	return r.JSON401
+}
+
+// GetBody returns the raw response body bytes
+func (r GetLogRetentionResponse) GetBody() []byte {
+	return r.Body
+}
+
+// Status returns HTTPResponse.Status
+func (r GetLogRetentionResponse) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r GetLogRetentionResponse) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+// ContentType is a convenience method to retrieve the Content-Type value from the HTTP response headers
+func (r GetLogRetentionResponse) ContentType() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Header.Get("Content-Type")
+	}
+	return ""
+}
+
+type UpdateLogRetentionResponse struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	// JSON200 the response for an HTTP 200 `application/json` response
+	JSON200 *LogRetentionState
+	// JSON400 the response for an HTTP 400 `application/json` response
+	JSON400 *BadRequest
+	// JSON401 the response for an HTTP 401 `application/json` response
+	JSON401 *Unauthorized
+	// JSON403 the response for an HTTP 403 `application/json` response
+	JSON403 *Forbidden
+}
+
+// GetJSON200 returns the response for an HTTP 200 `application/json` response
+func (r UpdateLogRetentionResponse) GetJSON200() *LogRetentionState {
+	return r.JSON200
+}
+
+// GetJSON400 returns the response for an HTTP 400 `application/json` response
+func (r UpdateLogRetentionResponse) GetJSON400() *BadRequest {
+	return r.JSON400
+}
+
+// GetJSON401 returns the response for an HTTP 401 `application/json` response
+func (r UpdateLogRetentionResponse) GetJSON401() *Unauthorized {
+	return r.JSON401
+}
+
+// GetJSON403 returns the response for an HTTP 403 `application/json` response
+func (r UpdateLogRetentionResponse) GetJSON403() *Forbidden {
+	return r.JSON403
+}
+
+// GetBody returns the raw response body bytes
+func (r UpdateLogRetentionResponse) GetBody() []byte {
+	return r.Body
+}
+
+// Status returns HTTPResponse.Status
+func (r UpdateLogRetentionResponse) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r UpdateLogRetentionResponse) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+// ContentType is a convenience method to retrieve the Content-Type value from the HTTP response headers
+func (r UpdateLogRetentionResponse) ContentType() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Header.Get("Content-Type")
+	}
+	return ""
+}
+
+type GetLogResponse struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	// JSON200 the response for an HTTP 200 `application/json` response
+	JSON200 *LogEventDetail
+	// JSON401 the response for an HTTP 401 `application/json` response
+	JSON401 *Unauthorized
+	// JSON404 the response for an HTTP 404 `application/json` response
+	JSON404 *NotFound
+}
+
+// GetJSON200 returns the response for an HTTP 200 `application/json` response
+func (r GetLogResponse) GetJSON200() *LogEventDetail {
+	return r.JSON200
+}
+
+// GetJSON401 returns the response for an HTTP 401 `application/json` response
+func (r GetLogResponse) GetJSON401() *Unauthorized {
+	return r.JSON401
+}
+
+// GetJSON404 returns the response for an HTTP 404 `application/json` response
+func (r GetLogResponse) GetJSON404() *NotFound {
+	return r.JSON404
+}
+
+// GetBody returns the raw response body bytes
+func (r GetLogResponse) GetBody() []byte {
+	return r.Body
+}
+
+// Status returns HTTPResponse.Status
+func (r GetLogResponse) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r GetLogResponse) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+// ContentType is a convenience method to retrieve the Content-Type value from the HTTP response headers
+func (r GetLogResponse) ContentType() string {
 	if r.HTTPResponse != nil {
 		return r.HTTPResponse.Header.Get("Content-Type")
 	}
@@ -13902,6 +15095,32 @@ func (c *ClientWithResponses) RegisterAgentWithResponse(ctx context.Context, bod
 	return ParseRegisterAgentResponse(rsp)
 }
 
+// UploadAgentLogsWithBodyWithResponse Idempotently upload a bounded batch of Agent log events
+//
+// Takes any type of body and a specified content type, and returns a wrapper object for the known response body format(s).
+//
+// Corresponds with POST /api/v1/agent/logs (the `UploadAgentLogs` operationId).
+func (c *ClientWithResponses) UploadAgentLogsWithBodyWithResponse(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*UploadAgentLogsResponse, error) {
+	rsp, err := c.UploadAgentLogsWithBody(ctx, contentType, body, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseUploadAgentLogsResponse(rsp)
+}
+
+// UploadAgentLogsWithResponse Idempotently upload a bounded batch of Agent log events
+//
+// Takes a body of the `application/json` content type, and returns a wrapper object for the known response body format(s).
+//
+// Corresponds with POST /api/v1/agent/logs (the `UploadAgentLogs` operationId).
+func (c *ClientWithResponses) UploadAgentLogsWithResponse(ctx context.Context, body UploadAgentLogsJSONRequestBody, reqEditors ...RequestEditorFn) (*UploadAgentLogsResponse, error) {
+	rsp, err := c.UploadAgentLogs(ctx, body, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseUploadAgentLogsResponse(rsp)
+}
+
 // UploadProbeArtifactWithBodyWithResponse Idempotently upload one complete-probe run or execution revision
 //
 // Takes any type of body and a specified content type, and returns a wrapper object for the known response body format(s).
@@ -14108,6 +15327,84 @@ func (c *ClientWithResponses) UpdateHistoryRetentionWithResponse(ctx context.Con
 		return nil, err
 	}
 	return ParseUpdateHistoryRetentionResponse(rsp)
+}
+
+// ListLogsWithResponse List retained Agent operational log events
+//
+// Returns a wrapper object for the known response body format(s).
+//
+// Corresponds with GET /api/v1/logs (the `ListLogs` operationId).
+func (c *ClientWithResponses) ListLogsWithResponse(ctx context.Context, params *ListLogsParams, reqEditors ...RequestEditorFn) (*ListLogsResponse, error) {
+	rsp, err := c.ListLogs(ctx, params, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseListLogsResponse(rsp)
+}
+
+// CleanupLogsWithResponse Apply the saved log retention settings now
+//
+// Returns a wrapper object for the known response body format(s).
+//
+// Corresponds with POST /api/v1/logs/cleanup (the `CleanupLogs` operationId).
+func (c *ClientWithResponses) CleanupLogsWithResponse(ctx context.Context, params *CleanupLogsParams, reqEditors ...RequestEditorFn) (*CleanupLogsResponse, error) {
+	rsp, err := c.CleanupLogs(ctx, params, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseCleanupLogsResponse(rsp)
+}
+
+// GetLogRetentionWithResponse Read log retention settings and usage
+//
+// Returns a wrapper object for the known response body format(s).
+//
+// Corresponds with GET /api/v1/logs/retention (the `GetLogRetention` operationId).
+func (c *ClientWithResponses) GetLogRetentionWithResponse(ctx context.Context, reqEditors ...RequestEditorFn) (*GetLogRetentionResponse, error) {
+	rsp, err := c.GetLogRetention(ctx, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseGetLogRetentionResponse(rsp)
+}
+
+// UpdateLogRetentionWithBodyWithResponse Replace log retention settings and apply them
+//
+// Takes any type of body and a specified content type, and returns a wrapper object for the known response body format(s).
+//
+// Corresponds with PUT /api/v1/logs/retention (the `UpdateLogRetention` operationId).
+func (c *ClientWithResponses) UpdateLogRetentionWithBodyWithResponse(ctx context.Context, params *UpdateLogRetentionParams, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*UpdateLogRetentionResponse, error) {
+	rsp, err := c.UpdateLogRetentionWithBody(ctx, params, contentType, body, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseUpdateLogRetentionResponse(rsp)
+}
+
+// UpdateLogRetentionWithResponse Replace log retention settings and apply them
+//
+// Takes a body of the `application/json` content type, and returns a wrapper object for the known response body format(s).
+//
+// Corresponds with PUT /api/v1/logs/retention (the `UpdateLogRetention` operationId).
+func (c *ClientWithResponses) UpdateLogRetentionWithResponse(ctx context.Context, params *UpdateLogRetentionParams, body UpdateLogRetentionJSONRequestBody, reqEditors ...RequestEditorFn) (*UpdateLogRetentionResponse, error) {
+	rsp, err := c.UpdateLogRetention(ctx, params, body, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseUpdateLogRetentionResponse(rsp)
+}
+
+// GetLogWithResponse Read one log event including its failed response body
+//
+// Returns a wrapper object for the known response body format(s).
+//
+// Corresponds with GET /api/v1/logs/{logId} (the `GetLog` operationId).
+func (c *ClientWithResponses) GetLogWithResponse(ctx context.Context, logId openapi_types.UUID, reqEditors ...RequestEditorFn) (*GetLogResponse, error) {
+	rsp, err := c.GetLog(ctx, logId, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseGetLogResponse(rsp)
 }
 
 // GetNetworkObservationSettingsWithResponse Read global lightweight address discovery services
@@ -15535,6 +16832,53 @@ func ParseRegisterAgentResponse(rsp *http.Response) (*RegisterAgentResponse, err
 	return response, nil
 }
 
+// ParseUploadAgentLogsResponse parses an HTTP response from a UploadAgentLogsWithResponse call
+func ParseUploadAgentLogsResponse(rsp *http.Response) (*UploadAgentLogsResponse, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &UploadAgentLogsResponse{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest AgentLogBatchReceipt
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 400:
+		var dest BadRequest
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON400 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 401:
+		var dest AgentUnauthorized
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON401 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 403:
+		var dest AgentForbidden
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON403 = &dest
+
+	}
+
+	return response, nil
+}
+
 // ParseUploadProbeArtifactResponse parses an HTTP response from a UploadProbeArtifactWithResponse call
 func ParseUploadProbeArtifactResponse(rsp *http.Response) (*UploadProbeArtifactResponse, error) {
 	bodyBytes, err := io.ReadAll(rsp.Body)
@@ -16064,6 +17408,206 @@ func ParseUpdateHistoryRetentionResponse(rsp *http.Response) (*UpdateHistoryRete
 			return nil, err
 		}
 		response.JSON403 = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseListLogsResponse parses an HTTP response from a ListLogsWithResponse call
+func ParseListLogsResponse(rsp *http.Response) (*ListLogsResponse, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &ListLogsResponse{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest LogEventPage
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 400:
+		var dest BadRequest
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON400 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 401:
+		var dest Unauthorized
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON401 = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseCleanupLogsResponse parses an HTTP response from a CleanupLogsWithResponse call
+func ParseCleanupLogsResponse(rsp *http.Response) (*CleanupLogsResponse, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &CleanupLogsResponse{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest LogRetentionState
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 401:
+		var dest Unauthorized
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON401 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 403:
+		var dest Forbidden
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON403 = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseGetLogRetentionResponse parses an HTTP response from a GetLogRetentionWithResponse call
+func ParseGetLogRetentionResponse(rsp *http.Response) (*GetLogRetentionResponse, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &GetLogRetentionResponse{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest LogRetentionState
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 401:
+		var dest Unauthorized
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON401 = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseUpdateLogRetentionResponse parses an HTTP response from a UpdateLogRetentionWithResponse call
+func ParseUpdateLogRetentionResponse(rsp *http.Response) (*UpdateLogRetentionResponse, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &UpdateLogRetentionResponse{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest LogRetentionState
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 400:
+		var dest BadRequest
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON400 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 401:
+		var dest Unauthorized
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON401 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 403:
+		var dest Forbidden
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON403 = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseGetLogResponse parses an HTTP response from a GetLogWithResponse call
+func ParseGetLogResponse(rsp *http.Response) (*GetLogResponse, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &GetLogResponse{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest LogEventDetail
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 401:
+		var dest Unauthorized
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON401 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 404:
+		var dest NotFound
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON404 = &dest
 
 	}
 

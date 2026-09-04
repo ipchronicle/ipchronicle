@@ -14,6 +14,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/ipchronicle/ipchronicle/internal/agent/agentlogs"
 	"github.com/ipchronicle/ipchronicle/internal/center/history"
 )
 
@@ -223,6 +224,50 @@ func TestNativeRequestUserAgentsMatchUpstreamRequestClasses(t *testing.T) {
 	if got := requests[1].UserAgent(); got != browserUserAgent {
 		t.Fatalf("browser provider User-Agent = %q", got)
 	}
+}
+
+func TestProbeHTTPLogsFailureWithoutRequestSecrets(t *testing.T) {
+	logs := &capturedProbeLogs{}
+	publicAddress, family := "203.0.113.10", "ipv4"
+	client := probeHTTP{
+		client: &http.Client{Transport: roundTripFunc(func(request *http.Request) (*http.Response, error) {
+			return &http.Response{
+				StatusCode: http.StatusTooManyRequests,
+				Body:       io.NopCloser(strings.NewReader(`{"error":"quota exceeded"}`)),
+				Header: http.Header{
+					"Content-Type": []string{"application/json"},
+					"Retry-After":  []string{"60"}, "X-RateLimit-Remaining": []string{"0"},
+					"Set-Cookie": []string{"secret=session"},
+				}, Request: request,
+			}, nil
+		})},
+		events:  logs,
+		context: requestLogContext{publicAddress: &publicAddress, family: &family},
+	}
+	if document := client.json(context.Background(), http.MethodGet,
+		"https://provider.example/check?q=203.0.113.10&key=secret-value", nil, nil); document != nil {
+		t.Fatalf("rate-limited document = %#v", document)
+	}
+	if len(logs.events) != 1 {
+		t.Fatalf("request events = %#v", logs.events)
+	}
+	event := logs.events[0]
+	if event.FailureCategory == nil || *event.FailureCategory != "rate-limit" ||
+		event.RequestTarget == nil || *event.RequestTarget != "https://provider.example/check" ||
+		strings.Contains(*event.RequestTarget, "secret-value") ||
+		string(event.ResponseBody) != `{"error":"quota exceeded"}` ||
+		event.RateLimitHeaders["Retry-After"] != "60" || event.RateLimitHeaders["X-Ratelimit-Remaining"] != "0" ||
+		event.RateLimitHeaders["Set-Cookie"] != "" {
+		t.Fatalf("request failure event = %#v", event)
+	}
+}
+
+type capturedProbeLogs struct {
+	events []agentlogs.Event
+}
+
+func (logs *capturedProbeLogs) Emit(event agentlogs.Event) {
+	logs.events = append(logs.events, event)
 }
 
 func TestNativeMediaAndDNSBlacklistHelpers(t *testing.T) {

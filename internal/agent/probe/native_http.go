@@ -16,6 +16,8 @@ import (
 	"net/url"
 	"strings"
 	"time"
+
+	"github.com/ipchronicle/ipchronicle/internal/agent/agentlogs"
 )
 
 const (
@@ -32,13 +34,30 @@ const (
 )
 
 type probeHTTP struct {
-	client *http.Client
+	client  *http.Client
+	events  agentlogs.Sink
+	context requestLogContext
 }
 
 type probeHTTPResponse struct {
-	StatusCode int
-	Body       []byte
-	FinalURL   string
+	Method               string
+	StatusCode           int
+	Body                 []byte
+	FinalURL             string
+	ContentType          string
+	RateLimitHeaders     map[string]string
+	DurationMilliseconds int64
+	Truncated            bool
+}
+
+type requestLogContext struct {
+	publicAddressID       *string
+	publicAddress         *string
+	family                *string
+	taskID                *string
+	proxyID               *string
+	configurationRevision *int64
+	discoveryPath         *string
 }
 
 func (client probeHTTP) get(ctx context.Context, target string, headers http.Header) (probeHTTPResponse, error) {
@@ -52,10 +71,12 @@ func (client probeHTTP) do(
 	headers http.Header,
 	body []byte,
 ) (probeHTTPResponse, error) {
+	startedAt := time.Now()
 	requestContext, cancel := context.WithTimeout(ctx, providerRequestTimeout)
 	defer cancel()
 	request, err := http.NewRequestWithContext(requestContext, method, target, bytes.NewReader(body))
 	if err != nil {
+		client.emitRequestFailure(method, target, probeHTTPResponse{DurationMilliseconds: time.Since(startedAt).Milliseconds()}, "internal")
 		return probeHTTPResponse{}, err
 	}
 	if headers.Get("User-Agent") == "" {
@@ -70,19 +91,38 @@ func (client probeHTTP) do(
 	}
 	response, err := client.client.Do(request)
 	if err != nil {
+		client.emitRequestFailure(method, target, probeHTTPResponse{DurationMilliseconds: time.Since(startedAt).Milliseconds()}, agentlogs.ClassifyRequestError(err))
 		return probeHTTPResponse{}, err
 	}
 	defer response.Body.Close()
 	contents, err := io.ReadAll(io.LimitReader(response.Body, providerResponseLimit+1))
+	result := probeHTTPResponse{
+		Method: method, StatusCode: response.StatusCode, Body: contents, FinalURL: response.Request.URL.String(),
+		ContentType: response.Header.Get("Content-Type"), RateLimitHeaders: agentlogs.RateLimitHeaders(response.Header),
+		DurationMilliseconds: time.Since(startedAt).Milliseconds(),
+	}
+	if len(result.Body) > providerResponseLimit {
+		result.Body = result.Body[:providerResponseLimit]
+		result.Truncated = true
+	}
 	if err != nil {
-		return probeHTTPResponse{}, err
+		client.emitRequestFailure(method, result.FinalURL, result, agentlogs.ClassifyRequestError(err))
+		return result, err
 	}
-	if len(contents) > providerResponseLimit {
-		return probeHTTPResponse{}, errors.New("probe endpoint response exceeds 4 MiB")
+	if result.Truncated {
+		client.emitRequestFailure(method, result.FinalURL, result, "response-too-large")
+		return result, errors.New("probe endpoint response exceeds 4 MiB")
 	}
-	return probeHTTPResponse{
-		StatusCode: response.StatusCode, Body: contents, FinalURL: response.Request.URL.String(),
-	}, nil
+	if response.StatusCode < 200 || response.StatusCode >= 300 {
+		category := "http-status"
+		if response.StatusCode == http.StatusTooManyRequests {
+			category = "rate-limit"
+		}
+		client.emitRequestFailure(method, result.FinalURL, result, category)
+	} else {
+		client.emitRequestSuccess(method, result.FinalURL, result)
+	}
+	return result, nil
 }
 
 func headersWithUserAgent(userAgent string) http.Header {
@@ -98,11 +138,109 @@ func (client probeHTTP) json(
 	headers http.Header,
 	body []byte,
 ) map[string]any {
+	document, _ := client.jsonWithResponse(ctx, method, target, headers, body)
+	return document
+}
+
+func (client probeHTTP) jsonWithResponse(
+	ctx context.Context,
+	method string,
+	target string,
+	headers http.Header,
+	body []byte,
+) (map[string]any, probeHTTPResponse) {
 	response, err := client.do(ctx, method, target, headers, body)
 	if err != nil || response.StatusCode < 200 || response.StatusCode >= 300 {
+		return nil, response
+	}
+	return client.decodeJSON(response), response
+}
+
+func (client probeHTTP) decodeJSON(response probeHTTPResponse) map[string]any {
+	document := decodeJSONDocument(response.Body)
+	if document == nil {
+		client.emitInvalidResponse(response, "Probe provider returned invalid JSON")
+	} else if documentReportsFailure(document) {
+		client.emitInvalidResponse(response, "Probe provider reported an unsuccessful result")
 		return nil
 	}
-	return decodeJSONDocument(response.Body)
+	return document
+}
+
+func (client probeHTTP) emitInvalidResponse(response probeHTTPResponse, message string) {
+	method := response.Method
+	if method == "" {
+		method = http.MethodGet
+	}
+	client.emit(agentlogs.Event{
+		Level: "warn", Component: "ip-quality", EventType: "provider-response-invalid", Message: message,
+		FailureCategory: stringPointer("invalid-response"), RequestMethod: &method,
+		RequestTarget: agentlogs.SanitizeRequestTarget(response.FinalURL), HTTPStatus: &response.StatusCode,
+		DurationMilliseconds: &response.DurationMilliseconds, ResponseContentType: optionalString(response.ContentType),
+		RateLimitHeaders: response.RateLimitHeaders, ResponseBody: response.Body, ResponseTruncated: response.Truncated,
+	})
+}
+
+func documentReportsFailure(document map[string]any) bool {
+	if success := documentBool(document, "success"); success != nil && !*success {
+		return true
+	}
+	value, exists := document["error"]
+	if !exists || value == nil || value == false || value == "" {
+		return false
+	}
+	return true
+}
+
+func (client probeHTTP) emitRequestFailure(method, target string, response probeHTTPResponse, category string) {
+	event := agentlogs.Event{
+		Level: "warn", Component: "ip-quality", EventType: "provider-request-failed",
+		Message: "IP quality provider request failed", FailureCategory: &category,
+		RequestMethod: &method, RequestTarget: agentlogs.SanitizeRequestTarget(target),
+		DurationMilliseconds: &response.DurationMilliseconds,
+	}
+	if response.StatusCode != 0 {
+		event.HTTPStatus = &response.StatusCode
+	}
+	event.ResponseContentType = optionalString(response.ContentType)
+	event.RateLimitHeaders = response.RateLimitHeaders
+	event.ResponseBody = response.Body
+	event.ResponseTruncated = response.Truncated
+	client.emit(event)
+}
+
+func (client probeHTTP) emitRequestSuccess(method, target string, response probeHTTPResponse) {
+	client.emit(agentlogs.Event{
+		Level: "debug", Component: "ip-quality", EventType: "provider-request-succeeded",
+		Message: "IP quality provider request succeeded", RequestMethod: &method,
+		RequestTarget: agentlogs.SanitizeRequestTarget(target), HTTPStatus: &response.StatusCode,
+		DurationMilliseconds: &response.DurationMilliseconds,
+	})
+}
+
+func (client probeHTTP) emit(event agentlogs.Event) {
+	if client.events == nil {
+		return
+	}
+	event.PublicAddressID = client.context.publicAddressID
+	event.PublicAddress = client.context.publicAddress
+	event.Family = client.context.family
+	event.TaskID = client.context.taskID
+	event.ProxyID = client.context.proxyID
+	event.ConfigurationRevision = client.context.configurationRevision
+	event.DiscoveryPath = client.context.discoveryPath
+	client.events.Emit(event)
+}
+
+func optionalString(value string) *string {
+	if value == "" {
+		return nil
+	}
+	return &value
+}
+
+func stringPointer(value string) *string {
+	return &value
 }
 
 func decodeJSONDocument(contents []byte) map[string]any {

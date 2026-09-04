@@ -39,8 +39,9 @@ func LoadDatabasePaths() (database.Paths, error) {
 	paths := database.PathsFromDataDirectory(dataDirectory)
 	paths.ConfigDatabase = environmentOrDefault("IPCHRONICLE_CONFIG_DATABASE_PATH", paths.ConfigDatabase)
 	paths.HistoryDatabase = environmentOrDefault("IPCHRONICLE_HISTORY_DATABASE_PATH", paths.HistoryDatabase)
+	paths.LogsDatabase = environmentOrDefault("IPCHRONICLE_LOGS_DATABASE_PATH", paths.LogsDatabase)
 	paths.MasterKey = environmentOrDefault("IPCHRONICLE_MASTER_KEY_PATH", paths.MasterKey)
-	for _, path := range []string{paths.ConfigDatabase, paths.HistoryDatabase, paths.MasterKey} {
+	for _, path := range []string{paths.ConfigDatabase, paths.HistoryDatabase, paths.LogsDatabase, paths.MasterKey} {
 		if !filepath.IsAbs(path) {
 			return database.Paths{}, fmt.Errorf("persistent path must be absolute: %s", path)
 		}

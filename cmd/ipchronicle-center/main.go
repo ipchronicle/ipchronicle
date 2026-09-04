@@ -17,6 +17,7 @@ import (
 
 	"github.com/ipchronicle/ipchronicle/internal/center"
 	"github.com/ipchronicle/ipchronicle/internal/center/admin"
+	"github.com/ipchronicle/ipchronicle/internal/center/agentlogs"
 	"github.com/ipchronicle/ipchronicle/internal/center/database"
 	"github.com/ipchronicle/ipchronicle/internal/center/nodes"
 	"github.com/ipchronicle/ipchronicle/internal/center/notifications"
@@ -78,6 +79,7 @@ func serve() error {
 	}
 	syncHub := syncws.NewHub()
 	nodeService := nodes.NewService(store.Config, store.History, store.ConfigQueries, store.MasterKey, syncHub)
+	agentLogService := agentlogs.NewService(store.Logs, store.LogsQueries, store.ConfigQueries)
 	systemSettingsService := systemsettings.NewService(store.Config, store.ConfigQueries, store.MasterKey, syncHub)
 	notificationService := notifications.NewService(notifications.ServiceOptions{
 		ConfigDatabase: store.Config, HistoryDatabase: store.History,
@@ -96,6 +98,7 @@ func serve() error {
 			Revision:       version.Revision,
 			Web:            webui.Handler(),
 			Administrator:  administrator,
+			AgentLogs:      agentLogService,
 			Nodes:          nodeService,
 			Notifications:  notificationService,
 			Updates:        updateService,
@@ -111,6 +114,7 @@ func serve() error {
 	defer stop()
 	go nodeService.RunDeletionWorker(shutdownContext, log.Default())
 	go nodeService.RunRetentionWorker(shutdownContext, log.Default())
+	go agentLogService.RunRetentionWorker(shutdownContext, log.Default())
 	go notificationService.Run(shutdownContext, log.Default())
 	go func() {
 		<-shutdownContext.Done()

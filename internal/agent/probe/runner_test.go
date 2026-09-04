@@ -31,7 +31,7 @@ func TestRunnerExecutesOneBoundedJSONProbe(t *testing.T) {
 	configuration.IPAPIAPIKey = ipapiAPIKey
 	runner.discover = func() (agentnetwork.Inventory, error) { return probeTestInventory(), nil }
 	startedAt := time.Now().UTC().Truncate(time.Second)
-	outcome, err := runner.Run(context.Background(), configuration, egress, startedAt)
+	outcome, err := runner.Run(context.Background(), configuration, egress, startedAt, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -50,7 +50,7 @@ func TestRunnerStopsNativeProbeAtTimeout(t *testing.T) {
 	configuration, egress := probeTestConfiguration("default", "ipv4")
 	runner.discover = func() (agentnetwork.Inventory, error) { return probeTestInventory(), nil }
 	started := time.Now()
-	outcome, err := runner.Run(context.Background(), configuration, egress, time.Now())
+	outcome, err := runner.Run(context.Background(), configuration, egress, time.Now(), nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -75,7 +75,7 @@ func TestRunnerReportsInvalidAndOversizedJSON(t *testing.T) {
 			})
 			configuration, egress := probeTestConfiguration("default", "ipv4")
 			runner.discover = func() (agentnetwork.Inventory, error) { return probeTestInventory(), nil }
-			outcome, err := runner.Run(context.Background(), configuration, egress, time.Now())
+			outcome, err := runner.Run(context.Background(), configuration, egress, time.Now(), nil)
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -204,7 +204,7 @@ func TestLocalProxyAdapterAuthenticatesHTTPAndConnect(t *testing.T) {
 func testRunner(t *testing.T, execute func(context.Context, nativeProbeInput) ([]byte, error)) *Runner {
 	t.Helper()
 	runner := NewRunner()
-	runner.verifyTarget = func(context.Context, state.Configuration, state.Egress, time.Time) error { return nil }
+	runner.verifyTarget = func(context.Context, state.Configuration, state.Egress, time.Time, *string) error { return nil }
 	runner.execute = execute
 	return runner
 }

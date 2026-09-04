@@ -124,12 +124,15 @@ func (e AgentArchitecture) Valid() bool {
 
 // Defines values for AgentConfigurationSnapshotSchemaVersion.
 const (
-	N9 AgentConfigurationSnapshotSchemaVersion = 9
+	N10 AgentConfigurationSnapshotSchemaVersion = 10
+	N9  AgentConfigurationSnapshotSchemaVersion = 9
 )
 
 // Valid indicates whether the value is a known member of the AgentConfigurationSnapshotSchemaVersion enum.
 func (e AgentConfigurationSnapshotSchemaVersion) Valid() bool {
 	switch e {
+	case N10:
+		return true
 	case N9:
 		return true
 	default:
@@ -405,6 +408,7 @@ const (
 	InternalError                    ErrorCode = "internal_error"
 	InvalidCredentials               ErrorCode = "invalid_credentials"
 	InvalidEgressCandidate           ErrorCode = "invalid_egress_candidate"
+	InvalidLogRetention              ErrorCode = "invalid_log_retention"
 	InvalidNetworkProxy              ErrorCode = "invalid_network_proxy"
 	InvalidNotificationDeliveryQuery ErrorCode = "invalid_notification_delivery_query"
 	InvalidNotificationRule          ErrorCode = "invalid_notification_rule"
@@ -414,6 +418,7 @@ const (
 	InvalidRequest                   ErrorCode = "invalid_request"
 	InvalidSystemSettings            ErrorCode = "invalid_system_settings"
 	InvalidTotp                      ErrorCode = "invalid_totp"
+	LogNotFound                      ErrorCode = "log_not_found"
 	NetworkInventoryUnavailable      ErrorCode = "network_inventory_unavailable"
 	NetworkProxyAlreadyExists        ErrorCode = "network_proxy_already_exists"
 	NetworkProxyDeletionPending      ErrorCode = "network_proxy_deletion_pending"
@@ -478,6 +483,8 @@ func (e ErrorCode) Valid() bool {
 		return true
 	case InvalidEgressCandidate:
 		return true
+	case InvalidLogRetention:
+		return true
 	case InvalidNetworkProxy:
 		return true
 	case InvalidNotificationDeliveryQuery:
@@ -495,6 +502,8 @@ func (e ErrorCode) Valid() bool {
 	case InvalidSystemSettings:
 		return true
 	case InvalidTotp:
+		return true
+	case LogNotFound:
 		return true
 	case NetworkInventoryUnavailable:
 		return true
@@ -635,6 +644,87 @@ func (e KnownProbeFieldStatus) Valid() bool {
 	case KnownProbeFieldStatusMissing:
 		return true
 	case KnownProbeFieldStatusUnavailable:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for LogEventSummarySource.
+const (
+	Agent  LogEventSummarySource = "agent"
+	Center LogEventSummarySource = "center"
+)
+
+// Valid indicates whether the value is a known member of the LogEventSummarySource enum.
+func (e LogEventSummarySource) Valid() bool {
+	switch e {
+	case Agent:
+		return true
+	case Center:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for LogFailureCategory.
+const (
+	LogFailureCategoryConnect          LogFailureCategory = "connect"
+	LogFailureCategoryDns              LogFailureCategory = "dns"
+	LogFailureCategoryHttpStatus       LogFailureCategory = "http-status"
+	LogFailureCategoryInternal         LogFailureCategory = "internal"
+	LogFailureCategoryInvalidResponse  LogFailureCategory = "invalid-response"
+	LogFailureCategoryRateLimit        LogFailureCategory = "rate-limit"
+	LogFailureCategoryResponseTooLarge LogFailureCategory = "response-too-large"
+	LogFailureCategoryTimeout          LogFailureCategory = "timeout"
+	LogFailureCategoryTls              LogFailureCategory = "tls"
+)
+
+// Valid indicates whether the value is a known member of the LogFailureCategory enum.
+func (e LogFailureCategory) Valid() bool {
+	switch e {
+	case LogFailureCategoryConnect:
+		return true
+	case LogFailureCategoryDns:
+		return true
+	case LogFailureCategoryHttpStatus:
+		return true
+	case LogFailureCategoryInternal:
+		return true
+	case LogFailureCategoryInvalidResponse:
+		return true
+	case LogFailureCategoryRateLimit:
+		return true
+	case LogFailureCategoryResponseTooLarge:
+		return true
+	case LogFailureCategoryTimeout:
+		return true
+	case LogFailureCategoryTls:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for LogLevel.
+const (
+	Debug LogLevel = "debug"
+	Error LogLevel = "error"
+	Info  LogLevel = "info"
+	Warn  LogLevel = "warn"
+)
+
+// Valid indicates whether the value is a known member of the LogLevel enum.
+func (e LogLevel) Valid() bool {
+	switch e {
+	case Debug:
+		return true
+	case Error:
+		return true
+	case Info:
+		return true
+	case Warn:
 		return true
 	default:
 		return false
@@ -1096,28 +1186,28 @@ func (e ProbeExecutionStatus) Valid() bool {
 
 // Defines values for ProbeFailureStage.
 const (
-	Adapter  ProbeFailureStage = "adapter"
-	Output   ProbeFailureStage = "output"
-	Process  ProbeFailureStage = "process"
-	Restart  ProbeFailureStage = "restart"
-	Selector ProbeFailureStage = "selector"
-	Timeout  ProbeFailureStage = "timeout"
+	ProbeFailureStageAdapter  ProbeFailureStage = "adapter"
+	ProbeFailureStageOutput   ProbeFailureStage = "output"
+	ProbeFailureStageProcess  ProbeFailureStage = "process"
+	ProbeFailureStageRestart  ProbeFailureStage = "restart"
+	ProbeFailureStageSelector ProbeFailureStage = "selector"
+	ProbeFailureStageTimeout  ProbeFailureStage = "timeout"
 )
 
 // Valid indicates whether the value is a known member of the ProbeFailureStage enum.
 func (e ProbeFailureStage) Valid() bool {
 	switch e {
-	case Adapter:
+	case ProbeFailureStageAdapter:
 		return true
-	case Output:
+	case ProbeFailureStageOutput:
 		return true
-	case Process:
+	case ProbeFailureStageProcess:
 		return true
-	case Restart:
+	case ProbeFailureStageRestart:
 		return true
-	case Selector:
+	case ProbeFailureStageSelector:
 		return true
-	case Timeout:
+	case ProbeFailureStageTimeout:
 		return true
 	default:
 		return false
@@ -1529,6 +1619,7 @@ type AgentConfigurationSnapshot struct {
 	Enabled                bool                                    `json:"enabled"`
 	HistoryGeneration      string                                  `json:"historyGeneration"`
 	IpapiApiKey            *string                                 `json:"ipapiApiKey,omitempty"`
+	LogLevel               *LogLevel                               `json:"logLevel,omitempty"`
 	ProbeLowMemoryOverride bool                                    `json:"probeLowMemoryOverride"`
 	ProbeSchedule          ProbeSchedule                           `json:"probeSchedule"`
 	ProbeTargets           []AgentProbeTarget                      `json:"probeTargets"`
@@ -1568,6 +1659,46 @@ type AgentEnrollmentSettings struct {
 // AgentEnrollmentUpdate defines model for AgentEnrollmentUpdate.
 type AgentEnrollmentUpdate struct {
 	Enabled bool `json:"enabled"`
+}
+
+// AgentLogBatch defines model for AgentLogBatch.
+type AgentLogBatch struct {
+	Events []AgentLogEvent `json:"events"`
+}
+
+// AgentLogBatchReceipt defines model for AgentLogBatchReceipt.
+type AgentLogBatchReceipt struct {
+	AcceptedEventIds  []openapi_types.UUID `json:"acceptedEventIds"`
+	DiscardedEventIds []openapi_types.UUID `json:"discardedEventIds"`
+}
+
+// AgentLogEvent defines model for AgentLogEvent.
+type AgentLogEvent struct {
+	Component             string              `json:"component"`
+	ConfigurationRevision *int64              `json:"configurationRevision,omitempty"`
+	DiscoveryPath         *string             `json:"discoveryPath,omitempty"`
+	DroppedCount          *int64              `json:"droppedCount,omitempty"`
+	DroppedFrom           *time.Time          `json:"droppedFrom,omitempty"`
+	DroppedTo             *time.Time          `json:"droppedTo,omitempty"`
+	DurationMilliseconds  *int64              `json:"durationMilliseconds,omitempty"`
+	EventType             string              `json:"eventType"`
+	FailureCategory       *LogFailureCategory `json:"failureCategory,omitempty"`
+	Family                *AddressFamily      `json:"family,omitempty"`
+	HttpStatus            *int                `json:"httpStatus,omitempty"`
+	Id                    openapi_types.UUID  `json:"id"`
+	Level                 LogLevel            `json:"level"`
+	Message               string              `json:"message"`
+	OccurredAt            time.Time           `json:"occurredAt"`
+	ProxyId               *openapi_types.UUID `json:"proxyId,omitempty"`
+	PublicAddress         *string             `json:"publicAddress,omitempty"`
+	PublicAddressId       *openapi_types.UUID `json:"publicAddressId,omitempty"`
+	RateLimitHeaders      *map[string]string  `json:"rateLimitHeaders,omitempty"`
+	RequestMethod         *string             `json:"requestMethod,omitempty"`
+	RequestTarget         *string             `json:"requestTarget,omitempty"`
+	ResponseBody          *[]byte             `json:"responseBody,omitempty"`
+	ResponseContentType   *string             `json:"responseContentType,omitempty"`
+	ResponseTruncated     *bool               `json:"responseTruncated,omitempty"`
+	TaskId                *openapi_types.UUID `json:"taskId,omitempty"`
 }
 
 // AgentMetadata defines model for AgentMetadata.
@@ -1987,6 +2118,80 @@ type LocaleUpdateRequest struct {
 	Locale SupportedLocale `json:"locale"`
 }
 
+// LogEventDetail defines model for LogEventDetail.
+type LogEventDetail struct {
+	DiscoveryPath    *string            `json:"discoveryPath,omitempty"`
+	Event            LogEventSummary    `json:"event"`
+	RateLimitHeaders *map[string]string `json:"rateLimitHeaders,omitempty"`
+	ResponseBody     *[]byte            `json:"responseBody,omitempty"`
+}
+
+// LogEventPage defines model for LogEventPage.
+type LogEventPage struct {
+	Items      []LogEventSummary `json:"items"`
+	NextCursor *string           `json:"nextCursor,omitempty"`
+}
+
+// LogEventSummary defines model for LogEventSummary.
+type LogEventSummary struct {
+	Component             string                `json:"component"`
+	ConfigurationRevision *int64                `json:"configurationRevision,omitempty"`
+	DroppedCount          *int64                `json:"droppedCount,omitempty"`
+	DroppedFrom           *time.Time            `json:"droppedFrom,omitempty"`
+	DroppedTo             *time.Time            `json:"droppedTo,omitempty"`
+	DurationMilliseconds  *int64                `json:"durationMilliseconds,omitempty"`
+	EventType             string                `json:"eventType"`
+	FailureCategory       *LogFailureCategory   `json:"failureCategory,omitempty"`
+	Family                *AddressFamily        `json:"family,omitempty"`
+	HttpStatus            *int                  `json:"httpStatus,omitempty"`
+	Id                    openapi_types.UUID    `json:"id"`
+	Level                 LogLevel              `json:"level"`
+	Message               string                `json:"message"`
+	NodeId                *openapi_types.UUID   `json:"nodeId,omitempty"`
+	NodeName              *string               `json:"nodeName,omitempty"`
+	OccurredAt            time.Time             `json:"occurredAt"`
+	ProxyId               *openapi_types.UUID   `json:"proxyId,omitempty"`
+	PublicAddress         *string               `json:"publicAddress,omitempty"`
+	PublicAddressId       *openapi_types.UUID   `json:"publicAddressId,omitempty"`
+	ReceivedAt            time.Time             `json:"receivedAt"`
+	RequestMethod         *string               `json:"requestMethod,omitempty"`
+	RequestTarget         *string               `json:"requestTarget,omitempty"`
+	ResponseBodyBytes     int64                 `json:"responseBodyBytes"`
+	ResponseContentType   *string               `json:"responseContentType,omitempty"`
+	ResponseTruncated     bool                  `json:"responseTruncated"`
+	Source                LogEventSummarySource `json:"source"`
+	TaskId                *openapi_types.UUID   `json:"taskId,omitempty"`
+}
+
+// LogEventSummarySource defines model for LogEventSummary.Source.
+type LogEventSummarySource string
+
+// LogFailureCategory defines model for LogFailureCategory.
+type LogFailureCategory string
+
+// LogLevel defines model for LogLevel.
+type LogLevel string
+
+// LogRetentionState defines model for LogRetentionState.
+type LogRetentionState struct {
+	LastCleanupAt           *time.Time           `json:"lastCleanupAt,omitempty"`
+	LastCleanupDeletedItems int64                `json:"lastCleanupDeletedItems"`
+	LastCleanupError        *string              `json:"lastCleanupError,omitempty"`
+	LogicalBytes            int64                `json:"logicalBytes"`
+	MaxAgeDays              *int64               `json:"maxAgeDays,omitempty"`
+	MaxLogicalBytes         *int64               `json:"maxLogicalBytes,omitempty"`
+	Mode                    HistoryRetentionMode `json:"mode"`
+	RecordCount             int64                `json:"recordCount"`
+	UpdatedAt               time.Time            `json:"updatedAt"`
+}
+
+// LogRetentionUpdate defines model for LogRetentionUpdate.
+type LogRetentionUpdate struct {
+	MaxAgeDays      *int64               `json:"maxAgeDays,omitempty"`
+	MaxLogicalBytes *int64               `json:"maxLogicalBytes,omitempty"`
+	Mode            HistoryRetentionMode `json:"mode"`
+}
+
 // LoginRequest defines model for LoginRequest.
 type LoginRequest struct {
 	Password string  `json:"password"`
@@ -2137,6 +2342,7 @@ type Node struct {
 	Hostname                     string                     `json:"hostname"`
 	Id                           openapi_types.UUID         `json:"id"`
 	LastSeenAt                   *time.Time                 `json:"lastSeenAt,omitempty"`
+	LogLevel                     LogLevel                   `json:"logLevel"`
 	Name                         string                     `json:"name"`
 	OperatingSystem              AgentPlatform              `json:"operatingSystem"`
 	PublicAddresses              []NodePublicAddressSummary `json:"publicAddresses"`
@@ -2211,8 +2417,9 @@ type NodeSyncStatus string
 
 // NodeUpdate defines model for NodeUpdate.
 type NodeUpdate struct {
-	Enabled bool    `json:"enabled"`
-	Name    *string `json:"name,omitempty"`
+	Enabled  bool      `json:"enabled"`
+	LogLevel *LogLevel `json:"logLevel,omitempty"`
+	Name     *string   `json:"name,omitempty"`
 }
 
 // NotificationDelivery defines model for NotificationDelivery.
@@ -2702,6 +2909,7 @@ type SystemStatus struct {
 	ConfigSchemaVersion  int64                          `json:"configSchemaVersion"`
 	ExternalOriginMode   SystemStatusExternalOriginMode `json:"externalOriginMode"`
 	HistorySchemaVersion int64                          `json:"historySchemaVersion"`
+	LogsSchemaVersion    int64                          `json:"logsSchemaVersion"`
 	Service              SystemStatusService            `json:"service"`
 	SourceRevision       string                         `json:"sourceRevision"`
 	Status               SystemStatusStatus             `json:"status"`
@@ -2991,6 +3199,32 @@ type UpdateHistoryRetentionParams struct {
 	XCSRFToken *CSRFToken `json:"X-CSRF-Token,omitempty"`
 }
 
+// ListLogsParams defines parameters for ListLogs.
+type ListLogsParams struct {
+	From          *time.Time          `form:"from,omitempty" json:"from,omitempty"`
+	To            *time.Time          `form:"to,omitempty" json:"to,omitempty"`
+	NodeId        *openapi_types.UUID `form:"nodeId,omitempty" json:"nodeId,omitempty"`
+	Level         *LogLevel           `form:"level,omitempty" json:"level,omitempty"`
+	Component     *string             `form:"component,omitempty" json:"component,omitempty"`
+	EventType     *string             `form:"eventType,omitempty" json:"eventType,omitempty"`
+	PublicAddress *string             `form:"publicAddress,omitempty" json:"publicAddress,omitempty"`
+	TaskId        *openapi_types.UUID `form:"taskId,omitempty" json:"taskId,omitempty"`
+	ProxyId       *openapi_types.UUID `form:"proxyId,omitempty" json:"proxyId,omitempty"`
+	Keyword       *string             `form:"keyword,omitempty" json:"keyword,omitempty"`
+	Cursor        *string             `form:"cursor,omitempty" json:"cursor,omitempty"`
+	PageSize      *int                `form:"pageSize,omitempty" json:"pageSize,omitempty"`
+}
+
+// CleanupLogsParams defines parameters for CleanupLogs.
+type CleanupLogsParams struct {
+	XCSRFToken *CSRFToken `json:"X-CSRF-Token,omitempty"`
+}
+
+// UpdateLogRetentionParams defines parameters for UpdateLogRetention.
+type UpdateLogRetentionParams struct {
+	XCSRFToken *CSRFToken `json:"X-CSRF-Token,omitempty"`
+}
+
 // UpdateNetworkObservationSettingsParams defines parameters for UpdateNetworkObservationSettings.
 type UpdateNetworkObservationSettingsParams struct {
 	XCSRFToken *CSRFToken `json:"X-CSRF-Token,omitempty"`
@@ -3153,6 +3387,9 @@ type PollAgentJSONRequestBody = AgentPollRequest
 // RegisterAgentJSONRequestBody defines body for RegisterAgent for application/json ContentType.
 type RegisterAgentJSONRequestBody = AgentRegistrationRequest
 
+// UploadAgentLogsJSONRequestBody defines body for UploadAgentLogs for application/json ContentType.
+type UploadAgentLogsJSONRequestBody = AgentLogBatch
+
 // UploadProbeArtifactJSONRequestBody defines body for UploadProbeArtifact for application/json ContentType.
 type UploadProbeArtifactJSONRequestBody = AgentProbeArtifact
 
@@ -3161,6 +3398,9 @@ type LoginJSONRequestBody = LoginRequest
 
 // UpdateHistoryRetentionJSONRequestBody defines body for UpdateHistoryRetention for application/json ContentType.
 type UpdateHistoryRetentionJSONRequestBody = HistoryRetentionUpdate
+
+// UpdateLogRetentionJSONRequestBody defines body for UpdateLogRetention for application/json ContentType.
+type UpdateLogRetentionJSONRequestBody = LogRetentionUpdate
 
 // UpdateNetworkObservationSettingsJSONRequestBody defines body for UpdateNetworkObservationSettings for application/json ContentType.
 type UpdateNetworkObservationSettingsJSONRequestBody = NetworkObservationSettingsUpdate
@@ -3251,6 +3491,9 @@ type ServerInterface interface {
 	// RegisterAgent Register a new Agent and node
 	// (POST /api/v1/agent/enroll)
 	RegisterAgent(w http.ResponseWriter, r *http.Request)
+	// UploadAgentLogs Idempotently upload a bounded batch of Agent log events
+	// (POST /api/v1/agent/logs)
+	UploadAgentLogs(w http.ResponseWriter, r *http.Request)
 	// UploadProbeArtifact Idempotently upload one complete-probe run or execution revision
 	// (POST /api/v1/agent/probe-artifacts)
 	UploadProbeArtifact(w http.ResponseWriter, r *http.Request)
@@ -3290,6 +3533,21 @@ type ServerInterface interface {
 	// UpdateHistoryRetention Replace the global history retention policy and apply it
 	// (PUT /api/v1/history/retention)
 	UpdateHistoryRetention(w http.ResponseWriter, r *http.Request, params UpdateHistoryRetentionParams)
+	// ListLogs List retained Agent operational log events
+	// (GET /api/v1/logs)
+	ListLogs(w http.ResponseWriter, r *http.Request, params ListLogsParams)
+	// CleanupLogs Apply the saved log retention settings now
+	// (POST /api/v1/logs/cleanup)
+	CleanupLogs(w http.ResponseWriter, r *http.Request, params CleanupLogsParams)
+	// GetLogRetention Read log retention settings and usage
+	// (GET /api/v1/logs/retention)
+	GetLogRetention(w http.ResponseWriter, r *http.Request)
+	// UpdateLogRetention Replace log retention settings and apply them
+	// (PUT /api/v1/logs/retention)
+	UpdateLogRetention(w http.ResponseWriter, r *http.Request, params UpdateLogRetentionParams)
+	// GetLog Read one log event including its failed response body
+	// (GET /api/v1/logs/{logId})
+	GetLog(w http.ResponseWriter, r *http.Request, logId openapi_types.UUID)
 	// GetNetworkObservationSettings Read global lightweight address discovery services
 	// (GET /api/v1/network-observation-settings)
 	GetNetworkObservationSettings(w http.ResponseWriter, r *http.Request)
@@ -3506,6 +3764,12 @@ func (_ Unimplemented) RegisterAgent(w http.ResponseWriter, r *http.Request) {
 	w.WriteHeader(http.StatusNotImplemented)
 }
 
+// UploadAgentLogs Idempotently upload a bounded batch of Agent log events
+// (POST /api/v1/agent/logs)
+func (_ Unimplemented) UploadAgentLogs(w http.ResponseWriter, r *http.Request) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
 // UploadProbeArtifact Idempotently upload one complete-probe run or execution revision
 // (POST /api/v1/agent/probe-artifacts)
 func (_ Unimplemented) UploadProbeArtifact(w http.ResponseWriter, r *http.Request) {
@@ -3581,6 +3845,36 @@ func (_ Unimplemented) ListHistoryProbeSnapshots(w http.ResponseWriter, r *http.
 // UpdateHistoryRetention Replace the global history retention policy and apply it
 // (PUT /api/v1/history/retention)
 func (_ Unimplemented) UpdateHistoryRetention(w http.ResponseWriter, r *http.Request, params UpdateHistoryRetentionParams) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
+// ListLogs List retained Agent operational log events
+// (GET /api/v1/logs)
+func (_ Unimplemented) ListLogs(w http.ResponseWriter, r *http.Request, params ListLogsParams) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
+// CleanupLogs Apply the saved log retention settings now
+// (POST /api/v1/logs/cleanup)
+func (_ Unimplemented) CleanupLogs(w http.ResponseWriter, r *http.Request, params CleanupLogsParams) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
+// GetLogRetention Read log retention settings and usage
+// (GET /api/v1/logs/retention)
+func (_ Unimplemented) GetLogRetention(w http.ResponseWriter, r *http.Request) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
+// UpdateLogRetention Replace log retention settings and apply them
+// (PUT /api/v1/logs/retention)
+func (_ Unimplemented) UpdateLogRetention(w http.ResponseWriter, r *http.Request, params UpdateLogRetentionParams) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
+// GetLog Read one log event including its failed response body
+// (GET /api/v1/logs/{logId})
+func (_ Unimplemented) GetLog(w http.ResponseWriter, r *http.Request, logId openapi_types.UUID) {
 	w.WriteHeader(http.StatusNotImplemented)
 }
 
@@ -4306,6 +4600,20 @@ func (siw *ServerInterfaceWrapper) RegisterAgent(w http.ResponseWriter, r *http.
 
 	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		siw.Handler.RegisterAgent(w, r)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// UploadAgentLogs operation middleware
+func (siw *ServerInterfaceWrapper) UploadAgentLogs(w http.ResponseWriter, r *http.Request) {
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.UploadAgentLogs(w, r)
 	}))
 
 	for _, middleware := range siw.HandlerMiddlewares {
@@ -5055,6 +5363,304 @@ func (siw *ServerInterfaceWrapper) UpdateHistoryRetention(w http.ResponseWriter,
 
 	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		siw.Handler.UpdateHistoryRetention(w, r, params)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// ListLogs operation middleware
+func (siw *ServerInterfaceWrapper) ListLogs(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	// Parameter object where we will unmarshal all parameters from the context
+	var params ListLogsParams
+
+	// ------------- Optional query parameter "from" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "from", r.URL.Query(), &params.From, runtime.BindQueryParameterOptions{Type: "string", Format: "date-time"})
+	if err != nil {
+		var requiredError *runtime.RequiredParameterError
+		if errors.As(err, &requiredError) {
+			siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "from"})
+		} else {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "from", Err: err})
+		}
+		return
+	}
+
+	// ------------- Optional query parameter "to" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "to", r.URL.Query(), &params.To, runtime.BindQueryParameterOptions{Type: "string", Format: "date-time"})
+	if err != nil {
+		var requiredError *runtime.RequiredParameterError
+		if errors.As(err, &requiredError) {
+			siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "to"})
+		} else {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "to", Err: err})
+		}
+		return
+	}
+
+	// ------------- Optional query parameter "nodeId" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "nodeId", r.URL.Query(), &params.NodeId, runtime.BindQueryParameterOptions{Type: "string", Format: "uuid"})
+	if err != nil {
+		var requiredError *runtime.RequiredParameterError
+		if errors.As(err, &requiredError) {
+			siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "nodeId"})
+		} else {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "nodeId", Err: err})
+		}
+		return
+	}
+
+	// ------------- Optional query parameter "level" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "level", r.URL.Query(), &params.Level, runtime.BindQueryParameterOptions{Type: "string", Format: ""})
+	if err != nil {
+		var requiredError *runtime.RequiredParameterError
+		if errors.As(err, &requiredError) {
+			siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "level"})
+		} else {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "level", Err: err})
+		}
+		return
+	}
+
+	// ------------- Optional query parameter "component" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "component", r.URL.Query(), &params.Component, runtime.BindQueryParameterOptions{Type: "string", Format: ""})
+	if err != nil {
+		var requiredError *runtime.RequiredParameterError
+		if errors.As(err, &requiredError) {
+			siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "component"})
+		} else {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "component", Err: err})
+		}
+		return
+	}
+
+	// ------------- Optional query parameter "eventType" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "eventType", r.URL.Query(), &params.EventType, runtime.BindQueryParameterOptions{Type: "string", Format: ""})
+	if err != nil {
+		var requiredError *runtime.RequiredParameterError
+		if errors.As(err, &requiredError) {
+			siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "eventType"})
+		} else {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "eventType", Err: err})
+		}
+		return
+	}
+
+	// ------------- Optional query parameter "publicAddress" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "publicAddress", r.URL.Query(), &params.PublicAddress, runtime.BindQueryParameterOptions{Type: "string", Format: ""})
+	if err != nil {
+		var requiredError *runtime.RequiredParameterError
+		if errors.As(err, &requiredError) {
+			siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "publicAddress"})
+		} else {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "publicAddress", Err: err})
+		}
+		return
+	}
+
+	// ------------- Optional query parameter "taskId" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "taskId", r.URL.Query(), &params.TaskId, runtime.BindQueryParameterOptions{Type: "string", Format: "uuid"})
+	if err != nil {
+		var requiredError *runtime.RequiredParameterError
+		if errors.As(err, &requiredError) {
+			siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "taskId"})
+		} else {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "taskId", Err: err})
+		}
+		return
+	}
+
+	// ------------- Optional query parameter "proxyId" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "proxyId", r.URL.Query(), &params.ProxyId, runtime.BindQueryParameterOptions{Type: "string", Format: "uuid"})
+	if err != nil {
+		var requiredError *runtime.RequiredParameterError
+		if errors.As(err, &requiredError) {
+			siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "proxyId"})
+		} else {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "proxyId", Err: err})
+		}
+		return
+	}
+
+	// ------------- Optional query parameter "keyword" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "keyword", r.URL.Query(), &params.Keyword, runtime.BindQueryParameterOptions{Type: "string", Format: ""})
+	if err != nil {
+		var requiredError *runtime.RequiredParameterError
+		if errors.As(err, &requiredError) {
+			siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "keyword"})
+		} else {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "keyword", Err: err})
+		}
+		return
+	}
+
+	// ------------- Optional query parameter "cursor" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "cursor", r.URL.Query(), &params.Cursor, runtime.BindQueryParameterOptions{Type: "string", Format: ""})
+	if err != nil {
+		var requiredError *runtime.RequiredParameterError
+		if errors.As(err, &requiredError) {
+			siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "cursor"})
+		} else {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "cursor", Err: err})
+		}
+		return
+	}
+
+	// ------------- Optional query parameter "pageSize" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "pageSize", r.URL.Query(), &params.PageSize, runtime.BindQueryParameterOptions{Type: "integer", Format: ""})
+	if err != nil {
+		var requiredError *runtime.RequiredParameterError
+		if errors.As(err, &requiredError) {
+			siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "pageSize"})
+		} else {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "pageSize", Err: err})
+		}
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.ListLogs(w, r, params)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// CleanupLogs operation middleware
+func (siw *ServerInterfaceWrapper) CleanupLogs(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	// Parameter object where we will unmarshal all parameters from the context
+	var params CleanupLogsParams
+
+	headers := r.Header
+
+	// ------------- Optional header parameter "X-CSRF-Token" -------------
+	if valueList, found := headers[http.CanonicalHeaderKey("X-CSRF-Token")]; found {
+		var XCSRFToken CSRFToken
+		n := len(valueList)
+		if n != 1 {
+			siw.ErrorHandlerFunc(w, r, &TooManyValuesForParamError{ParamName: "X-CSRF-Token", Count: n})
+			return
+		}
+
+		err = runtime.BindStyledParameterWithOptions("simple", "X-CSRF-Token", valueList[0], &XCSRFToken, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: false, Type: "string", Format: ""})
+		if err != nil {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "X-CSRF-Token", Err: err})
+			return
+		}
+
+		params.XCSRFToken = &XCSRFToken
+
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.CleanupLogs(w, r, params)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// GetLogRetention operation middleware
+func (siw *ServerInterfaceWrapper) GetLogRetention(w http.ResponseWriter, r *http.Request) {
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.GetLogRetention(w, r)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// UpdateLogRetention operation middleware
+func (siw *ServerInterfaceWrapper) UpdateLogRetention(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	// Parameter object where we will unmarshal all parameters from the context
+	var params UpdateLogRetentionParams
+
+	headers := r.Header
+
+	// ------------- Optional header parameter "X-CSRF-Token" -------------
+	if valueList, found := headers[http.CanonicalHeaderKey("X-CSRF-Token")]; found {
+		var XCSRFToken CSRFToken
+		n := len(valueList)
+		if n != 1 {
+			siw.ErrorHandlerFunc(w, r, &TooManyValuesForParamError{ParamName: "X-CSRF-Token", Count: n})
+			return
+		}
+
+		err = runtime.BindStyledParameterWithOptions("simple", "X-CSRF-Token", valueList[0], &XCSRFToken, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: false, Type: "string", Format: ""})
+		if err != nil {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "X-CSRF-Token", Err: err})
+			return
+		}
+
+		params.XCSRFToken = &XCSRFToken
+
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.UpdateLogRetention(w, r, params)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// GetLog operation middleware
+func (siw *ServerInterfaceWrapper) GetLog(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "logId" -------------
+	var logId openapi_types.UUID
+
+	err = runtime.BindStyledParameterWithOptions("simple", "logId", chi.URLParam(r, "logId"), &logId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "uuid", ValueIsUnescaped: r.URL.RawPath == ""})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "logId", Err: err})
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.GetLog(w, r, logId)
 	}))
 
 	for _, middleware := range siw.HandlerMiddlewares {
@@ -6706,6 +7312,21 @@ func HandlerWithOptions(si ServerInterface, options ChiServerOptions) http.Handl
 		r.Get(options.BaseURL+"/api/v1/overview", wrapper.GetOverview)
 	})
 	r.Group(func(r chi.Router) {
+		r.Get(options.BaseURL+"/api/v1/logs", wrapper.ListLogs)
+	})
+	r.Group(func(r chi.Router) {
+		r.Get(options.BaseURL+"/api/v1/logs/{logId}", wrapper.GetLog)
+	})
+	r.Group(func(r chi.Router) {
+		r.Get(options.BaseURL+"/api/v1/logs/retention", wrapper.GetLogRetention)
+	})
+	r.Group(func(r chi.Router) {
+		r.Put(options.BaseURL+"/api/v1/logs/retention", wrapper.UpdateLogRetention)
+	})
+	r.Group(func(r chi.Router) {
+		r.Post(options.BaseURL+"/api/v1/logs/cleanup", wrapper.CleanupLogs)
+	})
+	r.Group(func(r chi.Router) {
 		r.Get(options.BaseURL+"/api/v1/system/settings", wrapper.GetSystemSettings)
 	})
 	r.Group(func(r chi.Router) {
@@ -6869,6 +7490,9 @@ func HandlerWithOptions(si ServerInterface, options ChiServerOptions) http.Handl
 	})
 	r.Group(func(r chi.Router) {
 		r.Post(options.BaseURL+"/api/v1/agent/probe-artifacts", wrapper.UploadProbeArtifact)
+	})
+	r.Group(func(r chi.Router) {
+		r.Post(options.BaseURL+"/api/v1/agent/logs", wrapper.UploadAgentLogs)
 	})
 
 	return r
@@ -7891,6 +8515,70 @@ func (response RegisterAgent403JSONResponse) VisitRegisterAgentResponse(w http.R
 	return err
 }
 
+type UploadAgentLogsRequestObject struct {
+	Body *UploadAgentLogsJSONRequestBody
+}
+
+type UploadAgentLogsResponseObject interface {
+	VisitUploadAgentLogsResponse(w http.ResponseWriter) error
+}
+
+type UploadAgentLogs200JSONResponse AgentLogBatchReceipt
+
+func (response UploadAgentLogs200JSONResponse) VisitUploadAgentLogsResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type UploadAgentLogs400JSONResponse struct{ BadRequestJSONResponse }
+
+func (response UploadAgentLogs400JSONResponse) VisitUploadAgentLogsResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(400)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type UploadAgentLogs401JSONResponse struct{ AgentUnauthorizedJSONResponse }
+
+func (response UploadAgentLogs401JSONResponse) VisitUploadAgentLogsResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(401)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type UploadAgentLogs403JSONResponse struct{ AgentForbiddenJSONResponse }
+
+func (response UploadAgentLogs403JSONResponse) VisitUploadAgentLogsResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(403)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
 type UploadProbeArtifactRequestObject struct {
 	Body *UploadProbeArtifactJSONRequestBody
 }
@@ -8534,6 +9222,256 @@ func (response UpdateHistoryRetention403JSONResponse) VisitUpdateHistoryRetentio
 	}
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(403)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type ListLogsRequestObject struct {
+	Params ListLogsParams
+}
+
+type ListLogsResponseObject interface {
+	VisitListLogsResponse(w http.ResponseWriter) error
+}
+
+type ListLogs200JSONResponse LogEventPage
+
+func (response ListLogs200JSONResponse) VisitListLogsResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type ListLogs400JSONResponse struct{ BadRequestJSONResponse }
+
+func (response ListLogs400JSONResponse) VisitListLogsResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(400)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type ListLogs401JSONResponse struct{ UnauthorizedJSONResponse }
+
+func (response ListLogs401JSONResponse) VisitListLogsResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(401)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type CleanupLogsRequestObject struct {
+	Params CleanupLogsParams
+}
+
+type CleanupLogsResponseObject interface {
+	VisitCleanupLogsResponse(w http.ResponseWriter) error
+}
+
+type CleanupLogs200JSONResponse LogRetentionState
+
+func (response CleanupLogs200JSONResponse) VisitCleanupLogsResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type CleanupLogs401JSONResponse struct{ UnauthorizedJSONResponse }
+
+func (response CleanupLogs401JSONResponse) VisitCleanupLogsResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(401)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type CleanupLogs403JSONResponse struct{ ForbiddenJSONResponse }
+
+func (response CleanupLogs403JSONResponse) VisitCleanupLogsResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(403)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type GetLogRetentionRequestObject struct {
+}
+
+type GetLogRetentionResponseObject interface {
+	VisitGetLogRetentionResponse(w http.ResponseWriter) error
+}
+
+type GetLogRetention200JSONResponse LogRetentionState
+
+func (response GetLogRetention200JSONResponse) VisitGetLogRetentionResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type GetLogRetention401JSONResponse struct{ UnauthorizedJSONResponse }
+
+func (response GetLogRetention401JSONResponse) VisitGetLogRetentionResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(401)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type UpdateLogRetentionRequestObject struct {
+	Params UpdateLogRetentionParams
+	Body   *UpdateLogRetentionJSONRequestBody
+}
+
+type UpdateLogRetentionResponseObject interface {
+	VisitUpdateLogRetentionResponse(w http.ResponseWriter) error
+}
+
+type UpdateLogRetention200JSONResponse LogRetentionState
+
+func (response UpdateLogRetention200JSONResponse) VisitUpdateLogRetentionResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type UpdateLogRetention400JSONResponse struct{ BadRequestJSONResponse }
+
+func (response UpdateLogRetention400JSONResponse) VisitUpdateLogRetentionResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(400)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type UpdateLogRetention401JSONResponse struct{ UnauthorizedJSONResponse }
+
+func (response UpdateLogRetention401JSONResponse) VisitUpdateLogRetentionResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(401)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type UpdateLogRetention403JSONResponse struct{ ForbiddenJSONResponse }
+
+func (response UpdateLogRetention403JSONResponse) VisitUpdateLogRetentionResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(403)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type GetLogRequestObject struct {
+	LogId openapi_types.UUID `json:"logId"`
+}
+
+type GetLogResponseObject interface {
+	VisitGetLogResponse(w http.ResponseWriter) error
+}
+
+type GetLog200JSONResponse LogEventDetail
+
+func (response GetLog200JSONResponse) VisitGetLogResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type GetLog401JSONResponse struct{ UnauthorizedJSONResponse }
+
+func (response GetLog401JSONResponse) VisitGetLogResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(401)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type GetLog404JSONResponse struct{ NotFoundJSONResponse }
+
+func (response GetLog404JSONResponse) VisitGetLogResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(404)
 	_, err := buf.WriteTo(w)
 	return err
 }
@@ -11014,6 +11952,9 @@ type StrictServerInterface interface {
 	// RegisterAgent Register a new Agent and node
 	// (POST /api/v1/agent/enroll)
 	RegisterAgent(ctx context.Context, request RegisterAgentRequestObject) (RegisterAgentResponseObject, error)
+	// UploadAgentLogs Idempotently upload a bounded batch of Agent log events
+	// (POST /api/v1/agent/logs)
+	UploadAgentLogs(ctx context.Context, request UploadAgentLogsRequestObject) (UploadAgentLogsResponseObject, error)
 	// UploadProbeArtifact Idempotently upload one complete-probe run or execution revision
 	// (POST /api/v1/agent/probe-artifacts)
 	UploadProbeArtifact(ctx context.Context, request UploadProbeArtifactRequestObject) (UploadProbeArtifactResponseObject, error)
@@ -11053,6 +11994,21 @@ type StrictServerInterface interface {
 	// UpdateHistoryRetention Replace the global history retention policy and apply it
 	// (PUT /api/v1/history/retention)
 	UpdateHistoryRetention(ctx context.Context, request UpdateHistoryRetentionRequestObject) (UpdateHistoryRetentionResponseObject, error)
+	// ListLogs List retained Agent operational log events
+	// (GET /api/v1/logs)
+	ListLogs(ctx context.Context, request ListLogsRequestObject) (ListLogsResponseObject, error)
+	// CleanupLogs Apply the saved log retention settings now
+	// (POST /api/v1/logs/cleanup)
+	CleanupLogs(ctx context.Context, request CleanupLogsRequestObject) (CleanupLogsResponseObject, error)
+	// GetLogRetention Read log retention settings and usage
+	// (GET /api/v1/logs/retention)
+	GetLogRetention(ctx context.Context, request GetLogRetentionRequestObject) (GetLogRetentionResponseObject, error)
+	// UpdateLogRetention Replace log retention settings and apply them
+	// (PUT /api/v1/logs/retention)
+	UpdateLogRetention(ctx context.Context, request UpdateLogRetentionRequestObject) (UpdateLogRetentionResponseObject, error)
+	// GetLog Read one log event including its failed response body
+	// (GET /api/v1/logs/{logId})
+	GetLog(ctx context.Context, request GetLogRequestObject) (GetLogResponseObject, error)
 	// GetNetworkObservationSettings Read global lightweight address discovery services
 	// (GET /api/v1/network-observation-settings)
 	GetNetworkObservationSettings(ctx context.Context, request GetNetworkObservationSettingsRequestObject) (GetNetworkObservationSettingsResponseObject, error)
@@ -11689,6 +12645,37 @@ func (sh *strictHandler) RegisterAgent(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
+// UploadAgentLogs operation middleware
+func (sh *strictHandler) UploadAgentLogs(w http.ResponseWriter, r *http.Request) {
+	var request UploadAgentLogsRequestObject
+
+	var body UploadAgentLogsJSONRequestBody
+	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+		sh.options.RequestErrorHandlerFunc(w, r, fmt.Errorf("can't decode JSON body: %w", err))
+		return
+	}
+	request.Body = &body
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.UploadAgentLogs(ctx, request.(UploadAgentLogsRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "UploadAgentLogs")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(UploadAgentLogsResponseObject); ok {
+		if err := validResponse.VisitUploadAgentLogsResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
 // UploadProbeArtifact operation middleware
 func (sh *strictHandler) UploadProbeArtifact(w http.ResponseWriter, r *http.Request) {
 	var request UploadProbeArtifactRequestObject
@@ -12033,6 +13020,141 @@ func (sh *strictHandler) UpdateHistoryRetention(w http.ResponseWriter, r *http.R
 		sh.options.ResponseErrorHandlerFunc(w, r, err)
 	} else if validResponse, ok := response.(UpdateHistoryRetentionResponseObject); ok {
 		if err := validResponse.VisitUpdateHistoryRetentionResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// ListLogs operation middleware
+func (sh *strictHandler) ListLogs(w http.ResponseWriter, r *http.Request, params ListLogsParams) {
+	var request ListLogsRequestObject
+
+	request.Params = params
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.ListLogs(ctx, request.(ListLogsRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "ListLogs")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(ListLogsResponseObject); ok {
+		if err := validResponse.VisitListLogsResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// CleanupLogs operation middleware
+func (sh *strictHandler) CleanupLogs(w http.ResponseWriter, r *http.Request, params CleanupLogsParams) {
+	var request CleanupLogsRequestObject
+
+	request.Params = params
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.CleanupLogs(ctx, request.(CleanupLogsRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "CleanupLogs")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(CleanupLogsResponseObject); ok {
+		if err := validResponse.VisitCleanupLogsResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// GetLogRetention operation middleware
+func (sh *strictHandler) GetLogRetention(w http.ResponseWriter, r *http.Request) {
+	var request GetLogRetentionRequestObject
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.GetLogRetention(ctx, request.(GetLogRetentionRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "GetLogRetention")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(GetLogRetentionResponseObject); ok {
+		if err := validResponse.VisitGetLogRetentionResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// UpdateLogRetention operation middleware
+func (sh *strictHandler) UpdateLogRetention(w http.ResponseWriter, r *http.Request, params UpdateLogRetentionParams) {
+	var request UpdateLogRetentionRequestObject
+
+	request.Params = params
+
+	var body UpdateLogRetentionJSONRequestBody
+	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+		sh.options.RequestErrorHandlerFunc(w, r, fmt.Errorf("can't decode JSON body: %w", err))
+		return
+	}
+	request.Body = &body
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.UpdateLogRetention(ctx, request.(UpdateLogRetentionRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "UpdateLogRetention")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(UpdateLogRetentionResponseObject); ok {
+		if err := validResponse.VisitUpdateLogRetentionResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// GetLog operation middleware
+func (sh *strictHandler) GetLog(w http.ResponseWriter, r *http.Request, logId openapi_types.UUID) {
+	var request GetLogRequestObject
+
+	request.LogId = logId
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.GetLog(ctx, request.(GetLogRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "GetLog")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(GetLogResponseObject); ok {
+		if err := validResponse.VisitGetLogResponse(w); err != nil {
 			sh.options.ResponseErrorHandlerFunc(w, r, err)
 		}
 	} else if response != nil {

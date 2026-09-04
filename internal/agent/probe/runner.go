@@ -14,6 +14,7 @@ import (
 	"time"
 	"unicode/utf8"
 
+	"github.com/ipchronicle/ipchronicle/internal/agent/agentlogs"
 	agentnetwork "github.com/ipchronicle/ipchronicle/internal/agent/network"
 	"github.com/ipchronicle/ipchronicle/internal/agent/observation"
 	"github.com/ipchronicle/ipchronicle/internal/agent/state"
@@ -31,6 +32,12 @@ type nativeProbeInput struct {
 	ProxyAdapterURL          string
 	StartedAt                time.Time
 	IPAPIAPIKey              string
+	Events                   agentlogs.Sink
+	PublicAddressID          *string
+	TaskID                   *string
+	ProxyID                  *string
+	ConfigurationRevision    *int64
+	DiscoveryPath            *string
 }
 
 type Runner struct {
@@ -39,16 +46,21 @@ type Runner struct {
 	timeout      time.Duration
 	httpClient   func(executionPath, string) *http.Client
 	lookupClient func(executionPath, string) *http.Client
-	verifyTarget func(context.Context, state.Configuration, state.Egress, time.Time) error
+	verifyTarget func(context.Context, state.Configuration, state.Egress, time.Time, *string) error
 	execute      func(context.Context, nativeProbeInput) ([]byte, error)
+	events       agentlogs.Sink
 }
 
-func NewRunner() *Runner {
-	checker := observation.NewChecker()
+func NewRunner(sinks ...agentlogs.Sink) *Runner {
+	var events agentlogs.Sink
+	if len(sinks) > 0 {
+		events = sinks[0]
+	}
+	checker := observation.NewChecker(events)
 	return &Runner{
 		discover: agentnetwork.Discover, now: time.Now, timeout: defaultProbeTimeout,
 		httpClient: pathHTTPClient, lookupClient: explicitLookupHTTPClient,
-		verifyTarget: checker.VerifyTarget, execute: runNativeProbe,
+		verifyTarget: checker.VerifyTargetForTask, execute: runNativeProbe, events: events,
 	}
 }
 
@@ -57,6 +69,7 @@ func (runner *Runner) Run(
 	configuration state.Configuration,
 	egress state.Egress,
 	startedAt time.Time,
+	taskID *string,
 ) (outcome state.ProbeExecutionOutcome, resultErr error) {
 	startedAt = startedAt.UTC().Truncate(time.Second)
 	failure := func(stage, diagnostic string) state.ProbeExecutionOutcome {
@@ -81,7 +94,7 @@ func (runner *Runner) Run(
 	if egress.PublicAddress == nil {
 		return failure("selector", "complete-probe target has no public address"), nil
 	}
-	if err := runner.verifyTarget(ctx, configuration, egress, runner.now().UTC()); err != nil {
+	if err := runner.verifyTarget(ctx, configuration, egress, runner.now().UTC(), taskID); err != nil {
 		return failure("selector", err.Error()), nil
 	}
 
@@ -108,6 +121,8 @@ func (runner *Runner) Run(
 		ExplicitLookupHTTPClient: runner.lookupClient(path, adapterURL),
 		DialContext:              pathDialContext(path),
 		ProxyAdapterURL:          adapterURL, StartedAt: startedAt, IPAPIAPIKey: configuration.IPAPIAPIKey,
+		Events: runner.events, PublicAddressID: &egress.ID, TaskID: taskID, ProxyID: egress.ProxyID,
+		ConfigurationRevision: &configuration.Revision, DiscoveryPath: egress.PathID,
 	})
 	if err != nil {
 		if errors.Is(executionContext.Err(), context.DeadlineExceeded) {

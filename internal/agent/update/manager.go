@@ -18,6 +18,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/ipchronicle/ipchronicle/internal/agent/agentlogs"
 	"github.com/ipchronicle/ipchronicle/internal/agent/state"
 	"github.com/ipchronicle/ipchronicle/internal/releaseinfo"
 	"golang.org/x/mod/semver"
@@ -56,6 +57,7 @@ type ManagerOptions struct {
 	Trigger            Trigger
 	Now                func() time.Time
 	Logger             *log.Logger
+	Events             agentlogs.Sink
 }
 
 type Manager struct {
@@ -67,6 +69,7 @@ type Manager struct {
 	trigger            Trigger
 	now                func() time.Time
 	logger             *log.Logger
+	events             agentlogs.Sink
 	wake               chan struct{}
 }
 
@@ -103,7 +106,7 @@ func NewManager(options ManagerOptions) (*Manager, error) {
 	return &Manager{
 		store: options.Store, currentVersion: options.CurrentVersion, config: options.Config,
 		httpClient: client, releaseDownloadURL: downloadURL, trigger: trigger,
-		now: now, logger: logger, wake: make(chan struct{}, 1),
+		now: now, logger: logger, events: options.Events, wake: make(chan struct{}, 1),
 	}, nil
 }
 
@@ -193,7 +196,7 @@ func (manager *Manager) stage(ctx context.Context, update state.AgentUpdate) err
 		semver.Compare("v"+update.TargetVersion, "v"+manager.currentVersion) <= 0 {
 		return stageError{code: "target-version", cause: errors.New("target version is not a newer same-major release")}
 	}
-	manifest, err := manager.fetchManifest(ctx, update.TargetVersion)
+	manifest, err := manager.fetchManifest(ctx, update.TargetVersion, update.ID)
 	if err != nil {
 		return stageError{code: "manifest-download", cause: err}
 	}
@@ -209,7 +212,7 @@ func (manager *Manager) stage(ctx context.Context, update state.AgentUpdate) err
 		return stageError{code: "local-storage", cause: err}
 	}
 	stagedPath := StagedBinaryPath(manager.store.Directory(), update.ID)
-	if err := manager.downloadArtifact(ctx, manifest.Tag, artifact, updateDirectory, stagedPath); err != nil {
+	if err := manager.downloadArtifact(ctx, manifest.Tag, artifact, updateDirectory, stagedPath, update.ID); err != nil {
 		return err
 	}
 	info, err := inspectAgentBinary(ctx, stagedPath)
@@ -228,24 +231,56 @@ func (manager *Manager) stage(ctx context.Context, update state.AgentUpdate) err
 	return nil
 }
 
-func (manager *Manager) fetchManifest(ctx context.Context, targetVersion string) (releaseinfo.Manifest, error) {
+func (manager *Manager) fetchManifest(ctx context.Context, targetVersion, taskID string) (releaseinfo.Manifest, error) {
 	tag := "v" + targetVersion
 	manifestURL := manager.releaseDownloadURL + "/" + url.PathEscape(tag) + "/" + releaseinfo.ManifestAssetName
+	startedAt := time.Now()
 	request, err := http.NewRequestWithContext(ctx, http.MethodGet, manifestURL, nil)
 	if err != nil {
+		manager.emitRequestFailure("manifest-request-invalid", "Agent release manifest request could not be created", taskID,
+			manifestURL, 0, "", nil, time.Since(startedAt).Milliseconds(), err, false)
 		return releaseinfo.Manifest{}, err
 	}
 	request.Header.Set("Accept", "application/json")
 	request.Header.Set("User-Agent", "IPChronicle-Agent/"+manager.currentVersion)
 	response, err := manager.httpClient.Do(request)
 	if err != nil {
+		manager.emitRequestFailure("manifest-download-failed", "Agent release manifest download failed", taskID,
+			manifestURL, 0, "", nil, time.Since(startedAt).Milliseconds(), err, false)
 		return releaseinfo.Manifest{}, err
 	}
 	defer response.Body.Close()
+	body, readErr := io.ReadAll(io.LimitReader(response.Body, state.MaxAgentLogResponseBody+1))
+	truncated := len(body) > state.MaxAgentLogResponseBody
+	if truncated {
+		body = body[:state.MaxAgentLogResponseBody]
+	}
+	duration := time.Since(startedAt).Milliseconds()
+	if readErr != nil {
+		manager.emitRequestFailure("manifest-read-failed", "Agent release manifest response could not be read", taskID,
+			manifestURL, response.StatusCode, response.Header.Get("Content-Type"), body, duration, readErr, truncated)
+		return releaseinfo.Manifest{}, readErr
+	}
+	if truncated {
+		manager.emitRequestFailure("manifest-too-large", "Agent release manifest response exceeded 4 MiB", taskID,
+			manifestURL, response.StatusCode, response.Header.Get("Content-Type"), body, duration,
+			errors.New("release manifest response is too large"), true)
+		return releaseinfo.Manifest{}, errors.New("release manifest response exceeds 4 MiB")
+	}
 	if response.StatusCode != http.StatusOK {
+		manager.emitRequestFailure("manifest-download-rejected", "Agent release manifest download was rejected", taskID,
+			manifestURL, response.StatusCode, response.Header.Get("Content-Type"), body, duration, nil, false)
 		return releaseinfo.Manifest{}, fmt.Errorf("release manifest returned HTTP %d", response.StatusCode)
 	}
-	return releaseinfo.ParseManifest(response.Body)
+	manifest, err := releaseinfo.ParseManifest(strings.NewReader(string(body)))
+	if err != nil {
+		manager.emitInvalidResponse("manifest-invalid", "Agent release manifest response was invalid", taskID,
+			manifestURL, response.StatusCode, response.Header.Get("Content-Type"), body, duration)
+		return releaseinfo.Manifest{}, err
+	}
+	manager.emitRequestSuccess("manifest-download-succeeded", "Agent release manifest download succeeded", taskID,
+		manifestURL, response.StatusCode, duration)
+	return manifest, nil
 }
 
 func (manager *Manager) downloadArtifact(
@@ -254,20 +289,34 @@ func (manager *Manager) downloadArtifact(
 	artifact releaseinfo.Artifact,
 	updateDirectory string,
 	stagedPath string,
+	taskID string,
 ) error {
 	artifactURL := manager.releaseDownloadURL + "/" + url.PathEscape(tag) + "/" + url.PathEscape(artifact.Name)
+	startedAt := time.Now()
 	request, err := http.NewRequestWithContext(ctx, http.MethodGet, artifactURL, nil)
 	if err != nil {
+		manager.emitRequestFailure("artifact-request-invalid", "Agent artifact request could not be created", taskID,
+			artifactURL, 0, "", nil, time.Since(startedAt).Milliseconds(), err, false)
 		return stageError{code: "artifact-download", cause: err}
 	}
 	request.Header.Set("Accept", "application/octet-stream")
 	request.Header.Set("User-Agent", "IPChronicle-Agent/"+manager.currentVersion)
 	response, err := manager.httpClient.Do(request)
 	if err != nil {
+		manager.emitRequestFailure("artifact-download-failed", "Agent artifact download failed", taskID,
+			artifactURL, 0, "", nil, time.Since(startedAt).Milliseconds(), err, false)
 		return stageError{code: "artifact-download", cause: err}
 	}
 	defer response.Body.Close()
 	if response.StatusCode != http.StatusOK {
+		body, _ := io.ReadAll(io.LimitReader(response.Body, state.MaxAgentLogResponseBody+1))
+		truncated := len(body) > state.MaxAgentLogResponseBody
+		if truncated {
+			body = body[:state.MaxAgentLogResponseBody]
+		}
+		manager.emitRequestFailure("artifact-download-rejected", "Agent artifact download was rejected", taskID,
+			artifactURL, response.StatusCode, response.Header.Get("Content-Type"), body,
+			time.Since(startedAt).Milliseconds(), nil, truncated)
 		return stageError{code: "artifact-download", cause: fmt.Errorf("Agent artifact returned HTTP %d", response.StatusCode)}
 	}
 	temporary, err := os.CreateTemp(updateDirectory, ".staged-agent-*")
@@ -305,6 +354,8 @@ func (manager *Manager) downloadArtifact(
 	if err := syncDirectory(updateDirectory); err != nil {
 		return stageError{code: "local-storage", cause: err}
 	}
+	manager.emitRequestSuccess("artifact-download-succeeded", "Agent artifact download succeeded", taskID,
+		artifactURL, response.StatusCode, time.Since(startedAt).Milliseconds())
 	return nil
 }
 
@@ -314,7 +365,86 @@ func (manager *Manager) recordFailure(id, code string, cause error) error {
 		return errors.Join(cause, err)
 	}
 	manager.logger.Printf("Agent update %s failed during %s: %s", id, code, diagnostic)
+	if manager.events != nil {
+		category := "internal"
+		manager.events.Emit(agentlogs.Event{
+			Level: "warn", Component: "agent-update", EventType: "update-failed",
+			Message: "Agent update failed", TaskID: &id, FailureCategory: &category,
+		})
+	}
 	return nil
+}
+
+func (manager *Manager) emitRequestFailure(
+	eventType, message, taskID, target string,
+	status int,
+	contentType string,
+	body []byte,
+	duration int64,
+	requestErr error,
+	truncated bool,
+) {
+	if manager.events == nil {
+		return
+	}
+	category := "http-status"
+	if truncated {
+		category = "response-too-large"
+	} else if requestErr != nil {
+		category = agentlogs.ClassifyRequestError(requestErr)
+	} else if status == http.StatusTooManyRequests {
+		category = "rate-limit"
+	}
+	method := http.MethodGet
+	event := agentlogs.Event{
+		Level: "warn", Component: "agent-update", EventType: eventType, Message: message,
+		TaskID: &taskID, FailureCategory: &category, RequestMethod: &method,
+		RequestTarget: agentlogs.SanitizeRequestTarget(target), DurationMilliseconds: &duration,
+		ResponseBody: append([]byte(nil), body...), ResponseTruncated: truncated,
+	}
+	if status != 0 {
+		event.HTTPStatus = &status
+	}
+	if contentType != "" {
+		event.ResponseContentType = &contentType
+	}
+	manager.events.Emit(event)
+}
+
+func (manager *Manager) emitInvalidResponse(
+	eventType, message, taskID, target string,
+	status int,
+	contentType string,
+	body []byte,
+	duration int64,
+) {
+	if manager.events == nil {
+		return
+	}
+	category := "invalid-response"
+	method := http.MethodGet
+	event := agentlogs.Event{
+		Level: "warn", Component: "agent-update", EventType: eventType, Message: message,
+		TaskID: &taskID, FailureCategory: &category, RequestMethod: &method,
+		RequestTarget: agentlogs.SanitizeRequestTarget(target), HTTPStatus: &status,
+		DurationMilliseconds: &duration, ResponseBody: append([]byte(nil), body...),
+	}
+	if contentType != "" {
+		event.ResponseContentType = &contentType
+	}
+	manager.events.Emit(event)
+}
+
+func (manager *Manager) emitRequestSuccess(eventType, message, taskID, target string, status int, duration int64) {
+	if manager.events == nil {
+		return
+	}
+	method := http.MethodGet
+	manager.events.Emit(agentlogs.Event{
+		Level: "debug", Component: "agent-update", EventType: eventType, Message: message,
+		TaskID: &taskID, RequestMethod: &method, RequestTarget: agentlogs.SanitizeRequestTarget(target),
+		HTTPStatus: &status, DurationMilliseconds: &duration,
+	})
 }
 
 type stageError struct {

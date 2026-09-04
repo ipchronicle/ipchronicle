@@ -7,6 +7,7 @@ import {
   PackageX,
   Radar,
   Save,
+  ScrollText,
   ServerCog,
   ShieldX,
   Trash2,
@@ -16,6 +17,7 @@ import { useTranslation } from "react-i18next";
 import { useParams } from "react-router";
 
 import { deleteNode, revokeNode, updateNode } from "@/api/nodes";
+import type { LogLevel } from "@/api/logs";
 import {
   getNodeProbe,
   updateNodeProbeSettings,
@@ -53,6 +55,13 @@ import {
 } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Switch } from "@/components/ui/switch";
 import {
@@ -86,6 +95,7 @@ export function NodeSettingsPage() {
   const [probeLoadFailed, setProbeLoadFailed] = useState(false);
   const [name, setName] = useState(node.name);
   const [enabled, setEnabled] = useState(node.enabled);
+  const [logLevel, setLogLevel] = useState<LogLevel>(node.logLevel);
   const [basicDirty, setBasicDirty] = useState(false);
   const [probeOnNewAddress, setProbeOnNewAddress] = useState(true);
   const [lowMemoryOverride, setLowMemoryOverride] = useState(false);
@@ -100,7 +110,8 @@ export function NodeSettingsPage() {
     if (basicDirty) return;
     setName(node.name);
     setEnabled(node.enabled);
-  }, [basicDirty, node.enabled, node.name]);
+    setLogLevel(node.logLevel);
+  }, [basicDirty, node.enabled, node.logLevel, node.name]);
 
   useEffect(() => {
     const controller = new AbortController();
@@ -152,12 +163,13 @@ export function NodeSettingsPage() {
     try {
       const updated = await updateNode(
         nodeId,
-        { name: name.trim(), enabled },
+        { name: name.trim(), enabled, logLevel },
         csrfToken,
       );
       replaceNode(updated);
       setName(updated.name);
       setEnabled(updated.enabled);
+      setLogLevel(updated.logLevel);
       setBasicDirty(false);
       setFeedback({
         kind: "success",
@@ -355,6 +367,37 @@ export function NodeSettingsPage() {
                       }}
                       aria-label={t("nodeDetail.settings.availability.toggle")}
                     />
+                  }
+                />
+                <SettingRow
+                  title={t("nodeDetail.settings.logs.title")}
+                  detail={t("nodeDetail.settings.logs.detail")}
+                  control={
+                    <Select
+                      value={logLevel}
+                      disabled={working !== undefined || nodeLocked}
+                      onValueChange={(value) => {
+                        setLogLevel(value as LogLevel);
+                        setBasicDirty(true);
+                      }}
+                    >
+                      <SelectTrigger
+                        className="w-32"
+                        aria-label={t("nodeDetail.settings.logs.title")}
+                      >
+                        <ScrollText aria-hidden="true" />
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {(["error", "warn", "info", "debug"] as const).map(
+                          (level) => (
+                            <SelectItem key={level} value={level}>
+                              {t(`logs.level.${level}`)}
+                            </SelectItem>
+                          ),
+                        )}
+                      </SelectContent>
+                    </Select>
                   }
                 />
                 <div className="flex justify-end">

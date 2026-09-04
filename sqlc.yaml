@@ -18,3 +18,12 @@ sql:
         out: internal/center/database/historydb
         emit_empty_slices: true
         emit_pointers_for_null_types: true
+  - engine: sqlite
+    schema: internal/center/database/migrations/logs
+    queries: internal/center/database/logsdb/queries.sql
+    gen:
+      go:
+        package: logsdb
+        out: internal/center/database/logsdb
+        emit_empty_slices: true
+        emit_pointers_for_null_types: true

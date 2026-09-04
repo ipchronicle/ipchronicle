@@ -53,6 +53,9 @@ var (
 	probeTasksBucket          = []byte("probe-tasks")
 	probeControlBucket        = []byte("probe-control")
 	agentUpdatesBucket        = []byte("agent-updates")
+	agentLogsBucket           = []byte("agent-logs")
+	agentLogIndexBucket       = []byte("agent-log-index")
+	agentLogMetadataBucket    = []byte("agent-log-metadata")
 	schemaVersionKey          = []byte("schema-version")
 	centerURLKey              = []byte("center-url")
 	nodeIDKey                 = []byte("node-id")
@@ -86,6 +89,7 @@ type Configuration struct {
 	ProbeSchedule          ProbeSchedule     `json:"probeSchedule"`
 	ProbeLowMemoryOverride bool              `json:"probeLowMemoryOverride"`
 	IPAPIAPIKey            string            `json:"ipapiApiKey,omitempty"`
+	LogLevel               string            `json:"logLevel,omitempty"`
 }
 
 type ProbeSchedule struct {
@@ -133,6 +137,7 @@ type storedConfiguration struct {
 	ProbeSchedule          ProbeSchedule     `json:"probeSchedule"`
 	ProbeLowMemoryOverride bool              `json:"probeLowMemoryOverride"`
 	IPAPIAPIKeyEncrypted   []byte            `json:"ipapiApiKeyEncrypted,omitempty"`
+	LogLevel               string            `json:"logLevel,omitempty"`
 }
 
 type storedProxy struct {
@@ -470,6 +475,7 @@ func (s *Store) initialize() error {
 			configurationBucket, addressCurrentBucket, addressEventsBucket, addressGapsBucket,
 			probeRunsBucket, probeExecutionsBucket, probeArtifactsBucket, probeSequencesBucket,
 			probeGapsBucket, probeTasksBucket, probeControlBucket, agentUpdatesBucket,
+			agentLogsBucket, agentLogIndexBucket, agentLogMetadataBucket,
 		} {
 			if _, err = transaction.CreateBucketIfNotExists(name); err != nil {
 				return err
@@ -501,7 +507,7 @@ func (s *Store) validateCurrentConfiguration() error {
 }
 
 func validateConfiguration(configuration Configuration) error {
-	if configuration.SchemaVersion != localSchemaVersion || configuration.Revision < 1 {
+	if (configuration.SchemaVersion != 9 && configuration.SchemaVersion != 10) || configuration.Revision < 1 {
 		return errors.New("unsupported Agent configuration snapshot")
 	}
 	generation, err := hex.DecodeString(configuration.HistoryGeneration)
@@ -522,6 +528,12 @@ func validateConfiguration(configuration Configuration) error {
 	}
 	if !validStoredIPAPIAPIKey(configuration.IPAPIAPIKey) {
 		return errors.New("Agent configuration contains an invalid ipapi API key")
+	}
+	if configuration.SchemaVersion == 10 && !validLogLevel(configuration.LogLevel) {
+		return errors.New("Agent configuration contains an invalid log level")
+	}
+	if configuration.SchemaVersion == 9 && configuration.LogLevel != "" {
+		return errors.New("Agent configuration schema 9 contains a log level")
 	}
 	proxies := make(map[string]struct{}, len(configuration.Proxies))
 	for _, proxy := range configuration.Proxies {
@@ -665,6 +677,10 @@ func validStoredIPAPIAPIKey(value string) bool {
 		value == strings.TrimSpace(value) && !strings.ContainsAny(value, "\x00\r\n\t"))
 }
 
+func validLogLevel(value string) bool {
+	return value == "error" || value == "warn" || value == "info" || value == "debug"
+}
+
 func encodeStoredConfiguration(masterKey [masterKeySize]byte, configuration Configuration) ([]byte, error) {
 	stored := storedConfiguration{
 		SchemaVersion: configuration.SchemaVersion, Revision: configuration.Revision,
@@ -673,6 +689,7 @@ func encodeStoredConfiguration(masterKey [masterKeySize]byte, configuration Conf
 		Proxies:           make([]storedProxy, 0, len(configuration.Proxies)),
 		DiscoveryServices: configuration.DiscoveryServices, ProbeSchedule: configuration.ProbeSchedule,
 		ProbeLowMemoryOverride: configuration.ProbeLowMemoryOverride,
+		LogLevel:               configuration.LogLevel,
 	}
 	if configuration.IPAPIAPIKey != "" {
 		encrypted, err := encryptIPAPIAPIKey(masterKey, configuration.IPAPIAPIKey)
@@ -712,6 +729,7 @@ func decodeStoredConfiguration(masterKey [masterKeySize]byte, encoded []byte) (C
 		ProbeTargets:      stored.ProbeTargets,
 		DiscoveryServices: stored.DiscoveryServices, ProbeSchedule: stored.ProbeSchedule,
 		ProbeLowMemoryOverride: stored.ProbeLowMemoryOverride,
+		LogLevel:               stored.LogLevel,
 	}
 	if len(stored.IPAPIAPIKeyEncrypted) != 0 {
 		apiKey, err := decryptIPAPIAPIKey(masterKey, stored.IPAPIAPIKeyEncrypted)

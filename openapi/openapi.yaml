@@ -274,6 +274,166 @@ paths:
                 $ref: "#/components/schemas/Overview"
         "401":
           $ref: "#/components/responses/Unauthorized"
+  /api/v1/logs:
+    get:
+      operationId: listLogs
+      summary: List retained Agent operational log events
+      tags: [logs]
+      parameters:
+        - name: from
+          in: query
+          schema:
+            type: string
+            format: date-time
+        - name: to
+          in: query
+          schema:
+            type: string
+            format: date-time
+        - name: nodeId
+          in: query
+          schema:
+            type: string
+            format: uuid
+        - name: level
+          in: query
+          schema:
+            $ref: "#/components/schemas/LogLevel"
+        - name: component
+          in: query
+          schema:
+            type: string
+            maxLength: 64
+        - name: eventType
+          in: query
+          schema:
+            type: string
+            maxLength: 96
+        - name: publicAddress
+          in: query
+          schema:
+            type: string
+            maxLength: 45
+        - name: taskId
+          in: query
+          schema:
+            type: string
+            format: uuid
+        - name: proxyId
+          in: query
+          schema:
+            type: string
+            format: uuid
+        - name: keyword
+          in: query
+          schema:
+            type: string
+            minLength: 1
+            maxLength: 128
+        - name: cursor
+          in: query
+          schema:
+            type: string
+            minLength: 1
+            maxLength: 128
+        - name: pageSize
+          in: query
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 200
+            default: 100
+      responses:
+        "200":
+          description: Filtered log events without response bodies.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/LogEventPage"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+  /api/v1/logs/{logId}:
+    parameters:
+      - name: logId
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+    get:
+      operationId: getLog
+      summary: Read one log event including its failed response body
+      tags: [logs]
+      responses:
+        "200":
+          description: Complete retained log event.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/LogEventDetail"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "404":
+          $ref: "#/components/responses/NotFound"
+  /api/v1/logs/retention:
+    get:
+      operationId: getLogRetention
+      summary: Read log retention settings and usage
+      tags: [logs]
+      responses:
+        "200":
+          description: Current log retention state.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/LogRetentionState"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+    put:
+      operationId: updateLogRetention
+      summary: Replace log retention settings and apply them
+      tags: [logs]
+      parameters:
+        - $ref: "#/components/parameters/CSRFToken"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/LogRetentionUpdate"
+      responses:
+        "200":
+          description: Updated log retention state.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/LogRetentionState"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+  /api/v1/logs/cleanup:
+    post:
+      operationId: cleanupLogs
+      summary: Apply the saved log retention settings now
+      tags: [logs]
+      parameters:
+        - $ref: "#/components/parameters/CSRFToken"
+      responses:
+        "200":
+          description: Completed log retention state.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/LogRetentionState"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
   /api/v1/system/settings:
     get:
       operationId: getSystemSettings
@@ -1511,6 +1671,32 @@ paths:
           $ref: "#/components/responses/AgentUnauthorized"
         "403":
           $ref: "#/components/responses/AgentForbidden"
+  /api/v1/agent/logs:
+    post:
+      operationId: uploadAgentLogs
+      summary: Idempotently upload a bounded batch of Agent log events
+      security:
+        - agentCredential: []
+      tags: [agent]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/AgentLogBatch"
+      responses:
+        "200":
+          description: Per-event durable ingestion receipt.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AgentLogBatchReceipt"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/AgentUnauthorized"
+        "403":
+          $ref: "#/components/responses/AgentForbidden"
 components:
   securitySchemes:
     administratorSession:
@@ -1905,6 +2091,8 @@ components:
         - notification_rule_name_in_use
         - invalid_notification_delivery_query
         - invalid_system_settings
+        - invalid_log_retention
+        - log_not_found
         - internal_error
     ErrorResponse:
       type: object
@@ -1927,6 +2115,7 @@ components:
         - sourceRevision
         - configSchemaVersion
         - historySchemaVersion
+        - logsSchemaVersion
         - transportSecurity
         - transportWarning
         - externalOriginMode
@@ -1948,6 +2137,10 @@ components:
           format: int64
           minimum: 1
         historySchemaVersion:
+          type: integer
+          format: int64
+          minimum: 1
+        logsSchemaVersion:
           type: integer
           format: int64
           minimum: 1
@@ -2384,7 +2577,7 @@ components:
       properties:
         schemaVersion:
           type: integer
-          enum: [9]
+          enum: [9, 10]
         revision:
           type: integer
           format: int64
@@ -2404,6 +2597,8 @@ components:
           type: string
           minLength: 1
           maxLength: 256
+        logLevel:
+          $ref: "#/components/schemas/LogLevel"
         discoveryPaths:
           type: array
           maxItems: 64
@@ -2419,6 +2614,289 @@ components:
           maxItems: 64
           items:
             $ref: "#/components/schemas/AgentProxyConfiguration"
+    LogLevel:
+      type: string
+      enum: [error, warn, info, debug]
+    LogFailureCategory:
+      type: string
+      enum:
+        [dns, connect, tls, timeout, rate-limit, http-status, response-too-large, invalid-response, internal]
+    AgentLogEvent:
+      type: object
+      additionalProperties: false
+      required: [id, occurredAt, level, component, eventType, message]
+      properties:
+        id:
+          type: string
+          format: uuid
+        occurredAt:
+          type: string
+          format: date-time
+        level:
+          $ref: "#/components/schemas/LogLevel"
+        component:
+          type: string
+          minLength: 1
+          maxLength: 64
+        eventType:
+          type: string
+          minLength: 1
+          maxLength: 96
+        message:
+          type: string
+          minLength: 1
+          maxLength: 4096
+        publicAddressId:
+          type: string
+          format: uuid
+        publicAddress:
+          type: string
+          minLength: 2
+          maxLength: 45
+        family:
+          $ref: "#/components/schemas/AddressFamily"
+        taskId:
+          type: string
+          format: uuid
+        proxyId:
+          type: string
+          format: uuid
+        configurationRevision:
+          type: integer
+          format: int64
+          minimum: 0
+        discoveryPath:
+          type: string
+          minLength: 1
+          maxLength: 2048
+        failureCategory:
+          $ref: "#/components/schemas/LogFailureCategory"
+        requestMethod:
+          type: string
+          minLength: 3
+          maxLength: 16
+        requestTarget:
+          type: string
+          minLength: 1
+          maxLength: 2048
+        httpStatus:
+          type: integer
+          minimum: 100
+          maximum: 599
+        durationMilliseconds:
+          type: integer
+          format: int64
+          minimum: 0
+        responseContentType:
+          type: string
+          minLength: 1
+          maxLength: 256
+        rateLimitHeaders:
+          type: object
+          maxProperties: 16
+          additionalProperties:
+            type: string
+            maxLength: 1024
+        responseBody:
+          type: string
+          format: byte
+          maxLength: 5592408
+        responseTruncated:
+          type: boolean
+        droppedCount:
+          type: integer
+          format: int64
+          minimum: 1
+        droppedFrom:
+          type: string
+          format: date-time
+        droppedTo:
+          type: string
+          format: date-time
+    AgentLogBatch:
+      type: object
+      additionalProperties: false
+      required: [events]
+      properties:
+        events:
+          type: array
+          minItems: 1
+          maxItems: 64
+          items:
+            $ref: "#/components/schemas/AgentLogEvent"
+    AgentLogBatchReceipt:
+      type: object
+      additionalProperties: false
+      required: [acceptedEventIds, discardedEventIds]
+      properties:
+        acceptedEventIds:
+          type: array
+          maxItems: 64
+          items:
+            type: string
+            format: uuid
+        discardedEventIds:
+          type: array
+          maxItems: 64
+          items:
+            type: string
+            format: uuid
+    LogEventSummary:
+      type: object
+      additionalProperties: false
+      required:
+        [id, source, occurredAt, receivedAt, level, component, eventType, message, responseBodyBytes, responseTruncated]
+      properties:
+        id:
+          type: string
+          format: uuid
+        source:
+          type: string
+          enum: [agent, center]
+        nodeId:
+          type: string
+          format: uuid
+        nodeName:
+          type: string
+          maxLength: 64
+        occurredAt:
+          type: string
+          format: date-time
+        receivedAt:
+          type: string
+          format: date-time
+        level:
+          $ref: "#/components/schemas/LogLevel"
+        component:
+          type: string
+        eventType:
+          type: string
+        message:
+          type: string
+        publicAddressId:
+          type: string
+          format: uuid
+        publicAddress:
+          type: string
+        family:
+          $ref: "#/components/schemas/AddressFamily"
+        taskId:
+          type: string
+          format: uuid
+        proxyId:
+          type: string
+          format: uuid
+        configurationRevision:
+          type: integer
+          format: int64
+        failureCategory:
+          $ref: "#/components/schemas/LogFailureCategory"
+        requestMethod:
+          type: string
+        requestTarget:
+          type: string
+        httpStatus:
+          type: integer
+        durationMilliseconds:
+          type: integer
+          format: int64
+        responseContentType:
+          type: string
+        responseBodyBytes:
+          type: integer
+          format: int64
+          minimum: 0
+        responseTruncated:
+          type: boolean
+        droppedCount:
+          type: integer
+          format: int64
+        droppedFrom:
+          type: string
+          format: date-time
+        droppedTo:
+          type: string
+          format: date-time
+    LogEventDetail:
+      type: object
+      additionalProperties: false
+      required: [event]
+      properties:
+        event:
+          $ref: "#/components/schemas/LogEventSummary"
+        discoveryPath:
+          type: string
+        rateLimitHeaders:
+          type: object
+          maxProperties: 16
+          additionalProperties:
+            type: string
+        responseBody:
+          type: string
+          format: byte
+    LogEventPage:
+      type: object
+      additionalProperties: false
+      required: [items]
+      properties:
+        items:
+          type: array
+          maxItems: 200
+          items:
+            $ref: "#/components/schemas/LogEventSummary"
+        nextCursor:
+          type: string
+          maxLength: 128
+    LogRetentionUpdate:
+      type: object
+      additionalProperties: false
+      required: [mode]
+      properties:
+        mode:
+          $ref: "#/components/schemas/HistoryRetentionMode"
+        maxAgeDays:
+          type: integer
+          format: int64
+          minimum: 1
+          maximum: 36500
+        maxLogicalBytes:
+          type: integer
+          format: int64
+          minimum: 1048576
+          maximum: 1099511627776
+    LogRetentionState:
+      type: object
+      additionalProperties: false
+      required: [mode, updatedAt, lastCleanupDeletedItems, logicalBytes, recordCount]
+      properties:
+        mode:
+          $ref: "#/components/schemas/HistoryRetentionMode"
+        maxAgeDays:
+          type: integer
+          format: int64
+        maxLogicalBytes:
+          type: integer
+          format: int64
+        updatedAt:
+          type: string
+          format: date-time
+        lastCleanupAt:
+          type: string
+          format: date-time
+        lastCleanupDeletedItems:
+          type: integer
+          format: int64
+          minimum: 0
+        lastCleanupError:
+          type: string
+        logicalBytes:
+          type: integer
+          format: int64
+          minimum: 0
+        recordCount:
+          type: integer
+          format: int64
+          minimum: 0
     AddressFamily:
       type: string
       enum: [ipv4, ipv6]
@@ -4978,6 +5456,8 @@ components:
           maxLength: 128
         enabled:
           type: boolean
+        logLevel:
+          $ref: "#/components/schemas/LogLevel"
     NodeDeletion:
       type: object
       additionalProperties: false
@@ -5009,6 +5489,7 @@ components:
         - desiredConfigurationRevision
         - appliedConfigurationRevision
         - configurationStatus
+        - logLevel
         - publicAddresses
         - registeredAt
       properties:
@@ -5053,6 +5534,8 @@ components:
           minimum: 0
         configurationStatus:
           $ref: "#/components/schemas/NodeConfigurationStatus"
+        logLevel:
+          $ref: "#/components/schemas/LogLevel"
         configurationError:
           type: string
         deletionStatus:

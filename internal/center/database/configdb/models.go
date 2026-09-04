@@ -55,6 +55,17 @@ type HistoryRetentionSetting struct {
 	LastCleanupError        *string
 }
 
+type LogRetentionSetting struct {
+	ID                      int64
+	Mode                    string
+	MaxAgeDays              *int64
+	MaxLogicalBytes         *int64
+	UpdatedAt               int64
+	LastCleanupAt           *int64
+	LastCleanupDeletedItems int64
+	LastCleanupError        *string
+}
+
 type NetworkEgress struct {
 	ID                         string
 	NodeID                     string
@@ -95,28 +106,30 @@ type NetworkProxy struct {
 }
 
 type Node struct {
-	ID                           string
-	Name                         string
-	Hostname                     string
-	CredentialDigest             []byte
-	Enabled                      int64
-	RevokedAt                    *int64
-	AgentVersion                 string
-	OperatingSystem              string
-	Architecture                 string
-	DesiredConfigurationRevision int64
-	AppliedConfigurationRevision int64
-	ConfigurationError           *string
-	RegisteredAt                 int64
-	LastSeenAt                   *int64
-	ConfigurationErrorRevision   *int64
-	PhysicalMemoryBytes          *int64
-	ProbeScheduleEnabled         int64
-	ProbeScheduleCron            string
-	ProbeScheduleTimezone        string
-	ProbeLowMemoryOverride       int64
-	ProbeOnNewAddress            int64
-	AgentRevision                *string
+	ID                            string
+	Name                          string
+	Hostname                      string
+	CredentialDigest              []byte
+	Enabled                       int64
+	RevokedAt                     *int64
+	AgentVersion                  string
+	OperatingSystem               string
+	Architecture                  string
+	DesiredConfigurationRevision  int64
+	AppliedConfigurationRevision  int64
+	ConfigurationError            *string
+	RegisteredAt                  int64
+	LastSeenAt                    *int64
+	ConfigurationErrorRevision    *int64
+	PhysicalMemoryBytes           *int64
+	ProbeScheduleEnabled          int64
+	ProbeScheduleCron             string
+	ProbeScheduleTimezone         string
+	ProbeLowMemoryOverride        int64
+	ProbeOnNewAddress             int64
+	AgentRevision                 *string
+	LogLevel                      string
+	DesiredConfigurationUpdatedAt int64
 }
 
 type NodeCapability struct {

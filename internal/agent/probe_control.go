@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/ipchronicle/ipchronicle/internal/agent/agentlogs"
 	"github.com/ipchronicle/ipchronicle/internal/agent/state"
 	"github.com/ipchronicle/ipchronicle/internal/generated/agentapi"
 )
@@ -102,9 +103,10 @@ func (client *ControlClient) runProbeUploader(
 	identity state.Identity,
 	wake <-chan struct{},
 	logger *log.Logger,
+	events agentlogs.Sink,
 ) error {
 	for {
-		found, err := client.uploadNextProbeArtifact(ctx, store, identity)
+		found, err := client.uploadNextProbeArtifact(ctx, store, identity, events)
 		if err == nil && found {
 			continue
 		}
@@ -140,7 +142,12 @@ func (client *ControlClient) uploadNextProbeArtifact(
 	ctx context.Context,
 	store *state.Store,
 	identity state.Identity,
+	sinks ...agentlogs.Sink,
 ) (bool, error) {
+	var events agentlogs.Sink
+	if len(sinks) > 0 {
+		events = sinks[0]
+	}
 	artifact, err := store.NextProbeArtifact()
 	if err != nil {
 		return false, localProbeUploadError{cause: err}
@@ -152,14 +159,21 @@ func (client *ControlClient) uploadNextProbeArtifact(
 	if err != nil {
 		return false, localProbeUploadError{cause: err}
 	}
+	startedAt := time.Now()
 	response, err := client.client.UploadProbeArtifactWithResponse(ctx, request, func(_ context.Context, request *http.Request) error {
 		request.Header.Set("Authorization", "Bearer "+identity.Credential)
 		return nil
 	})
+	duration := time.Since(startedAt).Milliseconds()
+	target := identity.CenterURL + "/api/v1/agent/probe-artifacts"
 	if err != nil {
+		emitProbeUploadFailure(events, artifact, "artifact-upload-failed", "Complete-probe result upload failed",
+			target, 0, "", nil, duration, err)
 		return false, err
 	}
 	if response.JSON200 == nil {
+		emitProbeUploadFailure(events, artifact, "artifact-upload-rejected", "Complete-probe result upload was rejected",
+			target, response.StatusCode(), response.ContentType(), response.Body, duration, nil)
 		responseErr := responseError("upload complete-probe artifact", response.StatusCode(), response.JSON400, response.JSON401, response.JSON403)
 		if response.JSON400 != nil {
 			return false, localProbeUploadError{cause: responseErr}
@@ -168,6 +182,7 @@ func (client *ControlClient) uploadNextProbeArtifact(
 	}
 	receipt := response.JSON200
 	if receipt.ArtifactId.String() != artifact.ID || receipt.Revision != artifact.Revision || !receipt.Disposition.Valid() {
+		emitProbeUploadInvalid(events, artifact, target, response.StatusCode(), response.ContentType(), response.Body, duration)
 		return false, localProbeUploadError{cause: errors.New("center returned an invalid complete-probe artifact receipt")}
 	}
 	if err := store.AcknowledgeProbeArtifact(state.ProbeArtifactReceipt{
@@ -175,7 +190,107 @@ func (client *ControlClient) uploadNextProbeArtifact(
 	}); err != nil {
 		return false, localProbeUploadError{cause: err}
 	}
+	event := probeArtifactLogEvent(artifact)
+	event.Level = "debug"
+	event.Component = "probe-uploader"
+	event.EventType = "artifact-upload-succeeded"
+	event.Message = "Complete-probe result upload succeeded"
+	method := http.MethodPost
+	status := response.StatusCode()
+	event.RequestMethod = &method
+	event.RequestTarget = agentlogs.SanitizeRequestTarget(target)
+	event.HTTPStatus = &status
+	event.DurationMilliseconds = &duration
+	if events != nil {
+		events.Emit(event)
+	}
 	return true, nil
+}
+
+func emitProbeUploadFailure(
+	events agentlogs.Sink,
+	artifact state.ProbeArtifact,
+	eventType, message, target string,
+	status int,
+	contentType string,
+	body []byte,
+	duration int64,
+	requestErr error,
+) {
+	if events == nil {
+		return
+	}
+	event := probeArtifactLogEvent(artifact)
+	event.Level = "warn"
+	event.Component = "probe-uploader"
+	event.EventType = eventType
+	event.Message = message
+	category := "http-status"
+	if requestErr != nil {
+		category = agentlogs.ClassifyRequestError(requestErr)
+	} else if status == http.StatusTooManyRequests {
+		category = "rate-limit"
+	}
+	method := http.MethodPost
+	event.FailureCategory = &category
+	event.RequestMethod = &method
+	event.RequestTarget = agentlogs.SanitizeRequestTarget(target)
+	event.DurationMilliseconds = &duration
+	event.ResponseBody = append([]byte(nil), body...)
+	event.ResponseTruncated = len(body) > maxAgentAPIResponseSize
+	if status != 0 {
+		event.HTTPStatus = &status
+	}
+	if contentType != "" {
+		event.ResponseContentType = &contentType
+	}
+	events.Emit(event)
+}
+
+func emitProbeUploadInvalid(
+	events agentlogs.Sink,
+	artifact state.ProbeArtifact,
+	target string,
+	status int,
+	contentType string,
+	body []byte,
+	duration int64,
+) {
+	if events == nil {
+		return
+	}
+	event := probeArtifactLogEvent(artifact)
+	event.Level = "warn"
+	event.Component = "probe-uploader"
+	event.EventType = "artifact-receipt-invalid"
+	event.Message = "Center returned an invalid complete-probe result receipt"
+	category := "invalid-response"
+	method := http.MethodPost
+	event.FailureCategory = &category
+	event.RequestMethod = &method
+	event.RequestTarget = agentlogs.SanitizeRequestTarget(target)
+	event.HTTPStatus = &status
+	event.DurationMilliseconds = &duration
+	event.ResponseBody = append([]byte(nil), body...)
+	if contentType != "" {
+		event.ResponseContentType = &contentType
+	}
+	events.Emit(event)
+}
+
+func probeArtifactLogEvent(artifact state.ProbeArtifact) agentlogs.Event {
+	event := agentlogs.Event{}
+	if artifact.Run != nil {
+		event.TaskID = artifact.Run.TaskID
+		revision := artifact.Run.ConfigurationRevision
+		event.ConfigurationRevision = &revision
+	}
+	if artifact.Execution != nil {
+		event.PublicAddressID = &artifact.Execution.EgressID
+	} else if artifact.Gap != nil {
+		event.PublicAddressID = &artifact.Gap.EgressID
+	}
+	return event
 }
 
 func probeArtifactToAPI(artifact state.ProbeArtifact) (agentapi.AgentProbeArtifact, error) {

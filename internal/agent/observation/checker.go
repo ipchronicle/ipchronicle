@@ -15,6 +15,7 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/ipchronicle/ipchronicle/internal/agent/agentlogs"
 	agentnetwork "github.com/ipchronicle/ipchronicle/internal/agent/network"
 	"github.com/ipchronicle/ipchronicle/internal/agent/state"
 	xproxy "golang.org/x/net/proxy"
@@ -30,6 +31,7 @@ var sharedIPv4Prefix = netip.MustParsePrefix("100.64.0.0/10")
 
 type Checker struct {
 	discover func() (agentnetwork.Inventory, error)
+	events   agentlogs.Sink
 }
 
 type selectedPath struct {
@@ -46,15 +48,39 @@ type echoResult struct {
 	localAddress netip.Addr
 }
 
-func NewChecker() *Checker {
-	return &Checker{discover: agentnetwork.Discover}
+type serviceResult struct {
+	statusCode  *int
+	body        []byte
+	contentType *string
+	duration    int64
+	truncated   bool
+	category    string
+}
+
+func NewChecker(sinks ...agentlogs.Sink) *Checker {
+	checker := &Checker{discover: agentnetwork.Discover}
+	if len(sinks) > 0 {
+		checker.events = sinks[0]
+	}
+	return checker
 }
 
 func (c *Checker) VerifyTarget(ctx context.Context, configuration state.Configuration, target state.Egress, checkedAt time.Time) error {
+	return c.VerifyTargetForTask(ctx, configuration, target, checkedAt, nil)
+}
+
+func (c *Checker) VerifyTargetForTask(
+	ctx context.Context,
+	configuration state.Configuration,
+	target state.Egress,
+	checkedAt time.Time,
+	taskID *string,
+) error {
 	if target.PublicAddress == nil {
 		return errors.New("complete-probe target has no public address")
 	}
-	observation := c.Check(ctx, configuration, target, nil, checkedAt)
+	observation := c.check(ctx, configuration, target, nil, checkedAt, taskID)
+	c.emitObservation(observation, target, taskID)
 	if !observation.Confirmed {
 		if observation.FailureReason == "" {
 			return errors.New("public address could not be confirmed")
@@ -68,6 +94,19 @@ func (c *Checker) VerifyTarget(ctx context.Context, configuration state.Configur
 }
 
 func (c *Checker) Check(ctx context.Context, configuration state.Configuration, egress state.Egress, previous *state.AddressState, checkedAt time.Time) state.AddressObservation {
+	observation := c.check(ctx, configuration, egress, previous, checkedAt, nil)
+	c.emitObservation(observation, egress, nil)
+	return observation
+}
+
+func (c *Checker) check(
+	ctx context.Context,
+	configuration state.Configuration,
+	egress state.Egress,
+	previous *state.AddressState,
+	checkedAt time.Time,
+	taskID *string,
+) state.AddressObservation {
 	observation := state.AddressObservation{
 		EgressID: egress.ID, ConfigurationRevision: configuration.Revision,
 		HistoryGeneration: configuration.HistoryGeneration, Family: egress.Family,
@@ -82,7 +121,7 @@ func (c *Checker) Check(ctx context.Context, configuration state.Configuration, 
 	if egress.Family == "ipv6" {
 		services = configuration.DiscoveryServices.IPv6
 	}
-	first, nextService := c.firstValid(ctx, path, services, 0)
+	first, nextService := c.firstValid(ctx, path, services, 0, configuration.Revision, taskID)
 	if !first.address.IsValid() {
 		observation.FailureReason = "no-valid-response"
 		return observation
@@ -102,7 +141,7 @@ func (c *Checker) Check(ctx context.Context, configuration state.Configuration, 
 			return observation
 		}
 	}
-	second, _ := c.firstValid(ctx, path, services, nextService)
+	second, _ := c.firstValid(ctx, path, services, nextService, configuration.Revision, taskID)
 	if !second.address.IsValid() {
 		observation.FailureReason = "confirmation-unavailable"
 		return observation
@@ -156,20 +195,37 @@ func (c *Checker) selectPath(configuration state.Configuration, egress state.Egr
 	return path, nil
 }
 
-func (c *Checker) firstValid(ctx context.Context, path selectedPath, services []string, start int) (echoResult, int) {
+func (c *Checker) firstValid(
+	ctx context.Context,
+	path selectedPath,
+	services []string,
+	start int,
+	configurationRevision int64,
+	taskID *string,
+) (echoResult, int) {
 	for index := start; index < len(services); index++ {
-		result, err := queryService(ctx, path, services[index])
+		result, diagnostics, err := queryServiceWithDiagnostics(ctx, path, services[index])
 		if err == nil {
+			c.emitServiceResult(path.egress, taskID, configurationRevision, services[index], diagnostics, nil)
 			return result, index + 1
 		}
+		c.emitServiceResult(path.egress, taskID, configurationRevision, services[index], diagnostics, err)
 	}
 	return echoResult{}, len(services)
 }
 
 func queryService(ctx context.Context, path selectedPath, service string) (echoResult, error) {
+	result, _, err := queryServiceWithDiagnostics(ctx, path, service)
+	return result, err
+}
+
+func queryServiceWithDiagnostics(ctx context.Context, path selectedPath, service string) (echoResult, serviceResult, error) {
+	startedAt := time.Now()
+	diagnostics := serviceResult{}
 	transport, err := transportForPath(path)
 	if err != nil {
-		return echoResult{}, err
+		diagnostics.category = "internal"
+		return echoResult{}, diagnostics, err
 	}
 	defer transport.CloseIdleConnections()
 	client := &http.Client{
@@ -180,7 +236,8 @@ func queryService(ctx context.Context, path selectedPath, service string) (echoR
 	defer cancel()
 	request, err := http.NewRequestWithContext(requestContext, http.MethodGet, service, nil)
 	if err != nil {
-		return echoResult{}, err
+		diagnostics.category = "internal"
+		return echoResult{}, diagnostics, err
 	}
 	request.Header.Set("Accept", "text/plain")
 	request.Header.Set("User-Agent", "IPChronicle-Agent/address-observation")
@@ -193,30 +250,131 @@ func queryService(ctx context.Context, path selectedPath, service string) (echoR
 		},
 	}))
 	response, err := client.Do(request)
+	diagnostics.duration = time.Since(startedAt).Milliseconds()
 	if err != nil {
-		return echoResult{}, err
+		diagnostics.category = agentlogs.ClassifyRequestError(err)
+		return echoResult{}, diagnostics, err
 	}
 	defer response.Body.Close()
-	if response.StatusCode != http.StatusOK {
-		return echoResult{}, fmt.Errorf("address service returned HTTP %d", response.StatusCode)
+	status := response.StatusCode
+	diagnostics.statusCode = &status
+	if contentType := response.Header.Get("Content-Type"); contentType != "" {
+		diagnostics.contentType = &contentType
 	}
-	body, err := io.ReadAll(io.LimitReader(response.Body, maxResponseSize+1))
+	body, err := io.ReadAll(io.LimitReader(response.Body, state.MaxAgentLogResponseBody+1))
+	diagnostics.duration = time.Since(startedAt).Milliseconds()
+	if len(body) > state.MaxAgentLogResponseBody {
+		body = body[:state.MaxAgentLogResponseBody]
+		diagnostics.truncated = true
+	}
+	diagnostics.body = body
 	if err != nil {
-		return echoResult{}, err
+		diagnostics.category = agentlogs.ClassifyRequestError(err)
+		return echoResult{}, diagnostics, err
+	}
+	if response.StatusCode != http.StatusOK {
+		diagnostics.category = "http-status"
+		if response.StatusCode == http.StatusTooManyRequests {
+			diagnostics.category = "rate-limit"
+		}
+		return echoResult{}, diagnostics, fmt.Errorf("address service returned HTTP %d", response.StatusCode)
 	}
 	if len(body) > maxResponseSize {
-		return echoResult{}, errors.New("address service response is too large")
+		diagnostics.category = "response-too-large"
+		return echoResult{}, diagnostics, errors.New("address service response is too large")
 	}
 	value := strings.TrimSpace(string(body))
 	address, err := netip.ParseAddr(value)
 	if err != nil || value != address.String() {
-		return echoResult{}, errors.New("address service response is not one public address of the expected family")
+		diagnostics.category = "invalid-response"
+		return echoResult{}, diagnostics, errors.New("address service response is not one public address of the expected family")
 	}
 	address = address.Unmap()
 	if !publicAddressAllowed(address, path.egress.Family) {
-		return echoResult{}, errors.New("address service response is not one public address of the expected family")
+		diagnostics.category = "invalid-response"
+		return echoResult{}, diagnostics, errors.New("address service response is not one public address of the expected family")
 	}
-	return echoResult{address: address, localAddress: localAddress}, nil
+	diagnostics.body = nil
+	return echoResult{address: address, localAddress: localAddress}, diagnostics, nil
+}
+
+func (c *Checker) emitServiceResult(
+	egress state.Egress,
+	taskID *string,
+	configurationRevision int64,
+	target string,
+	diagnostics serviceResult,
+	requestErr error,
+) {
+	if c.events == nil {
+		return
+	}
+	event := agentlogs.Event{
+		Level: "debug", Component: "address-discovery", EventType: "service-request-succeeded",
+		Message: "Public address service request succeeded", Family: &egress.Family,
+		TaskID: taskID, ProxyID: egress.ProxyID, ConfigurationRevision: &configurationRevision,
+		DiscoveryPath: discoveryPath(egress), RequestMethod: stringPointer(http.MethodGet),
+		RequestTarget: agentlogs.SanitizeRequestTarget(target), HTTPStatus: diagnostics.statusCode,
+		DurationMilliseconds: &diagnostics.duration,
+	}
+	if egress.PublicAddress != nil {
+		event.PublicAddressID = &egress.ID
+		event.PublicAddress = egress.PublicAddress
+	}
+	if requestErr != nil {
+		event.Level = "warn"
+		event.EventType = "service-request-failed"
+		event.Message = "Public address service request failed"
+		category := diagnostics.category
+		if category == "" {
+			category = agentlogs.ClassifyRequestError(requestErr)
+		}
+		event.FailureCategory = &category
+		event.ResponseContentType = diagnostics.contentType
+		event.ResponseBody = diagnostics.body
+		event.ResponseTruncated = diagnostics.truncated
+	}
+	c.events.Emit(event)
+}
+
+func (c *Checker) emitObservation(observation state.AddressObservation, egress state.Egress, taskID *string) {
+	if c.events == nil {
+		return
+	}
+	event := agentlogs.Event{
+		Level: "debug", Component: "address-discovery", EventType: "address-confirmed",
+		Message: "Public address was confirmed", Family: &egress.Family, TaskID: taskID,
+		ProxyID: egress.ProxyID, ConfigurationRevision: &observation.ConfigurationRevision,
+		DiscoveryPath: discoveryPath(egress),
+	}
+	if egress.PublicAddress != nil {
+		event.PublicAddressID = &egress.ID
+		event.PublicAddress = egress.PublicAddress
+	} else if observation.PublicAddress != "" {
+		event.PublicAddress = &observation.PublicAddress
+	}
+	if !observation.Confirmed {
+		event.Level = "warn"
+		event.EventType = "address-check-failed"
+		event.Message = "Public address check failed"
+		category := "invalid-response"
+		if observation.FailureReason == "selector-unavailable" {
+			category = "internal"
+		}
+		event.FailureCategory = &category
+	}
+	c.events.Emit(event)
+}
+
+func discoveryPath(egress state.Egress) *string {
+	if egress.PathID != nil {
+		return egress.PathID
+	}
+	return &egress.ID
+}
+
+func stringPointer(value string) *string {
+	return &value
 }
 
 func transportForPath(path selectedPath) (*http.Transport, error) {

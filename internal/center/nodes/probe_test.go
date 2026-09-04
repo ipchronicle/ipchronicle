@@ -486,7 +486,7 @@ func TestRetainedProbeRunKeepsNodeAndPublicAddressAfterNodeDeletion(t *testing.T
 	fixture := newProbeServiceFixture(t, 512*1024*1024)
 	nodeName := "retired-edge"
 	if _, err := fixture.service.Update(
-		fixture.ctx, fixture.registration.NodeID, &nodeName, true,
+		fixture.ctx, fixture.registration.NodeID, &nodeName, true, nil,
 	); err != nil {
 		t.Fatal(err)
 	}

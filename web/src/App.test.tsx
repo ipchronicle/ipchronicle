@@ -85,6 +85,13 @@ import {
   updateNodeProbeSettings,
 } from "@/api/probes";
 import { APIError } from "@/api/errors";
+import {
+  cleanupLogs,
+  getLog,
+  getLogRetention,
+  listLogs,
+  updateLogRetention,
+} from "@/api/logs";
 import App from "@/App";
 import { AuthProvider } from "@/auth-context";
 import { TooltipProvider } from "@/components/ui/tooltip";
@@ -181,6 +188,14 @@ vi.mock("@/api/probes", () => ({
   updateNodeProbeSettings: vi.fn(),
 }));
 
+vi.mock("@/api/logs", () => ({
+  cleanupLogs: vi.fn(),
+  getLog: vi.fn(),
+  getLogRetention: vi.fn(),
+  listLogs: vi.fn(),
+  updateLogRetention: vi.fn(),
+}));
+
 vi.mock("html-to-image", () => ({
   toBlob: vi.fn(),
 }));
@@ -247,6 +262,11 @@ const previewProbeScheduleMock = vi.mocked(previewProbeSchedule);
 const resetHistoryMock = vi.mocked(resetHistory);
 const updateProbeSettingsMock = vi.mocked(updateNodeProbeSettings);
 const toBlobMock = vi.mocked(toBlob);
+const cleanupLogsMock = vi.mocked(cleanupLogs);
+const getLogMock = vi.mocked(getLog);
+const getLogRetentionMock = vi.mocked(getLogRetention);
+const listLogsMock = vi.mocked(listLogs);
+const updateLogRetentionMock = vi.mocked(updateLogRetention);
 
 const session: AuthenticatedSession = {
   account: {
@@ -266,6 +286,7 @@ const healthyStatus = {
   sourceRevision: "1111111111111111111111111111111111111111",
   configSchemaVersion: 1,
   historySchemaVersion: 1,
+  logsSchemaVersion: 1,
   transportSecurity: "http" as const,
   transportWarning: true,
   externalOriginMode: "automatic" as const,
@@ -395,6 +416,7 @@ describe("administrator application", () => {
     updateObservationSettingsMock.mockReset();
     getEnrollmentMock.mockReset();
     listNodesMock.mockReset();
+    listNodesMock.mockResolvedValue([]);
     rotateEnrollmentMock.mockReset();
     startSyncMock.mockReset();
     stopSyncMock.mockReset();
@@ -458,6 +480,13 @@ describe("administrator application", () => {
     });
     resetHistoryMock.mockReset();
     updateProbeSettingsMock.mockReset();
+    cleanupLogsMock.mockReset();
+    getLogMock.mockReset();
+    getLogRetentionMock.mockReset();
+    getLogRetentionMock.mockResolvedValue(logRetentionState());
+    listLogsMock.mockReset();
+    listLogsMock.mockResolvedValue({ items: [] });
+    updateLogRetentionMock.mockReset();
     toBlobMock.mockReset();
   });
 
@@ -737,6 +766,92 @@ describe("administrator application", () => {
       ),
     );
     expect(screen.getByText("0.2.0-rc.1")).toBeInTheDocument();
+  });
+
+  it("updates and applies operational log retention", async () => {
+    getSessionMock.mockResolvedValue(session);
+    updateLogRetentionMock.mockResolvedValue({
+      ...logRetentionState(),
+      maxAgeDays: 30,
+    });
+    cleanupLogsMock.mockResolvedValue({
+      ...logRetentionState(),
+      maxAgeDays: 30,
+      lastCleanupAt: "2026-09-04T14:00:00Z",
+      lastCleanupDeletedItems: 3,
+    });
+
+    renderApplication("/settings/system");
+
+    const days = await screen.findByLabelText("Retention days");
+    fireEvent.change(days, { target: { value: "30" } });
+    fireEvent.click(screen.getByRole("button", { name: "Save and apply" }));
+    await waitFor(() =>
+      expect(updateLogRetentionMock).toHaveBeenCalledWith(
+        { mode: "age", maxAgeDays: 30 },
+        session.csrfToken,
+      ),
+    );
+    expect(
+      await screen.findByText("Log retention was saved and applied."),
+    ).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("button", { name: "Clean now" }));
+    await waitFor(() =>
+      expect(cleanupLogsMock).toHaveBeenCalledWith(session.csrfToken),
+    );
+    expect(
+      await screen.findByText("Log cleanup completed and removed 3 events."),
+    ).toBeInTheDocument();
+  });
+
+  it("filters Agent logs and renders failed response bodies as text", async () => {
+    getSessionMock.mockResolvedValue(session);
+    listNodesMock.mockResolvedValue([probeTestNode]);
+    const event = {
+      id: "f7af408b-a441-4673-965e-273172ef23da",
+      source: "agent" as const,
+      nodeId: probeTestNode.id,
+      nodeName: probeTestNode.name,
+      occurredAt: "2026-09-04T14:00:00Z",
+      receivedAt: "2026-09-04T14:00:01Z",
+      level: "warn" as const,
+      component: "ip-quality",
+      eventType: "provider-request-failed",
+      message: "provider request failed",
+      publicAddress: "203.0.113.10",
+      failureCategory: "rate-limit" as const,
+      responseBodyBytes: 27,
+      responseTruncated: false,
+    };
+    listLogsMock.mockResolvedValue({ items: [event] });
+    getLogMock.mockResolvedValue({
+      event,
+      rateLimitHeaders: { "Retry-After": "60" },
+      responseBody: window.btoa('<img src=x onerror="fail">'),
+    });
+
+    renderApplication("/logs");
+
+    expect(
+      await screen.findByText("IP quality provider request failed"),
+    ).toBeInTheDocument();
+    fireEvent.change(screen.getByLabelText("Event type"), {
+      target: { value: "provider-request-failed" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Apply filters" }));
+    await waitFor(() =>
+      expect(listLogsMock).toHaveBeenLastCalledWith(
+        { eventType: "provider-request-failed", pageSize: 100 },
+        expect.any(AbortSignal),
+      ),
+    );
+    fireEvent.click(screen.getByRole("button", { name: "View details" }));
+    expect(
+      await screen.findByText('<img src=x onerror="fail">'),
+    ).toBeInTheDocument();
+    expect(screen.getByText("Retry-After: 60")).toBeInTheDocument();
+    expect(document.querySelector("img")).not.toBeInTheDocument();
   });
 
   it("opens notification rules and follows test delivery status", async () => {
@@ -1042,6 +1157,7 @@ describe("administrator application", () => {
         status: "online",
         enabled: true,
         agentVersion: "0.1.0",
+        logLevel: "info" as const,
         operatingSystem: "linux",
         architecture: "amd64",
         capabilities: ["control-v1", "sync-wakeup-v1", "complete-probe-v1"],
@@ -1074,6 +1190,7 @@ describe("administrator application", () => {
       status: "disabled",
       enabled: false,
       agentVersion: "0.1.0",
+      logLevel: "info" as const,
       operatingSystem: "linux",
       architecture: "amd64",
       capabilities: ["control-v1", "sync-wakeup-v1"],
@@ -1091,6 +1208,7 @@ describe("administrator application", () => {
       status: "online",
       enabled: true,
       agentVersion: "0.1.0",
+      logLevel: "info" as const,
       operatingSystem: "linux",
       architecture: "amd64",
       capabilities: ["control-v1", "sync-wakeup-v1"],
@@ -1110,6 +1228,7 @@ describe("administrator application", () => {
       status: "online",
       enabled: true,
       agentVersion: "0.1.0",
+      logLevel: "info" as const,
       operatingSystem: "linux",
       architecture: "amd64",
       capabilities: ["control-v1", "sync-wakeup-v1"],
@@ -1350,6 +1469,32 @@ describe("administrator application", () => {
     }
   });
 
+  it("updates a node Agent log level through versioned configuration", async () => {
+    getSessionMock.mockResolvedValue(session);
+    listNodesMock.mockResolvedValue([probeTestNode]);
+    updateNodeMock.mockResolvedValue({
+      ...probeTestNode,
+      logLevel: "debug",
+      desiredConfigurationRevision: 3,
+      configurationStatus: "pending",
+    });
+
+    renderApplication(`/nodes/${probeTestNode.id}/settings`);
+
+    fireEvent.click(
+      await screen.findByRole("combobox", { name: "Agent log level" }),
+    );
+    fireEvent.click(await screen.findByRole("option", { name: "Debug" }));
+    fireEvent.click(screen.getByRole("button", { name: "Save changes" }));
+    await waitFor(() =>
+      expect(updateNodeMock).toHaveBeenCalledWith(
+        probeTestNode.id,
+        { enabled: true, logLevel: "debug", name: "edge-1" },
+        session.csrfToken,
+      ),
+    );
+  });
+
   it("filters updateable nodes and reports partial grouped update results", async () => {
     getSessionMock.mockResolvedValue(session);
     getEnrollmentMock.mockResolvedValue({
@@ -1484,6 +1629,7 @@ describe("administrator application", () => {
         status: "online",
         enabled: true,
         agentVersion: "0.1.0",
+        logLevel: "info" as const,
         operatingSystem: "linux",
         architecture: "amd64",
         capabilities: ["network-inventory-v1"],
@@ -1769,6 +1915,7 @@ describe("administrator application", () => {
         status: "online",
         enabled: true,
         agentVersion: "0.1.0",
+        logLevel: "info" as const,
         operatingSystem: "linux",
         architecture: "amd64",
         capabilities: ["network-inventory-v1"],
@@ -2806,6 +2953,7 @@ const probeTestNode = {
   status: "online" as const,
   enabled: true,
   agentVersion: "0.1.0",
+  logLevel: "info" as const,
   operatingSystem: "linux" as const,
   architecture: "amd64" as const,
   capabilities: ["control-v1", "complete-probe-v1"],
@@ -2829,6 +2977,7 @@ function updateTestNode(
     status,
     enabled: true,
     agentVersion: "0.1.0",
+    logLevel: "info" as const,
     sourceRevision: "1111111111111111111111111111111111111111",
     operatingSystem: "linux" as const,
     architecture: "amd64" as const,
@@ -2860,6 +3009,17 @@ function historyState(generation: string) {
       overBudget: false,
       overageBytes: 0,
     },
+  };
+}
+
+function logRetentionState() {
+  return {
+    mode: "age" as const,
+    maxAgeDays: 7,
+    updatedAt: "2026-09-04T00:00:00Z",
+    lastCleanupDeletedItems: 0,
+    logicalBytes: 1024,
+    recordCount: 2,
   };
 }
 

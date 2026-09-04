@@ -14,6 +14,7 @@ import (
 	"github.com/go-chi/chi/v5/middleware"
 	"github.com/google/uuid"
 	"github.com/ipchronicle/ipchronicle/internal/center/admin"
+	"github.com/ipchronicle/ipchronicle/internal/center/agentlogs"
 	"github.com/ipchronicle/ipchronicle/internal/center/database"
 	"github.com/ipchronicle/ipchronicle/internal/center/nodes"
 	"github.com/ipchronicle/ipchronicle/internal/center/notifications"
@@ -25,6 +26,7 @@ import (
 
 const (
 	maxAgentControlRequestBodySize  = 128 * 1024
+	maxAgentLogsRequestBodySize     = 8 * 1024 * 1024
 	maxProbeArtifactRequestBodySize = 1536 * 1024
 	maxProxyRequestBodySize         = 16 * 1024
 	maxNotificationRequestBodySize  = 320 * 1024
@@ -35,6 +37,7 @@ type HTTPOptions struct {
 	Revision       string
 	Web            http.Handler
 	Administrator  *admin.Service
+	AgentLogs      *agentlogs.Service
 	Nodes          *nodes.Service
 	Notifications  *notifications.Service
 	Updates        *centerupdates.Service
@@ -47,7 +50,7 @@ func NewHTTPHandler(options HTTPOptions) http.Handler {
 	if strings.TrimSpace(options.Version) == "" || strings.TrimSpace(options.Revision) == "" {
 		panic("center version and revision must not be empty")
 	}
-	if options.Web == nil || options.Administrator == nil || options.Nodes == nil || options.Notifications == nil || options.Updates == nil || options.SyncHub == nil || options.SystemSettings == nil || options.Store == nil {
+	if options.Web == nil || options.Administrator == nil || options.AgentLogs == nil || options.Nodes == nil || options.Notifications == nil || options.Updates == nil || options.SyncHub == nil || options.SystemSettings == nil || options.Store == nil {
 		panic("center HTTP dependencies must not be nil")
 	}
 
@@ -55,12 +58,14 @@ func NewHTTPHandler(options HTTPOptions) http.Handler {
 		version:              options.Version,
 		revision:             options.Revision,
 		administrator:        options.Administrator,
+		agentLogs:            options.AgentLogs,
 		nodes:                options.Nodes,
 		notifications:        options.Notifications,
 		updates:              options.Updates,
 		systemSettings:       options.SystemSettings,
 		configSchemaVersion:  options.Store.ConfigSchemaVersion,
 		historySchemaVersion: options.Store.HistorySchemaVersion,
+		logsSchemaVersion:    options.Store.LogsSchemaVersion,
 	}
 	router := chi.NewRouter()
 	router.Use(middleware.RequestID)
@@ -149,12 +154,18 @@ func limitAPIRequestBody(next http.Handler) http.Handler {
 			limit := int64(4096)
 			if r.URL.Path == "/api/v1/agent/control" {
 				limit = maxAgentControlRequestBodySize
+			} else if r.URL.Path == "/api/v1/agent/logs" {
+				limit = maxAgentLogsRequestBodySize
 			} else if r.URL.Path == "/api/v1/agent/probe-artifacts" {
 				limit = maxProbeArtifactRequestBodySize
 			} else if strings.Contains(r.URL.Path, "/network-proxies") {
 				limit = maxProxyRequestBodySize
 			} else if strings.HasPrefix(r.URL.Path, "/api/v1/notification-senders") {
 				limit = maxNotificationRequestBodySize
+			}
+			if r.ContentLength > limit {
+				writeError(w, http.StatusRequestEntityTooLarge, api.InvalidRequest, nil)
+				return
 			}
 			r.Body = http.MaxBytesReader(w, r.Body, limit)
 		}
