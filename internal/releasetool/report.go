@@ -76,10 +76,8 @@ func Finalize(options FinalizeOptions) (Summary, error) {
 - 候选提交：`+"`%s`"+`
 - 普通 CI：<%s>（**通过**）
 - 候选发布工作流：<%s>（**通过**）
-- 可复现构建：**通过**。从候选提交执行的两次独立干净构建，在应用本段证据前后，
-  所有文件的名称、模式、大小和 SHA-256 摘要均完全一致。
-- 必需发布门禁：**通过**。候选验证、确定性失败测试、全部 34 个发行版/架构
-  生命周期任务、两个原生资源任务和内置完整探测真实执行均已成功完成。
+- 分级发布门禁：**通过**。候选工作流已根据版本和改动范围选择验证任务，所有
+  必需任务均成功完成；实际执行和跳过的任务以该工作流的 job 记录为准。
 %s`, reportEvidenceStart, options.ValidationDate, summary.Revision,
 		options.CIRunURL, options.RCRunURL, reportEvidenceEnd)
 	contents = contents[:start] + evidence + contents[end+len(reportEvidenceEnd):]

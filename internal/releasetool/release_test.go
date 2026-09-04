@@ -128,7 +128,7 @@ func TestFinalizeReleaseReport(t *testing.T) {
 		"https://github.com/ipchronicle/ipchronicle/actions/runs/123",
 		"https://github.com/ipchronicle/ipchronicle/actions/runs/456",
 		"2026-08-11",
-		"可复现构建：**通过**",
+		"分级发布门禁：**通过**",
 	} {
 		if !strings.Contains(string(report), expected) {
 			t.Fatalf("final report does not contain %q", expected)
