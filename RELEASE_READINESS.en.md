@@ -1,142 +1,97 @@
-# IPChronicle v0.1.0 Release Readiness
+# IPChronicle v0.1.1 Release Readiness
 
 [简体中文](RELEASE_READINESS.md) | English
 
-Status: Published on 2026-09-03
+Status: Pre-release validation in progress
 
-This report maps this public release to its product scope,
-automated validation, artifacts, operational documentation, and publication
-gate. The source revision and artifact digests in `release-manifest.json` and
-`checksums.txt` identify a particular build. A candidate is not ready to
-publish merely because this file exists: every required gate below must pass
-for the manifest revision, and the final run links must be recorded here.
+This report defines the scope, artifacts, and validation gates for `v0.1.1`.
+The final candidate's `release-manifest.json` and `checksums.txt` record the
+exact source revision and artifact digests.
 
-## Candidate Identity
+## Release Identity
 
-- Version: `0.1.0`
-- Tag: `v0.1.0`
+- Version: `0.1.1`
+- Tag: `v0.1.1`
 - Channel: `stable`
 - License: `AGPL-3.0-only`
-- Source revision: `70174ebd26c2729f056a7e83462d1678b7722fd0`
-- Source: <https://github.com/ipchronicle/ipchronicle/tree/v0.1.0>
-- Release: <https://github.com/ipchronicle/ipchronicle/releases/tag/v0.1.0>
-- Center image: `ghcr.io/ipchronicle/ipchronicle-center:v0.1.0`
+- Source: <https://github.com/ipchronicle/ipchronicle/tree/v0.1.1>
+- Release: <https://github.com/ipchronicle/ipchronicle/releases/tag/v0.1.1>
+- Center image: `ghcr.io/ipchronicle/ipchronicle-center:v0.1.1`
 
-## Product Scope Evidence
+## Release Scope
 
-| Capability                                                                                                                  | Implementation evidence                                                                                             | Deterministic validation                                                                           |
-| --------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------- |
-| Single-administrator authentication, sessions, TOTP, and local recovery                                                     | `internal/center/admin`, `cmd/ipchronicle-center`                                                                   | package tests, Compose smoke, browser tests, migration and recovery failure gate                   |
-| Agent enrollment, persistent identity, 30-second polling, configuration convergence, and temporary sync                     | `internal/agent`, `internal/center/nodes`, `internal/center/syncws`                                                 | package and race tests, Compose smoke, browser tests, distribution lifecycle tests                 |
-| Linux interface, address, route, egress, proxy, NAT, and temporary-IPv6 handling                                            | `internal/agent/network`, `internal/agent/observation`, `internal/center/nodes`                                     | inventory, selector, proxy, observation, outage, restart, and queue tests                          |
-| Manual, scheduled, and newly-current-address complete probes with one immediate slot                                        | `internal/agent/probe`, `internal/schedule`, `internal/center/nodes`                                                | scheduler, native execution, result publication, retry, resource, and live complete-probe tests    |
-| Known-field interpretation, raw results, localized semantic presentation, format drift, comparison, starring, and retention | `internal/probefields`, `internal/center/history`, `internal/center/nodes`, `web/src/pages/probe-snapshot-page.tsx` | interpretation, value presentation, comparison, retention, reset, capacity, API, and browser tests |
-| Telegram text/image, Webhook, and isolated JavaScript notifications                                                         | `internal/center/notifications`, `cmd/ipchronicle-center`                                                           | sender, renderer, queue, retry, isolation, redaction, overflow, API, and browser tests             |
-| Agent update discovery, validation, atomic replacement, health commitment, and rollback                                     | `internal/agent/update`, `internal/center/updates`                                                                  | update manager, supervisor, rollback, distribution lifecycle, and browser tests                    |
-| Bilingual administrator interface                                                                                           | `web/src`, `web/src/locales`                                                                                        | locale parity, component, production build, and desktop/mobile Chromium tests                      |
-| Separate configuration and history ownership                                                                                | `internal/center/database/migrations`, independent sqlc packages                                                    | migration, corruption, reset, retention, Compose, and failure-gate tests                           |
+This release delivers:
 
-## Required Validation Gates
+- single-administrator authentication, sessions, TOTP, and server-local account
+  recovery;
+- root Agent enrollment, persistent identity, 30-second polling, temporary
+  WebSocket sync, and atomic updates;
+- Linux AMD64/ARM64 public-egress discovery, node-scoped proxies, NAT markers,
+  and address-change history;
+- manual, scheduled, and new-public-IP complete probes, structured and raw
+  results, and snapshot comparison;
+- Telegram text or image, Webhook, and isolated JavaScript notifications;
+- a bilingual administrator interface;
+- separate configuration and history databases; and
+- Docker Compose examples for a conventional reverse proxy and Cloudflare
+  Tunnel.
 
-All rows are fail-closed. A missing, cancelled, skipped, or inconclusive run is
-not a pass.
+## Validation Gates
 
-| Gate                                                                                                                                | Command or workflow evidence                                                                                                    | Required result                                     |
-| ----------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------- |
-| Local release-version, source, generated-file, formatting, lint, type, ordinary-test, and static-analysis preflight                 | `make preflight`                                                                                                                | Pass before push                                    |
-| Generated bindings, ordinary and race tests, native Center, no-CGO Agents, and production web build                                 | `make check`; GitHub Actions `CI / check`                                                                                       | Pass on the candidate revision                      |
-| Committed-source secret scan                                                                                                        | `make secret-scan`; GitHub Actions `CI / check`                                                                                 | Pass, no leaks                                      |
-| Production Center image and Compose boundary                                                                                        | `make compose-smoke`; GitHub Actions `CI / compose`                                                                             | Pass                                                |
-| Simplified Chinese and English desktop/mobile workflows                                                                             | `make browser-test`; GitHub Actions `CI / browser`                                                                              | Pass                                                |
-| AMD64 and ARM64 Center image metadata                                                                                               | GitHub Actions `CI / image (linux/amd64)` and `CI / image (linux/arm64)`                                                        | Pass                                                |
-| Candidate creation, manifest, checksums, SBOMs, and artifact contract                                                               | `make release-candidate VERSION=0.1.0`; `make verify-release-candidate VERSION=0.1.0`; `Release candidate artifact / candidate` | Pass                                                |
-| Install, reinstall, uninstall, migration, history reset, outage, restart, unavailable selector, update rollback, and queue overflow | `make release-failure-gate`; `Release candidate artifact / candidate`                                                           | Pass                                                |
-| Supported distribution and init lifecycle                                                                                           | 17 distributions x AMD64/ARM64 in `Release candidate artifact / distribution`                                                   | All 34 pass                                         |
-| Native resource limits and live complete-probe execution                                                                            | AMD64 and ARM64 `Release candidate artifact / resources`                                                                        | Both pass at 64 MiB Agent and 512 MiB Center limits |
-| 70-node and 420-egress capacity                                                                                                     | `internal/center/nodes/release_capacity_test.go`; `make check`                                                                  | Pass                                                |
-| Reproducibility                                                                                                                     | two clean builds from the manifest revision; compare names, modes, sizes, and SHA-256 for every file                            | Exact match                                         |
-| Source hygiene                                                                                                                      | `shellcheck scripts/*.sh`; `actionlint .github/workflows/*.yml`; `git diff --check`; clean product worktree                     | Pass                                                |
+Ordinary CI checks generated files, formatting, linting, types, ordinary unit
+tests, static analysis, committed secrets, and the production Web build. The
+release-candidate workflow always builds and verifies both Agent architectures,
+Center images, SBOMs, manifests, checksums, version metadata, and source
+revision metadata.
 
-## Validation Results
+The candidate workflow selects additional source and race, distribution
+lifecycle, resource and live-probe, Compose, browser, failure-recovery, and
+reproducibility gates from the version and changes since the previous stable
+release. It runs full validation when the change cannot be classified reliably.
+A gate classified as inapplicable may be skipped; every selected gate must
+succeed before publication.
 
-The final candidate revision was
-`70174ebd26c2729f056a7e83462d1678b7722fd0`. Validation completed on
-2026-09-03:
+<!-- release-evidence:start -->
+Candidate validation has not completed.
+<!-- release-evidence:end -->
 
-- [ordinary CI](https://github.com/ipchronicle/ipchronicle/actions/runs/33723135472)
-  passed;
-- the [release candidate matrix](https://github.com/ipchronicle/ipchronicle/actions/runs/33724520372)
-  passed all 39 jobs, including all 34 distribution/architecture combinations,
-  resource limits, live probing, recovery, and reproducibility; and
-- the [publication workflow](https://github.com/ipchronicle/ipchronicle/actions/runs/33726934524)
-  published and anonymously verified the non-prerelease Latest Release and both
-  GHCR image platforms.
+## Release Artifacts
 
-The released image also passed local Compose and real-node Agent acceptance.
-The final IPv4/IPv6 complete probe succeeded for both executions, and both
-snapshots reported zero format issues.
-
-## Release Artifact Contract
-
-The release directory contains these operator-facing and machine-verifiable
-assets:
+The candidate directory contains:
 
 - no-CGO Agent binaries for Linux AMD64 and ARM64;
 - OCI Center images for Linux AMD64 and ARM64;
-- CycloneDX SBOMs for both Agent binaries and both Center images;
-- `compose.yaml` and `default.env.example`;
+- CycloneDX SBOMs for the Agent and Center;
+- `compose.yaml`, `compose.cloudflare-tunnel.yaml`, and
+  `default.env.example`;
 - `install-agent.sh`;
-- `README.md`, `OPERATOR_GUIDE.md`, `NOTIFICATIONS.md`, and this report;
-- `LICENSE`, `THIRD_PARTY_NOTICES.md`, and `build-metadata.json`;
-- `release-manifest.json` covering the controlled artifact set; and
-- `checksums.txt` covering every controlled artifact and the manifest.
+- operator documentation, license, third-party notices, and build metadata;
+- `release-manifest.json` and `checksums.txt` covering every controlled file.
 
-The release verifier rejects missing, extra, non-regular, oversized, tampered,
-or unexpectedly non-executable files. The manifest records the source revision,
-channel, capabilities, size, SHA-256, operating system, and architecture where
-applicable.
+The release verifier rejects missing, extra, oversized, digest-mismatched, or
+incorrectly executable files. The publication workflow accepts only a
+successful candidate from the same source revision.
 
-`RELEASE_NOTES.md` is the source for the GitHub Release description. The
-candidate builder rejects release-facing documentation and workflow defaults
-that do not identify the same version.
+## Deployment And Data Boundaries
 
-## Operator Workflow Coverage
+- The Center supports Linux with Docker Compose. An operator-managed reverse
+  proxy terminates TLS.
+- Agents run as root on the documented AMD64/ARM64 Linux distributions with
+  systemd or OpenRC.
+- `v0.1.0` was not deployed to an environment with data requiring preservation,
+  so there is currently no persistent-data compatibility baseline.
+- `v0.1.1` uses a clean deployment and does not migrate configuration, history,
+  or Agent-local state from development builds, release candidates, or
+  `v0.1.0`.
+- Compose stores configuration and history in `./data/config` and
+  `./data/history` under the installation directory.
+- The product has no built-in backup or restore feature. Operators preserve
+  both data directories and related Agent state consistently when needed.
 
-`OPERATOR_GUIDE.md` is the standalone operating entry point. It covers Center
-installation and upgrade, environment variables, reverse proxying, Agent
-enrollment and service inspection, egress and proxy configuration, address
-observation, complete probes, history and comparison, retention and reset,
-notifications, Agent updates and rollback behavior, uninstall, local account
-recovery, and backup/disaster-recovery boundaries. `NOTIFICATIONS.md` defines
-sender configuration, the JavaScript API, queue limits, retries, failure
-isolation, and redaction behavior.
+## Publication Conditions
 
-## Limitations And Boundaries
-
-- The product serves one personal self-hosting administrator. It has no
-  multi-user, tenant, role, or public-result feature.
-- The Center is supported only on Linux with Docker Compose. It does not
-  terminate TLS or configure an operator's reverse proxy.
-- Agents require root and support only the documented Linux AMD64/ARM64
-  distribution matrix with systemd or OpenRC.
-- The first release has no built-in backup or restore command. The operator is
-  responsible for consistent volume and Agent-state backups.
-- Persistent-data compatibility begins with clean `v0.1.0` deployments.
-  Development and RC `config.db`, `history.db`, and Agent-state data remain
-  unsupported upgrade sources and must be rebuilt or purged by the operator.
-- The built-in Go probe is derived from the AGPL-licensed IPQuality behavior at
-  the revision recorded in `THIRD_PARTY_NOTICES.md`. Its database, media, AI,
-  DNSBL, and mail checks still depend on third-party services whose availability
-  and response formats IPChronicle does not control.
-- HTTP, HTTPS, and SMTP checks use the selected egress path. DNS and DNSBL
-  lookups use the node's resolver and are not tunneled through an egress proxy.
-  The interface reports unavailable provider data and format changes without
-  presenting unsupported routing guarantees.
-
-## Publication Gate
-
-Every gate passed before publication. An explicit dispatch of the
-`Publish release` workflow revalidated the final candidate artifact, published
-and anonymously verified both Center image platforms, verified every GitHub
-Release asset, and then published `v0.1.0` as the stable Latest Release.
-Publication did not happen implicitly.
+The publication workflow runs only after ordinary CI and every selected
+release gate pass, and an annotated tag points to the same revision. It
+revalidates the candidate, publishes and checks both GHCR architectures and the
+GitHub Release, then marks the stable release as Latest and updates GHCR
+`latest`.

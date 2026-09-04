@@ -1,4 +1,4 @@
-# IPChronicle v0.1.0
+# IPChronicle v0.1.1
 
 [简体中文](RELEASE_NOTES.md) | English
 
@@ -6,9 +6,9 @@ IPChronicle is a personal self-hosted service for discovering the public IPs
 reachable from managed Linux nodes, running complete IP-quality probes, and
 tracking meaningful result changes over time.
 
-This is the first stable IPChronicle release. Persistent-data compatibility
-starts with clean `v0.1.0` deployments; development and release-candidate data
-remain outside the supported upgrade path.
+This is the first IPChronicle release intended for production use. There is no
+production data from `v0.1.0`, so this release uses a clean deployment and does
+not migrate development, release-candidate, or `v0.1.0` data.
 
 ## Highlights
 
@@ -35,6 +35,11 @@ remain outside the supported upgrade path.
 - Keeps Center-delivered probes and Agent updates recoverable when the two
   hosts' clocks differ. An RC4 Agent stuck retrying an out-of-window task
   report recovers after a non-purge reinstall of this release.
+- Simplifies Docker Compose deployment by storing configuration and history in
+  `./data/config` and `./data/history`, and includes a Cloudflare Tunnel example
+  that requires only a Tunnel token.
+- Tiers daily CI and release validation by change risk. GHCR `latest` moves
+  only after a stable GitHub Release is published successfully.
 
 ## Deployment
 
@@ -43,14 +48,13 @@ remain outside the supported upgrade path.
   OpenRC, on AMD64 or ARM64.
 - TLS: terminate HTTPS in an operator-managed reverse proxy when desired.
 
-Read the [operator guide](OPERATOR_GUIDE.en.md) before installation. Verify
-downloaded assets with `checksums.txt` and `release-manifest.json`.
+See the [operator guide](OPERATOR_GUIDE.en.md) for installation and operation.
 
 ## Known Boundaries
 
 - One local administrator; no multi-user, tenant, role, or public-result mode.
-- No built-in backup or restore workflow. Back up the two Center volumes and
-  Agent state consistently when preservation is required.
+- No built-in backup or restore workflow. Back up both Center data directories
+  and Agent state consistently when preservation is required.
 - Third-party database and media services can change or rate-limit responses.
   Unknown values remain visible instead of being guessed or silently mapped.
 - An HTTP Center URL is allowed but is not protected in transit.

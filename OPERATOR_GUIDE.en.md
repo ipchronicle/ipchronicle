@@ -34,77 +34,85 @@ discovery path that references it; it is not a global Center or Agent proxy.
 
 ## Install The Center
 
-Choose the release version, create an empty installation directory, and
-download the deployment assets. The version must omit the leading `v`.
+Create an installation directory and download the latest stable Compose and
+environment examples:
 
 ```sh
-IPCHRONICLE_VERSION=0.1.0
 mkdir ipchronicle
 cd ipchronicle
 curl --proto '=https' --tlsv1.2 -fLO \
-  "https://github.com/ipchronicle/ipchronicle/releases/download/v${IPCHRONICLE_VERSION}/compose.yaml"
+  "https://github.com/ipchronicle/ipchronicle/releases/latest/download/compose.yaml"
 curl --proto '=https' --tlsv1.2 -fL \
-  "https://github.com/ipchronicle/ipchronicle/releases/download/v${IPCHRONICLE_VERSION}/default.env.example" \
+  "https://github.com/ipchronicle/ipchronicle/releases/latest/download/default.env.example" \
   -o .env
-curl --proto '=https' --tlsv1.2 -fLO \
-  "https://github.com/ipchronicle/ipchronicle/releases/download/v${IPCHRONICLE_VERSION}/checksums.txt"
-curl --proto '=https' --tlsv1.2 -fLO \
-  "https://github.com/ipchronicle/ipchronicle/releases/download/v${IPCHRONICLE_VERSION}/release-manifest.json"
-grep -E '  (default\.env\.example|compose\.yaml|release-manifest\.json)$' checksums.txt |
-  sed 's/  default\.env\.example$/  .env/' | sha256sum --check
-chmod 0600 .env
+docker compose up -d
 ```
 
-Review `.env` before starting. Bootstrap credentials are used only when
-`config.db` has no administrator account. If they are left unchanged, the
-initial login is `admin` / `admin`; the interface warns but does not force a
-change.
+Open `http://server-address:8080` in a browser. The default login is `admin` /
+`admin`, and the interface prompts for a password change. Use **Account** to
+change the username or password, switch language, and enable TOTP. Credentials
+in `.env` apply only when the administrator is first created.
+
+Configuration and history are stored under the installation directory:
+
+- `./data/config` stores `config.db` and `master.key`;
+- `./data/history` stores `history.db`.
+
+Preserve `master.key` together with its `config.db`; encrypted credentials
+cannot be recovered without it.
+
+### Use Cloudflare Tunnel
+
+Create a Tunnel in Cloudflare Zero Trust and set its Public Hostname service to
+`http://center:8080`. Download the Tunnel Compose file and add the token to
+`.env`:
 
 ```sh
-docker compose --env-file .env -f compose.yaml pull
-docker compose --env-file .env -f compose.yaml up -d
-docker compose --env-file .env -f compose.yaml ps
-docker compose --env-file .env -f compose.yaml exec -T center \
-  /usr/local/bin/ipchronicle-center healthcheck
+curl --proto '=https' --tlsv1.2 -fL \
+  "https://github.com/ipchronicle/ipchronicle/releases/latest/download/compose.cloudflare-tunnel.yaml" \
+  -o compose.yaml
+printf '\nCLOUDFLARE_TUNNEL_TOKEN=your_Tunnel_token\n' >> .env
+docker compose up -d
 ```
 
-Open the published address in a browser. Use **Account** to change the
-administrator username or password, select Simplified Chinese or English, and
-optionally enable TOTP two-factor authentication. Changing bootstrap values in
-`.env` does not change an existing account.
-
-The release Compose file creates two independent volumes:
-
-- `ipchronicle_center-config` contains `config.db` and `master.key`; and
-- `ipchronicle_center-history` contains `history.db`.
-
-Never treat the config volume as disposable history. The master key must stay
-with its matching `config.db`; encrypted credentials cannot be recovered
-without it.
+The Center and `cftunnel` communicate over the explicit
+`ipchronicle_network`; the Center does not publish a host port in this setup.
 
 ## Environment Variables
 
-The release `default.env.example` exposes these operator settings:
+The release `.env` supports these Compose variables:
 
-| Variable                      | Default | Purpose                                                                 |
-| ----------------------------- | ------- | ----------------------------------------------------------------------- |
-| `IPCHRONICLE_HTTP_PORT`       | `8080`  | Host port published by Compose.                                         |
-| `IPCHRONICLE_ADMIN_USERNAME`  | `admin` | First-start administrator username.                                     |
-| `IPCHRONICLE_ADMIN_PASSWORD`  | `admin` | First-start administrator password.                                     |
-| `IPCHRONICLE_TRUSTED_PROXIES` | empty   | Comma-separated proxy source CIDRs allowed to supply forwarded headers. |
+| Variable                     | Default | Purpose                                              |
+| ---------------------------- | ------- | ---------------------------------------------------- |
+| `IPCHRONICLE_HTTP_PORT`      | `8080`  | Host port published by the standard Compose          |
+| `IPCHRONICLE_ADMIN_USERNAME` | `admin` | Initial administrator username                       |
+| `IPCHRONICLE_ADMIN_PASSWORD` | `admin` | Initial administrator password                       |
+| `CLOUDFLARE_TUNNEL_TOKEN`    | none    | Tunnel token required by the Cloudflare Compose file |
 
-The fixed database paths and listen address in `compose.yaml` match the two
-volumes. Editing those internal values is outside the supported release
-deployment.
+When running the Center image directly or writing a custom Compose file, these
+image variables are also available:
+
+| Variable                           | Default                                   | Purpose                               |
+| ---------------------------------- | ----------------------------------------- | ------------------------------------- |
+| `IPCHRONICLE_LISTEN_ADDRESS`       | `:8080`                                   | Center HTTP listen address            |
+| `IPCHRONICLE_DATA_DIR`             | `/var/lib/ipchronicle`                    | Default persistent-data root          |
+| `IPCHRONICLE_CONFIG_DATABASE_PATH` | `/var/lib/ipchronicle/config/config.db`   | Configuration database path           |
+| `IPCHRONICLE_HISTORY_DATABASE_PATH` | `/var/lib/ipchronicle/history/history.db` | History database path                 |
+| `IPCHRONICLE_MASTER_KEY_PATH`      | `/var/lib/ipchronicle/config/master.key`  | Credential-encryption master key path |
+| `IPCHRONICLE_ADMIN_USERNAME`       | `admin`                                   | Initial administrator username        |
+| `IPCHRONICLE_ADMIN_PASSWORD`       | `admin`                                   | Initial administrator password        |
+| `IPCHRONICLE_HEALTHCHECK_URL`      | `http://127.0.0.1:8080/healthz`           | URL used by `healthcheck`              |
+
+The three persistent-file paths must be absolute. An explicit database or
+master-key path overrides the corresponding path derived from
+`IPCHRONICLE_DATA_DIR`.
 
 ## Reverse Proxy And TLS
 
 HTTPS at an operator-managed reverse proxy is recommended but not enforced.
-Set `IPCHRONICLE_TRUSTED_PROXIES` only to the source CIDRs from which the Center
-actually receives proxy connections. This may be a Docker bridge CIDR rather
-than `127.0.0.1`. The external address is managed on the system settings page;
-automatic mode follows the current browser request, while a custom value is
-used in Agent installation commands and notification links.
+The external address is managed on the system settings page; automatic mode
+follows the current browser request, while a custom value is used in Agent
+installation commands and notification links.
 
 Forward the original host, client address, and scheme. WebSocket Upgrade must
 work under `/api/v1/agent/sync/`; ordinary 30-second Agent HTTP polling remains
@@ -123,12 +131,12 @@ location / {
 }
 ```
 
-IPChronicle does not request certificates, redirect HTTP to HTTPS, or modify
-the proxy. Intentional plain HTTP remains usable and is shown with a warning.
-Restart the Center after changing `.env`:
+IPChronicle does not request certificates or modify the proxy. Plain HTTP
+remains usable and is shown with a warning. Restart the Center after changing
+`.env`:
 
 ```sh
-docker compose --env-file .env -f compose.yaml up -d
+docker compose up -d
 ```
 
 ## Enroll Agents
@@ -282,12 +290,10 @@ proxies, schedules, notification configuration, and pending task state. It also
 advances the history generation so Agents discard queued data from the old
 generation. No complete probe starts automatically after a reset.
 
-`v0.1.0` is the first supported compatibility baseline for the configuration
-database, history database, and Agent-local state. Later releases in the same
-major version must preserve stable data through ordered forward migrations and
-the Agent state-upgrade boundary. Unreadable stable data fails explicitly and
-is never replaced silently. Development and RC data before `v0.1.0` remain
-outside the supported upgrade path.
+There is currently no persistent-data compatibility baseline. `v0.1.1` uses a
+clean deployment and does not migrate configuration, history, or Agent state
+from development builds, release candidates, or `v0.1.0`. Unreadable data
+fails explicitly.
 
 ## Notifications
 
@@ -310,19 +316,20 @@ limits, retries, and redaction behavior.
 
 ## Agent And Center Updates
 
-The Center is upgraded by the server operator with Docker Compose. Download the
-new release's `compose.yaml` and `default.env.example`, compare new environment
-settings with the existing `.env`, then replace only `compose.yaml`:
+The server operator updates the Center with Docker Compose. Review the release
+notes, update the Compose file, and pull the new image:
 
 ```sh
-docker compose --env-file .env -f compose.yaml pull
-docker compose --env-file .env -f compose.yaml up -d
-docker compose --env-file .env -f compose.yaml ps
+curl --proto '=https' --tlsv1.2 -fLO \
+  "https://github.com/ipchronicle/ipchronicle/releases/latest/download/compose.yaml"
+docker compose pull
+docker compose up -d
+docker compose ps
 ```
 
-Database migrations run before the Center begins serving. Do not downgrade a
-Center against databases migrated by a newer release. A Center rollback
-requires restoring a compatible pre-upgrade volume backup.
+Database migrations run before the Center begins serving. Upgrade and rollback
+requirements will be listed in the applicable release notes after a production
+compatibility baseline is established.
 
 Open **Settings > System** to select stable or RC release discovery. The
 selection controls Center and Agent discovery together; it does not update the
@@ -381,16 +388,17 @@ docker compose --env-file .env -f compose.yaml exec -T center \
 
 ## Backup And Disaster-Recovery Boundaries
 
-The first release has no built-in backup or restore command. Use volume or
-filesystem tooling controlled by the server operator. Stop the Center or use a
+The first release has no built-in backup or restore command. Use filesystem
+tooling controlled by the server operator. Stop the Center or use a
 SQLite-aware snapshot mechanism before copying database files; copying live
 database files without their WAL state is not a valid backup.
 
-Back up the config and history volumes as a matched set. The config volume is
-required to recover the account, Agent identities, proxy and notification
-secrets, schedules, and history generation. The history volume may be reset
-independently through the interface, but deleting it is not a substitute for a
-coordinated **Clear observed history** operation while Agents have queued data.
+Back up `./data/config` and `./data/history` as a matched set. The configuration
+directory is required to recover the account, Agent identities, proxy and
+notification secrets, schedules, and history generation. The history
+directory may be reset independently through the interface, but deleting it is
+not a substitute for a coordinated **Clear observed history** operation while
+Agents have queued data.
 
 Also preserve `/var/lib/ipchronicle-agent` when host-level recovery must retain
 an Agent's identity and offline queues. Losing that directory requires a new
@@ -399,11 +407,11 @@ enrollment and creates a new node identity.
 For a failed Center start, inspect logs before changing data:
 
 ```sh
-docker compose --env-file .env -f compose.yaml ps
-docker compose --env-file .env -f compose.yaml logs --tail=200 center
+docker compose ps
+docker compose logs --tail=200 center
 ```
 
 IPChronicle does not silently recreate a missing master key, replace a corrupt
-database, or claim success after a migration failure. Restore a compatible
-backup or make an explicit history-only reset decision; never delete
-`ipchronicle_center-config` as a history cleanup step.
+database, or claim success after a migration failure. Restore a usable backup
+or make an explicit history-only reset decision. Deleting `./data/config` also
+loses the account, node identities, and encrypted credentials.

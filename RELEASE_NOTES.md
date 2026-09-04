@@ -1,12 +1,12 @@
-# IPChronicle v0.1.0
+# IPChronicle v0.1.1
 
 简体中文 | [English](RELEASE_NOTES.en.md)
 
 IPChronicle 是一项个人自托管服务，用于发现受管 Linux 节点可到达的公网 IP、
 执行完整 IP 质量探测，并持续记录有意义的结果变化。
 
-这是 IPChronicle 首个稳定版本。持久数据兼容性从干净的 `v0.1.0` 部署开始；
-开发版和候选发布版数据不属于受支持升级路径。
+这是首个准备投入正式使用的 IPChronicle 版本。`v0.1.0` 没有正式环境数据，
+本版本采用全新部署，不提供从开发版、候选版或 `v0.1.0` 数据升级的迁移。
 
 ## 主要内容
 
@@ -26,6 +26,9 @@ IPChronicle 是一项个人自托管服务，用于发现受管 Linux 节点可�
   IPQS 瞬时失败重试。
 - Center 与 Agent 时钟存在偏差时，Center 下发探测和 Agent 更新仍可恢复。因
   时间窗外任务报告而持续重试的 RC4 Agent，非 purge 重装本版本后可以恢复。
+- 简化 Docker Compose 部署：配置与历史分别写入当前目录的 `./data/config`
+  和 `./data/history`，并提供只需 Tunnel token 的 Cloudflare Tunnel 示例。
+- 日常 CI 与发布验证按改动风险分级；稳定 Release 成功后才更新 GHCR `latest`。
 
 ## 部署
 
@@ -34,14 +37,13 @@ IPChronicle 是一项个人自托管服务，用于发现受管 Linux 节点可�
   和 AMD64/ARM64。
 - TLS：需要 HTTPS 时，由管理员维护的反向代理终止 TLS。
 
-安装前阅读 [运维指南](OPERATOR_GUIDE.md)。使用 `checksums.txt` 和
-`release-manifest.json` 校验下载的产物。
+安装与运行方式见 [运维指南](OPERATOR_GUIDE.md)。
 
 ## 已知边界
 
 - 只支持一位本地管理员，不包含多人、租户、角色或公开结果模式。
-- 没有内置备份或恢复流程。需要保留数据时，应一致地备份两个 Center 卷和
-  Agent 状态。
+- 没有内置备份或恢复流程。需要保留数据时，应一致地备份两个 Center 数据目录
+  和 Agent 状态。
 - 第三方数据库和媒体服务可能改变响应或限流。未知值保持原样显示，不猜测也不
   静默映射。
 - 允许使用 HTTP Center URL，但传输过程不受保护。

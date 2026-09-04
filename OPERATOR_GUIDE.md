@@ -30,68 +30,77 @@ GitHub Release，以及完整探测所使用的第三方数据库、流媒体、
 
 ## 安装 Center
 
-选择版本并创建空安装目录，然后下载部署产物。版本号不要包含开头的 `v`。
+创建安装目录，下载最新稳定版的 Compose 和环境变量示例：
 
 ```sh
-IPCHRONICLE_VERSION=0.1.0
 mkdir ipchronicle
 cd ipchronicle
 curl --proto '=https' --tlsv1.2 -fLO \
-  "https://github.com/ipchronicle/ipchronicle/releases/download/v${IPCHRONICLE_VERSION}/compose.yaml"
+  "https://github.com/ipchronicle/ipchronicle/releases/latest/download/compose.yaml"
 curl --proto '=https' --tlsv1.2 -fL \
-  "https://github.com/ipchronicle/ipchronicle/releases/download/v${IPCHRONICLE_VERSION}/default.env.example" \
+  "https://github.com/ipchronicle/ipchronicle/releases/latest/download/default.env.example" \
   -o .env
-curl --proto '=https' --tlsv1.2 -fLO \
-  "https://github.com/ipchronicle/ipchronicle/releases/download/v${IPCHRONICLE_VERSION}/checksums.txt"
-curl --proto '=https' --tlsv1.2 -fLO \
-  "https://github.com/ipchronicle/ipchronicle/releases/download/v${IPCHRONICLE_VERSION}/release-manifest.json"
-grep -E '  (default\.env\.example|compose\.yaml|release-manifest\.json)$' checksums.txt |
-  sed 's/  default\.env\.example$/  .env/' | sha256sum --check
-chmod 0600 .env
+docker compose up -d
 ```
 
-启动前检查 `.env`。只有 `config.db` 中尚无管理员账户时，启动凭据才会生效。
-保持默认值时，首次登录为 `admin` / `admin`；界面会提示，但不会强制修改。
+浏览器打开 `http://服务器地址:8080`。默认登录账号为 `admin` / `admin`，页面会
+提示修改密码。可以在**账户**页面修改用户名或密码、切换语言并启用 TOTP 两步验证。
+`.env` 中的账号和密码只在首次创建管理员时生效。
+
+配置和历史分别保存在安装目录下：
+
+- `./data/config` 保存 `config.db` 和 `master.key`；
+- `./data/history` 保存 `history.db`。
+
+`master.key` 必须与对应的 `config.db` 一起保存；丢失它后无法恢复加密凭据。
+
+### 使用 Cloudflare Tunnel
+
+在 Cloudflare Zero Trust 创建 Tunnel，把 Public Hostname 的服务地址设为
+`http://center:8080`。下载 Tunnel Compose，并把 token 填入 `.env`：
 
 ```sh
-docker compose --env-file .env -f compose.yaml pull
-docker compose --env-file .env -f compose.yaml up -d
-docker compose --env-file .env -f compose.yaml ps
-docker compose --env-file .env -f compose.yaml exec -T center \
-  /usr/local/bin/ipchronicle-center healthcheck
+curl --proto '=https' --tlsv1.2 -fL \
+  "https://github.com/ipchronicle/ipchronicle/releases/latest/download/compose.cloudflare-tunnel.yaml" \
+  -o compose.yaml
+printf '\nCLOUDFLARE_TUNNEL_TOKEN=你的_Tunnel_Token\n' >> .env
+docker compose up -d
 ```
 
-用浏览器打开对外地址。在**账户**页面修改管理员用户名或密码、选择简体中文
-或英文，并按需启用 TOTP 两步验证。修改 `.env` 中的启动凭据不会改变已有账户。
-
-发布版 Compose 会创建两个独立卷：
-
-- `ipchronicle_center-config` 保存 `config.db` 和 `master.key`；
-- `ipchronicle_center-history` 保存 `history.db`。
-
-不要把配置卷当作可随历史一起删除的数据。`master.key` 必须与对应的
-`config.db` 一起保存；丢失它后无法恢复加密凭据。
+Center 和 `cftunnel` 通过显式的 `ipchronicle_network` 网络通信，Center 不向主机
+导出端口。
 
 ## 环境变量
 
-发布产物 `default.env.example` 提供以下运维设置：
+发布版 `.env` 支持以下 Compose 变量：
 
-| 变量                          | 默认值  | 用途                                        |
-| ----------------------------- | ------- | ------------------------------------------- |
-| `IPCHRONICLE_HTTP_PORT`       | `8080`  | Compose 发布到主机的端口                    |
-| `IPCHRONICLE_ADMIN_USERNAME`  | `admin` | 首次启动的管理员用户名                      |
-| `IPCHRONICLE_ADMIN_PASSWORD`  | `admin` | 首次启动的管理员密码                        |
-| `IPCHRONICLE_TRUSTED_PROXIES` | 空      | 可提供转发请求头的代理来源 CIDR，以逗号分隔 |
+| 变量                         | 默认值  | 用途                                      |
+| ---------------------------- | ------- | ----------------------------------------- |
+| `IPCHRONICLE_HTTP_PORT`      | `8080`  | 普通 Compose 发布到主机的端口             |
+| `IPCHRONICLE_ADMIN_USERNAME` | `admin` | 首次启动的管理员用户名                    |
+| `IPCHRONICLE_ADMIN_PASSWORD` | `admin` | 首次启动的管理员密码                      |
+| `CLOUDFLARE_TUNNEL_TOKEN`    | 无      | Cloudflare Tunnel Compose 所需的 Tunnel token |
 
-`compose.yaml` 中固定的数据库路径和监听地址与两个卷相匹配。修改这些容器
-内部值不属于受支持的发布部署方式。
+直接运行 Center 镜像或编写自定义 Compose 时，还可以使用以下镜像变量：
+
+| 变量                                   | 默认值                                      | 用途                         |
+| -------------------------------------- | ------------------------------------------- | ---------------------------- |
+| `IPCHRONICLE_LISTEN_ADDRESS`           | `:8080`                                     | Center HTTP 监听地址          |
+| `IPCHRONICLE_DATA_DIR`                 | `/var/lib/ipchronicle`                      | 默认持久数据根目录           |
+| `IPCHRONICLE_CONFIG_DATABASE_PATH`     | `/var/lib/ipchronicle/config/config.db`     | 配置数据库路径               |
+| `IPCHRONICLE_HISTORY_DATABASE_PATH`    | `/var/lib/ipchronicle/history/history.db`   | 历史数据库路径               |
+| `IPCHRONICLE_MASTER_KEY_PATH`          | `/var/lib/ipchronicle/config/master.key`    | 凭据加密主密钥路径           |
+| `IPCHRONICLE_ADMIN_USERNAME`           | `admin`                                     | 首次启动的管理员用户名       |
+| `IPCHRONICLE_ADMIN_PASSWORD`           | `admin`                                     | 首次启动的管理员密码         |
+| `IPCHRONICLE_HEALTHCHECK_URL`          | `http://127.0.0.1:8080/healthz`             | `healthcheck` 子命令检查地址 |
+
+三个持久文件路径必须是绝对路径。单独设置数据库或主密钥路径时，对应值会覆盖
+`IPCHRONICLE_DATA_DIR` 派生出的默认路径。
 
 ## 反向代理与 TLS
 
-建议在管理员维护的反向代理上使用 HTTPS，但产品不强制。只把 Center 实际
-接收代理连接的来源 CIDR 写入 `IPCHRONICLE_TRUSTED_PROXIES`；该地址可能是
-Docker bridge CIDR，而不是 `127.0.0.1`。外部地址在系统设置页面管理：自动
-模式跟随当前浏览器请求，自定义值用于 Agent 安装命令和通知链接。
+建议在管理员维护的反向代理上使用 HTTPS，但产品不强制。外部地址在系统设置
+页面管理：自动模式跟随当前浏览器请求，自定义值用于 Agent 安装命令和通知链接。
 
 转发原始主机名、客户端地址和协议。`/api/v1/agent/sync/` 下必须支持 WebSocket
 Upgrade；临时 WebSocket 同步不可用时，30 秒一次的 Agent HTTP 轮询仍是事实
@@ -109,11 +118,11 @@ location / {
 }
 ```
 
-IPChronicle 不申请证书、不把 HTTP 重定向到 HTTPS，也不修改代理。用户有意使用
-HTTP 时仍可工作，但界面会提示。修改 `.env` 后重启 Center：
+IPChronicle 不申请证书，也不修改代理。使用 HTTP 时界面会提示。修改 `.env`
+后重启 Center：
 
 ```sh
-docker compose --env-file .env -f compose.yaml up -d
+docker compose up -d
 ```
 
 ## 注册 Agent
@@ -227,10 +236,8 @@ Center 不可用时，每个公网 IP 的 Agent 最多保留 30 个待上报地�
 节点、公网 IP 设置及隐藏路径、代理、计划、通知配置和待处理任务状态。它还会
 推进历史代次，使 Agent 丢弃旧代次的排队数据。重置后不会自动执行完整探测。
 
-`v0.1.0` 是配置库、历史库和 Agent 本地状态的首个受支持兼容基线。后续同一
-主版本必须通过有序前向迁移和 Agent 状态升级边界保留稳定版数据；无法读取的
-稳定版数据必须明确失败，不能静默替换。`v0.1.0` 之前的开发版和 RC 数据仍不
-属于受支持升级来源。
+当前没有持久数据兼容基线。`v0.1.1` 采用全新部署，不迁移开发版、候选版或
+`v0.1.0` 的配置库、历史库和 Agent 状态。无法读取的数据会明确报错。
 
 ## 通知
 
@@ -249,18 +256,19 @@ JavaScript 事件对象保留机器值。
 
 ## Agent 与 Center 更新
 
-服务器操作者通过 Docker Compose 更新 Center。下载新版本的 `compose.yaml`
-和 `default.env.example`，把新增环境变量与现有 `.env` 对照，然后只替换
-`compose.yaml`：
+服务器操作者通过 Docker Compose 更新 Center。先查看新版本说明，再更新
+Compose 文件并重新拉取镜像：
 
 ```sh
-docker compose --env-file .env -f compose.yaml pull
-docker compose --env-file .env -f compose.yaml up -d
-docker compose --env-file .env -f compose.yaml ps
+curl --proto '=https' --tlsv1.2 -fLO \
+  "https://github.com/ipchronicle/ipchronicle/releases/latest/download/compose.yaml"
+docker compose pull
+docker compose up -d
+docker compose ps
 ```
 
-Center 开始服务前会运行数据库迁移。不要让旧 Center 使用已由新版本迁移的
-数据库；回滚 Center 必须恢复兼容的升级前卷备份。
+Center 开始服务前会运行数据库迁移。正式兼容基线建立后，更新和回滚要求会在
+对应版本说明中列出。
 
 在**设置 > 系统**中选择 stable 或 RC 版本发现。该选择同时控制 Center 与
 Agent 的版本发现，但不会自动更新 Center。在**节点**中选择存在可用版本的在线
@@ -312,13 +320,14 @@ docker compose --env-file .env -f compose.yaml exec -T center \
 
 ## 备份与灾难恢复边界
 
-首版没有内置备份或恢复命令。使用服务器操作者控制的卷或文件系统工具。复制
+首版没有内置备份或恢复命令。使用服务器操作者控制的文件系统工具。复制
 数据库前停止 Center，或使用理解 SQLite 的快照机制；只复制正在运行的数据库
 文件而不包含 WAL 状态不是有效备份。
 
-配置卷和历史卷应作为匹配的一组备份。配置卷用于恢复账户、Agent 身份、代理和
-通知秘密、计划以及历史代次。历史卷可以通过界面独立重置，但 Agent 存在排队
-数据时，直接删除它不能替代协调完成的**清除观察历史**操作。
+`./data/config` 和 `./data/history` 应作为匹配的一组备份。配置目录用于恢复
+账户、Agent 身份、代理和通知秘密、计划以及历史代次。历史目录可以通过界面
+独立重置，但 Agent 存在排队数据时，直接删除它不能替代协调完成的
+**清除观察历史**操作。
 
 需要在主机恢复后保留 Agent 身份和离线队列时，也要保存
 `/var/lib/ipchronicle-agent`。丢失该目录后必须重新注册，并会生成新节点身份。
@@ -326,10 +335,10 @@ docker compose --env-file .env -f compose.yaml exec -T center \
 Center 启动失败时，先检查日志再改动数据：
 
 ```sh
-docker compose --env-file .env -f compose.yaml ps
-docker compose --env-file .env -f compose.yaml logs --tail=200 center
+docker compose ps
+docker compose logs --tail=200 center
 ```
 
 IPChronicle 不会静默重建缺失的 master key、替换损坏数据库，或在迁移失败后
-报告成功。应恢复兼容备份，或明确决定只重置历史；不要把删除
-`ipchronicle_center-config` 当成历史清理。
+报告成功。应恢复可用备份，或明确决定只重置历史。删除 `./data/config` 会同时
+丢失账户、节点身份和加密凭据。

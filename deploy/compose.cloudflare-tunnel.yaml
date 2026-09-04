@@ -20,8 +20,6 @@ services:
       - tunnel
       - --no-autoupdate
       - run
-      - --url
-      - http://center:8080
     networks:
       - ipchronicle_network
 

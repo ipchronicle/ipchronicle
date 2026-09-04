@@ -6,7 +6,7 @@ on:
       version:
         description: Canonical release version without the v prefix
         required: true
-        default: 0.1.0
+        default: 0.1.1
         type: string
       candidate_run_id:
         description: Successful Release candidate artifact workflow run ID
