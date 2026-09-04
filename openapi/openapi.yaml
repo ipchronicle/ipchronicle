@@ -562,6 +562,50 @@ paths:
           $ref: "#/components/responses/NotFound"
         "409":
           $ref: "#/components/responses/Conflict"
+  /api/v1/nodes/{nodeId}/recovery:
+    parameters:
+      - $ref: "#/components/parameters/NodeId"
+    get:
+      operationId: getNodeRecoveryCredential
+      summary: Read the node-specific Agent recovery credential
+      tags: [nodes]
+      responses:
+        "200":
+          description: The reusable recovery credential for this node.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/NodeRecoveryCredential"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "409":
+          $ref: "#/components/responses/Conflict"
+  /api/v1/nodes/{nodeId}/recovery/key:
+    parameters:
+      - $ref: "#/components/parameters/NodeId"
+    post:
+      operationId: rotateNodeRecoveryCredential
+      summary: Rotate the node-specific Agent recovery credential
+      tags: [nodes]
+      parameters:
+        - $ref: "#/components/parameters/CSRFToken"
+      responses:
+        "200":
+          description: The recovery credential was rotated.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/NodeRecoveryCredential"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "409":
+          $ref: "#/components/responses/Conflict"
   /api/v1/nodes/{nodeId}/sync-session:
     parameters:
       - $ref: "#/components/parameters/NodeId"
@@ -1601,6 +1645,33 @@ paths:
           $ref: "#/components/responses/AgentUnauthorized"
         "403":
           $ref: "#/components/responses/AgentForbidden"
+        "429":
+          $ref: "#/components/responses/RateLimitResponse"
+  /api/v1/agent/recover:
+    post:
+      operationId: recoverAgent
+      summary: Replace an Agent credential while retaining its node identity
+      security: []
+      tags: [agent]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/AgentRecoveryRequest"
+      responses:
+        "200":
+          description: The Agent took over the existing node identity.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AgentRegistrationResult"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/AgentUnauthorized"
+        "429":
+          $ref: "#/components/responses/RateLimitResponse"
   /api/v1/agent/control:
     post:
       operationId: pollAgent
@@ -1881,6 +1952,12 @@ components:
         application/json:
           schema:
             $ref: "#/components/schemas/ErrorResponse"
+    RateLimitResponse:
+      description: The request rate limit was exceeded.
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ErrorResponse"
     Conflict:
       description: The requested state transition conflicts with current state.
       content:
@@ -2051,6 +2128,7 @@ components:
         - registration_key_not_initialized
         - registration_key_invalid
         - registration_disabled
+        - recovery_key_invalid
         - agent_unauthenticated
         - agent_revoked
         - node_not_found
@@ -2394,6 +2472,21 @@ components:
       properties:
         enabled:
           type: boolean
+    NodeRecoveryCredential:
+      type: object
+      additionalProperties: false
+      required: [nodeId, recoveryKey, rotatedAt]
+      properties:
+        nodeId:
+          type: string
+          format: uuid
+        recoveryKey:
+          type: string
+          minLength: 32
+          maxLength: 128
+        rotatedAt:
+          type: string
+          format: date-time
     AgentPlatform:
       type: string
       enum: [linux]
@@ -2447,6 +2540,17 @@ components:
       required: [registrationKey, metadata]
       properties:
         registrationKey:
+          type: string
+          minLength: 32
+          maxLength: 128
+        metadata:
+          $ref: "#/components/schemas/AgentMetadata"
+    AgentRecoveryRequest:
+      type: object
+      additionalProperties: false
+      required: [recoveryKey, metadata]
+      properties:
+        recoveryKey:
           type: string
           minLength: 32
           maxLength: 128

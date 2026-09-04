@@ -565,6 +565,21 @@ export const zhCN = {
           current: "已安装的 Agent 在当前发行通道中是最新版本。",
           updateAccepted: "Agent 更新任务已接受。",
         },
+        recovery: {
+          title: "重装恢复",
+          detail:
+            "在重装系统或本地状态丢失后，以 root 身份运行此专属命令，继续使用当前节点及其配置和历史。命令中的恢复密钥可接管此节点，请妥善保管。",
+          loadFailed: "无法加载节点专属恢复命令。",
+          copy: "复制恢复命令",
+          copied: "恢复命令已复制。",
+          copyFailed: "无法复制恢复命令。",
+          rotate: "轮换恢复密钥",
+          rotateTitle: "轮换此节点的恢复密钥？",
+          rotateDetail:
+            "已有恢复命令会立即失效，当前 Agent 凭据和运行状态不受影响。",
+          rotateConfirm: "确认轮换",
+          rotated: "恢复密钥已轮换，请使用新的专属命令。",
+        },
         discovery: {
           title: "发现与探测",
           detail: "配置节点级公网出口发现与自动探测策略。",
@@ -1792,6 +1807,7 @@ export const zhCN = {
       registration_key_not_initialized: "请先生成注册密钥，再允许自动注册。",
       registration_key_invalid: "注册密钥无效。",
       registration_disabled: "Agent 自动注册已停止。",
+      recovery_key_invalid: "节点恢复密钥无效。",
       agent_unauthenticated: "Agent 凭据无效。",
       agent_revoked: "Agent 凭据已撤销。",
       node_not_found: "节点不存在或已经删除。",

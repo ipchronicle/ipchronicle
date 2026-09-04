@@ -446,6 +446,7 @@ const (
 	ProbeTargetUnavailable           ErrorCode = "probe_target_unavailable"
 	ProbeTaskSlotOccupied            ErrorCode = "probe_task_slot_occupied"
 	RateLimited                      ErrorCode = "rate_limited"
+	RecoveryKeyInvalid               ErrorCode = "recovery_key_invalid"
 	RegistrationDisabled             ErrorCode = "registration_disabled"
 	RegistrationKeyInvalid           ErrorCode = "registration_key_invalid"
 	RegistrationKeyNotInitialized    ErrorCode = "registration_key_not_initialized"
@@ -558,6 +559,8 @@ func (e ErrorCode) Valid() bool {
 	case ProbeTaskSlotOccupied:
 		return true
 	case RateLimited:
+		return true
+	case RecoveryKeyInvalid:
 		return true
 	case RegistrationDisabled:
 		return true
@@ -1851,6 +1854,12 @@ type AgentProxyConfiguration struct {
 	Username *string            `json:"username,omitempty"`
 }
 
+// AgentRecoveryRequest defines model for AgentRecoveryRequest.
+type AgentRecoveryRequest struct {
+	Metadata    AgentMetadata `json:"metadata"`
+	RecoveryKey string        `json:"recoveryKey"`
+}
+
 // AgentRegistrationRequest defines model for AgentRegistrationRequest.
 type AgentRegistrationRequest struct {
 	Metadata        AgentMetadata `json:"metadata"`
@@ -2407,6 +2416,13 @@ type NodePublicAddressSummary struct {
 	Family       AddressFamily      `json:"family"`
 	Id           openapi_types.UUID `json:"id"`
 	ProbeEnabled bool               `json:"probeEnabled"`
+}
+
+// NodeRecoveryCredential defines model for NodeRecoveryCredential.
+type NodeRecoveryCredential struct {
+	NodeId      openapi_types.UUID `json:"nodeId"`
+	RecoveryKey string             `json:"recoveryKey"`
+	RotatedAt   time.Time          `json:"rotatedAt"`
 }
 
 // NodeStatus defines model for NodeStatus.
@@ -3073,6 +3089,9 @@ type Forbidden = ErrorResponse
 // NotFound defines model for NotFound.
 type NotFound = ErrorResponse
 
+// RateLimitResponse defines model for RateLimitResponse.
+type RateLimitResponse = ErrorResponse
+
 // Unauthorized defines model for Unauthorized.
 type Unauthorized = ErrorResponse
 
@@ -3270,6 +3289,11 @@ type UpdatePublicAddressParams struct {
 	XCSRFToken *CSRFToken `json:"X-CSRF-Token,omitempty"`
 }
 
+// RotateNodeRecoveryCredentialParams defines parameters for RotateNodeRecoveryCredential.
+type RotateNodeRecoveryCredentialParams struct {
+	XCSRFToken *CSRFToken `json:"X-CSRF-Token,omitempty"`
+}
+
 // RevokeNodeParams defines parameters for RevokeNode.
 type RevokeNodeParams struct {
 	XCSRFToken *CSRFToken `json:"X-CSRF-Token,omitempty"`
@@ -3393,6 +3417,9 @@ type UploadAgentLogsJSONRequestBody = AgentLogBatch
 // UploadProbeArtifactJSONRequestBody defines body for UploadProbeArtifact for application/json ContentType.
 type UploadProbeArtifactJSONRequestBody = AgentProbeArtifact
 
+// RecoverAgentJSONRequestBody defines body for RecoverAgent for application/json ContentType.
+type RecoverAgentJSONRequestBody = AgentRecoveryRequest
+
 // LoginJSONRequestBody defines body for Login for application/json ContentType.
 type LoginJSONRequestBody = LoginRequest
 
@@ -3497,6 +3524,9 @@ type ServerInterface interface {
 	// UploadProbeArtifact Idempotently upload one complete-probe run or execution revision
 	// (POST /api/v1/agent/probe-artifacts)
 	UploadProbeArtifact(w http.ResponseWriter, r *http.Request)
+	// RecoverAgent Replace an Agent credential while retaining its node identity
+	// (POST /api/v1/agent/recover)
+	RecoverAgent(w http.ResponseWriter, r *http.Request)
 	// Login Start an administrator session
 	// (POST /api/v1/auth/login)
 	Login(w http.ResponseWriter, r *http.Request)
@@ -3590,6 +3620,12 @@ type ServerInterface interface {
 	// UpdatePublicAddress Update complete-probe settings for a discovered public address
 	// (PATCH /api/v1/nodes/{nodeId}/public-addresses/{publicAddressId})
 	UpdatePublicAddress(w http.ResponseWriter, r *http.Request, nodeId NodeId, publicAddressId openapi_types.UUID, params UpdatePublicAddressParams)
+	// GetNodeRecoveryCredential Read the node-specific Agent recovery credential
+	// (GET /api/v1/nodes/{nodeId}/recovery)
+	GetNodeRecoveryCredential(w http.ResponseWriter, r *http.Request, nodeId NodeId)
+	// RotateNodeRecoveryCredential Rotate the node-specific Agent recovery credential
+	// (POST /api/v1/nodes/{nodeId}/recovery/key)
+	RotateNodeRecoveryCredential(w http.ResponseWriter, r *http.Request, nodeId NodeId, params RotateNodeRecoveryCredentialParams)
 	// RevokeNode Permanently revoke a node Agent credential
 	// (POST /api/v1/nodes/{nodeId}/revoke)
 	RevokeNode(w http.ResponseWriter, r *http.Request, nodeId NodeId, params RevokeNodeParams)
@@ -3776,6 +3812,12 @@ func (_ Unimplemented) UploadProbeArtifact(w http.ResponseWriter, r *http.Reques
 	w.WriteHeader(http.StatusNotImplemented)
 }
 
+// RecoverAgent Replace an Agent credential while retaining its node identity
+// (POST /api/v1/agent/recover)
+func (_ Unimplemented) RecoverAgent(w http.ResponseWriter, r *http.Request) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
 // Login Start an administrator session
 // (POST /api/v1/auth/login)
 func (_ Unimplemented) Login(w http.ResponseWriter, r *http.Request) {
@@ -3959,6 +4001,18 @@ func (_ Unimplemented) CreateCompleteProbeTask(w http.ResponseWriter, r *http.Re
 // UpdatePublicAddress Update complete-probe settings for a discovered public address
 // (PATCH /api/v1/nodes/{nodeId}/public-addresses/{publicAddressId})
 func (_ Unimplemented) UpdatePublicAddress(w http.ResponseWriter, r *http.Request, nodeId NodeId, publicAddressId openapi_types.UUID, params UpdatePublicAddressParams) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
+// GetNodeRecoveryCredential Read the node-specific Agent recovery credential
+// (GET /api/v1/nodes/{nodeId}/recovery)
+func (_ Unimplemented) GetNodeRecoveryCredential(w http.ResponseWriter, r *http.Request, nodeId NodeId) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
+// RotateNodeRecoveryCredential Rotate the node-specific Agent recovery credential
+// (POST /api/v1/nodes/{nodeId}/recovery/key)
+func (_ Unimplemented) RotateNodeRecoveryCredential(w http.ResponseWriter, r *http.Request, nodeId NodeId, params RotateNodeRecoveryCredentialParams) {
 	w.WriteHeader(http.StatusNotImplemented)
 }
 
@@ -4628,6 +4682,20 @@ func (siw *ServerInterfaceWrapper) UploadProbeArtifact(w http.ResponseWriter, r 
 
 	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		siw.Handler.UploadProbeArtifact(w, r)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// RecoverAgent operation middleware
+func (siw *ServerInterfaceWrapper) RecoverAgent(w http.ResponseWriter, r *http.Request) {
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.RecoverAgent(w, r)
 	}))
 
 	for _, middleware := range siw.HandlerMiddlewares {
@@ -6244,6 +6312,82 @@ func (siw *ServerInterfaceWrapper) UpdatePublicAddress(w http.ResponseWriter, r 
 	handler.ServeHTTP(w, r)
 }
 
+// GetNodeRecoveryCredential operation middleware
+func (siw *ServerInterfaceWrapper) GetNodeRecoveryCredential(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "nodeId" -------------
+	var nodeId NodeId
+
+	err = runtime.BindStyledParameterWithOptions("simple", "nodeId", chi.URLParam(r, "nodeId"), &nodeId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "uuid", ValueIsUnescaped: r.URL.RawPath == ""})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "nodeId", Err: err})
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.GetNodeRecoveryCredential(w, r, nodeId)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// RotateNodeRecoveryCredential operation middleware
+func (siw *ServerInterfaceWrapper) RotateNodeRecoveryCredential(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "nodeId" -------------
+	var nodeId NodeId
+
+	err = runtime.BindStyledParameterWithOptions("simple", "nodeId", chi.URLParam(r, "nodeId"), &nodeId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "uuid", ValueIsUnescaped: r.URL.RawPath == ""})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "nodeId", Err: err})
+		return
+	}
+
+	// Parameter object where we will unmarshal all parameters from the context
+	var params RotateNodeRecoveryCredentialParams
+
+	headers := r.Header
+
+	// ------------- Optional header parameter "X-CSRF-Token" -------------
+	if valueList, found := headers[http.CanonicalHeaderKey("X-CSRF-Token")]; found {
+		var XCSRFToken CSRFToken
+		n := len(valueList)
+		if n != 1 {
+			siw.ErrorHandlerFunc(w, r, &TooManyValuesForParamError{ParamName: "X-CSRF-Token", Count: n})
+			return
+		}
+
+		err = runtime.BindStyledParameterWithOptions("simple", "X-CSRF-Token", valueList[0], &XCSRFToken, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: false, Type: "string", Format: ""})
+		if err != nil {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "X-CSRF-Token", Err: err})
+			return
+		}
+
+		params.XCSRFToken = &XCSRFToken
+
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.RotateNodeRecoveryCredential(w, r, nodeId, params)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
 // RevokeNode operation middleware
 func (siw *ServerInterfaceWrapper) RevokeNode(w http.ResponseWriter, r *http.Request) {
 
@@ -7345,6 +7489,12 @@ func HandlerWithOptions(si ServerInterface, options ChiServerOptions) http.Handl
 		r.Post(options.BaseURL+"/api/v1/nodes/{nodeId}/revoke", wrapper.RevokeNode)
 	})
 	r.Group(func(r chi.Router) {
+		r.Get(options.BaseURL+"/api/v1/nodes/{nodeId}/recovery", wrapper.GetNodeRecoveryCredential)
+	})
+	r.Group(func(r chi.Router) {
+		r.Post(options.BaseURL+"/api/v1/nodes/{nodeId}/recovery/key", wrapper.RotateNodeRecoveryCredential)
+	})
+	r.Group(func(r chi.Router) {
 		r.Delete(options.BaseURL+"/api/v1/nodes/{nodeId}/sync-session", wrapper.StopNodeSyncSession)
 	})
 	r.Group(func(r chi.Router) {
@@ -7483,6 +7633,9 @@ func HandlerWithOptions(si ServerInterface, options ChiServerOptions) http.Handl
 		r.Post(options.BaseURL+"/api/v1/agent/enroll", wrapper.RegisterAgent)
 	})
 	r.Group(func(r chi.Router) {
+		r.Post(options.BaseURL+"/api/v1/agent/recover", wrapper.RecoverAgent)
+	})
+	r.Group(func(r chi.Router) {
 		r.Post(options.BaseURL+"/api/v1/agent/control", wrapper.PollAgent)
 	})
 	r.Group(func(r chi.Router) {
@@ -7511,6 +7664,8 @@ type ConflictJSONResponse ErrorResponse
 type ForbiddenJSONResponse ErrorResponse
 
 type NotFoundJSONResponse ErrorResponse
+
+type RateLimitResponseJSONResponse ErrorResponse
 
 type UnauthorizedJSONResponse ErrorResponse
 
@@ -8515,6 +8670,20 @@ func (response RegisterAgent403JSONResponse) VisitRegisterAgentResponse(w http.R
 	return err
 }
 
+type RegisterAgent429JSONResponse struct{ RateLimitResponseJSONResponse }
+
+func (response RegisterAgent429JSONResponse) VisitRegisterAgentResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(429)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
 type UploadAgentLogsRequestObject struct {
 	Body *UploadAgentLogsJSONRequestBody
 }
@@ -8639,6 +8808,70 @@ func (response UploadProbeArtifact403JSONResponse) VisitUploadProbeArtifactRespo
 	}
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(403)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type RecoverAgentRequestObject struct {
+	Body *RecoverAgentJSONRequestBody
+}
+
+type RecoverAgentResponseObject interface {
+	VisitRecoverAgentResponse(w http.ResponseWriter) error
+}
+
+type RecoverAgent200JSONResponse AgentRegistrationResult
+
+func (response RecoverAgent200JSONResponse) VisitRecoverAgentResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type RecoverAgent400JSONResponse struct{ BadRequestJSONResponse }
+
+func (response RecoverAgent400JSONResponse) VisitRecoverAgentResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(400)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type RecoverAgent401JSONResponse struct{ AgentUnauthorizedJSONResponse }
+
+func (response RecoverAgent401JSONResponse) VisitRecoverAgentResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(401)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type RecoverAgent429JSONResponse struct{ RateLimitResponseJSONResponse }
+
+func (response RecoverAgent429JSONResponse) VisitRecoverAgentResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(429)
 	_, err := buf.WriteTo(w)
 	return err
 }
@@ -10458,6 +10691,149 @@ func (response UpdatePublicAddress404JSONResponse) VisitUpdatePublicAddressRespo
 	return err
 }
 
+type GetNodeRecoveryCredentialRequestObject struct {
+	NodeId NodeId `json:"nodeId"`
+}
+
+type GetNodeRecoveryCredentialResponseObject interface {
+	VisitGetNodeRecoveryCredentialResponse(w http.ResponseWriter) error
+}
+
+type GetNodeRecoveryCredential200JSONResponse NodeRecoveryCredential
+
+func (response GetNodeRecoveryCredential200JSONResponse) VisitGetNodeRecoveryCredentialResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type GetNodeRecoveryCredential401JSONResponse struct{ UnauthorizedJSONResponse }
+
+func (response GetNodeRecoveryCredential401JSONResponse) VisitGetNodeRecoveryCredentialResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(401)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type GetNodeRecoveryCredential404JSONResponse struct{ NotFoundJSONResponse }
+
+func (response GetNodeRecoveryCredential404JSONResponse) VisitGetNodeRecoveryCredentialResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(404)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type GetNodeRecoveryCredential409JSONResponse struct{ ConflictJSONResponse }
+
+func (response GetNodeRecoveryCredential409JSONResponse) VisitGetNodeRecoveryCredentialResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(409)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type RotateNodeRecoveryCredentialRequestObject struct {
+	NodeId NodeId `json:"nodeId"`
+	Params RotateNodeRecoveryCredentialParams
+}
+
+type RotateNodeRecoveryCredentialResponseObject interface {
+	VisitRotateNodeRecoveryCredentialResponse(w http.ResponseWriter) error
+}
+
+type RotateNodeRecoveryCredential200JSONResponse NodeRecoveryCredential
+
+func (response RotateNodeRecoveryCredential200JSONResponse) VisitRotateNodeRecoveryCredentialResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type RotateNodeRecoveryCredential401JSONResponse struct{ UnauthorizedJSONResponse }
+
+func (response RotateNodeRecoveryCredential401JSONResponse) VisitRotateNodeRecoveryCredentialResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(401)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type RotateNodeRecoveryCredential403JSONResponse struct{ ForbiddenJSONResponse }
+
+func (response RotateNodeRecoveryCredential403JSONResponse) VisitRotateNodeRecoveryCredentialResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(403)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type RotateNodeRecoveryCredential404JSONResponse struct{ NotFoundJSONResponse }
+
+func (response RotateNodeRecoveryCredential404JSONResponse) VisitRotateNodeRecoveryCredentialResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(404)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type RotateNodeRecoveryCredential409JSONResponse struct{ ConflictJSONResponse }
+
+func (response RotateNodeRecoveryCredential409JSONResponse) VisitRotateNodeRecoveryCredentialResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(409)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
 type RevokeNodeRequestObject struct {
 	NodeId NodeId `json:"nodeId"`
 	Params RevokeNodeParams
@@ -11958,6 +12334,9 @@ type StrictServerInterface interface {
 	// UploadProbeArtifact Idempotently upload one complete-probe run or execution revision
 	// (POST /api/v1/agent/probe-artifacts)
 	UploadProbeArtifact(ctx context.Context, request UploadProbeArtifactRequestObject) (UploadProbeArtifactResponseObject, error)
+	// RecoverAgent Replace an Agent credential while retaining its node identity
+	// (POST /api/v1/agent/recover)
+	RecoverAgent(ctx context.Context, request RecoverAgentRequestObject) (RecoverAgentResponseObject, error)
 	// Login Start an administrator session
 	// (POST /api/v1/auth/login)
 	Login(ctx context.Context, request LoginRequestObject) (LoginResponseObject, error)
@@ -12051,6 +12430,12 @@ type StrictServerInterface interface {
 	// UpdatePublicAddress Update complete-probe settings for a discovered public address
 	// (PATCH /api/v1/nodes/{nodeId}/public-addresses/{publicAddressId})
 	UpdatePublicAddress(ctx context.Context, request UpdatePublicAddressRequestObject) (UpdatePublicAddressResponseObject, error)
+	// GetNodeRecoveryCredential Read the node-specific Agent recovery credential
+	// (GET /api/v1/nodes/{nodeId}/recovery)
+	GetNodeRecoveryCredential(ctx context.Context, request GetNodeRecoveryCredentialRequestObject) (GetNodeRecoveryCredentialResponseObject, error)
+	// RotateNodeRecoveryCredential Rotate the node-specific Agent recovery credential
+	// (POST /api/v1/nodes/{nodeId}/recovery/key)
+	RotateNodeRecoveryCredential(ctx context.Context, request RotateNodeRecoveryCredentialRequestObject) (RotateNodeRecoveryCredentialResponseObject, error)
 	// RevokeNode Permanently revoke a node Agent credential
 	// (POST /api/v1/nodes/{nodeId}/revoke)
 	RevokeNode(ctx context.Context, request RevokeNodeRequestObject) (RevokeNodeResponseObject, error)
@@ -12700,6 +13085,37 @@ func (sh *strictHandler) UploadProbeArtifact(w http.ResponseWriter, r *http.Requ
 		sh.options.ResponseErrorHandlerFunc(w, r, err)
 	} else if validResponse, ok := response.(UploadProbeArtifactResponseObject); ok {
 		if err := validResponse.VisitUploadProbeArtifactResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// RecoverAgent operation middleware
+func (sh *strictHandler) RecoverAgent(w http.ResponseWriter, r *http.Request) {
+	var request RecoverAgentRequestObject
+
+	var body RecoverAgentJSONRequestBody
+	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+		sh.options.RequestErrorHandlerFunc(w, r, fmt.Errorf("can't decode JSON body: %w", err))
+		return
+	}
+	request.Body = &body
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.RecoverAgent(ctx, request.(RecoverAgentRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "RecoverAgent")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(RecoverAgentResponseObject); ok {
+		if err := validResponse.VisitRecoverAgentResponse(w); err != nil {
 			sh.options.ResponseErrorHandlerFunc(w, r, err)
 		}
 	} else if response != nil {
@@ -13575,6 +13991,59 @@ func (sh *strictHandler) UpdatePublicAddress(w http.ResponseWriter, r *http.Requ
 		sh.options.ResponseErrorHandlerFunc(w, r, err)
 	} else if validResponse, ok := response.(UpdatePublicAddressResponseObject); ok {
 		if err := validResponse.VisitUpdatePublicAddressResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// GetNodeRecoveryCredential operation middleware
+func (sh *strictHandler) GetNodeRecoveryCredential(w http.ResponseWriter, r *http.Request, nodeId NodeId) {
+	var request GetNodeRecoveryCredentialRequestObject
+
+	request.NodeId = nodeId
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.GetNodeRecoveryCredential(ctx, request.(GetNodeRecoveryCredentialRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "GetNodeRecoveryCredential")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(GetNodeRecoveryCredentialResponseObject); ok {
+		if err := validResponse.VisitGetNodeRecoveryCredentialResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// RotateNodeRecoveryCredential operation middleware
+func (sh *strictHandler) RotateNodeRecoveryCredential(w http.ResponseWriter, r *http.Request, nodeId NodeId, params RotateNodeRecoveryCredentialParams) {
+	var request RotateNodeRecoveryCredentialRequestObject
+
+	request.NodeId = nodeId
+	request.Params = params
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.RotateNodeRecoveryCredential(ctx, request.(RotateNodeRecoveryCredentialRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "RotateNodeRecoveryCredential")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(RotateNodeRecoveryCredentialResponseObject); ok {
+		if err := validResponse.VisitRotateNodeRecoveryCredentialResponse(w); err != nil {
 			sh.options.ResponseErrorHandlerFunc(w, r, err)
 		}
 	} else if response != nil {

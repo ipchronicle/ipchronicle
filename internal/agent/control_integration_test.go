@@ -2,6 +2,7 @@ package agent_test
 
 import (
 	"context"
+	"errors"
 	"io"
 	"log"
 	"net/http"
@@ -138,6 +139,26 @@ func TestAgentEnrollsOnceAndBecomesOnline(t *testing.T) {
 		}
 	case <-time.After(time.Second):
 		t.Fatal("Agent did not stop after cancellation")
+	}
+
+	recovery, err := nodeService.RecoveryCredential(ctx, registrationNodeID(t, identity.NodeID))
+	if err != nil {
+		t.Fatal(err)
+	}
+	reinstalledStore, err := agentstate.Open(filepath.Join(t.TempDir(), "reinstalled-agent"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = reinstalledStore.Close() })
+	recovered, err := agent.RecoverWithCapabilities(ctx, reinstalledStore, server.URL, recovery.Key, "0.1.1-test", true)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if recovered.NodeID != identity.NodeID || recovered.Credential == identity.Credential || recovered.AppliedConfigurationRevision != 0 {
+		t.Fatalf("recovered Agent identity = %#v", recovered)
+	}
+	if _, err := nodeService.Configuration(ctx, identity.Credential); !errors.Is(err, nodes.ErrAgentRevoked) {
+		t.Fatalf("old Agent credential error = %v", err)
 	}
 }
 

@@ -269,6 +269,10 @@ func (s *Service) Register(ctx context.Context, registrationKey string, metadata
 	}
 	credentialDigest := sha256.Sum256([]byte(credential))
 	nodeID := uuid.New()
+	_, recoveryDigest, recoveryEncrypted, err := s.newRecoveryCredential(nodeID.String())
+	if err != nil {
+		return Registration{}, err
+	}
 	now := s.now().UTC().Truncate(time.Second)
 	transaction, err := s.database.BeginTx(ctx, nil)
 	if err != nil {
@@ -287,6 +291,12 @@ func (s *Service) Register(ctx context.Context, registrationKey string, metadata
 		return Registration{}, err
 	}
 	if err := replaceCapabilities(ctx, queries, nodeID.String(), metadata.Capabilities); err != nil {
+		return Registration{}, err
+	}
+	if _, err := queries.CreateNodeRecoveryCredential(ctx, configdb.CreateNodeRecoveryCredentialParams{
+		NodeID: nodeID.String(), KeyDigest: recoveryDigest,
+		KeyEncrypted: recoveryEncrypted, RotatedAt: now.Unix(),
+	}); err != nil {
 		return Registration{}, err
 	}
 	if err := transaction.Commit(); err != nil {

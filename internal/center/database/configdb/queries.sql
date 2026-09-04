@@ -189,6 +189,54 @@ INSERT INTO nodes (
     probe_schedule_timezone, registered_at, desired_configuration_updated_at
 ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, 1, ?, ?, ?);
 
+-- name: ListNodesWithoutRecoveryCredential :many
+SELECT n.id
+FROM nodes AS n
+LEFT JOIN node_recovery_credentials AS recovery ON recovery.node_id = n.id
+WHERE recovery.node_id IS NULL
+ORDER BY n.id;
+
+-- name: CreateNodeRecoveryCredential :execrows
+INSERT INTO node_recovery_credentials (
+    node_id, key_digest, key_encrypted, rotated_at
+) VALUES (?, ?, ?, ?)
+ON CONFLICT (node_id) DO NOTHING;
+
+-- name: GetNodeRecoveryCredential :one
+SELECT node_id, key_digest, key_encrypted, rotated_at
+FROM node_recovery_credentials
+WHERE node_id = ?;
+
+-- name: GetNodeRecoveryTargetByDigest :one
+SELECT recovery.node_id, recovery.key_digest, recovery.key_encrypted,
+       recovery.rotated_at, node.credential_digest, node.revoked_at,
+       node.enabled,
+       EXISTS (
+           SELECT 1
+           FROM node_deletion_operations AS deletion
+           WHERE deletion.node_id = node.id AND deletion.status != 'completed'
+       ) AS deletion_pending
+FROM node_recovery_credentials AS recovery
+JOIN nodes AS node ON node.id = recovery.node_id
+WHERE recovery.key_digest = ?;
+
+-- name: UpdateNodeRecoveryCredential :execrows
+UPDATE node_recovery_credentials
+SET key_digest = ?, key_encrypted = ?, rotated_at = ?
+WHERE node_id = ?;
+
+-- name: ReplaceRecoveredNodeIdentity :execrows
+UPDATE nodes
+SET hostname = ?, credential_digest = ?, agent_version = ?, agent_revision = ?,
+    operating_system = ?, architecture = ?, applied_configuration_revision = 0,
+    configuration_error = NULL, configuration_error_revision = NULL,
+    physical_memory_bytes = NULL, last_seen_at = NULL
+WHERE id = ? AND revoked_at IS NULL
+  AND NOT EXISTS (
+      SELECT 1 FROM node_deletion_operations
+      WHERE node_id = nodes.id AND status != 'completed'
+  );
+
 -- name: GetNodeByCredentialDigest :one
 SELECT id, name, hostname, credential_digest, enabled, revoked_at,
        agent_version, agent_revision, operating_system, architecture,
@@ -412,6 +460,37 @@ WHERE id = ?;
 -- name: DeleteNodeCapabilities :exec
 DELETE FROM node_capabilities
 WHERE node_id = ?;
+
+-- name: DeleteNodeNetworkInventory :exec
+DELETE FROM node_network_inventories
+WHERE node_id = ?;
+
+-- name: DeleteRecoveredNodeCurrentPaths :exec
+DELETE FROM public_address_paths
+WHERE node_id = ?;
+
+-- name: DeleteRecoveredNodeHostEgressDeletionOperations :exec
+DELETE FROM egress_deletion_operations
+WHERE egress_deletion_operations.node_id = ?
+  AND egress_deletion_operations.egress_id IN (
+      SELECT network_egresses.id FROM network_egresses
+      WHERE network_egresses.node_id = ? AND network_egresses.kind != 'proxy'
+  );
+
+-- name: DeleteRecoveredNodeHostEgresses :exec
+DELETE FROM network_egresses
+WHERE node_id = ? AND kind != 'proxy';
+
+-- name: DeleteNodeProbeStatus :exec
+DELETE FROM node_probe_status
+WHERE node_id = ?;
+
+-- name: ExpireActiveNodeTasks :execrows
+UPDATE probe_tasks
+SET status = 'expired', completed_at = ?
+WHERE node_id = ? AND status IN (
+    'pending', 'acknowledged', 'running', 'verifying', 'installing', 'restarting'
+);
 
 -- name: CreateNodeCapability :exec
 INSERT INTO node_capabilities (node_id, capability)

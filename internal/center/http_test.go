@@ -128,6 +128,67 @@ func TestAgentLogUploadRejectsBodiesLargerThanEightMiB(t *testing.T) {
 	assertErrorCode(t, response, http.StatusRequestEntityTooLarge, api.InvalidRequest)
 }
 
+func TestNodeRecoveryAPI(t *testing.T) {
+	handler, nodeService, _ := newTestHTTPHandlerWithNodes(t)
+	cookie, session := loginTestAdministrator(t, handler)
+	enrollment, err := nodeService.RotateEnrollmentKey(context.Background(), "UTC")
+	if err != nil {
+		t.Fatal(err)
+	}
+	metadata := nodes.Metadata{
+		Hostname: "recovery-edge", AgentVersion: "0.1.1", OperatingSystem: "linux", Architecture: "amd64",
+		Capabilities: []string{"configuration-v9", "control-v1"}, PhysicalMemoryBytes: 512 * 1024 * 1024,
+	}
+	registration, err := nodeService.Register(context.Background(), enrollment.Key, metadata)
+	if err != nil {
+		t.Fatal(err)
+	}
+	recoveryPath := "/api/v1/nodes/" + registration.NodeID.String() + "/recovery"
+	unauthenticated := performRequest(handler, http.MethodGet, recoveryPath, nil, "", nil)
+	assertErrorCode(t, unauthenticated, http.StatusUnauthorized, api.Unauthenticated)
+
+	credentialResponse := performRequest(handler, http.MethodGet, recoveryPath, nil, "", cookie)
+	var credential api.NodeRecoveryCredential
+	if err := json.NewDecoder(credentialResponse.Body).Decode(&credential); err != nil ||
+		credentialResponse.Code != http.StatusOK || credential.NodeId != registration.NodeID ||
+		!strings.HasPrefix(credential.RecoveryKey, "ipc_recover_") {
+		t.Fatalf("recovery credential = %#v, status %d, %v", credential, credentialResponse.Code, err)
+	}
+
+	recoveryBody, err := json.Marshal(api.AgentRecoveryRequest{RecoveryKey: credential.RecoveryKey, Metadata: api.AgentMetadata{
+		Hostname: "reinstalled-edge", AgentVersion: "0.1.2", OperatingSystem: api.Linux, Architecture: api.Arm64,
+		Capabilities: []string{"configuration-v10", "control-v1"}, PhysicalMemoryBytes: 1024 * 1024 * 1024,
+	}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	recoveredResponse := performRequest(handler, http.MethodPost, "/api/v1/agent/recover", recoveryBody, "", nil)
+	var recovered api.AgentRegistrationResult
+	if err := json.NewDecoder(recoveredResponse.Body).Decode(&recovered); err != nil ||
+		recoveredResponse.Code != http.StatusOK || recovered.NodeId != registration.NodeID || recovered.Credential == "" {
+		t.Fatalf("Agent recovery = %#v, status %d, %v", recovered, recoveredResponse.Code, err)
+	}
+	oldCredentialRequest := httptest.NewRequest(http.MethodGet, "http://example.test/api/v1/agent/configuration", nil)
+	oldCredentialRequest.Header.Set("Authorization", "Bearer "+registration.Credential)
+	oldCredentialResponse := httptest.NewRecorder()
+	handler.ServeHTTP(oldCredentialResponse, oldCredentialRequest)
+	assertErrorCode(t, oldCredentialResponse, http.StatusForbidden, api.AgentRevoked)
+
+	rotationPath := recoveryPath + "/key"
+	missingCSRF := performRequest(handler, http.MethodPost, rotationPath, nil, "http://example.test", cookie)
+	assertErrorCode(t, missingCSRF, http.StatusForbidden, api.CsrfFailed)
+	rotatedResponse := performRequestWithCSRF(
+		handler, http.MethodPost, rotationPath, nil, "http://example.test", cookie, session.CsrfToken,
+	)
+	var rotated api.NodeRecoveryCredential
+	if err := json.NewDecoder(rotatedResponse.Body).Decode(&rotated); err != nil || rotatedResponse.Code != http.StatusOK ||
+		rotated.RecoveryKey == credential.RecoveryKey {
+		t.Fatalf("rotated recovery credential = %#v, status %d, %v", rotated, rotatedResponse.Code, err)
+	}
+	invalidated := performRequest(handler, http.MethodPost, "/api/v1/agent/recover", recoveryBody, "", nil)
+	assertErrorCode(t, invalidated, http.StatusUnauthorized, api.RecoveryKeyInvalid)
+}
+
 func TestAdministratorLoginStatusAndLogout(t *testing.T) {
 	handler := newTestHTTPHandler(t)
 	unauthenticated := performRequest(handler, http.MethodGet, "/api/v1/system/status", nil, "", nil)
@@ -167,7 +228,7 @@ func TestAdministratorLoginStatusAndLogout(t *testing.T) {
 		t.Fatal(err)
 	}
 	if status.Service != api.IpchronicleCenter || status.Status != api.Ok || status.SourceRevision != "test-revision" ||
-		!status.TransportWarning || status.ConfigSchemaVersion != 2 || status.HistorySchemaVersion != 1 ||
+		!status.TransportWarning || status.ConfigSchemaVersion != 3 || status.HistorySchemaVersion != 1 ||
 		status.LogsSchemaVersion != 1 {
 		t.Fatalf("unexpected status response: %#v", status)
 	}

@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 
 import {
   agentInstallationCommand,
+  agentRecoveryInstallationCommand,
   agentUninstallCommand,
 } from "@/lib/agent-installer";
 
@@ -31,6 +32,22 @@ describe("Agent installation command", () => {
 
     expect(command).toContain("--registration-key 'key'\"'\"'with-quote'");
     expect(command).toMatch(/ --channel rc$/);
+    expect(command).not.toContain("--version");
+  });
+});
+
+describe("Agent recovery installation command", () => {
+  it("keeps the node recovery key independent from the Agent version", () => {
+    const command = agentRecoveryInstallationCommand(
+      "https://center.example",
+      "recovery-secret",
+      "rc",
+    );
+
+    expect(command).toContain("--center-url 'https://center.example'");
+    expect(command).toContain("--recovery-key 'recovery-secret'");
+    expect(command).toMatch(/ --channel rc$/);
+    expect(command).not.toContain("--registration-key");
     expect(command).not.toContain("--version");
   });
 });

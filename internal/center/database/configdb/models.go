@@ -169,6 +169,13 @@ type NodeProbeStatus struct {
 	ReportedAt                        int64
 }
 
+type NodeRecoveryCredential struct {
+	NodeID       string
+	KeyDigest    []byte
+	KeyEncrypted []byte
+	RotatedAt    int64
+}
+
 type NodeSyncSession struct {
 	NodeID      string
 	SessionID   string

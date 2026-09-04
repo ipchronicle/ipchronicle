@@ -87,6 +87,14 @@ func Enroll(ctx context.Context, store *state.Store, centerURL, registrationKey,
 }
 
 func EnrollWithCapabilities(ctx context.Context, store *state.Store, centerURL, registrationKey, version string, updateCapable bool) (state.Identity, error) {
+	return enrollWithCredential(ctx, store, centerURL, registrationKey, "registration", version, updateCapable)
+}
+
+func RecoverWithCapabilities(ctx context.Context, store *state.Store, centerURL, recoveryKey, version string, updateCapable bool) (state.Identity, error) {
+	return enrollWithCredential(ctx, store, centerURL, recoveryKey, "recovery", version, updateCapable)
+}
+
+func enrollWithCredential(ctx context.Context, store *state.Store, centerURL, key, mode, version string, updateCapable bool) (state.Identity, error) {
 	normalized, err := NormalizeCenterURL(centerURL)
 	if err != nil {
 		return state.Identity{}, err
@@ -101,8 +109,8 @@ func EnrollWithCapabilities(ctx context.Context, store *state.Store, centerURL, 
 	if !errors.Is(err, state.ErrNotEnrolled) {
 		return state.Identity{}, err
 	}
-	if registrationKey == "" {
-		return state.Identity{}, errors.New("registration key must not be empty")
+	if key == "" || (mode != "registration" && mode != "recovery") {
+		return state.Identity{}, errors.New("registration or recovery key must not be empty")
 	}
 	client, err := NewControlClient(normalized)
 	if err != nil {
@@ -112,19 +120,36 @@ func EnrollWithCapabilities(ctx context.Context, store *state.Store, centerURL, 
 	if err != nil {
 		return state.Identity{}, err
 	}
-	response, err := client.client.RegisterAgentWithResponse(ctx, agentapi.AgentRegistrationRequest{
-		RegistrationKey: registrationKey,
-		Metadata:        metadata,
-	})
-	if err != nil {
-		return state.Identity{}, fmt.Errorf("register Agent: %w", err)
-	}
-	if response.JSON201 == nil {
-		return state.Identity{}, responseError("register Agent", response.StatusCode(), response.JSON400, response.JSON401, response.JSON403)
+	var nodeID uuid.UUID
+	var credential string
+	if mode == "registration" {
+		response, err := client.client.RegisterAgentWithResponse(ctx, agentapi.AgentRegistrationRequest{
+			RegistrationKey: key, Metadata: metadata,
+		})
+		if err != nil {
+			return state.Identity{}, fmt.Errorf("register Agent: %w", err)
+		}
+		if response.JSON201 == nil {
+			return state.Identity{}, responseError("register Agent", response.StatusCode(), response.JSON400, response.JSON401, response.JSON403)
+		}
+		nodeID = response.JSON201.NodeId
+		credential = response.JSON201.Credential
+	} else {
+		response, err := client.client.RecoverAgentWithResponse(ctx, agentapi.AgentRecoveryRequest{
+			RecoveryKey: key, Metadata: metadata,
+		})
+		if err != nil {
+			return state.Identity{}, fmt.Errorf("recover Agent: %w", err)
+		}
+		if response.JSON200 == nil {
+			return state.Identity{}, responseError("recover Agent", response.StatusCode(), response.JSON400, response.JSON401, nil)
+		}
+		nodeID = response.JSON200.NodeId
+		credential = response.JSON200.Credential
 	}
 	identity := state.Identity{
-		CenterURL: normalized, NodeID: response.JSON201.NodeId.String(),
-		Credential: response.JSON201.Credential, AppliedConfigurationRevision: 0,
+		CenterURL: normalized, NodeID: nodeID.String(),
+		Credential: credential, AppliedConfigurationRevision: 0,
 	}
 	if err := store.SaveIdentity(identity); err != nil {
 		return state.Identity{}, fmt.Errorf("persist Agent identity: %w", err)

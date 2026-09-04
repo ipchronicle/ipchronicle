@@ -601,6 +601,22 @@ export const en = {
           current: "The installed Agent is current for the selected channel.",
           updateAccepted: "The Agent update task was accepted.",
         },
+        recovery: {
+          title: "Reinstall recovery",
+          detail:
+            "After reinstalling the system or losing local state, run this node-specific command as root to retain the current node, configuration, and history. Its recovery key can take over this node and must be protected.",
+          loadFailed: "The node-specific recovery command could not be loaded.",
+          copy: "Copy recovery command",
+          copied: "Recovery command copied.",
+          copyFailed: "The recovery command could not be copied.",
+          rotate: "Rotate recovery key",
+          rotateTitle: "Rotate this node's recovery key?",
+          rotateDetail:
+            "Existing recovery commands will stop working immediately. The current Agent credential and runtime state are not affected.",
+          rotateConfirm: "Rotate key",
+          rotated:
+            "The recovery key was rotated. Use the new node-specific command.",
+        },
         discovery: {
           title: "Discovery and probes",
           detail:
@@ -1941,6 +1957,7 @@ export const en = {
         "Generate a registration key before enabling enrollment.",
       registration_key_invalid: "The registration key is invalid.",
       registration_disabled: "Automatic Agent enrollment is disabled.",
+      recovery_key_invalid: "The node recovery key is invalid.",
       agent_unauthenticated: "The Agent credential is invalid.",
       agent_revoked: "The Agent credential has been revoked.",
       node_not_found: "The node does not exist or has already been deleted.",

@@ -6,6 +6,8 @@ export type Node = components["schemas"]["Node"];
 export type AgentEnrollmentSettings =
   components["schemas"]["AgentEnrollmentSettings"];
 export type NodeDeletion = components["schemas"]["NodeDeletion"];
+export type NodeRecoveryCredential =
+  components["schemas"]["NodeRecoveryCredential"];
 
 export async function listNodes(signal?: AbortSignal) {
   const result = await apiClient.GET("/api/v1/nodes", { signal });
@@ -43,6 +45,34 @@ export async function rotateAgentEnrollmentKey(
 ) {
   const result = await apiClient.POST("/api/v1/agent-enrollment/key", {
     body: { defaultProbeTimezone },
+    headers: { "X-CSRF-Token": csrfToken },
+  });
+  if (!result.response.ok || result.data === undefined) {
+    throwAPIError(result.response, result.error);
+  }
+  return result.data;
+}
+
+export async function getNodeRecoveryCredential(
+  nodeId: string,
+  signal?: AbortSignal,
+) {
+  const result = await apiClient.GET("/api/v1/nodes/{nodeId}/recovery", {
+    params: { path: { nodeId } },
+    signal,
+  });
+  if (!result.response.ok || result.data === undefined) {
+    throwAPIError(result.response, result.error);
+  }
+  return result.data;
+}
+
+export async function rotateNodeRecoveryCredential(
+  nodeId: string,
+  csrfToken: string,
+) {
+  const result = await apiClient.POST("/api/v1/nodes/{nodeId}/recovery/key", {
+    params: { path: { nodeId } },
     headers: { "X-CSRF-Token": csrfToken },
   });
   if (!result.response.ok || result.data === undefined) {

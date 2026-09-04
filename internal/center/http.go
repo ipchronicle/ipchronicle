@@ -71,6 +71,7 @@ func NewHTTPHandler(options HTTPOptions) http.Handler {
 	router.Use(middleware.RequestID)
 	router.Use(middleware.Recoverer)
 	router.Use(requestSecurityMiddleware)
+	router.Use(limitAgentAccess(newAgentAccessLimiter(agentAccessAttemptsPerWindow, agentAccessWindow), time.Now))
 	router.Use(limitAPIRequestBody)
 
 	router.Get("/healthz", func(w http.ResponseWriter, _ *http.Request) {

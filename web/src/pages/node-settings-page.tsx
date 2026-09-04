@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, type FormEvent } from "react";
+import { useEffect, useMemo, useRef, useState, type FormEvent } from "react";
 import {
   CircleArrowUp,
   Clipboard,
@@ -16,7 +16,14 @@ import {
 import { useTranslation } from "react-i18next";
 import { useParams } from "react-router";
 
-import { deleteNode, revokeNode, updateNode } from "@/api/nodes";
+import {
+  deleteNode,
+  getNodeRecoveryCredential,
+  revokeNode,
+  rotateNodeRecoveryCredential,
+  updateNode,
+  type NodeRecoveryCredential,
+} from "@/api/nodes";
 import type { LogLevel } from "@/api/logs";
 import {
   getNodeProbe,
@@ -28,6 +35,7 @@ import {
   getAgentUpdateState,
   type AgentUpdateState,
 } from "@/api/updates";
+import { getSystemSettings } from "@/api/system";
 import { useAuth } from "@/auth-context";
 import { useNodeDetail } from "@/components/node-detail-layout";
 import {
@@ -75,10 +83,14 @@ import {
   isTerminalUpdateTask,
   nodeHasAvailableUpdate,
 } from "@/lib/agent-update";
-import { agentUninstallCommand } from "@/lib/agent-installer";
+import {
+  agentRecoveryInstallationCommand,
+  agentUninstallCommand,
+} from "@/lib/agent-installer";
 import { formatTime } from "@/pages/node-probe-page";
 
-type WorkingAction = "basic" | "probe" | "update" | "revoke" | "delete";
+type WorkingAction =
+  "basic" | "probe" | "update" | "recovery" | "revoke" | "delete";
 type UninstallMode = "preserve" | "purge";
 
 const preservingUninstallCommand = agentUninstallCommand("preserve");
@@ -93,6 +105,9 @@ export function NodeSettingsPage() {
   const [updateLoadFailed, setUpdateLoadFailed] = useState(false);
   const [probe, setProbe] = useState<NodeProbeState>();
   const [probeLoadFailed, setProbeLoadFailed] = useState(false);
+  const [recovery, setRecovery] = useState<NodeRecoveryCredential>();
+  const [centerURL, setCenterURL] = useState<string>();
+  const [recoveryLoadFailed, setRecoveryLoadFailed] = useState(false);
   const [name, setName] = useState(node.name);
   const [enabled, setEnabled] = useState(node.enabled);
   const [logLevel, setLogLevel] = useState<LogLevel>(node.logLevel);
@@ -101,6 +116,7 @@ export function NodeSettingsPage() {
   const [lowMemoryOverride, setLowMemoryOverride] = useState(false);
   const [working, setWorking] = useState<WorkingAction>();
   const [copiedUninstall, setCopiedUninstall] = useState<UninstallMode>();
+  const [copiedRecovery, setCopiedRecovery] = useState(false);
   const copyFeedbackTimeoutRef = useRef<number | undefined>(undefined);
   const [feedback, setFeedback] = useState<
     { kind: "success" | "error"; message: string } | undefined
@@ -134,6 +150,20 @@ export function NodeSettingsPage() {
             setProbeLoadFailed(true);
           }
         }),
+      getNodeRecoveryCredential(nodeId, controller.signal)
+        .then((value) => setRecovery(value))
+        .catch((error: unknown) => {
+          if (!(error instanceof DOMException && error.name === "AbortError")) {
+            setRecoveryLoadFailed(true);
+          }
+        }),
+      getSystemSettings(controller.signal)
+        .then((value) => setCenterURL(value.effectiveOrigin))
+        .catch((error: unknown) => {
+          if (!(error instanceof DOMException && error.name === "AbortError")) {
+            setRecoveryLoadFailed(true);
+          }
+        }),
     ]);
     return () => controller.abort();
   }, [nodeId]);
@@ -155,6 +185,17 @@ export function NodeSettingsPage() {
     updateTask !== undefined && !isTerminalUpdateTask(updateTask.status);
   const nodeLocked =
     node.status === "revoked" || node.deletionStatus !== undefined;
+  const recoveryCommand = useMemo(
+    () =>
+      recovery === undefined || centerURL === undefined || updates === undefined
+        ? undefined
+        : agentRecoveryInstallationCommand(
+            centerURL,
+            recovery.recoveryKey,
+            updates.channel,
+          ),
+    [centerURL, recovery, updates],
+  );
 
   async function saveBasic(event: FormEvent) {
     event.preventDefault();
@@ -309,6 +350,44 @@ export function NodeSettingsPage() {
         kind: "error",
         message: t("nodeDetail.settings.removal.copyFailed"),
       });
+    }
+  }
+
+  async function copyRecoveryCommand() {
+    if (recoveryCommand === undefined) return;
+    try {
+      await navigator.clipboard.writeText(recoveryCommand);
+      setCopiedRecovery(true);
+      if (copyFeedbackTimeoutRef.current !== undefined) {
+        window.clearTimeout(copyFeedbackTimeoutRef.current);
+      }
+      copyFeedbackTimeoutRef.current = window.setTimeout(() => {
+        setCopiedRecovery(false);
+        copyFeedbackTimeoutRef.current = undefined;
+      }, 2_000);
+    } catch {
+      setCopiedRecovery(false);
+      setFeedback({
+        kind: "error",
+        message: t("nodeDetail.settings.recovery.copyFailed"),
+      });
+    }
+  }
+
+  async function rotateRecovery() {
+    setWorking("recovery");
+    setFeedback(undefined);
+    try {
+      setRecovery(await rotateNodeRecoveryCredential(nodeId, csrfToken));
+      setCopiedRecovery(false);
+      setFeedback({
+        kind: "success",
+        message: t("nodeDetail.settings.recovery.rotated"),
+      });
+    } catch (error) {
+      setFeedback({ kind: "error", message: formatAPIError(error, t) });
+    } finally {
+      setWorking(undefined);
     }
   }
 
@@ -633,6 +712,94 @@ export function NodeSettingsPage() {
                 <p className="text-sm text-muted-foreground">
                   {t("nodeDetail.settings.agent.current")}
                 </p>
+              ) : null}
+              {!nodeLocked ? (
+                <section className="space-y-3 border-t pt-4">
+                  <div>
+                    <h3 className="text-sm font-medium">
+                      {t("nodeDetail.settings.recovery.title")}
+                    </h3>
+                    <p className="mt-1 text-sm leading-6 text-muted-foreground">
+                      {t("nodeDetail.settings.recovery.detail")}
+                    </p>
+                  </div>
+                  {recoveryLoadFailed || updateLoadFailed ? (
+                    <Alert variant="destructive">
+                      <TriangleAlert aria-hidden="true" />
+                      <AlertDescription>
+                        {t("nodeDetail.settings.recovery.loadFailed")}
+                      </AlertDescription>
+                    </Alert>
+                  ) : recoveryCommand === undefined ? (
+                    <Skeleton className="h-24 w-full" />
+                  ) : (
+                    <>
+                      <pre className="overflow-x-auto rounded-md bg-muted p-3 text-sm leading-5">
+                        <code>{recoveryCommand}</code>
+                      </pre>
+                      <div className="flex flex-wrap gap-2">
+                        <Tooltip open={copiedRecovery}>
+                          <TooltipTrigger asChild>
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              onClick={() => void copyRecoveryCommand()}
+                            >
+                              <Clipboard
+                                data-icon="inline-start"
+                                aria-hidden="true"
+                              />
+                              {t("nodeDetail.settings.recovery.copy")}
+                            </Button>
+                          </TooltipTrigger>
+                          <TooltipContent side="top" sideOffset={6}>
+                            {t("nodeDetail.settings.recovery.copied")}
+                          </TooltipContent>
+                        </Tooltip>
+                        <AlertDialog>
+                          <AlertDialogTrigger asChild>
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              disabled={working !== undefined}
+                            >
+                              <KeyRound
+                                data-icon="inline-start"
+                                aria-hidden="true"
+                              />
+                              {t("nodeDetail.settings.recovery.rotate")}
+                            </Button>
+                          </AlertDialogTrigger>
+                          <AlertDialogContent>
+                            <AlertDialogHeader>
+                              <AlertDialogMedia>
+                                <KeyRound aria-hidden="true" />
+                              </AlertDialogMedia>
+                              <AlertDialogTitle>
+                                {t("nodeDetail.settings.recovery.rotateTitle")}
+                              </AlertDialogTitle>
+                              <AlertDialogDescription>
+                                {t("nodeDetail.settings.recovery.rotateDetail")}
+                              </AlertDialogDescription>
+                            </AlertDialogHeader>
+                            <AlertDialogFooter>
+                              <AlertDialogCancel>
+                                {t("common.cancel")}
+                              </AlertDialogCancel>
+                              <AlertDialogAction
+                                onClick={() => void rotateRecovery()}
+                              >
+                                {t(
+                                  "nodeDetail.settings.recovery.rotateConfirm",
+                                )}
+                              </AlertDialogAction>
+                            </AlertDialogFooter>
+                          </AlertDialogContent>
+                        </AlertDialog>
+                      </div>
+                    </>
+                  )}
+                </section>
               ) : null}
             </CardContent>
           </Card>

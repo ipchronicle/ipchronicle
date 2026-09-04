@@ -131,6 +131,27 @@ run_installer "$systemd_root" "$systemd_os_release" \
   --center-url https://center.example --registration-key test-key --agent-binary "$fake_agent"
 assert_installed "$systemd_root" systemd
 
+recovery_root="$test_root/recovery-root"
+mkdir -p "$recovery_root"
+run_installer "$recovery_root" "$systemd_os_release" \
+  --center-url https://center.example --recovery-key recovery-key --agent-binary "$fake_agent"
+assert_installed "$recovery_root" systemd
+grep -F -- "--recovery-key recovery-key" "$recovery_root/enroll.log" >/dev/null
+if run_installer "$test_root/mutually-exclusive-root" "$systemd_os_release" \
+  --center-url https://center.example --registration-key test-key --recovery-key recovery-key --agent-binary "$fake_agent" \
+  >"$test_root/mutually-exclusive.out" 2>"$test_root/mutually-exclusive.err"; then
+  printf 'mutually exclusive enrollment credentials unexpectedly succeeded\n' >&2
+  exit 1
+fi
+grep -F -- '--registration-key and --recovery-key cannot be used together' "$test_root/mutually-exclusive.err" >/dev/null
+if run_installer "$test_root/missing-credential-root" "$systemd_os_release" \
+  --center-url https://center.example --agent-binary "$fake_agent" \
+  >"$test_root/missing-credential.out" 2>"$test_root/missing-credential.err"; then
+  printf 'missing enrollment credential unexpectedly succeeded\n' >&2
+  exit 1
+fi
+grep -F -- '(--registration-key KEY | --recovery-key KEY)' "$test_root/missing-credential.err" >/dev/null
+
 rhel_root="$test_root/rhel-root"
 mkdir -p "$rhel_root"
 rhel_os_release="$test_root/rhel-os-release"

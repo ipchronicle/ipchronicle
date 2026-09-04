@@ -447,6 +447,7 @@ const (
 	ProbeTargetUnavailable           ErrorCode = "probe_target_unavailable"
 	ProbeTaskSlotOccupied            ErrorCode = "probe_task_slot_occupied"
 	RateLimited                      ErrorCode = "rate_limited"
+	RecoveryKeyInvalid               ErrorCode = "recovery_key_invalid"
 	RegistrationDisabled             ErrorCode = "registration_disabled"
 	RegistrationKeyInvalid           ErrorCode = "registration_key_invalid"
 	RegistrationKeyNotInitialized    ErrorCode = "registration_key_not_initialized"
@@ -559,6 +560,8 @@ func (e ErrorCode) Valid() bool {
 	case ProbeTaskSlotOccupied:
 		return true
 	case RateLimited:
+		return true
+	case RecoveryKeyInvalid:
 		return true
 	case RegistrationDisabled:
 		return true
@@ -1852,6 +1855,12 @@ type AgentProxyConfiguration struct {
 	Username *string            `json:"username,omitempty"`
 }
 
+// AgentRecoveryRequest defines model for AgentRecoveryRequest.
+type AgentRecoveryRequest struct {
+	Metadata    AgentMetadata `json:"metadata"`
+	RecoveryKey string        `json:"recoveryKey"`
+}
+
 // AgentRegistrationRequest defines model for AgentRegistrationRequest.
 type AgentRegistrationRequest struct {
 	Metadata        AgentMetadata `json:"metadata"`
@@ -2408,6 +2417,13 @@ type NodePublicAddressSummary struct {
 	Family       AddressFamily      `json:"family"`
 	Id           openapi_types.UUID `json:"id"`
 	ProbeEnabled bool               `json:"probeEnabled"`
+}
+
+// NodeRecoveryCredential defines model for NodeRecoveryCredential.
+type NodeRecoveryCredential struct {
+	NodeId      openapi_types.UUID `json:"nodeId"`
+	RecoveryKey string             `json:"recoveryKey"`
+	RotatedAt   time.Time          `json:"rotatedAt"`
 }
 
 // NodeStatus defines model for NodeStatus.
@@ -3074,6 +3090,9 @@ type Forbidden = ErrorResponse
 // NotFound defines model for NotFound.
 type NotFound = ErrorResponse
 
+// RateLimitResponse defines model for RateLimitResponse.
+type RateLimitResponse = ErrorResponse
+
 // Unauthorized defines model for Unauthorized.
 type Unauthorized = ErrorResponse
 
@@ -3271,6 +3290,11 @@ type UpdatePublicAddressParams struct {
 	XCSRFToken *CSRFToken `json:"X-CSRF-Token,omitempty"`
 }
 
+// RotateNodeRecoveryCredentialParams defines parameters for RotateNodeRecoveryCredential.
+type RotateNodeRecoveryCredentialParams struct {
+	XCSRFToken *CSRFToken `json:"X-CSRF-Token,omitempty"`
+}
+
 // RevokeNodeParams defines parameters for RevokeNode.
 type RevokeNodeParams struct {
 	XCSRFToken *CSRFToken `json:"X-CSRF-Token,omitempty"`
@@ -3393,6 +3417,9 @@ type UploadAgentLogsJSONRequestBody = AgentLogBatch
 
 // UploadProbeArtifactJSONRequestBody defines body for UploadProbeArtifact for application/json ContentType.
 type UploadProbeArtifactJSONRequestBody = AgentProbeArtifact
+
+// RecoverAgentJSONRequestBody defines body for RecoverAgent for application/json ContentType.
+type RecoverAgentJSONRequestBody = AgentRecoveryRequest
 
 // LoginJSONRequestBody defines body for Login for application/json ContentType.
 type LoginJSONRequestBody = LoginRequest
@@ -3723,6 +3750,20 @@ type ClientInterface interface {
 	// Corresponds with POST /api/v1/agent/probe-artifacts (the `UploadProbeArtifact` operationId).
 	UploadProbeArtifact(ctx context.Context, body UploadProbeArtifactJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
 
+	// RecoverAgentWithBody Replace an Agent credential while retaining its node identity
+	//
+	// Takes any type of body and a specified content type.
+	//
+	// Corresponds with POST /api/v1/agent/recover (the `RecoverAgent` operationId).
+	RecoverAgentWithBody(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// RecoverAgent Replace an Agent credential while retaining its node identity
+	//
+	// Takes a body of the `application/json` content type.
+	//
+	// Corresponds with POST /api/v1/agent/recover (the `RecoverAgent` operationId).
+	RecoverAgent(ctx context.Context, body RecoverAgentJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
+
 	// LoginWithBody Start an administrator session
 	//
 	// Takes any type of body and a specified content type.
@@ -3967,6 +4008,16 @@ type ClientInterface interface {
 	//
 	// Corresponds with PATCH /api/v1/nodes/{nodeId}/public-addresses/{publicAddressId} (the `UpdatePublicAddress` operationId).
 	UpdatePublicAddress(ctx context.Context, nodeId NodeId, publicAddressId openapi_types.UUID, params *UpdatePublicAddressParams, body UpdatePublicAddressJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// GetNodeRecoveryCredential Read the node-specific Agent recovery credential
+	//
+	// Corresponds with GET /api/v1/nodes/{nodeId}/recovery (the `GetNodeRecoveryCredential` operationId).
+	GetNodeRecoveryCredential(ctx context.Context, nodeId NodeId, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// RotateNodeRecoveryCredential Rotate the node-specific Agent recovery credential
+	//
+	// Corresponds with POST /api/v1/nodes/{nodeId}/recovery/key (the `RotateNodeRecoveryCredential` operationId).
+	RotateNodeRecoveryCredential(ctx context.Context, nodeId NodeId, params *RotateNodeRecoveryCredentialParams, reqEditors ...RequestEditorFn) (*http.Response, error)
 
 	// RevokeNode Permanently revoke a node Agent credential
 	//
@@ -4660,6 +4711,40 @@ func (c *Client) UploadProbeArtifact(ctx context.Context, body UploadProbeArtifa
 	return c.Client.Do(req)
 }
 
+// RecoverAgentWithBody Replace an Agent credential while retaining its node identity
+//
+// Takes any type of body and a specified content type.
+//
+// Corresponds with POST /api/v1/agent/recover (the `RecoverAgent` operationId).
+func (c *Client) RecoverAgentWithBody(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewRecoverAgentRequestWithBody(c.Server, contentType, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+// RecoverAgent Replace an Agent credential while retaining its node identity
+//
+// Takes a body of the `application/json` content type.
+//
+// Corresponds with POST /api/v1/agent/recover (the `RecoverAgent` operationId).
+func (c *Client) RecoverAgent(ctx context.Context, body RecoverAgentJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewRecoverAgentRequest(c.Server, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
 // LoginWithBody Start an administrator session
 //
 // Takes any type of body and a specified content type.
@@ -5305,6 +5390,36 @@ func (c *Client) UpdatePublicAddressWithBody(ctx context.Context, nodeId NodeId,
 // Corresponds with PATCH /api/v1/nodes/{nodeId}/public-addresses/{publicAddressId} (the `UpdatePublicAddress` operationId).
 func (c *Client) UpdatePublicAddress(ctx context.Context, nodeId NodeId, publicAddressId openapi_types.UUID, params *UpdatePublicAddressParams, body UpdatePublicAddressJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error) {
 	req, err := NewUpdatePublicAddressRequest(c.Server, nodeId, publicAddressId, params, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+// GetNodeRecoveryCredential Read the node-specific Agent recovery credential
+//
+// Corresponds with GET /api/v1/nodes/{nodeId}/recovery (the `GetNodeRecoveryCredential` operationId).
+func (c *Client) GetNodeRecoveryCredential(ctx context.Context, nodeId NodeId, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewGetNodeRecoveryCredentialRequest(c.Server, nodeId)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+// RotateNodeRecoveryCredential Rotate the node-specific Agent recovery credential
+//
+// Corresponds with POST /api/v1/nodes/{nodeId}/recovery/key (the `RotateNodeRecoveryCredential` operationId).
+func (c *Client) RotateNodeRecoveryCredential(ctx context.Context, nodeId NodeId, params *RotateNodeRecoveryCredentialParams, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewRotateNodeRecoveryCredentialRequest(c.Server, nodeId, params)
 	if err != nil {
 		return nil, err
 	}
@@ -6575,6 +6690,46 @@ func NewUploadProbeArtifactRequestWithBody(server string, contentType string, bo
 	}
 
 	operationPath := fmt.Sprintf("/api/v1/agent/probe-artifacts")
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest(http.MethodPost, queryURL.String(), body)
+	if err != nil {
+		return nil, err
+	}
+
+	req.Header.Add("Content-Type", contentType)
+
+	return req, nil
+}
+
+// NewRecoverAgentRequest calls the generic RecoverAgent builder with application/json body
+func NewRecoverAgentRequest(server string, body RecoverAgentJSONRequestBody) (*http.Request, error) {
+	var bodyReader io.Reader
+	buf, err := json.Marshal(body)
+	if err != nil {
+		return nil, err
+	}
+	bodyReader = bytes.NewReader(buf)
+	return NewRecoverAgentRequestWithBody(server, "application/json", bodyReader)
+}
+
+// NewRecoverAgentRequestWithBody constructs an http.Request for the RecoverAgent method, with any body, and a specified content type
+func NewRecoverAgentRequestWithBody(server string, contentType string, body io.Reader) (*http.Request, error) {
+	var err error
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/api/v1/agent/recover")
 	if operationPath[0] == '/' {
 		operationPath = "." + operationPath
 	}
@@ -8513,6 +8668,89 @@ func NewUpdatePublicAddressRequestWithBody(server string, nodeId NodeId, publicA
 	return req, nil
 }
 
+// NewGetNodeRecoveryCredentialRequest constructs an http.Request for the GetNodeRecoveryCredential method
+func NewGetNodeRecoveryCredentialRequest(server string, nodeId NodeId) (*http.Request, error) {
+	var err error
+
+	var pathParam0 string
+
+	pathParam0, err = runtime.StyleParamWithOptions("simple", false, "nodeId", nodeId, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationPath, Type: "string", Format: "uuid"})
+	if err != nil {
+		return nil, err
+	}
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/api/v1/nodes/%s/recovery", pathParam0)
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest(http.MethodGet, queryURL.String(), nil)
+	if err != nil {
+		return nil, err
+	}
+
+	return req, nil
+}
+
+// NewRotateNodeRecoveryCredentialRequest constructs an http.Request for the RotateNodeRecoveryCredential method
+func NewRotateNodeRecoveryCredentialRequest(server string, nodeId NodeId, params *RotateNodeRecoveryCredentialParams) (*http.Request, error) {
+	var err error
+
+	var pathParam0 string
+
+	pathParam0, err = runtime.StyleParamWithOptions("simple", false, "nodeId", nodeId, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationPath, Type: "string", Format: "uuid"})
+	if err != nil {
+		return nil, err
+	}
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/api/v1/nodes/%s/recovery/key", pathParam0)
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest(http.MethodPost, queryURL.String(), nil)
+	if err != nil {
+		return nil, err
+	}
+
+	if params != nil {
+
+		if params.XCSRFToken != nil {
+			var headerParam0 string
+
+			headerParam0, err = runtime.StyleParamWithOptions("simple", false, "X-CSRF-Token", *params.XCSRFToken, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationHeader, Type: "string", Format: ""})
+			if err != nil {
+				return nil, err
+			}
+
+			req.Header.Set("X-CSRF-Token", headerParam0)
+		}
+
+	}
+
+	return req, nil
+}
+
 // NewRevokeNodeRequest constructs an http.Request for the RevokeNode method
 func NewRevokeNodeRequest(server string, nodeId NodeId, params *RevokeNodeParams) (*http.Request, error) {
 	var err error
@@ -9888,6 +10126,20 @@ type ClientWithResponsesInterface interface {
 	// Corresponds with POST /api/v1/agent/probe-artifacts (the `UploadProbeArtifact` operationId).
 	UploadProbeArtifactWithResponse(ctx context.Context, body UploadProbeArtifactJSONRequestBody, reqEditors ...RequestEditorFn) (*UploadProbeArtifactResponse, error)
 
+	// RecoverAgentWithBodyWithResponse Replace an Agent credential while retaining its node identity
+	//
+	// Takes any type of body and a specified content type, and returns a wrapper object for the known response body format(s).
+	//
+	// Corresponds with POST /api/v1/agent/recover (the `RecoverAgent` operationId).
+	RecoverAgentWithBodyWithResponse(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*RecoverAgentResponse, error)
+
+	// RecoverAgentWithResponse Replace an Agent credential while retaining its node identity
+	//
+	// Takes a body of the `application/json` content type, and returns a wrapper object for the known response body format(s).
+	//
+	// Corresponds with POST /api/v1/agent/recover (the `RecoverAgent` operationId).
+	RecoverAgentWithResponse(ctx context.Context, body RecoverAgentJSONRequestBody, reqEditors ...RequestEditorFn) (*RecoverAgentResponse, error)
+
 	// LoginWithBodyWithResponse Start an administrator session
 	//
 	// Takes any type of body and a specified content type, and returns a wrapper object for the known response body format(s).
@@ -10174,6 +10426,20 @@ type ClientWithResponsesInterface interface {
 	//
 	// Corresponds with PATCH /api/v1/nodes/{nodeId}/public-addresses/{publicAddressId} (the `UpdatePublicAddress` operationId).
 	UpdatePublicAddressWithResponse(ctx context.Context, nodeId NodeId, publicAddressId openapi_types.UUID, params *UpdatePublicAddressParams, body UpdatePublicAddressJSONRequestBody, reqEditors ...RequestEditorFn) (*UpdatePublicAddressResponse, error)
+
+	// GetNodeRecoveryCredentialWithResponse Read the node-specific Agent recovery credential
+	//
+	// Returns a wrapper object for the known response body format(s).
+	//
+	// Corresponds with GET /api/v1/nodes/{nodeId}/recovery (the `GetNodeRecoveryCredential` operationId).
+	GetNodeRecoveryCredentialWithResponse(ctx context.Context, nodeId NodeId, reqEditors ...RequestEditorFn) (*GetNodeRecoveryCredentialResponse, error)
+
+	// RotateNodeRecoveryCredentialWithResponse Rotate the node-specific Agent recovery credential
+	//
+	// Returns a wrapper object for the known response body format(s).
+	//
+	// Corresponds with POST /api/v1/nodes/{nodeId}/recovery/key (the `RotateNodeRecoveryCredential` operationId).
+	RotateNodeRecoveryCredentialWithResponse(ctx context.Context, nodeId NodeId, params *RotateNodeRecoveryCredentialParams, reqEditors ...RequestEditorFn) (*RotateNodeRecoveryCredentialResponse, error)
 
 	// RevokeNodeWithResponse Permanently revoke a node Agent credential
 	//
@@ -11313,6 +11579,8 @@ type RegisterAgentResponse struct {
 	JSON401 *AgentUnauthorized
 	// JSON403 the response for an HTTP 403 `application/json` response
 	JSON403 *AgentForbidden
+	// JSON429 the response for an HTTP 429 `application/json` response
+	JSON429 *RateLimitResponse
 }
 
 // GetJSON201 returns the response for an HTTP 201 `application/json` response
@@ -11333,6 +11601,11 @@ func (r RegisterAgentResponse) GetJSON401() *AgentUnauthorized {
 // GetJSON403 returns the response for an HTTP 403 `application/json` response
 func (r RegisterAgentResponse) GetJSON403() *AgentForbidden {
 	return r.JSON403
+}
+
+// GetJSON429 returns the response for an HTTP 429 `application/json` response
+func (r RegisterAgentResponse) GetJSON429() *RateLimitResponse {
+	return r.JSON429
 }
 
 // GetBody returns the raw response body bytes
@@ -11482,6 +11755,68 @@ func (r UploadProbeArtifactResponse) StatusCode() int {
 
 // ContentType is a convenience method to retrieve the Content-Type value from the HTTP response headers
 func (r UploadProbeArtifactResponse) ContentType() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Header.Get("Content-Type")
+	}
+	return ""
+}
+
+type RecoverAgentResponse struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	// JSON200 the response for an HTTP 200 `application/json` response
+	JSON200 *AgentRegistrationResult
+	// JSON400 the response for an HTTP 400 `application/json` response
+	JSON400 *BadRequest
+	// JSON401 the response for an HTTP 401 `application/json` response
+	JSON401 *AgentUnauthorized
+	// JSON429 the response for an HTTP 429 `application/json` response
+	JSON429 *RateLimitResponse
+}
+
+// GetJSON200 returns the response for an HTTP 200 `application/json` response
+func (r RecoverAgentResponse) GetJSON200() *AgentRegistrationResult {
+	return r.JSON200
+}
+
+// GetJSON400 returns the response for an HTTP 400 `application/json` response
+func (r RecoverAgentResponse) GetJSON400() *BadRequest {
+	return r.JSON400
+}
+
+// GetJSON401 returns the response for an HTTP 401 `application/json` response
+func (r RecoverAgentResponse) GetJSON401() *AgentUnauthorized {
+	return r.JSON401
+}
+
+// GetJSON429 returns the response for an HTTP 429 `application/json` response
+func (r RecoverAgentResponse) GetJSON429() *RateLimitResponse {
+	return r.JSON429
+}
+
+// GetBody returns the raw response body bytes
+func (r RecoverAgentResponse) GetBody() []byte {
+	return r.Body
+}
+
+// Status returns HTTPResponse.Status
+func (r RecoverAgentResponse) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r RecoverAgentResponse) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+// ContentType is a convenience method to retrieve the Content-Type value from the HTTP response headers
+func (r RecoverAgentResponse) ContentType() string {
 	if r.HTTPResponse != nil {
 		return r.HTTPResponse.Header.Get("Content-Type")
 	}
@@ -13319,6 +13654,137 @@ func (r UpdatePublicAddressResponse) ContentType() string {
 	return ""
 }
 
+type GetNodeRecoveryCredentialResponse struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	// JSON200 the response for an HTTP 200 `application/json` response
+	JSON200 *NodeRecoveryCredential
+	// JSON401 the response for an HTTP 401 `application/json` response
+	JSON401 *Unauthorized
+	// JSON404 the response for an HTTP 404 `application/json` response
+	JSON404 *NotFound
+	// JSON409 the response for an HTTP 409 `application/json` response
+	JSON409 *Conflict
+}
+
+// GetJSON200 returns the response for an HTTP 200 `application/json` response
+func (r GetNodeRecoveryCredentialResponse) GetJSON200() *NodeRecoveryCredential {
+	return r.JSON200
+}
+
+// GetJSON401 returns the response for an HTTP 401 `application/json` response
+func (r GetNodeRecoveryCredentialResponse) GetJSON401() *Unauthorized {
+	return r.JSON401
+}
+
+// GetJSON404 returns the response for an HTTP 404 `application/json` response
+func (r GetNodeRecoveryCredentialResponse) GetJSON404() *NotFound {
+	return r.JSON404
+}
+
+// GetJSON409 returns the response for an HTTP 409 `application/json` response
+func (r GetNodeRecoveryCredentialResponse) GetJSON409() *Conflict {
+	return r.JSON409
+}
+
+// GetBody returns the raw response body bytes
+func (r GetNodeRecoveryCredentialResponse) GetBody() []byte {
+	return r.Body
+}
+
+// Status returns HTTPResponse.Status
+func (r GetNodeRecoveryCredentialResponse) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r GetNodeRecoveryCredentialResponse) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+// ContentType is a convenience method to retrieve the Content-Type value from the HTTP response headers
+func (r GetNodeRecoveryCredentialResponse) ContentType() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Header.Get("Content-Type")
+	}
+	return ""
+}
+
+type RotateNodeRecoveryCredentialResponse struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	// JSON200 the response for an HTTP 200 `application/json` response
+	JSON200 *NodeRecoveryCredential
+	// JSON401 the response for an HTTP 401 `application/json` response
+	JSON401 *Unauthorized
+	// JSON403 the response for an HTTP 403 `application/json` response
+	JSON403 *Forbidden
+	// JSON404 the response for an HTTP 404 `application/json` response
+	JSON404 *NotFound
+	// JSON409 the response for an HTTP 409 `application/json` response
+	JSON409 *Conflict
+}
+
+// GetJSON200 returns the response for an HTTP 200 `application/json` response
+func (r RotateNodeRecoveryCredentialResponse) GetJSON200() *NodeRecoveryCredential {
+	return r.JSON200
+}
+
+// GetJSON401 returns the response for an HTTP 401 `application/json` response
+func (r RotateNodeRecoveryCredentialResponse) GetJSON401() *Unauthorized {
+	return r.JSON401
+}
+
+// GetJSON403 returns the response for an HTTP 403 `application/json` response
+func (r RotateNodeRecoveryCredentialResponse) GetJSON403() *Forbidden {
+	return r.JSON403
+}
+
+// GetJSON404 returns the response for an HTTP 404 `application/json` response
+func (r RotateNodeRecoveryCredentialResponse) GetJSON404() *NotFound {
+	return r.JSON404
+}
+
+// GetJSON409 returns the response for an HTTP 409 `application/json` response
+func (r RotateNodeRecoveryCredentialResponse) GetJSON409() *Conflict {
+	return r.JSON409
+}
+
+// GetBody returns the raw response body bytes
+func (r RotateNodeRecoveryCredentialResponse) GetBody() []byte {
+	return r.Body
+}
+
+// Status returns HTTPResponse.Status
+func (r RotateNodeRecoveryCredentialResponse) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r RotateNodeRecoveryCredentialResponse) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+// ContentType is a convenience method to retrieve the Content-Type value from the HTTP response headers
+func (r RotateNodeRecoveryCredentialResponse) ContentType() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Header.Get("Content-Type")
+	}
+	return ""
+}
+
 type RevokeNodeResponse struct {
 	Body         []byte
 	HTTPResponse *http.Response
@@ -15147,6 +15613,32 @@ func (c *ClientWithResponses) UploadProbeArtifactWithResponse(ctx context.Contex
 	return ParseUploadProbeArtifactResponse(rsp)
 }
 
+// RecoverAgentWithBodyWithResponse Replace an Agent credential while retaining its node identity
+//
+// Takes any type of body and a specified content type, and returns a wrapper object for the known response body format(s).
+//
+// Corresponds with POST /api/v1/agent/recover (the `RecoverAgent` operationId).
+func (c *ClientWithResponses) RecoverAgentWithBodyWithResponse(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*RecoverAgentResponse, error) {
+	rsp, err := c.RecoverAgentWithBody(ctx, contentType, body, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseRecoverAgentResponse(rsp)
+}
+
+// RecoverAgentWithResponse Replace an Agent credential while retaining its node identity
+//
+// Takes a body of the `application/json` content type, and returns a wrapper object for the known response body format(s).
+//
+// Corresponds with POST /api/v1/agent/recover (the `RecoverAgent` operationId).
+func (c *ClientWithResponses) RecoverAgentWithResponse(ctx context.Context, body RecoverAgentJSONRequestBody, reqEditors ...RequestEditorFn) (*RecoverAgentResponse, error) {
+	rsp, err := c.RecoverAgent(ctx, body, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseRecoverAgentResponse(rsp)
+}
+
 // LoginWithBodyWithResponse Start an administrator session
 //
 // Takes any type of body and a specified content type, and returns a wrapper object for the known response body format(s).
@@ -15678,6 +16170,32 @@ func (c *ClientWithResponses) UpdatePublicAddressWithResponse(ctx context.Contex
 		return nil, err
 	}
 	return ParseUpdatePublicAddressResponse(rsp)
+}
+
+// GetNodeRecoveryCredentialWithResponse Read the node-specific Agent recovery credential
+//
+// Returns a wrapper object for the known response body format(s).
+//
+// Corresponds with GET /api/v1/nodes/{nodeId}/recovery (the `GetNodeRecoveryCredential` operationId).
+func (c *ClientWithResponses) GetNodeRecoveryCredentialWithResponse(ctx context.Context, nodeId NodeId, reqEditors ...RequestEditorFn) (*GetNodeRecoveryCredentialResponse, error) {
+	rsp, err := c.GetNodeRecoveryCredential(ctx, nodeId, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseGetNodeRecoveryCredentialResponse(rsp)
+}
+
+// RotateNodeRecoveryCredentialWithResponse Rotate the node-specific Agent recovery credential
+//
+// Returns a wrapper object for the known response body format(s).
+//
+// Corresponds with POST /api/v1/nodes/{nodeId}/recovery/key (the `RotateNodeRecoveryCredential` operationId).
+func (c *ClientWithResponses) RotateNodeRecoveryCredentialWithResponse(ctx context.Context, nodeId NodeId, params *RotateNodeRecoveryCredentialParams, reqEditors ...RequestEditorFn) (*RotateNodeRecoveryCredentialResponse, error) {
+	rsp, err := c.RotateNodeRecoveryCredential(ctx, nodeId, params, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseRotateNodeRecoveryCredentialResponse(rsp)
 }
 
 // RevokeNodeWithResponse Permanently revoke a node Agent credential
@@ -16827,6 +17345,13 @@ func ParseRegisterAgentResponse(rsp *http.Response) (*RegisterAgentResponse, err
 		}
 		response.JSON403 = &dest
 
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 429:
+		var dest RateLimitResponse
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON429 = &dest
+
 	}
 
 	return response, nil
@@ -16920,6 +17445,53 @@ func ParseUploadProbeArtifactResponse(rsp *http.Response) (*UploadProbeArtifactR
 			return nil, err
 		}
 		response.JSON403 = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseRecoverAgentResponse parses an HTTP response from a RecoverAgentWithResponse call
+func ParseRecoverAgentResponse(rsp *http.Response) (*RecoverAgentResponse, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &RecoverAgentResponse{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest AgentRegistrationResult
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 400:
+		var dest BadRequest
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON400 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 401:
+		var dest AgentUnauthorized
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON401 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 429:
+		var dest RateLimitResponse
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON429 = &dest
 
 	}
 
@@ -18301,6 +18873,107 @@ func ParseUpdatePublicAddressResponse(rsp *http.Response) (*UpdatePublicAddressR
 			return nil, err
 		}
 		response.JSON404 = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseGetNodeRecoveryCredentialResponse parses an HTTP response from a GetNodeRecoveryCredentialWithResponse call
+func ParseGetNodeRecoveryCredentialResponse(rsp *http.Response) (*GetNodeRecoveryCredentialResponse, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &GetNodeRecoveryCredentialResponse{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest NodeRecoveryCredential
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 401:
+		var dest Unauthorized
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON401 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 404:
+		var dest NotFound
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON404 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 409:
+		var dest Conflict
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON409 = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseRotateNodeRecoveryCredentialResponse parses an HTTP response from a RotateNodeRecoveryCredentialWithResponse call
+func ParseRotateNodeRecoveryCredentialResponse(rsp *http.Response) (*RotateNodeRecoveryCredentialResponse, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &RotateNodeRecoveryCredentialResponse{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest NodeRecoveryCredential
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 401:
+		var dest Unauthorized
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON401 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 403:
+		var dest Forbidden
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON403 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 404:
+		var dest NotFound
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON404 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 409:
+		var dest Conflict
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON409 = &dest
 
 	}
 

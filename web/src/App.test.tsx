@@ -47,9 +47,11 @@ import {
 import {
   deleteNode,
   getAgentEnrollment,
+  getNodeRecoveryCredential,
   listNodes,
   revokeNode,
   rotateAgentEnrollmentKey,
+  rotateNodeRecoveryCredential,
   startNodeSyncSession,
   stopNodeSyncSession,
   updateNode,
@@ -147,9 +149,11 @@ vi.mock("@/api/network", () => ({
 vi.mock("@/api/nodes", () => ({
   deleteNode: vi.fn(),
   getAgentEnrollment: vi.fn(),
+  getNodeRecoveryCredential: vi.fn(),
   listNodes: vi.fn(),
   revokeNode: vi.fn(),
   rotateAgentEnrollmentKey: vi.fn(),
+  rotateNodeRecoveryCredential: vi.fn(),
   startNodeSyncSession: vi.fn(),
   stopNodeSyncSession: vi.fn(),
   updateNode: vi.fn(),
@@ -226,8 +230,12 @@ const updateObservationSettingsMock = vi.mocked(
 );
 const updatePublicAddressMock = vi.mocked(updatePublicAddress);
 const getEnrollmentMock = vi.mocked(getAgentEnrollment);
+const getNodeRecoveryCredentialMock = vi.mocked(getNodeRecoveryCredential);
 const listNodesMock = vi.mocked(listNodes);
 const rotateEnrollmentMock = vi.mocked(rotateAgentEnrollmentKey);
+const rotateNodeRecoveryCredentialMock = vi.mocked(
+  rotateNodeRecoveryCredential,
+);
 const startSyncMock = vi.mocked(startNodeSyncSession);
 const stopSyncMock = vi.mocked(stopNodeSyncSession);
 const deleteNodeMock = vi.mocked(deleteNode);
@@ -415,9 +423,16 @@ describe("administrator application", () => {
     getNodeNetworkMock.mockReset();
     updateObservationSettingsMock.mockReset();
     getEnrollmentMock.mockReset();
+    getNodeRecoveryCredentialMock.mockReset();
+    getNodeRecoveryCredentialMock.mockResolvedValue({
+      nodeId: probeTestNode.id,
+      recoveryKey: "ipc_recover_test-secret",
+      rotatedAt: "2026-09-04T12:00:00Z",
+    });
     listNodesMock.mockReset();
     listNodesMock.mockResolvedValue([]);
     rotateEnrollmentMock.mockReset();
+    rotateNodeRecoveryCredentialMock.mockReset();
     startSyncMock.mockReset();
     stopSyncMock.mockReset();
     deleteNodeMock.mockReset();
@@ -1472,6 +1487,43 @@ describe("administrator application", () => {
     for (const [command] of writeClipboardTextMock.mock.calls) {
       expect(command).not.toContain("--registration-key");
     }
+  });
+
+  it("copies and rotates the node-specific recovery command", async () => {
+    getSessionMock.mockResolvedValue(session);
+    listNodesMock.mockResolvedValue([probeTestNode]);
+    rotateNodeRecoveryCredentialMock.mockResolvedValue({
+      nodeId: probeTestNode.id,
+      recoveryKey: "ipc_recover_rotated-secret",
+      rotatedAt: "2026-09-04T13:00:00Z",
+    });
+
+    renderApplication(`/nodes/${probeTestNode.id}/settings`);
+
+    expect(await screen.findByText("Reinstall recovery")).toBeInTheDocument();
+    fireEvent.click(
+      screen.getByRole("button", { name: "Copy recovery command" }),
+    );
+    await waitFor(() =>
+      expect(writeClipboardTextMock).toHaveBeenLastCalledWith(
+        expect.stringContaining("--recovery-key 'ipc_recover_test-secret'"),
+      ),
+    );
+    fireEvent.click(
+      screen.getByRole("button", { name: "Rotate recovery key" }),
+    );
+    fireEvent.click(await screen.findByRole("button", { name: "Rotate key" }));
+    await waitFor(() =>
+      expect(rotateNodeRecoveryCredentialMock).toHaveBeenCalledWith(
+        probeTestNode.id,
+        session.csrfToken,
+      ),
+    );
+    expect(
+      await screen.findByText(
+        "The recovery key was rotated. Use the new node-specific command.",
+      ),
+    ).toBeInTheDocument();
   });
 
   it("updates a node Agent log level through versioned configuration", async () => {

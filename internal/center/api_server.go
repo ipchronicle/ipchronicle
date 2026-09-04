@@ -5,6 +5,7 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
+	"log"
 	"maps"
 	"math"
 	"net/http"
@@ -567,6 +568,62 @@ func (s apiServer) RevokeNode(ctx context.Context, request api.RevokeNodeRequest
 		return nil, err
 	}
 	return api.RevokeNode200JSONResponse(nodeResponse(node)), nil
+}
+
+func (s apiServer) GetNodeRecoveryCredential(ctx context.Context, request api.GetNodeRecoveryCredentialRequestObject) (api.GetNodeRecoveryCredentialResponseObject, error) {
+	_, failure, err := s.authorize(ctx, false, "")
+	if err != nil {
+		return nil, err
+	}
+	if failure != "" {
+		return api.GetNodeRecoveryCredential401JSONResponse{UnauthorizedJSONResponse: unauthorized(failure)}, nil
+	}
+	credential, err := s.nodes.RecoveryCredential(ctx, request.NodeId)
+	switch {
+	case errors.Is(err, nodes.ErrNodeNotFound):
+		return api.GetNodeRecoveryCredential404JSONResponse{NotFoundJSONResponse: notFound(api.NodeNotFound)}, nil
+	case errors.Is(err, nodes.ErrNodeRevoked):
+		return api.GetNodeRecoveryCredential409JSONResponse{ConflictJSONResponse: conflict(api.NodeRevoked)}, nil
+	case errors.Is(err, nodes.ErrNodeDeletionPending):
+		return api.GetNodeRecoveryCredential409JSONResponse{ConflictJSONResponse: conflict(api.NodeDeletionPending)}, nil
+	case err != nil:
+		return nil, err
+	}
+	return api.GetNodeRecoveryCredential200JSONResponse(recoveryCredentialResponse(credential)), nil
+}
+
+func (s apiServer) RotateNodeRecoveryCredential(ctx context.Context, request api.RotateNodeRecoveryCredentialRequestObject) (api.RotateNodeRecoveryCredentialResponseObject, error) {
+	security := requestSecurityFromContext(ctx)
+	principal, failure, err := s.authorize(ctx, true, csrfValue(request.Params.XCSRFToken))
+	if err != nil {
+		logSecurityEvent("node_recovery_key_rotation", security.ClientAddress, request.NodeId.String(), "internal_error")
+		return nil, err
+	}
+	if failure == api.Unauthenticated {
+		logSecurityEvent("node_recovery_key_rotation", security.ClientAddress, request.NodeId.String(), string(failure))
+		return api.RotateNodeRecoveryCredential401JSONResponse{UnauthorizedJSONResponse: unauthorized(failure)}, nil
+	}
+	if failure != "" {
+		logSecurityEvent("node_recovery_key_rotation", security.ClientAddress, request.NodeId.String(), string(failure))
+		return api.RotateNodeRecoveryCredential403JSONResponse{ForbiddenJSONResponse: forbidden(failure)}, nil
+	}
+	credential, err := s.nodes.RotateRecoveryKey(ctx, request.NodeId)
+	switch {
+	case errors.Is(err, nodes.ErrNodeNotFound):
+		logSecurityEvent("node_recovery_key_rotation", security.ClientAddress, request.NodeId.String(), string(api.NodeNotFound))
+		return api.RotateNodeRecoveryCredential404JSONResponse{NotFoundJSONResponse: notFound(api.NodeNotFound)}, nil
+	case errors.Is(err, nodes.ErrNodeRevoked):
+		logSecurityEvent("node_recovery_key_rotation", security.ClientAddress, request.NodeId.String(), string(api.NodeRevoked))
+		return api.RotateNodeRecoveryCredential409JSONResponse{ConflictJSONResponse: conflict(api.NodeRevoked)}, nil
+	case errors.Is(err, nodes.ErrNodeDeletionPending):
+		logSecurityEvent("node_recovery_key_rotation", security.ClientAddress, request.NodeId.String(), string(api.NodeDeletionPending))
+		return api.RotateNodeRecoveryCredential409JSONResponse{ConflictJSONResponse: conflict(api.NodeDeletionPending)}, nil
+	case err != nil:
+		logSecurityEvent("node_recovery_key_rotation", security.ClientAddress, request.NodeId.String(), "internal_error")
+		return nil, err
+	}
+	log.Printf("security_event event=%q client=%q node=%q administrator=%q result=%q", "node_recovery_key_rotation", security.ClientAddress, request.NodeId.String(), principal.Account.Username, "succeeded")
+	return api.RotateNodeRecoveryCredential200JSONResponse(recoveryCredentialResponse(credential)), nil
 }
 
 func (s apiServer) StartNodeSyncSession(ctx context.Context, request api.StartNodeSyncSessionRequestObject) (api.StartNodeSyncSessionResponseObject, error) {
@@ -1313,6 +1370,31 @@ func (s apiServer) RegisterAgent(ctx context.Context, request api.RegisterAgentR
 	}, nil
 }
 
+func (s apiServer) RecoverAgent(ctx context.Context, request api.RecoverAgentRequestObject) (api.RecoverAgentResponseObject, error) {
+	security := requestSecurityFromContext(ctx)
+	if request.Body == nil {
+		logSecurityEvent("agent_recovery", security.ClientAddress, "", string(api.InvalidRequest))
+		return api.RecoverAgent400JSONResponse{BadRequestJSONResponse: badRequest(api.InvalidRequest)}, nil
+	}
+	registration, err := s.nodes.Recover(ctx, request.Body.RecoveryKey, metadataFromAPI(request.Body.Metadata))
+	switch {
+	case errors.Is(err, nodes.ErrInvalidMetadata):
+		logSecurityEvent("agent_recovery", security.ClientAddress, "", string(api.InvalidRequest))
+		return api.RecoverAgent400JSONResponse{BadRequestJSONResponse: badRequest(api.InvalidRequest)}, nil
+	case errors.Is(err, nodes.ErrRecoveryKeyInvalid):
+		logSecurityEvent("agent_recovery", security.ClientAddress, "", string(api.RecoveryKeyInvalid))
+		return api.RecoverAgent401JSONResponse{AgentUnauthorizedJSONResponse: agentUnauthorized(api.RecoveryKeyInvalid)}, nil
+	case err != nil:
+		logSecurityEvent("agent_recovery", security.ClientAddress, "", "internal_error")
+		return nil, err
+	}
+	logSecurityEvent("agent_recovery", security.ClientAddress, registration.NodeID.String(), "succeeded")
+	return api.RecoverAgent200JSONResponse{
+		NodeId: registration.NodeID, Credential: registration.Credential,
+		PollIntervalSeconds: int(nodes.PollInterval / time.Second),
+	}, nil
+}
+
 func (s apiServer) PollAgent(ctx context.Context, request api.PollAgentRequestObject) (api.PollAgentResponseObject, error) {
 	if request.Body == nil {
 		return api.PollAgent400JSONResponse{BadRequestJSONResponse: badRequest(api.InvalidRequest)}, nil
@@ -1637,6 +1719,12 @@ func enrollmentResponse(enrollment nodes.Enrollment) api.AgentEnrollmentSettings
 	rotatedAt := enrollment.RotatedAt
 	response.RotatedAt = &rotatedAt
 	return response
+}
+
+func recoveryCredentialResponse(credential nodes.RecoveryCredential) api.NodeRecoveryCredential {
+	return api.NodeRecoveryCredential{
+		NodeId: credential.NodeID, RecoveryKey: credential.Key, RotatedAt: credential.RotatedAt,
+	}
 }
 
 func systemSettingsResponse(settings systemsettings.Settings, requestOrigin string) api.SystemSettings {

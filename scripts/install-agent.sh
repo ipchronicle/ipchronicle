@@ -5,6 +5,7 @@ program_name="install-agent.sh"
 mode="install"
 center_url=""
 registration_key=""
+recovery_key=""
 agent_version=""
 agent_channel="stable"
 agent_channel_set=0
@@ -23,7 +24,7 @@ fail() {
 }
 
 usage() {
-  printf 'usage: %s --center-url URL --registration-key KEY [--channel stable|rc] [--version VERSION]\n' "$program_name" >&2
+  printf 'usage: %s --center-url URL (--registration-key KEY | --recovery-key KEY) [--channel stable|rc] [--version VERSION]\n' "$program_name" >&2
   printf '       %s --uninstall [--purge]\n' "$program_name" >&2
   exit 2
 }
@@ -38,6 +39,11 @@ while [ "$#" -gt 0 ]; do
     --registration-key)
       [ "$#" -ge 2 ] || usage
       registration_key=$2
+      shift 2
+      ;;
+    --recovery-key)
+      [ "$#" -ge 2 ] || usage
+      recovery_key=$2
       shift 2
       ;;
     --version)
@@ -158,7 +164,7 @@ uninstall_agent() {
 }
 
 if [ "$mode" = "uninstall" ]; then
-  if [ -n "$center_url" ] || [ -n "$registration_key" ] || [ -n "$agent_version" ] || [ -n "$agent_binary" ] || [ "$agent_channel_set" = "1" ]; then
+  if [ -n "$center_url" ] || [ -n "$registration_key" ] || [ -n "$recovery_key" ] || [ -n "$agent_version" ] || [ -n "$agent_binary" ] || [ "$agent_channel_set" = "1" ]; then
     usage
   fi
   uninstall_agent
@@ -167,7 +173,12 @@ fi
 
 [ "$purge_state" = "0" ] || usage
 [ -n "$center_url" ] || usage
-[ -n "$registration_key" ] || usage
+if [ -n "$registration_key" ] && [ -n "$recovery_key" ]; then
+  fail "--registration-key and --recovery-key cannot be used together"
+fi
+if [ -z "$registration_key" ] && [ -z "$recovery_key" ]; then
+  usage
+fi
 case "$agent_channel" in stable|rc) ;; *) fail "--channel must be stable or rc" ;; esac
 if [ -n "$agent_version" ] && [ "$agent_channel_set" = "1" ]; then
   fail "--channel and --version cannot be used together"
@@ -322,9 +333,16 @@ install -d -m 0700 -o root -g root "$root_prefix$state_directory"
 install -d -m 0755 -o root -g root "$(dirname "$root_prefix$install_path")" "$(dirname "$root_prefix$updater_path")"
 install -m 0755 -o root -g root "$downloaded_binary" "$root_prefix$install_path"
 install -m 0755 -o root -g root "$downloaded_binary" "$root_prefix$updater_path"
+if [ -n "$registration_key" ]; then
+  enrollment_argument="--registration-key"
+  enrollment_key=$registration_key
+else
+  enrollment_argument="--recovery-key"
+  enrollment_key=$recovery_key
+fi
 "$root_prefix$install_path" enroll \
   --center-url "$center_url" \
-  --registration-key "$registration_key" \
+  "$enrollment_argument" "$enrollment_key" \
   --state-dir "$state_directory" \
   --update-init "$init_system"
 

@@ -20,6 +20,19 @@ export function agentInstallationCommand(
   );
 }
 
+export function agentRecoveryInstallationCommand(
+  centerURL: string,
+  recoveryKey: string,
+  channel: ReleaseChannel,
+) {
+  const channelArgument = channel === "rc" ? " --channel rc" : "";
+  return (
+    `curl --proto '=https' --tlsv1.2 -fsSL ${shellQuote(officialInstallerURL)} | ` +
+    `sh -s -- --center-url ${shellQuote(centerURL)} --recovery-key ${shellQuote(recoveryKey)}` +
+    channelArgument
+  );
+}
+
 export function agentUninstallCommand(mode: "preserve" | "purge") {
   const purgeArgument = mode === "purge" ? " --purge" : "";
   return (

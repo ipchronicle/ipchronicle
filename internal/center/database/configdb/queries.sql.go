@@ -406,6 +406,33 @@ func (q *Queries) CreateNodeEgress(ctx context.Context, arg CreateNodeEgressPara
 	return err
 }
 
+const createNodeRecoveryCredential = `-- name: CreateNodeRecoveryCredential :execrows
+INSERT INTO node_recovery_credentials (
+    node_id, key_digest, key_encrypted, rotated_at
+) VALUES (?, ?, ?, ?)
+ON CONFLICT (node_id) DO NOTHING
+`
+
+type CreateNodeRecoveryCredentialParams struct {
+	NodeID       string
+	KeyDigest    []byte
+	KeyEncrypted []byte
+	RotatedAt    int64
+}
+
+func (q *Queries) CreateNodeRecoveryCredential(ctx context.Context, arg CreateNodeRecoveryCredentialParams) (int64, error) {
+	result, err := q.db.ExecContext(ctx, createNodeRecoveryCredential,
+		arg.NodeID,
+		arg.KeyDigest,
+		arg.KeyEncrypted,
+		arg.RotatedAt,
+	)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected()
+}
+
 const createNotificationRule = `-- name: CreateNotificationRule :exec
 INSERT INTO notification_rules (
     id, name, enabled, sender_id, event_type, field_id,
@@ -620,6 +647,26 @@ func (q *Queries) DeleteNodeEgressDeletionOperations(ctx context.Context, nodeID
 	return err
 }
 
+const deleteNodeNetworkInventory = `-- name: DeleteNodeNetworkInventory :exec
+DELETE FROM node_network_inventories
+WHERE node_id = ?
+`
+
+func (q *Queries) DeleteNodeNetworkInventory(ctx context.Context, nodeID string) error {
+	_, err := q.db.ExecContext(ctx, deleteNodeNetworkInventory, nodeID)
+	return err
+}
+
+const deleteNodeProbeStatus = `-- name: DeleteNodeProbeStatus :exec
+DELETE FROM node_probe_status
+WHERE node_id = ?
+`
+
+func (q *Queries) DeleteNodeProbeStatus(ctx context.Context, nodeID string) error {
+	_, err := q.db.ExecContext(ctx, deleteNodeProbeStatus, nodeID)
+	return err
+}
+
 const deleteNodeSyncSession = `-- name: DeleteNodeSyncSession :exec
 DELETE FROM node_sync_sessions
 WHERE node_id = ?
@@ -675,6 +722,45 @@ WHERE node_id = ?
 
 func (q *Queries) DeletePendingPublicAddressProbes(ctx context.Context, nodeID string) error {
 	_, err := q.db.ExecContext(ctx, deletePendingPublicAddressProbes, nodeID)
+	return err
+}
+
+const deleteRecoveredNodeCurrentPaths = `-- name: DeleteRecoveredNodeCurrentPaths :exec
+DELETE FROM public_address_paths
+WHERE node_id = ?
+`
+
+func (q *Queries) DeleteRecoveredNodeCurrentPaths(ctx context.Context, nodeID string) error {
+	_, err := q.db.ExecContext(ctx, deleteRecoveredNodeCurrentPaths, nodeID)
+	return err
+}
+
+const deleteRecoveredNodeHostEgressDeletionOperations = `-- name: DeleteRecoveredNodeHostEgressDeletionOperations :exec
+DELETE FROM egress_deletion_operations
+WHERE egress_deletion_operations.node_id = ?
+  AND egress_deletion_operations.egress_id IN (
+      SELECT network_egresses.id FROM network_egresses
+      WHERE network_egresses.node_id = ? AND network_egresses.kind != 'proxy'
+  )
+`
+
+type DeleteRecoveredNodeHostEgressDeletionOperationsParams struct {
+	NodeID   string
+	NodeID_2 string
+}
+
+func (q *Queries) DeleteRecoveredNodeHostEgressDeletionOperations(ctx context.Context, arg DeleteRecoveredNodeHostEgressDeletionOperationsParams) error {
+	_, err := q.db.ExecContext(ctx, deleteRecoveredNodeHostEgressDeletionOperations, arg.NodeID, arg.NodeID_2)
+	return err
+}
+
+const deleteRecoveredNodeHostEgresses = `-- name: DeleteRecoveredNodeHostEgresses :exec
+DELETE FROM network_egresses
+WHERE node_id = ? AND kind != 'proxy'
+`
+
+func (q *Queries) DeleteRecoveredNodeHostEgresses(ctx context.Context, nodeID string) error {
+	_, err := q.db.ExecContext(ctx, deleteRecoveredNodeHostEgresses, nodeID)
 	return err
 }
 
@@ -742,6 +828,27 @@ WHERE id = 1 AND totp_secret_encrypted IS NOT NULL
 func (q *Queries) EnableTOTP(ctx context.Context, totpLastUsedStep int64) error {
 	_, err := q.db.ExecContext(ctx, enableTOTP, totpLastUsedStep)
 	return err
+}
+
+const expireActiveNodeTasks = `-- name: ExpireActiveNodeTasks :execrows
+UPDATE probe_tasks
+SET status = 'expired', completed_at = ?
+WHERE node_id = ? AND status IN (
+    'pending', 'acknowledged', 'running', 'verifying', 'installing', 'restarting'
+)
+`
+
+type ExpireActiveNodeTasksParams struct {
+	CompletedAt *int64
+	NodeID      string
+}
+
+func (q *Queries) ExpireActiveNodeTasks(ctx context.Context, arg ExpireActiveNodeTasksParams) (int64, error) {
+	result, err := q.db.ExecContext(ctx, expireActiveNodeTasks, arg.CompletedAt, arg.NodeID)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected()
 }
 
 const expireProbeTask = `-- name: ExpireProbeTask :execrows
@@ -1578,6 +1685,65 @@ func (q *Queries) GetNodeProbeStatus(ctx context.Context, nodeID string) (NodePr
 		&i.HistoryResetDiscardedAddressItems,
 		&i.HistoryResetDiscardedProbeItems,
 		&i.ReportedAt,
+	)
+	return i, err
+}
+
+const getNodeRecoveryCredential = `-- name: GetNodeRecoveryCredential :one
+SELECT node_id, key_digest, key_encrypted, rotated_at
+FROM node_recovery_credentials
+WHERE node_id = ?
+`
+
+func (q *Queries) GetNodeRecoveryCredential(ctx context.Context, nodeID string) (NodeRecoveryCredential, error) {
+	row := q.db.QueryRowContext(ctx, getNodeRecoveryCredential, nodeID)
+	var i NodeRecoveryCredential
+	err := row.Scan(
+		&i.NodeID,
+		&i.KeyDigest,
+		&i.KeyEncrypted,
+		&i.RotatedAt,
+	)
+	return i, err
+}
+
+const getNodeRecoveryTargetByDigest = `-- name: GetNodeRecoveryTargetByDigest :one
+SELECT recovery.node_id, recovery.key_digest, recovery.key_encrypted,
+       recovery.rotated_at, node.credential_digest, node.revoked_at,
+       node.enabled,
+       EXISTS (
+           SELECT 1
+           FROM node_deletion_operations AS deletion
+           WHERE deletion.node_id = node.id AND deletion.status != 'completed'
+       ) AS deletion_pending
+FROM node_recovery_credentials AS recovery
+JOIN nodes AS node ON node.id = recovery.node_id
+WHERE recovery.key_digest = ?
+`
+
+type GetNodeRecoveryTargetByDigestRow struct {
+	NodeID           string
+	KeyDigest        []byte
+	KeyEncrypted     []byte
+	RotatedAt        int64
+	CredentialDigest []byte
+	RevokedAt        *int64
+	Enabled          int64
+	DeletionPending  bool
+}
+
+func (q *Queries) GetNodeRecoveryTargetByDigest(ctx context.Context, keyDigest []byte) (GetNodeRecoveryTargetByDigestRow, error) {
+	row := q.db.QueryRowContext(ctx, getNodeRecoveryTargetByDigest, keyDigest)
+	var i GetNodeRecoveryTargetByDigestRow
+	err := row.Scan(
+		&i.NodeID,
+		&i.KeyDigest,
+		&i.KeyEncrypted,
+		&i.RotatedAt,
+		&i.CredentialDigest,
+		&i.RevokedAt,
+		&i.Enabled,
+		&i.DeletionPending,
 	)
 	return i, err
 }
@@ -2818,6 +2984,37 @@ func (q *Queries) ListNodes(ctx context.Context) ([]ListNodesRow, error) {
 	return items, nil
 }
 
+const listNodesWithoutRecoveryCredential = `-- name: ListNodesWithoutRecoveryCredential :many
+SELECT n.id
+FROM nodes AS n
+LEFT JOIN node_recovery_credentials AS recovery ON recovery.node_id = n.id
+WHERE recovery.node_id IS NULL
+ORDER BY n.id
+`
+
+func (q *Queries) ListNodesWithoutRecoveryCredential(ctx context.Context) ([]string, error) {
+	rows, err := q.db.QueryContext(ctx, listNodesWithoutRecoveryCredential)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []string{}
+	for rows.Next() {
+		var id string
+		if err := rows.Scan(&id); err != nil {
+			return nil, err
+		}
+		items = append(items, id)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const listNotificationRules = `-- name: ListNotificationRules :many
 SELECT id, name, enabled, sender_id, event_type, field_id,
        node_id, egress_id, created_at, updated_at
@@ -3418,6 +3615,45 @@ func (q *Queries) RehashAdministratorPassword(ctx context.Context, passwordHash 
 	return err
 }
 
+const replaceRecoveredNodeIdentity = `-- name: ReplaceRecoveredNodeIdentity :execrows
+UPDATE nodes
+SET hostname = ?, credential_digest = ?, agent_version = ?, agent_revision = ?,
+    operating_system = ?, architecture = ?, applied_configuration_revision = 0,
+    configuration_error = NULL, configuration_error_revision = NULL,
+    physical_memory_bytes = NULL, last_seen_at = NULL
+WHERE id = ? AND revoked_at IS NULL
+  AND NOT EXISTS (
+      SELECT 1 FROM node_deletion_operations
+      WHERE node_id = nodes.id AND status != 'completed'
+  )
+`
+
+type ReplaceRecoveredNodeIdentityParams struct {
+	Hostname         string
+	CredentialDigest []byte
+	AgentVersion     string
+	AgentRevision    *string
+	OperatingSystem  string
+	Architecture     string
+	ID               string
+}
+
+func (q *Queries) ReplaceRecoveredNodeIdentity(ctx context.Context, arg ReplaceRecoveredNodeIdentityParams) (int64, error) {
+	result, err := q.db.ExecContext(ctx, replaceRecoveredNodeIdentity,
+		arg.Hostname,
+		arg.CredentialDigest,
+		arg.AgentVersion,
+		arg.AgentRevision,
+		arg.OperatingSystem,
+		arg.Architecture,
+		arg.ID,
+	)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected()
+}
+
 const retryEgressDeletion = `-- name: RetryEgressDeletion :exec
 UPDATE egress_deletion_operations
 SET status = 'pending', updated_at = ?, last_error = NULL
@@ -3985,6 +4221,32 @@ func (q *Queries) UpdateNodeProbeSettings(ctx context.Context, arg UpdateNodePro
 		arg.ProbeLowMemoryOverride,
 		arg.ProbeOnNewAddress,
 		arg.ID,
+	)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected()
+}
+
+const updateNodeRecoveryCredential = `-- name: UpdateNodeRecoveryCredential :execrows
+UPDATE node_recovery_credentials
+SET key_digest = ?, key_encrypted = ?, rotated_at = ?
+WHERE node_id = ?
+`
+
+type UpdateNodeRecoveryCredentialParams struct {
+	KeyDigest    []byte
+	KeyEncrypted []byte
+	RotatedAt    int64
+	NodeID       string
+}
+
+func (q *Queries) UpdateNodeRecoveryCredential(ctx context.Context, arg UpdateNodeRecoveryCredentialParams) (int64, error) {
+	result, err := q.db.ExecContext(ctx, updateNodeRecoveryCredential,
+		arg.KeyDigest,
+		arg.KeyEncrypted,
+		arg.RotatedAt,
+		arg.NodeID,
 	)
 	if err != nil {
 		return 0, err

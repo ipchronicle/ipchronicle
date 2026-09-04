@@ -69,13 +69,14 @@ func runEnroll(arguments []string) error {
 	flags.SetOutput(os.Stderr)
 	centerURL := flags.String("center-url", "", "center HTTP or HTTPS origin")
 	registrationKey := flags.String("registration-key", "", "automatic registration key")
+	recoveryKey := flags.String("recovery-key", "", "node-specific recovery key")
 	stateDirectory := flags.String("state-dir", defaultStateDirectory, "root-only Agent state directory")
 	updateInit := flags.String("update-init", "", "installed Agent updater init system")
 	if err := flags.Parse(arguments); err != nil {
 		return err
 	}
-	if flags.NArg() != 0 || *centerURL == "" || *registrationKey == "" {
-		return errors.New("usage: ipchronicle-agent enroll --center-url URL --registration-key KEY [--state-dir PATH]")
+	if flags.NArg() != 0 || *centerURL == "" || (*registrationKey == "") == (*recoveryKey == "") {
+		return errors.New("usage: ipchronicle-agent enroll --center-url URL (--registration-key KEY | --recovery-key KEY) [--state-dir PATH]")
 	}
 	if !filepath.IsAbs(*stateDirectory) {
 		return errors.New("Agent state directory must be absolute")
@@ -93,7 +94,12 @@ func runEnroll(arguments []string) error {
 		}
 		updateCapable = true
 	}
-	identity, err := agent.EnrollWithCapabilities(context.Background(), store, *centerURL, *registrationKey, version.Value, updateCapable)
+	var identity state.Identity
+	if *registrationKey != "" {
+		identity, err = agent.EnrollWithCapabilities(context.Background(), store, *centerURL, *registrationKey, version.Value, updateCapable)
+	} else {
+		identity, err = agent.RecoverWithCapabilities(context.Background(), store, *centerURL, *recoveryKey, version.Value, updateCapable)
+	}
 	if err != nil {
 		return err
 	}

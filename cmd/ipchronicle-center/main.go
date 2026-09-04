@@ -79,6 +79,9 @@ func serve() error {
 	}
 	syncHub := syncws.NewHub()
 	nodeService := nodes.NewService(store.Config, store.History, store.ConfigQueries, store.MasterKey, syncHub)
+	if err := nodeService.EnsureRecoveryKeys(context.Background()); err != nil {
+		return fmt.Errorf("initialize node recovery credentials: %w", err)
+	}
 	agentLogService := agentlogs.NewService(store.Logs, store.LogsQueries, store.ConfigQueries)
 	systemSettingsService := systemsettings.NewService(store.Config, store.ConfigQueries, store.MasterKey, syncHub)
 	notificationService := notifications.NewService(notifications.ServiceOptions{

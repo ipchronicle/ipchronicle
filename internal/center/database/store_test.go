@@ -220,7 +220,7 @@ func TestV011ConfigurationMigratesToAgentLogSettings(t *testing.T) {
 		t.Fatal(err)
 	}
 	t.Cleanup(func() { _ = upgraded.Close() })
-	if upgraded.SchemaVersion != 2 {
+	if upgraded.SchemaVersion != 3 {
 		t.Fatalf("configuration schema version = %d", upgraded.SchemaVersion)
 	}
 	node, err := upgraded.Queries.GetNodeByID(ctx, nodeID)

@@ -321,6 +321,44 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/nodes/{nodeId}/recovery": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                nodeId: components["parameters"]["NodeId"];
+            };
+            cookie?: never;
+        };
+        /** Read the node-specific Agent recovery credential */
+        get: operations["getNodeRecoveryCredential"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/nodes/{nodeId}/recovery/key": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                nodeId: components["parameters"]["NodeId"];
+            };
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Rotate the node-specific Agent recovery credential */
+        post: operations["rotateNodeRecoveryCredential"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/nodes/{nodeId}/sync-session": {
         parameters: {
             query?: never;
@@ -923,6 +961,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/agent/recover": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Replace an Agent credential while retaining its node identity */
+        post: operations["recoverAgent"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/agent/control": {
         parameters: {
             query?: never;
@@ -1042,7 +1097,7 @@ export interface components {
             provisioningUri: string;
         };
         /** @enum {string} */
-        ErrorCode: "invalid_request" | "invalid_credentials" | "totp_required" | "rate_limited" | "unauthenticated" | "csrf_failed" | "origin_not_allowed" | "current_password_invalid" | "invalid_totp" | "totp_already_enabled" | "totp_not_enabled" | "totp_enrollment_not_started" | "no_account_change" | "registration_key_not_initialized" | "registration_key_invalid" | "registration_disabled" | "agent_unauthenticated" | "agent_revoked" | "node_not_found" | "node_revoked" | "node_disabled" | "node_deletion_pending" | "node_sync_unsupported" | "sync_session_unavailable" | "network_inventory_unavailable" | "invalid_egress_candidate" | "egress_already_exists" | "egress_limit_reached" | "egress_not_found" | "egress_deletion_pending" | "invalid_network_proxy" | "network_proxy_not_found" | "network_proxy_already_exists" | "network_proxy_limit_reached" | "network_proxy_deletion_pending" | "invalid_observation_settings" | "invalid_probe_settings" | "node_offline" | "probe_task_slot_occupied" | "probe_already_running" | "probe_paused_low_memory" | "probe_target_unavailable" | "probe_run_not_found" | "probe_snapshot_not_found" | "snapshot_egress_mismatch" | "invalid_notification_sender" | "notification_sender_test_failed" | "notification_sender_not_found" | "notification_sender_name_in_use" | "notification_sender_in_use" | "notification_sender_active" | "invalid_notification_rule" | "notification_rule_not_found" | "notification_rule_name_in_use" | "invalid_notification_delivery_query" | "invalid_system_settings" | "invalid_log_retention" | "log_not_found" | "internal_error";
+        ErrorCode: "invalid_request" | "invalid_credentials" | "totp_required" | "rate_limited" | "unauthenticated" | "csrf_failed" | "origin_not_allowed" | "current_password_invalid" | "invalid_totp" | "totp_already_enabled" | "totp_not_enabled" | "totp_enrollment_not_started" | "no_account_change" | "registration_key_not_initialized" | "registration_key_invalid" | "registration_disabled" | "recovery_key_invalid" | "agent_unauthenticated" | "agent_revoked" | "node_not_found" | "node_revoked" | "node_disabled" | "node_deletion_pending" | "node_sync_unsupported" | "sync_session_unavailable" | "network_inventory_unavailable" | "invalid_egress_candidate" | "egress_already_exists" | "egress_limit_reached" | "egress_not_found" | "egress_deletion_pending" | "invalid_network_proxy" | "network_proxy_not_found" | "network_proxy_already_exists" | "network_proxy_limit_reached" | "network_proxy_deletion_pending" | "invalid_observation_settings" | "invalid_probe_settings" | "node_offline" | "probe_task_slot_occupied" | "probe_already_running" | "probe_paused_low_memory" | "probe_target_unavailable" | "probe_run_not_found" | "probe_snapshot_not_found" | "snapshot_egress_mismatch" | "invalid_notification_sender" | "notification_sender_test_failed" | "notification_sender_not_found" | "notification_sender_name_in_use" | "notification_sender_in_use" | "notification_sender_active" | "invalid_notification_rule" | "notification_rule_not_found" | "notification_rule_name_in_use" | "invalid_notification_delivery_query" | "invalid_system_settings" | "invalid_log_retention" | "log_not_found" | "internal_error";
         ErrorResponse: {
             code: components["schemas"]["ErrorCode"];
             parameters?: {
@@ -1174,6 +1229,13 @@ export interface components {
         AgentEnrollmentUpdate: {
             enabled: boolean;
         };
+        NodeRecoveryCredential: {
+            /** Format: uuid */
+            nodeId: string;
+            recoveryKey: string;
+            /** Format: date-time */
+            rotatedAt: string;
+        };
         /** @enum {string} */
         AgentPlatform: "linux";
         /** @enum {string} */
@@ -1190,6 +1252,10 @@ export interface components {
         };
         AgentRegistrationRequest: {
             registrationKey: string;
+            metadata: components["schemas"]["AgentMetadata"];
+        };
+        AgentRecoveryRequest: {
+            recoveryKey: string;
             metadata: components["schemas"]["AgentMetadata"];
         };
         AgentRegistrationResult: {
@@ -2482,6 +2548,15 @@ export interface components {
                 "application/json": components["schemas"]["ErrorResponse"];
             };
         };
+        /** @description The request rate limit was exceeded. */
+        RateLimitResponse: {
+            headers: {
+                [name: string]: unknown;
+            };
+            content: {
+                "application/json": components["schemas"]["ErrorResponse"];
+            };
+        };
         /** @description The requested state transition conflicts with current state. */
         Conflict: {
             headers: {
@@ -3157,6 +3232,59 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["Node"];
+                };
+            };
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+            409: components["responses"]["Conflict"];
+        };
+    };
+    getNodeRecoveryCredential: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                nodeId: components["parameters"]["NodeId"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The reusable recovery credential for this node. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["NodeRecoveryCredential"];
+                };
+            };
+            401: components["responses"]["Unauthorized"];
+            404: components["responses"]["NotFound"];
+            409: components["responses"]["Conflict"];
+        };
+    };
+    rotateNodeRecoveryCredential: {
+        parameters: {
+            query?: never;
+            header?: {
+                "X-CSRF-Token"?: components["parameters"]["CSRFToken"];
+            };
+            path: {
+                nodeId: components["parameters"]["NodeId"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The recovery credential was rotated. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["NodeRecoveryCredential"];
                 };
             };
             401: components["responses"]["Unauthorized"];
@@ -4414,6 +4542,34 @@ export interface operations {
             400: components["responses"]["BadRequest"];
             401: components["responses"]["AgentUnauthorized"];
             403: components["responses"]["AgentForbidden"];
+            429: components["responses"]["RateLimitResponse"];
+        };
+    };
+    recoverAgent: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["AgentRecoveryRequest"];
+            };
+        };
+        responses: {
+            /** @description The Agent took over the existing node identity. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AgentRegistrationResult"];
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            401: components["responses"]["AgentUnauthorized"];
+            429: components["responses"]["RateLimitResponse"];
         };
     };
     pollAgent: {
