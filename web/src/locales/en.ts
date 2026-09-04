@@ -845,7 +845,7 @@ export const en = {
       notAvailable: "Not available",
       runNow: "Run complete probe",
       targets: {
-        title: "Select public IPs",
+        title: "Run a complete probe on {{name}}",
         detail:
           "This selection applies only to this run and does not change recurring probe settings.",
         loading: "Loading public IPs",

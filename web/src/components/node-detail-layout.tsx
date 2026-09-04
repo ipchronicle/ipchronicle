@@ -247,6 +247,7 @@ export function NodeDetailLayout() {
                   {activeTab !== "probe" ? (
                     <CompleteProbeDialog
                       nodeId={nodeId}
+                      nodeName={state.node.name}
                       csrfToken={csrfToken}
                       onCreated={() => navigate(`/nodes/${nodeId}/probe`)}
                     >

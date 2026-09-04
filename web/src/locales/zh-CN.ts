@@ -795,7 +795,7 @@ export const zhCN = {
       notAvailable: "暂无",
       runNow: "执行完整探测",
       targets: {
-        title: "选择公网 IP",
+        title: "在 {{name}} 上执行完整探测",
         detail: "选择仅用于本次完整探测，不会更改周期探测设置。",
         loading: "正在加载公网 IP",
         loadFailed: "无法加载公网 IP。",

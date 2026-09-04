@@ -1343,6 +1343,11 @@ describe("administrator application", () => {
     ).not.toBeInTheDocument();
     fireEvent.click(screen.getAllByRole("button", { name: "Run probe" })[0]);
     const probeDialog = await screen.findByRole("alertdialog");
+    expect(
+      within(probeDialog).getByRole("heading", {
+        name: "Run a complete probe on edge-1",
+      }),
+    ).toBeInTheDocument();
     fireEvent.click(within(probeDialog).getByText("203.0.113.10"));
     expect(
       within(probeDialog).getByRole("checkbox", { name: /203\.0\.113\.10/ }),
@@ -2216,6 +2221,11 @@ describe("administrator application", () => {
       await screen.findByRole("button", { name: "Run complete probe" }),
     ).toBeEnabled();
     fireEvent.click(screen.getByRole("button", { name: "Run complete probe" }));
+    expect(
+      await screen.findByRole("heading", {
+        name: "Run a complete probe on edge-1",
+      }),
+    ).toBeInTheDocument();
     expect(
       await screen.findByRole("checkbox", { name: /8\.8\.8\.8/ }),
     ).toBeChecked();

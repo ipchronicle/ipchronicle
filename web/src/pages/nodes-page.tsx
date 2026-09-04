@@ -1345,6 +1345,7 @@ function NodeQuickActions({
     >
       <CompleteProbeDialog
         nodeId={node.id}
+        nodeName={node.name}
         csrfToken={csrfToken}
         onCreated={() =>
           setFeedback({ kind: "success", message: t("probe.task.created") })

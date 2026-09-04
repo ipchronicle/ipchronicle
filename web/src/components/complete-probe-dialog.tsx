@@ -34,11 +34,13 @@ type AddressState =
 
 export function CompleteProbeDialog({
   nodeId,
+  nodeName,
   csrfToken,
   children,
   onCreated,
 }: {
   nodeId: string;
+  nodeName: string;
   csrfToken: string;
   children: ReactNode;
   onCreated: (task: ProbeTask) => void;
@@ -122,7 +124,9 @@ export function CompleteProbeDialog({
           <AlertDialogMedia>
             <ScanSearch aria-hidden="true" />
           </AlertDialogMedia>
-          <AlertDialogTitle>{t("probe.targets.title")}</AlertDialogTitle>
+          <AlertDialogTitle>
+            {t("probe.targets.title", { name: nodeName })}
+          </AlertDialogTitle>
           <AlertDialogDescription>
             {t("probe.targets.detail")}
           </AlertDialogDescription>

@@ -167,6 +167,7 @@ export function NodeProbePage() {
         {state.kind === "success" ? (
           <CompleteProbeDialog
             nodeId={nodeId}
+            nodeName={node.name}
             csrfToken={csrfToken}
             onCreated={probeCreated}
           >
