@@ -9,7 +9,7 @@ import {
   TriangleAlert,
 } from "lucide-react";
 import { useTranslation } from "react-i18next";
-import { Link, useParams } from "react-router";
+import { useParams } from "react-router";
 
 import { getProbeRun, type ProbeExecution, type ProbeRun } from "@/api/probes";
 import { HistoricalNodeName } from "@/components/historical-node-name";
@@ -25,6 +25,10 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
+import {
+  NavigationSourceLink,
+  SourceAwareBackLink,
+} from "@/lib/navigation-context";
 import { formatTime, ProbeStatusBadge } from "@/pages/node-probe-page";
 
 type ViewState =
@@ -90,12 +94,10 @@ export function ProbeRunPage() {
       <div className="flex flex-wrap items-end justify-between gap-4">
         <div className="min-w-0 max-w-2xl">
           <Button variant="ghost" size="sm" asChild className="mb-3 -ml-3">
-            <Link to={backTarget}>
+            <SourceAwareBackLink fallback={backTarget}>
               <ArrowLeft data-icon="inline-start" aria-hidden="true" />
-              {state.kind === "success" && state.run.owner.nodeDeleted
-                ? t("probeRun.backHistory")
-                : t("probeRun.back")}
-            </Link>
+              {t("common.back")}
+            </SourceAwareBackLink>
           </Button>
           <p className="text-sm font-medium text-muted-foreground uppercase">
             {t("probeRun.section")}
@@ -289,10 +291,12 @@ function ExecutionRow({
       </dl>
       {execution.snapshotId ? (
         <Button variant="outline" size="sm" asChild className="mt-4">
-          <Link to={`/probe-snapshots/${execution.snapshotId}?runId=${run.id}`}>
+          <NavigationSourceLink
+            to={`/probe-snapshots/${execution.snapshotId}?runId=${run.id}`}
+          >
             <FileJson2 data-icon="inline-start" aria-hidden="true" />
             {t("probeRun.executions.openSnapshot")}
-          </Link>
+          </NavigationSourceLink>
         </Button>
       ) : execution.status === "succeeded" ? (
         <p className="mt-4 flex items-center gap-2 text-sm text-muted-foreground">

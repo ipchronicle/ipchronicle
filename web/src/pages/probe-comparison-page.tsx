@@ -7,7 +7,7 @@ import {
   TriangleAlert,
 } from "lucide-react";
 import { useTranslation } from "react-i18next";
-import { Link, useSearchParams } from "react-router";
+import { useSearchParams } from "react-router";
 
 import {
   compareProbeSnapshots,
@@ -32,6 +32,10 @@ import {
 import { Skeleton } from "@/components/ui/skeleton";
 import { Slider } from "@/components/ui/slider";
 import { formatAPIError } from "@/lib/api-error";
+import {
+  NavigationSourceLink,
+  SourceAwareBackLink,
+} from "@/lib/navigation-context";
 import { cn } from "@/lib/utils";
 import { formatTime } from "@/pages/node-probe-page";
 import {
@@ -159,10 +163,10 @@ export function ProbeComparisonPage() {
     <main className="w-full min-w-0 px-4 py-10 sm:px-6 sm:py-14">
       <div className="max-w-3xl">
         <Button variant="ghost" size="sm" asChild className="mb-3 -ml-3">
-          <Link to="/history">
+          <SourceAwareBackLink fallback="/history?tab=reports">
             <ArrowLeft data-icon="inline-start" aria-hidden="true" />
-            {t("comparison.back")}
-          </Link>
+            {t("common.back")}
+          </SourceAwareBackLink>
         </Button>
         <p className="text-sm font-medium text-muted-foreground uppercase">
           {t("comparison.section")}
@@ -582,12 +586,12 @@ function ComparisonReport({
           <div className="text-sm font-medium text-muted-foreground uppercase">
             {label}
           </div>
-          <Link
+          <NavigationSourceLink
             to={`/probe-snapshots/${snapshot.id}?runId=${snapshot.runId}`}
             className="mt-1 block font-semibold underline-offset-4 hover:underline"
           >
             {formatTime(snapshot.observedAt, language, "")}
-          </Link>
+          </NavigationSourceLink>
           <div
             data-report-path="Head.IP"
             className="mt-1 break-all text-sm text-muted-foreground"

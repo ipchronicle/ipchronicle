@@ -18,7 +18,7 @@ import {
   TriangleAlert,
 } from "lucide-react";
 import { useTranslation } from "react-i18next";
-import { Link, useNavigate } from "react-router";
+import { useNavigate } from "react-router";
 
 import {
   getAgentEnrollment,
@@ -87,6 +87,11 @@ import {
   nodeHasAvailableUpdate,
 } from "@/lib/agent-update";
 import { agentInstallationCommand } from "@/lib/agent-installer";
+import {
+  captureNavigationSourceState,
+  NavigationSourceLink,
+  useNavigationSourceState,
+} from "@/lib/navigation-context";
 import { browserTimeZone } from "@/lib/time-zone";
 
 const nodeRefreshIntervalMilliseconds = 3_000;
@@ -611,6 +616,7 @@ function NodeListCard({
 }) {
   const { t } = useTranslation();
   const navigate = useNavigate();
+  const navigationSource = useNavigationSourceState();
   const [query, setQuery] = useState("");
   const [updatesOnly, setUpdatesOnly] = useState(false);
   const [selectedNodeIds, setSelectedNodeIds] = useState<Set<string>>(
@@ -902,7 +908,10 @@ function NodeListCard({
                             )
                           )
                             return;
-                          void navigate(`/nodes/${node.id}`);
+                          void navigate(`/nodes/${node.id}`, {
+                            state:
+                              captureNavigationSourceState(navigationSource),
+                          });
                         }}
                       >
                         {showUpdateControls ? (
@@ -925,12 +934,12 @@ function NodeListCard({
                           </TableCell>
                         ) : null}
                         <TableCell>
-                          <Link
+                          <NavigationSourceLink
                             to={`/nodes/${node.id}`}
                             className="inline-block max-w-72 truncate text-base font-medium underline-offset-4 hover:underline"
                           >
                             {node.name}
-                          </Link>
+                          </NavigationSourceLink>
                           <p className="mt-1 max-w-72 truncate text-sm text-muted-foreground">
                             {node.hostname}
                           </p>
@@ -997,7 +1006,9 @@ function NodeListCard({
                         )
                       )
                         return;
-                      void navigate(`/nodes/${node.id}`);
+                      void navigate(`/nodes/${node.id}`, {
+                        state: captureNavigationSourceState(navigationSource),
+                      });
                     }}
                   >
                     <div className="flex items-start justify-between gap-3">
@@ -1021,12 +1032,12 @@ function NodeListCard({
                           />
                         ) : null}
                         <div className="min-w-0">
-                          <Link
+                          <NavigationSourceLink
                             to={`/nodes/${node.id}`}
                             className="block truncate text-base font-medium underline-offset-4 hover:underline"
                           >
                             {node.name}
-                          </Link>
+                          </NavigationSourceLink>
                           <p className="mt-1 truncate text-sm text-muted-foreground">
                             {node.hostname}
                           </p>

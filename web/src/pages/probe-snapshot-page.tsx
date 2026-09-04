@@ -20,7 +20,7 @@ import {
   WrapText,
 } from "lucide-react";
 import { useTranslation } from "react-i18next";
-import { Link, useParams, useSearchParams } from "react-router";
+import { useParams, useSearchParams } from "react-router";
 
 import { setProbeSnapshotStarred } from "@/api/history";
 import { getProbeSnapshot, type ProbeSnapshot } from "@/api/probes";
@@ -54,6 +54,10 @@ import {
 import { formatAPIError } from "@/lib/api-error";
 import { presentProbeField } from "@/lib/probe-field-label";
 import { presentProbeFieldValue } from "@/lib/probe-field-value";
+import {
+  NavigationSourceLink,
+  SourceAwareBackLink,
+} from "@/lib/navigation-context";
 import { cn } from "@/lib/utils";
 import { formatTime } from "@/pages/node-probe-page";
 
@@ -169,10 +173,12 @@ export function ProbeSnapshotPage() {
       <div className="flex flex-wrap items-end justify-between gap-4">
         <div className="min-w-0 max-w-2xl">
           <Button variant="ghost" size="sm" asChild className="mb-3 -ml-3">
-            <Link to={runId ? `/probe-runs/${runId}` : "/history"}>
+            <SourceAwareBackLink
+              fallback={runId ? `/probe-runs/${runId}` : "/history?tab=reports"}
+            >
               <ArrowLeft data-icon="inline-start" aria-hidden="true" />
-              {t("snapshot.back")}
-            </Link>
+              {t("common.back")}
+            </SourceAwareBackLink>
           </Button>
           <p className="text-sm font-medium text-muted-foreground uppercase">
             {t("snapshot.section")}
@@ -511,10 +517,12 @@ function SnapshotOverviewCard({
         {canCompare ? (
           <div className="col-span-full mt-2 sm:col-start-2 sm:row-span-2 sm:row-start-1 sm:mt-0 sm:justify-self-end">
             <Button variant="outline" size="sm" asChild>
-              <Link to={`/history/compare?egress=${snapshot.egressId}`}>
+              <NavigationSourceLink
+                to={`/history/compare?egress=${snapshot.egressId}`}
+              >
                 <GitCompareArrows data-icon="inline-start" aria-hidden="true" />
                 {t("snapshot.compare")}
-              </Link>
+              </NavigationSourceLink>
             </Button>
           </div>
         ) : null}

@@ -2,6 +2,7 @@ export const en = {
   translation: {
     appName: "IPChronicle",
     common: {
+      back: "Back",
       cancel: "Cancel",
       close: "Close",
     },

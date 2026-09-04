@@ -2361,9 +2361,10 @@ describe("administrator application", () => {
     expect(await screen.findByText("retired-edge")).toBeInTheDocument();
     expect(screen.getByText("Node deleted")).toBeInTheDocument();
     expect(screen.getByText("8.8.8.8")).toBeInTheDocument();
-    expect(
-      screen.getByRole("link", { name: "Back to history" }),
-    ).toHaveAttribute("href", "/history?tab=reports");
+    expect(screen.getByRole("link", { name: "Back" })).toHaveAttribute(
+      "href",
+      "/history?tab=reports",
+    );
     expect(listNodesMock).not.toHaveBeenCalled();
     expect(getNodeNetworkMock).not.toHaveBeenCalled();
   });

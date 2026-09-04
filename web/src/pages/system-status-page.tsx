@@ -61,6 +61,7 @@ import {
 } from "@/components/ui/tooltip";
 import { formatAPIError } from "@/lib/api-error";
 import { agentInstallationCommand } from "@/lib/agent-installer";
+import { NavigationSourceLink } from "@/lib/navigation-context";
 import { browserTimeZone } from "@/lib/time-zone";
 
 const refreshIntervalMilliseconds = 5_000;
@@ -438,7 +439,7 @@ function AttentionCard({ items }: { items: AttentionItem[] }) {
         ) : (
           <div className="divide-y overflow-hidden rounded-md border">
             {visible.map((item) => (
-              <Link
+              <NavigationSourceLink
                 key={item.id}
                 to={item.to}
                 className="group flex items-start gap-3 p-4 transition-colors hover:bg-muted/50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-inset"
@@ -464,7 +465,7 @@ function AttentionCard({ items }: { items: AttentionItem[] }) {
                   aria-hidden="true"
                   className="mt-0.5 size-4 shrink-0 text-muted-foreground transition-transform group-hover:translate-x-0.5"
                 />
-              </Link>
+              </NavigationSourceLink>
             ))}
           </div>
         )}
@@ -512,7 +513,7 @@ function NodesOverviewCard({
           </div>
           <div className="divide-y">
             {nodes.map((node) => (
-              <Link
+              <NavigationSourceLink
                 key={node.id}
                 to={`/nodes/${node.id}`}
                 className="group grid min-w-0 gap-4 p-4 transition-colors hover:bg-muted/50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-inset md:grid-cols-[minmax(9rem,1fr)_minmax(13rem,1.4fr)_minmax(9rem,0.8fr)_minmax(9rem,0.8fr)] md:items-center"
@@ -591,7 +592,7 @@ function NodesOverviewCard({
                     className="size-4 shrink-0 text-muted-foreground transition-transform group-hover:translate-x-0.5 md:hidden"
                   />
                 </div>
-              </Link>
+              </NavigationSourceLink>
             ))}
           </div>
         </div>
@@ -632,7 +633,7 @@ function ActiveTasksCard({
         ) : (
           <div className="divide-y overflow-hidden rounded-md border">
             {tasks.map((task) => (
-              <Link
+              <NavigationSourceLink
                 key={task.id}
                 to={
                   task.runId === undefined
@@ -653,7 +654,7 @@ function ActiveTasksCard({
                   {t(`overview.tasks.kind.${task.kind}`)} ·{" "}
                   {formatDate(task.createdAt, locale)}
                 </p>
-              </Link>
+              </NavigationSourceLink>
             ))}
           </div>
         )}
@@ -696,7 +697,7 @@ function RecentActivityCard({
                     ? `/history?tab=addresses&egressId=${item.event.publicAddressId}`
                     : `/history?tab=addresses&nodeId=${item.event.nodeId}&egressId=${item.event.publicAddressId}`;
               return (
-                <Link
+                <NavigationSourceLink
                   key={`${item.kind}-${item.id}`}
                   to={to}
                   className="block p-3 transition-colors hover:bg-muted/50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-inset"
@@ -753,7 +754,7 @@ function RecentActivityCard({
                       </p>
                     </div>
                   </div>
-                </Link>
+                </NavigationSourceLink>
               );
             })}
           </div>

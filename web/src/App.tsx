@@ -7,6 +7,7 @@ import { NodeDetailLayout } from "@/components/node-detail-layout";
 import { Card, CardContent } from "@/components/ui/card";
 import { SidebarInset, SidebarProvider } from "@/components/ui/sidebar";
 import { Skeleton } from "@/components/ui/skeleton";
+import { NavigationContextProvider } from "@/lib/navigation-context";
 import { AccountPage } from "@/pages/account-page";
 import { HistorySettingsPage } from "@/pages/history-settings-page";
 import { HistoryPage } from "@/pages/history-page";
@@ -51,39 +52,41 @@ function App() {
   }
 
   return (
-    <SidebarProvider>
-      <AppSidebar />
-      <SidebarInset className="min-w-0">
-        <AppHeader withSidebar />
-        <Routes>
-          <Route path="/" element={<SystemStatusPage />} />
-          <Route path="/nodes" element={<NodesPage />} />
-          <Route path="/logs" element={<LogsPage />} />
-          <Route path="/nodes/:nodeId" element={<NodeDetailLayout />}>
-            <Route index element={<NodeOverviewPage />} />
-            <Route path="network" element={<NodeNetworkPage />} />
-            <Route path="probe" element={<NodeProbePage />} />
-            <Route path="changes" element={<NodeChangesPage />} />
-            <Route path="logs" element={<NodeLogsPage />} />
-            <Route path="settings" element={<NodeSettingsPage />} />
-          </Route>
-          <Route path="/probe-runs/:runId" element={<ProbeRunPage />} />
-          <Route path="/history" element={<HistoryPage />} />
-          <Route path="/notifications" element={<NotificationsPage />} />
-          <Route path="/history/compare" element={<ProbeComparisonPage />} />
-          <Route
-            path="/probe-snapshots/:snapshotId"
-            element={<ProbeSnapshotPage />}
-          />
-          <Route path="/settings/account" element={<AccountPage />} />
-          <Route path="/settings/system" element={<SystemSettingsPage />} />
-          <Route path="/settings/network" element={<NetworkSettingsPage />} />
-          <Route path="/settings/history" element={<HistorySettingsPage />} />
-          <Route path="/login" element={<Navigate to="/" replace />} />
-          <Route path="*" element={<Navigate to="/" replace />} />
-        </Routes>
-      </SidebarInset>
-    </SidebarProvider>
+    <NavigationContextProvider>
+      <SidebarProvider>
+        <AppSidebar />
+        <SidebarInset className="min-w-0">
+          <AppHeader withSidebar />
+          <Routes>
+            <Route path="/" element={<SystemStatusPage />} />
+            <Route path="/nodes" element={<NodesPage />} />
+            <Route path="/logs" element={<LogsPage />} />
+            <Route path="/nodes/:nodeId" element={<NodeDetailLayout />}>
+              <Route index element={<NodeOverviewPage />} />
+              <Route path="network" element={<NodeNetworkPage />} />
+              <Route path="probe" element={<NodeProbePage />} />
+              <Route path="changes" element={<NodeChangesPage />} />
+              <Route path="logs" element={<NodeLogsPage />} />
+              <Route path="settings" element={<NodeSettingsPage />} />
+            </Route>
+            <Route path="/probe-runs/:runId" element={<ProbeRunPage />} />
+            <Route path="/history" element={<HistoryPage />} />
+            <Route path="/notifications" element={<NotificationsPage />} />
+            <Route path="/history/compare" element={<ProbeComparisonPage />} />
+            <Route
+              path="/probe-snapshots/:snapshotId"
+              element={<ProbeSnapshotPage />}
+            />
+            <Route path="/settings/account" element={<AccountPage />} />
+            <Route path="/settings/system" element={<SystemSettingsPage />} />
+            <Route path="/settings/network" element={<NetworkSettingsPage />} />
+            <Route path="/settings/history" element={<HistorySettingsPage />} />
+            <Route path="/login" element={<Navigate to="/" replace />} />
+            <Route path="*" element={<Navigate to="/" replace />} />
+          </Routes>
+        </SidebarInset>
+      </SidebarProvider>
+    </NavigationContextProvider>
   );
 }
 

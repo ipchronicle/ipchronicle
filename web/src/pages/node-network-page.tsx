@@ -10,7 +10,7 @@ import {
   TriangleAlert,
 } from "lucide-react";
 import { useTranslation } from "react-i18next";
-import { Link, useParams } from "react-router";
+import { useParams } from "react-router";
 
 import {
   getNodeNetwork,
@@ -52,6 +52,7 @@ import {
 import { Skeleton } from "@/components/ui/skeleton";
 import { Switch } from "@/components/ui/switch";
 import { formatAPIError } from "@/lib/api-error";
+import { NavigationSourceLink } from "@/lib/navigation-context";
 import { publicAddressAvailability } from "@/lib/public-address";
 import { formatTime } from "@/pages/node-probe-page";
 
@@ -539,10 +540,12 @@ function PublicAddressRow({
         ) : null}
         {address.latestSnapshotId ? (
           <Button variant="outline" size="sm" asChild>
-            <Link to={`/probe-snapshots/${address.latestSnapshotId}`}>
+            <NavigationSourceLink
+              to={`/probe-snapshots/${address.latestSnapshotId}`}
+            >
               <Eye data-icon="inline-start" aria-hidden="true" />
               {t("network.publicAddresses.openReport")}
-            </Link>
+            </NavigationSourceLink>
           </Button>
         ) : (
           <Button variant="outline" size="sm" disabled>

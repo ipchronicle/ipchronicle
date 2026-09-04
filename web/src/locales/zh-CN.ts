@@ -2,6 +2,7 @@ export const zhCN = {
   translation: {
     appName: "IPChronicle",
     common: {
+      back: "返回",
       cancel: "取消",
       close: "关闭",
     },

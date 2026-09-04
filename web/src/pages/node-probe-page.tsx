@@ -13,7 +13,7 @@ import {
   TriangleAlert,
 } from "lucide-react";
 import { useTranslation } from "react-i18next";
-import { Link, useParams } from "react-router";
+import { useParams } from "react-router";
 
 import type { Node } from "@/api/nodes";
 import {
@@ -45,6 +45,7 @@ import { Label } from "@/components/ui/label";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Switch } from "@/components/ui/switch";
 import { formatAPIError } from "@/lib/api-error";
+import { NavigationSourceLink } from "@/lib/navigation-context";
 
 type ViewState =
   | { kind: "loading" }
@@ -480,10 +481,10 @@ function TaskCard({ task }: { task?: ProbeTask }) {
             </dl>
             {task.runId ? (
               <Button variant="outline" size="sm" asChild>
-                <Link to={`/probe-runs/${task.runId}`}>
+                <NavigationSourceLink to={`/probe-runs/${task.runId}`}>
                   <Eye data-icon="inline-start" aria-hidden="true" />
                   {t("probe.task.openRun")}
-                </Link>
+                </NavigationSourceLink>
               </Button>
             ) : null}
             {task.rejectionReason ? (
@@ -560,10 +561,10 @@ function RecentRunsCard({ runs }: { runs: ProbeRunSummary[] }) {
                   </p>
                 </div>
                 <Button variant="outline" size="sm" asChild>
-                  <Link to={`/probe-runs/${run.id}`}>
+                  <NavigationSourceLink to={`/probe-runs/${run.id}`}>
                     <Eye data-icon="inline-start" aria-hidden="true" />
                     {t("probe.runs.open")}
-                  </Link>
+                  </NavigationSourceLink>
                 </Button>
               </div>
             ))}

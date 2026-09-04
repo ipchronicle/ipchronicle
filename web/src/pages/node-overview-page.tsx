@@ -8,7 +8,7 @@ import {
   TriangleAlert,
 } from "lucide-react";
 import { useTranslation } from "react-i18next";
-import { Link, useParams } from "react-router";
+import { Link, useLocation, useParams } from "react-router";
 
 import { getNodeNetwork, type NodeNetworkState } from "@/api/network";
 import {
@@ -30,6 +30,7 @@ import {
 } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { publicAddressAvailability } from "@/lib/public-address";
+import { NavigationSourceLink } from "@/lib/navigation-context";
 
 const refreshIntervalMilliseconds = 5_000;
 const activityLimit = 6;
@@ -61,6 +62,7 @@ type ActivityItem =
 
 export function NodeOverviewPage() {
   const { nodeId = "" } = useParams();
+  const location = useLocation();
   const { node } = useNodeDetail();
   const { i18n, t } = useTranslation();
   const [state, setState] = useState<ViewState>({ kind: "loading" });
@@ -187,7 +189,7 @@ export function NodeOverviewPage() {
                   {state.network.publicAddresses.length}
                 </Badge>
                 <Button variant="outline" size="sm" asChild>
-                  <Link to={`/nodes/${nodeId}/network`}>
+                  <Link to={`/nodes/${nodeId}/network`} state={location.state}>
                     {t("nodeDetail.overview.network.open")}
                   </Link>
                 </Button>
@@ -345,7 +347,7 @@ export function NodeOverviewPage() {
               </CardDescription>
               <CardAction>
                 <Button variant="outline" size="sm" asChild>
-                  <Link to={`/nodes/${nodeId}/probe`}>
+                  <Link to={`/nodes/${nodeId}/probe`} state={location.state}>
                     {t("nodeDetail.overview.probe.open")}
                   </Link>
                 </Button>
@@ -411,9 +413,10 @@ function ActivityRow({
   locale: string | undefined;
 }) {
   const { t } = useTranslation();
+  const location = useLocation();
   if (item.kind === "probe") {
     return (
-      <Link
+      <NavigationSourceLink
         to={`/probe-runs/${item.run.id}`}
         className="flex min-w-0 items-center gap-3 p-4 transition-colors hover:bg-muted/50"
       >
@@ -436,7 +439,7 @@ function ActivityRow({
           {formatTime(item.time, locale, "")}
         </time>
         <ArrowRight aria-hidden="true" className="size-4 shrink-0" />
-      </Link>
+      </NavigationSourceLink>
     );
   }
 
@@ -444,6 +447,7 @@ function ActivityRow({
     return (
       <Link
         to={`/nodes/${nodeId}/changes`}
+        state={location.state}
         className="flex min-w-0 items-center gap-3 p-4 transition-colors hover:bg-muted/50"
       >
         <History aria-hidden="true" className="size-4 shrink-0" />
@@ -471,6 +475,7 @@ function ActivityRow({
   return (
     <Link
       to={`/nodes/${nodeId}/changes`}
+      state={location.state}
       className="flex min-w-0 items-center gap-3 p-4 transition-colors hover:bg-muted/50"
     >
       <TriangleAlert

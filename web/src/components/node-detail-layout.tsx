@@ -40,6 +40,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { formatAPIError } from "@/lib/api-error";
+import { SourceAwareBackLink } from "@/lib/navigation-context";
 
 const nodeRefreshIntervalMilliseconds = 3_000;
 
@@ -56,7 +57,8 @@ type NodeDetailContext = {
 
 export function NodeDetailLayout() {
   const { nodeId = "" } = useParams();
-  const { pathname } = useLocation();
+  const location = useLocation();
+  const { pathname } = location;
   const navigate = useNavigate();
   const { state: authState } = useAuth();
   const { t } = useTranslation();
@@ -162,10 +164,10 @@ export function NodeDetailLayout() {
           <AlertTitle>{t("nodeDetail.notFound")}</AlertTitle>
           <AlertDescription>
             <Button variant="outline" size="sm" className="mt-3" asChild>
-              <Link to="/nodes">
+              <SourceAwareBackLink fallback="/nodes">
                 <ArrowLeft data-icon="inline-start" aria-hidden="true" />
                 {t("nodeDetail.back")}
-              </Link>
+              </SourceAwareBackLink>
             </Button>
           </AlertDescription>
         </Alert>
@@ -193,9 +195,12 @@ export function NodeDetailLayout() {
               <div className="flex min-w-0 flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
                 <div className="flex min-w-0 items-center gap-3">
                   <Button variant="outline" size="icon" asChild>
-                    <Link to="/nodes" aria-label={t("nodeDetail.back")}>
+                    <SourceAwareBackLink
+                      fallback="/nodes"
+                      aria-label={t("common.back")}
+                    >
                       <ArrowLeft aria-hidden="true" />
-                    </Link>
+                    </SourceAwareBackLink>
                   </Button>
                   <div className="min-w-0">
                     <div className="flex min-w-0 flex-wrap items-center gap-2.5">
@@ -249,7 +254,11 @@ export function NodeDetailLayout() {
                       nodeId={nodeId}
                       nodeName={state.node.name}
                       csrfToken={csrfToken}
-                      onCreated={() => navigate(`/nodes/${nodeId}/probe`)}
+                      onCreated={() =>
+                        navigate(`/nodes/${nodeId}/probe`, {
+                          state: location.state,
+                        })
+                      }
                     >
                       <Button
                         className="flex-1 sm:flex-none"
@@ -284,7 +293,7 @@ export function NodeDetailLayout() {
                       asChild
                       className="flex-none px-2.5"
                     >
-                      <Link to={`/nodes/${nodeId}`}>
+                      <Link to={`/nodes/${nodeId}`} state={location.state}>
                         <LayoutDashboard aria-hidden="true" />
                         {t("nodeDetail.tabs.overview")}
                       </Link>
@@ -294,7 +303,10 @@ export function NodeDetailLayout() {
                       asChild
                       className="flex-none px-2.5"
                     >
-                      <Link to={`/nodes/${nodeId}/network`}>
+                      <Link
+                        to={`/nodes/${nodeId}/network`}
+                        state={location.state}
+                      >
                         <Network aria-hidden="true" />
                         {t("nodeDetail.tabs.network")}
                       </Link>
@@ -304,7 +316,10 @@ export function NodeDetailLayout() {
                       asChild
                       className="flex-none px-2.5"
                     >
-                      <Link to={`/nodes/${nodeId}/probe`}>
+                      <Link
+                        to={`/nodes/${nodeId}/probe`}
+                        state={location.state}
+                      >
                         <Activity aria-hidden="true" />
                         {t("nodeDetail.tabs.probe")}
                       </Link>
@@ -314,7 +329,7 @@ export function NodeDetailLayout() {
                       asChild
                       className="flex-none px-2.5"
                     >
-                      <Link to={`/nodes/${nodeId}/logs`}>
+                      <Link to={`/nodes/${nodeId}/logs`} state={location.state}>
                         <ScrollText aria-hidden="true" />
                         {t("nodeDetail.tabs.logs")}
                       </Link>
@@ -324,7 +339,10 @@ export function NodeDetailLayout() {
                       asChild
                       className="flex-none px-2.5"
                     >
-                      <Link to={`/nodes/${nodeId}/changes`}>
+                      <Link
+                        to={`/nodes/${nodeId}/changes`}
+                        state={location.state}
+                      >
                         <History aria-hidden="true" />
                         {t("nodeDetail.tabs.changes")}
                       </Link>
@@ -334,7 +352,10 @@ export function NodeDetailLayout() {
                       asChild
                       className="flex-none px-2.5"
                     >
-                      <Link to={`/nodes/${nodeId}/settings`}>
+                      <Link
+                        to={`/nodes/${nodeId}/settings`}
+                        state={location.state}
+                      >
                         <Settings aria-hidden="true" />
                         {t("nodeDetail.tabs.settings")}
                       </Link>

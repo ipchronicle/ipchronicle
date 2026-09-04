@@ -12,7 +12,7 @@ import {
   TriangleAlert,
 } from "lucide-react";
 import { useTranslation } from "react-i18next";
-import { Link, useSearchParams } from "react-router";
+import { useSearchParams } from "react-router";
 
 import {
   listHistoryAddressEvents,
@@ -58,6 +58,7 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { formatTime } from "@/pages/node-probe-page";
+import { NavigationSourceLink } from "@/lib/navigation-context";
 
 const pageSize = 25;
 const all = "all";
@@ -689,15 +690,19 @@ function ReportActions({
   return (
     <div className={className}>
       <Button variant="outline" size="sm" asChild>
-        <Link to={`/probe-snapshots/${snapshot.id}?runId=${snapshot.runId}`}>
+        <NavigationSourceLink
+          to={`/probe-snapshots/${snapshot.id}?runId=${snapshot.runId}`}
+        >
           {t("history.reports.open")}
-        </Link>
+        </NavigationSourceLink>
       </Button>
       <Button variant="ghost" size="sm" asChild>
-        <Link to={`/history/compare?egress=${snapshot.egressId}`}>
+        <NavigationSourceLink
+          to={`/history/compare?egress=${snapshot.egressId}`}
+        >
           <GitCompareArrows data-icon="inline-start" aria-hidden="true" />
           {t("history.reports.compare")}
-        </Link>
+        </NavigationSourceLink>
       </Button>
     </div>
   );
@@ -1008,9 +1013,9 @@ function FormatEventCard({
               </div>
             </div>
             <Button variant="outline" size="sm" asChild>
-              <Link to={`/probe-snapshots/${event.snapshotId}`}>
+              <NavigationSourceLink to={`/probe-snapshots/${event.snapshotId}`}>
                 {t("history.reports.open")}
-              </Link>
+              </NavigationSourceLink>
             </Button>
           </div>
         ))}
