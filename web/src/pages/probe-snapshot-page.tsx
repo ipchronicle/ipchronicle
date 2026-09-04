@@ -438,6 +438,10 @@ function SnapshotResult({
           aria-hidden="true"
           inert
           className="pointer-events-none fixed top-0 left-[-10000px] w-[1200px] bg-background p-8 text-foreground [&_[data-slot=table-container]]:overflow-visible"
+          style={{
+            fontFamily: '"IPChronicle Noto Sans SC", sans-serif',
+            lineHeight: 1.5,
+          }}
         >
           <div className="mb-5 flex items-end justify-between gap-6 border-b pb-4">
             <div>
@@ -446,7 +450,7 @@ function SnapshotResult({
                 {t("snapshot.title")}
               </div>
             </div>
-            <div className="max-w-xl break-all text-right font-mono text-sm text-muted-foreground">
+            <div className="max-w-xl break-all text-right text-sm text-muted-foreground">
               {snapshot.id}
             </div>
           </div>
@@ -879,7 +883,9 @@ function RiskScoresCard({
                   ) : null}
                 </div>
                 <div className="flex items-center gap-2 sm:justify-end">
-                  <span className="font-mono text-sm">{score.value}</span>
+                  <span className={cn("text-sm", !exportMode && "font-mono")}>
+                    {score.value}
+                  </span>
                   {level ? (
                     <Badge
                       variant={
@@ -1247,7 +1253,7 @@ function MailCard({
                     {service.service} ·{" "}
                     {t(
                       service.value === "none"
-                        ? "snapshot.unavailable"
+                        ? "snapshot.fieldStatus.unavailable"
                         : service.value
                           ? "snapshot.report.mail.reachable"
                           : "snapshot.report.mail.unreachable",
@@ -1300,7 +1306,7 @@ function ConnectivityBadge({ value }: { value: boolean | "none" }) {
     >
       {t(
         value === "none"
-          ? "snapshot.unavailable"
+          ? "snapshot.fieldStatus.unavailable"
           : value
             ? "snapshot.report.mail.reachable"
             : "snapshot.report.mail.unreachable",
@@ -1429,7 +1435,15 @@ function ReportValueBadge({
 }
 
 function UnavailableValue() {
-  return <span className="text-muted-foreground">—</span>;
+  const { t } = useTranslation();
+  return (
+    <Badge
+      variant="outline"
+      className="whitespace-nowrap text-muted-foreground"
+    >
+      {t("snapshot.fieldStatus.unavailable")}
+    </Badge>
+  );
 }
 
 function FormatDiagnostics({

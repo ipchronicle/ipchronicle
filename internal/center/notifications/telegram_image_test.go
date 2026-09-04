@@ -134,7 +134,7 @@ func TestTelegramImageBoundsChangesAndUsesFieldSemantics(t *testing.T) {
 		}
 	}
 	wantValues := [][2]string{
-		{"家宽", "机房"}, {"未检测到", "检测到"}, {"解锁", "仅自制内容"},
+		{"家宽", "机房"}, {"否", "是"}, {"解锁", "仅自制内容"},
 		{"不可用", "可用"}, {"4（低）", "86（存在风险）"},
 	}
 	for index, values := range wantValues {

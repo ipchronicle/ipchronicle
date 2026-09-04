@@ -1249,8 +1249,8 @@ export const en = {
           title: "Risk factors",
           detail: "Regions and risk attributes returned by each database.",
           item: "Item",
-          yes: "Detected",
-          no: "Not detected",
+          yes: "Yes",
+          no: "No",
           none: "None",
           names: {
             CountryCode: "Region",

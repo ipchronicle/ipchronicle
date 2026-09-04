@@ -233,9 +233,9 @@ func DisplayValue(id, raw, locale string) string {
 		}
 		if strings.HasPrefix(id, "Factor.") {
 			if typed {
-				return localized(locale, "Detected", "检测到")
+				return localized(locale, "Yes", "是")
 			}
-			return localized(locale, "Not detected", "未检测到")
+			return localized(locale, "No", "否")
 		}
 		if typed {
 			return localized(locale, "Yes", "是")

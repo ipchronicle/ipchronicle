@@ -3,6 +3,15 @@
 @import "shadcn/tailwind.css";
 @import "@fontsource-variable/geist";
 
+@font-face {
+  font-family: "IPChronicle Noto Sans SC";
+  src: url("../../internal/center/notifications/assets/NotoSansCJKsc-Regular.otf")
+    format("opentype");
+  font-style: normal;
+  font-weight: 100 900;
+  font-display: block;
+}
+
 @custom-variant dark (&:is(.dark *));
 
 @theme inline {

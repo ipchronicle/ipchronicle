@@ -1176,8 +1176,8 @@ export const zhCN = {
           title: "风险因子",
           detail: "各数据库返回的地区和风险属性。",
           item: "项目",
-          yes: "检测到",
-          no: "未检测到",
+          yes: "是",
+          no: "否",
           none: "无",
           names: {
             CountryCode: "地区",

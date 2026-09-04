@@ -2505,6 +2505,15 @@ describe("administrator application", () => {
     expect(
       await screen.findByText("The PNG could not be generated. Try again."),
     ).toBeInTheDocument();
+    expect(toBlobMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        style: expect.objectContaining({
+          fontFamily: expect.stringContaining("Noto Sans SC"),
+          lineHeight: "1.5",
+        }),
+      }),
+      expect.objectContaining({ width: 1200, pixelRatio: 2 }),
+    );
     const riskScoresCard = screen
       .getByRole("heading", { name: "Risk scores" })
       .closest<HTMLElement>('[data-slot="card"]');
@@ -2536,11 +2545,11 @@ describe("administrator application", () => {
     expect(within(riskFactorsCard!).getByText("Taiwan (TW)")).toHaveClass(
       "text-emerald-700",
     );
-    expect(screen.getAllByText("Not detected").length).toBeGreaterThan(0);
-    expect(screen.getAllByText("Detected").length).toBeGreaterThan(0);
+    expect(screen.getAllByText("No").length).toBeGreaterThan(0);
+    expect(screen.getAllByText("Yes").length).toBeGreaterThan(0);
     expect(
       document.querySelector('[data-report-path="Factor.Proxy.DBIP"]'),
-    ).toHaveTextContent("—");
+    ).toHaveTextContent("No data");
     expect(
       screen.getByRole("columnheader", { name: "Netflix" }),
     ).toBeInTheDocument();
