@@ -79,10 +79,12 @@ successful candidate from the same source revision.
 - Agents run as root on the documented AMD64/ARM64 Linux distributions with
   systemd or OpenRC.
 - `v0.1.0` was not deployed to an environment with data requiring preservation,
-  so there is currently no persistent-data compatibility baseline.
-- `v0.1.1` uses a clean deployment and does not migrate configuration, history,
-  or Agent-local state from development builds, release candidates, or
-  `v0.1.0`.
+  so no persisted-data compatibility baseline existed while `v0.1.1` was being
+  prepared.
+- The initial `v0.1.1` deployment does not migrate configuration, history, or
+  Agent-local state from development builds, release candidates, or `v0.1.0`.
+  After entering production use on 2026-09-04, `v0.1.1` became the initial
+  compatibility baseline.
 - Compose stores configuration and history in `./data/config` and
   `./data/history` under the installation directory.
 - The product has no built-in backup or restore feature. Operators preserve

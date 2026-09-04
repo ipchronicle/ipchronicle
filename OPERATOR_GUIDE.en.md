@@ -290,10 +290,11 @@ proxies, schedules, notification configuration, and pending task state. It also
 advances the history generation so Agents discard queued data from the old
 generation. No complete probe starts automatically after a reset.
 
-There is currently no persistent-data compatibility baseline. `v0.1.1` uses a
-clean deployment and does not migrate configuration, history, or Agent state
-from development builds, release candidates, or `v0.1.0`. Unreadable data
-fails explicitly.
+`v0.1.1` entered production use on 2026-09-04 and is the initial persisted-data
+compatibility baseline. Supported upgrades within the same major version must
+preserve its configuration database, master key, history database, Compose data
+directories, and Agent state. `v0.1.1` does not migrate data from development
+builds, release candidates, or `v0.1.0`; unreadable data fails explicitly.
 
 ## Notifications
 
@@ -327,9 +328,9 @@ docker compose up -d
 docker compose ps
 ```
 
-Database migrations run before the Center begins serving. Upgrade and rollback
-requirements will be listed in the applicable release notes after a production
-compatibility baseline is established.
+Database migrations run before the Center begins serving. Releases that change
+a persisted format list their upgrade and rollback requirements and verify
+upgrades from `v0.1.1` and every other supported stable version.
 
 Open **Settings > System** to select stable or RC release discovery. The
 selection controls Center and Agent discovery together; it does not update the
