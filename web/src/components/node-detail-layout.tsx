@@ -2,6 +2,7 @@ import { useCallback, useEffect, useState } from "react";
 import {
   Activity,
   ArrowLeft,
+  CircleHelp,
   History,
   LayoutDashboard,
   LoaderCircle,
@@ -38,6 +39,11 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "@/components/ui/popover";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { formatAPIError } from "@/lib/api-error";
 import { SourceAwareBackLink } from "@/lib/navigation-context";
@@ -249,6 +255,25 @@ export function NodeDetailLayout() {
                       ? t("nodes.sync.start")
                       : t("nodes.sync.stop")}
                   </Button>
+                  <Popover>
+                    <PopoverTrigger asChild>
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        aria-label={t("nodes.sync.helpTitle")}
+                        title={t("nodes.sync.helpTitle")}
+                      >
+                        <CircleHelp aria-hidden="true" />
+                      </Button>
+                    </PopoverTrigger>
+                    <PopoverContent
+                      align="end"
+                      className="max-w-[calc(100vw-2rem)] space-y-2 text-sm"
+                    >
+                      <p className="font-medium">{t("nodes.sync.helpTitle")}</p>
+                      <p>{t("nodes.sync.help")}</p>
+                    </PopoverContent>
+                  </Popover>
                   {activeTab !== "probe" ? (
                     <CompleteProbeDialog
                       nodeId={nodeId}

@@ -459,6 +459,8 @@ export const en = {
       sync: {
         start: "Start temporary sync",
         stop: "Stop temporary sync",
+        helpTitle: "What is temporary sync?",
+        help: "After its next regular poll, the Agent opens an outbound WebSocket connection for up to 10 minutes, kept alive with Ping/Pong. This makes configuration changes and tasks arrive faster while you adjust the node. Data still uses the existing HTTP APIs, and no inbound node ports are needed. When the connection ends or fails, the Agent returns to polling every 30 seconds.",
         unsupported:
           "The current Agent version does not support temporary sync",
         pending: "Waiting for Agent",

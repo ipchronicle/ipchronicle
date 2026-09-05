@@ -428,6 +428,8 @@ export const zhCN = {
       sync: {
         start: "开始临时同步",
         stop: "停止临时同步",
+        helpTitle: "什么是临时同步？",
+        help: "Agent 在下次常规轮询后主动建立最长 10 分钟的 WebSocket 连接，通过 Ping/Pong 保持连接，方便调整节点时更快同步配置和下发任务。数据仍通过现有 HTTP 接口传输，无需开放节点入站端口。连接结束或失败后恢复每 30 秒轮询。",
         unsupported: "当前 Agent 版本不支持临时同步",
         pending: "等待 Agent",
         connected: "实时同步中",

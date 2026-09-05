@@ -1400,6 +1400,14 @@ describe("administrator application", () => {
       "active",
     );
     fireEvent.click(
+      screen.getByRole("button", { name: "What is temporary sync?" }),
+    );
+    const syncHelp = await screen.findByRole("dialog");
+    expect(syncHelp).toHaveTextContent("up to 10 minutes");
+    expect(syncHelp).toHaveTextContent("polling every 30 seconds");
+    expect(startSyncMock).not.toHaveBeenCalled();
+    fireEvent.keyDown(syncHelp, { key: "Escape" });
+    fireEvent.click(
       await screen.findByRole("button", { name: "Start temporary sync" }),
     );
     await waitFor(() =>
