@@ -14,6 +14,7 @@ import {
   Webhook,
 } from "lucide-react";
 import { useTranslation } from "react-i18next";
+import { useSearchParams } from "react-router";
 
 import { getNodeNetwork, type PublicAddress } from "@/api/network";
 import { listNodes, type Node } from "@/api/nodes";
@@ -125,7 +126,18 @@ export function NotificationsPage() {
   const { i18n, t } = useTranslation();
   const { state: authState } = useAuth();
   const [state, setState] = useState<ViewState>({ kind: "loading" });
-  const [tab, setTab] = useState("senders");
+  const [search, setSearch] = useSearchParams();
+  const requestedTab = search.get("tab") ?? "senders";
+  const tab = ["senders", "rules", "deliveries"].includes(requestedTab)
+    ? requestedTab
+    : "senders";
+  function setTab(value: string) {
+    setSearch((current) => {
+      const next = new URLSearchParams(current);
+      next.set("tab", value);
+      return next;
+    });
+  }
   const [senderEditor, setSenderEditor] = useState<
     NotificationSender | "create"
   >();
@@ -1279,10 +1291,24 @@ function DeliveryHistory({
   revision: number;
 }) {
   const { i18n, t } = useTranslation();
-  const [senderId, setSenderId] = useState(allValue);
-  const [status, setStatus] = useState<
-    NotificationDeliveryStatus | typeof allValue
-  >(allValue);
+  const [search, setSearch] = useSearchParams();
+  const senderId = search.get("senderId") ?? allValue;
+  const requestedStatus = search.get("status");
+  const status: NotificationDeliveryStatus | typeof allValue =
+    requestedStatus &&
+    ["pending", "running", "retrying", "succeeded", "failed"].includes(
+      requestedStatus,
+    )
+      ? (requestedStatus as NotificationDeliveryStatus)
+      : allValue;
+  function setFilter(key: string, value: string) {
+    setSearch((current) => {
+      const next = new URLSearchParams(current);
+      if (value === allValue) next.delete(key);
+      else next.set(key, value);
+      return next;
+    });
+  }
   const [page, setPage] = useState(1);
   const [refresh, setRefresh] = useState(0);
   const [state, setState] = useState<
@@ -1343,7 +1369,7 @@ function DeliveryHistory({
             <Select
               value={senderId}
               onValueChange={(value) => {
-                setSenderId(value);
+                setFilter("senderId", value);
                 setPage(1);
               }}
             >
@@ -1369,9 +1395,7 @@ function DeliveryHistory({
             <Select
               value={status}
               onValueChange={(value) => {
-                setStatus(
-                  value as NotificationDeliveryStatus | typeof allValue,
-                );
+                setFilter("status", value);
                 setPage(1);
               }}
             >

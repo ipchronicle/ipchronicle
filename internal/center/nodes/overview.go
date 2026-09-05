@@ -12,6 +12,7 @@ import (
 const overviewActivityLimit = 8
 
 type Overview struct {
+	Attention           []AttentionGroup
 	CheckedAt           time.Time
 	HistoryOverBudget   bool
 	Nodes               []OverviewNode
@@ -244,6 +245,10 @@ func (s *Service) Overview(ctx context.Context) (Overview, error) {
 		return Overview{}, err
 	}
 	result.HistoryOverBudget = history.Usage.OverBudget
+	result.Attention, err = s.overviewAttention(ctx, result, nodeRecords, history)
+	if err != nil {
+		return Overview{}, err
+	}
 	return result, nil
 }
 

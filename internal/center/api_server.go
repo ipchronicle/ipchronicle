@@ -1834,6 +1834,10 @@ func overviewResponse(overview nodes.Overview) api.Overview {
 		ActiveTasks:         make([]api.OverviewTask, 0, len(overview.ActiveTasks)),
 		RecentProbeRuns:     make([]api.ProbeRunSummary, 0, len(overview.RecentProbeRuns)),
 		RecentAddressEvents: make([]api.OverviewAddressEvent, 0, len(overview.RecentAddressEvents)),
+		Attention:           make([]api.OverviewAttentionGroup, 0, len(overview.Attention)),
+	}
+	for _, group := range overview.Attention {
+		response.Attention = append(response.Attention, api.OverviewAttentionGroup{Kind: api.OverviewAttentionGroupKind(group.Kind), Count: group.Count, NodeIds: group.NodeIDs, PublicAddressIds: group.PublicAddressIDs, Samples: group.Samples})
 	}
 	for _, node := range overview.Nodes {
 		item := api.OverviewNode{

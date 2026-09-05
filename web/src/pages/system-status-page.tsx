@@ -65,7 +65,6 @@ import { NavigationSourceLink } from "@/lib/navigation-context";
 import { browserTimeZone } from "@/lib/time-zone";
 
 const refreshIntervalMilliseconds = 5_000;
-const attentionLimit = 8;
 const activityLimit = 8;
 
 type SystemStatus = Awaited<ReturnType<typeof getSystemStatus>>;
@@ -77,7 +76,7 @@ type ViewState =
 
 type AttentionItem = {
   id: string;
-  priority: number;
+  count: number;
   title: string;
   detail: string;
   to: string;
@@ -408,7 +407,6 @@ function SummaryField({
 
 function AttentionCard({ items }: { items: AttentionItem[] }) {
   const { t } = useTranslation();
-  const visible = items.slice(0, attentionLimit);
   return (
     <Card>
       <CardHeader>
@@ -419,12 +417,12 @@ function AttentionCard({ items }: { items: AttentionItem[] }) {
         <CardDescription>{t("overview.attention.detail")}</CardDescription>
         <CardAction>
           <Badge variant={items.length > 0 ? "warning" : "success"}>
-            {items.length}
+            {items.reduce((total, item) => total + item.count, 0)}
           </Badge>
         </CardAction>
       </CardHeader>
       <CardContent>
-        {visible.length === 0 ? (
+        {items.length === 0 ? (
           <div className="flex items-start gap-3 rounded-md border border-emerald-200 bg-emerald-50 p-4 text-emerald-800 dark:border-emerald-900 dark:bg-emerald-950/50 dark:text-emerald-200">
             <Check aria-hidden="true" className="mt-0.5 size-4 shrink-0" />
             <div>
@@ -438,7 +436,7 @@ function AttentionCard({ items }: { items: AttentionItem[] }) {
           </div>
         ) : (
           <div className="divide-y overflow-hidden rounded-md border">
-            {visible.map((item) => (
+            {items.map((item) => (
               <NavigationSourceLink
                 key={item.id}
                 to={item.to}
@@ -455,7 +453,7 @@ function AttentionCard({ items }: { items: AttentionItem[] }) {
                 />
                 <span className="min-w-0 flex-1">
                   <span className="block text-sm font-medium">
-                    {item.title}
+                    {item.title} · {item.count}
                   </span>
                   <span className="mt-1 block text-sm text-muted-foreground">
                     {item.detail}
@@ -469,13 +467,6 @@ function AttentionCard({ items }: { items: AttentionItem[] }) {
             ))}
           </div>
         )}
-        {items.length > attentionLimit ? (
-          <p className="mt-3 text-sm text-muted-foreground">
-            {t("overview.attention.more", {
-              count: items.length - attentionLimit,
-            })}
-          </p>
-        ) : null}
       </CardContent>
     </Card>
   );
@@ -1050,103 +1041,21 @@ function buildAttention(
   overview: Overview,
   t: ReturnType<typeof useTranslation>["t"],
 ) {
-  const items: AttentionItem[] = [];
-  for (const node of overview.nodes) {
-    if (node.configurationStatus !== "current") {
-      items.push({
-        id: `configuration-${node.id}`,
-        priority: node.configurationStatus === "failed" ? 10 : 30,
-        title: t("overview.attention.configurationTitle", {
-          node: node.name,
-        }),
-        detail: t("overview.attention.configurationDetail", {
-          status: t(`nodes.configuration.${node.configurationStatus}`),
-          applied: node.appliedConfigurationRevision,
-          desired: node.desiredConfigurationRevision,
-        }),
-        to: `/nodes/${node.id}`,
-        variant:
-          node.configurationStatus === "failed" ? "destructive" : "warning",
-      });
-    }
-    if (node.status === "offline") {
-      items.push({
-        id: `offline-${node.id}`,
-        priority: 20,
-        title: t("overview.attention.offlineTitle", { node: node.name }),
-        detail: t("overview.attention.offlineDetail", {
-          time:
-            node.lastSeenAt === undefined
-              ? t("overview.notAvailable")
-              : formatDate(node.lastSeenAt),
-        }),
-        to: `/nodes/${node.id}`,
-        variant: "warning",
-      });
-    }
-    if (node.pausedLowMemory) {
-      items.push({
-        id: `memory-${node.id}`,
-        priority: 15,
-        title: t("overview.attention.memoryTitle", { node: node.name }),
-        detail: t("overview.attention.memoryDetail"),
-        to: `/nodes/${node.id}/probe`,
-        variant: "destructive",
-      });
-    }
-  }
-  for (const { address, node } of uniqueAddressContexts(overview.nodes)) {
-    const addressName = address.address;
-    if (address.latestProbeOutcome === "failed") {
-      items.push({
-        id: `probe-${address.id}`,
-        priority: 5,
-        title: t("overview.attention.probeTitle", { address: addressName }),
-        detail: t("overview.attention.probeDetail", { node: node.name }),
-        to:
-          address.latestProbeRunId === undefined
-            ? `/nodes/${node.id}/probe`
-            : `/probe-runs/${address.latestProbeRunId}`,
-        variant: "destructive",
-      });
-    }
-    if (address.formatStatus === "mismatch") {
-      items.push({
-        id: `format-${address.id}`,
-        priority: 8,
-        title: t("overview.attention.formatTitle", { address: addressName }),
-        detail: t("overview.attention.formatDetail"),
-        to:
-          address.latestSnapshotId === undefined
-            ? `/history?nodeId=${node.id}&egressId=${address.id}`
-            : `/probe-snapshots/${address.latestSnapshotId}`,
-        variant: "destructive",
-      });
-    }
-    if (address.latestSnapshotId === undefined) {
-      items.push({
-        id: `unprobed-${address.id}`,
-        priority: 40,
-        title: t("overview.attention.unprobedTitle", {
-          address: addressName,
-        }),
-        detail: t("overview.attention.unprobedDetail", { node: node.name }),
-        to: `/nodes/${node.id}/network`,
-        variant: "info",
-      });
-    }
-    if (address.likelyNat) {
-      items.push({
-        id: `nat-${address.id}`,
-        priority: 50,
-        title: t("overview.attention.natTitle", { address: addressName }),
-        detail: t("overview.attention.natDetail", { node: node.name }),
-        to: `/nodes/${node.id}/network`,
-        variant: "warning",
-      });
-    }
-  }
-  return items.sort((left, right) => left.priority - right.priority);
+  return overview.attention.map((group): AttentionItem => ({
+    id: group.kind,
+    count: group.count,
+    title: t(`overview.attention.groups.${group.kind}`),
+    detail: group.samples.length
+      ? group.samples.join(" · ")
+      : t("overview.attention.retentionDetail"),
+    to:
+      group.kind === "delivery"
+        ? "/notifications?tab=deliveries&status=failed"
+        : group.kind === "retention"
+          ? "/settings/history"
+          : `/nodes?attention=${group.kind}`,
+    variant: group.kind === "offline" ? "warning" : "destructive",
+  }));
 }
 
 function uniqueAddresses(nodes: OverviewNode[]) {

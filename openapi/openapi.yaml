@@ -2234,8 +2234,13 @@ components:
       type: object
       additionalProperties: false
       required:
-        [checkedAt, historyOverBudget, nodes, activeTasks, recentProbeRuns, recentAddressEvents]
+        [checkedAt, historyOverBudget, nodes, activeTasks, recentProbeRuns, recentAddressEvents, attention]
       properties:
+        attention:
+          type: array
+          maxItems: 9
+          items:
+            $ref: "#/components/schemas/OverviewAttentionGroup"
         checkedAt:
           type: string
           format: date-time
@@ -2261,6 +2266,32 @@ components:
           maxItems: 8
           items:
             $ref: "#/components/schemas/OverviewAddressEvent"
+    OverviewAttentionGroup:
+      type: object
+      additionalProperties: false
+      required: [kind, count, nodeIds, publicAddressIds, samples]
+      properties:
+        kind:
+          type: string
+          enum: [offline, configuration, discovery, probe, memory, update, format, delivery, retention]
+        count:
+          type: integer
+          minimum: 1
+        nodeIds:
+          type: array
+          items:
+            type: string
+            format: uuid
+        publicAddressIds:
+          type: array
+          items:
+            type: string
+            format: uuid
+        samples:
+          type: array
+          maxItems: 3
+          items:
+            type: string
     OverviewNode:
       type: object
       additionalProperties: false

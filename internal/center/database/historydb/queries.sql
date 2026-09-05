@@ -261,6 +261,20 @@ LEFT JOIN probe_outcome_states outcome ON outcome.egress_id = identity.egress_id
 LEFT JOIN probe_executions outcome_execution ON outcome_execution.id = outcome.execution_id
 ORDER BY identity.egress_id;
 
+-- name: ListAttentionDiscoveryFailures :many
+SELECT egress_id FROM address_states WHERE status = 'failed' ORDER BY egress_id;
+
+-- name: ListAttentionDeliveryFailures :many
+SELECT delivery.sender_id
+FROM notification_deliveries delivery
+WHERE delivery.status = 'failed'
+  AND delivery.id = (
+    SELECT latest.id FROM notification_deliveries latest
+    WHERE latest.sender_id = delivery.sender_id AND latest.status IN ('succeeded', 'failed')
+    ORDER BY latest.completed_at DESC, latest.id DESC LIMIT 1
+  )
+ORDER BY delivery.sender_id;
+
 -- name: ListOverviewLatestNodeProbeRuns :many
 SELECT run.id, run.node_id, run.trigger, run.started_at, run.completed_at,
        run.status, run.expected_executions,

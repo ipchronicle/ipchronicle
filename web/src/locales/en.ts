@@ -138,25 +138,19 @@ export const en = {
         healthy: "No current issues need attention",
         healthyDetail:
           "Nodes, public IPs, and latest probe states are healthy.",
-        more: "{{count}} more items are available from their node or history pages.",
-        configurationTitle: "{{node}} has not applied its configuration",
-        configurationDetail:
-          "{{status}} · applied revision {{applied}}, desired revision {{desired}}",
-        offlineTitle: "{{node}} is offline",
-        offlineDetail: "Last contact: {{time}}. Current data may be stale.",
-        memoryTitle: "Complete probes are paused on {{node}}",
-        memoryDetail: "The Agent reported less than 64 MiB of physical memory.",
-        probeTitle: "The latest probe for {{address}} failed",
-        probeDetail: "Open the run from {{node}} to review its failure stage.",
-        formatTitle: "{{address}} has a report format mismatch",
-        formatDetail:
-          "Some expected complete-probe fields could not be read with their expected types.",
-        unprobedTitle: "{{address}} has no complete report",
-        unprobedDetail:
-          "The IP is currently available from {{node}} and can be probed manually.",
-        natTitle: "{{address}} is likely reached through NAT",
-        natDetail:
-          "The probe on {{node}} may route DNS checks through its default path.",
+        groups: {
+          offline: "Nodes offline",
+          configuration: "Configuration sync issues",
+          discovery: "Public IP discovery failed",
+          probe: "Latest IP probes failed",
+          memory: "Probes paused for low memory",
+          update: "Agent updates failed",
+          format: "Report format issues",
+          delivery: "Notification senders failing",
+          retention: "History cleanup needs attention",
+        },
+        retentionDetail:
+          "Cleanup failed or retained history remains over its limit.",
       },
       nodes: {
         title: "Nodes and current public IPs",

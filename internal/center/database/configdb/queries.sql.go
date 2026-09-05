@@ -2268,6 +2268,118 @@ func (q *Queries) ListActiveNodeNetworkProxies(ctx context.Context, nodeID strin
 	return items, nil
 }
 
+const listAttentionDiscoveryPaths = `-- name: ListAttentionDiscoveryPaths :many
+SELECT e.id, e.node_id, a.public_address_id
+FROM network_egresses e
+LEFT JOIN network_proxies p ON p.id = e.proxy_id
+LEFT JOIN public_address_paths a ON a.path_id = e.id AND a.available = 1
+WHERE e.enabled = 1 AND e.available = 1
+  AND (e.proxy_id IS NULL OR (p.enabled = 1 AND p.deletion_requested_at IS NULL))
+ORDER BY e.node_id, e.id
+`
+
+type ListAttentionDiscoveryPathsRow struct {
+	ID              string
+	NodeID          string
+	PublicAddressID *string
+}
+
+func (q *Queries) ListAttentionDiscoveryPaths(ctx context.Context) ([]ListAttentionDiscoveryPathsRow, error) {
+	rows, err := q.db.QueryContext(ctx, listAttentionDiscoveryPaths)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []ListAttentionDiscoveryPathsRow{}
+	for rows.Next() {
+		var i ListAttentionDiscoveryPathsRow
+		if err := rows.Scan(&i.ID, &i.NodeID, &i.PublicAddressID); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listAttentionSenders = `-- name: ListAttentionSenders :many
+SELECT id, name FROM notification_senders WHERE enabled = 1 ORDER BY name, id
+`
+
+type ListAttentionSendersRow struct {
+	ID   string
+	Name string
+}
+
+func (q *Queries) ListAttentionSenders(ctx context.Context) ([]ListAttentionSendersRow, error) {
+	rows, err := q.db.QueryContext(ctx, listAttentionSenders)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []ListAttentionSendersRow{}
+	for rows.Next() {
+		var i ListAttentionSendersRow
+		if err := rows.Scan(&i.ID, &i.Name); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listAttentionUpdateTasks = `-- name: ListAttentionUpdateTasks :many
+SELECT task.node_id, task.target_version, task.status
+FROM probe_tasks task
+WHERE task.kind = 'agent-update'
+  AND task.id = (
+    SELECT latest.id FROM probe_tasks latest
+    WHERE latest.node_id = task.node_id AND latest.kind = 'agent-update'
+    ORDER BY latest.created_at DESC, latest.id DESC LIMIT 1
+  )
+ORDER BY task.node_id
+`
+
+type ListAttentionUpdateTasksRow struct {
+	NodeID        string
+	TargetVersion *string
+	Status        string
+}
+
+func (q *Queries) ListAttentionUpdateTasks(ctx context.Context) ([]ListAttentionUpdateTasksRow, error) {
+	rows, err := q.db.QueryContext(ctx, listAttentionUpdateTasks)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []ListAttentionUpdateTasksRow{}
+	for rows.Next() {
+		var i ListAttentionUpdateTasksRow
+		if err := rows.Scan(&i.NodeID, &i.TargetVersion, &i.Status); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const listConfiguredNodeEgresses = `-- name: ListConfiguredNodeEgresses :many
 SELECT e.id, e.node_id, e.name, e.kind, e.family, e.interface_name,
        e.source_address, e.proxy_id, e.enabled, e.available, e.automatic,

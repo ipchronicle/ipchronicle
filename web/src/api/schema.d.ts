@@ -1124,6 +1124,7 @@ export interface components {
             externalOriginMode: "automatic" | "custom";
         };
         Overview: {
+            attention: components["schemas"]["OverviewAttentionGroup"][];
             /** Format: date-time */
             checkedAt: string;
             historyOverBudget: boolean;
@@ -1131,6 +1132,14 @@ export interface components {
             activeTasks: components["schemas"]["OverviewTask"][];
             recentProbeRuns: components["schemas"]["ProbeRunSummary"][];
             recentAddressEvents: components["schemas"]["OverviewAddressEvent"][];
+        };
+        OverviewAttentionGroup: {
+            /** @enum {string} */
+            kind: "offline" | "configuration" | "discovery" | "probe" | "memory" | "update" | "format" | "delivery" | "retention";
+            count: number;
+            nodeIds: string[];
+            publicAddressIds: string[];
+            samples: string[];
         };
         OverviewNode: {
             /** Format: uuid */

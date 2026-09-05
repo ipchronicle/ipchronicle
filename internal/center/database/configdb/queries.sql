@@ -322,6 +322,29 @@ FROM probe_tasks
 WHERE status IN('pending', 'acknowledged', 'running', 'verifying', 'installing', 'restarting')
 ORDER BY created_at, id;
 
+-- name: ListAttentionDiscoveryPaths :many
+SELECT e.id, e.node_id, a.public_address_id
+FROM network_egresses e
+LEFT JOIN network_proxies p ON p.id = e.proxy_id
+LEFT JOIN public_address_paths a ON a.path_id = e.id AND a.available = 1
+WHERE e.enabled = 1 AND e.available = 1
+  AND (e.proxy_id IS NULL OR (p.enabled = 1 AND p.deletion_requested_at IS NULL))
+ORDER BY e.node_id, e.id;
+
+-- name: ListAttentionUpdateTasks :many
+SELECT task.node_id, task.target_version, task.status
+FROM probe_tasks task
+WHERE task.kind = 'agent-update'
+  AND task.id = (
+    SELECT latest.id FROM probe_tasks latest
+    WHERE latest.node_id = task.node_id AND latest.kind = 'agent-update'
+    ORDER BY latest.created_at DESC, latest.id DESC LIMIT 1
+  )
+ORDER BY task.node_id;
+
+-- name: ListAttentionSenders :many
+SELECT id, name FROM notification_senders WHERE enabled = 1 ORDER BY name, id;
+
 -- name: SetNodeEnabled :execrows
 UPDATE nodes
 SET enabled = ?,

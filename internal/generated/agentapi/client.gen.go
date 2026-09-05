@@ -1092,6 +1092,45 @@ func (e NotificationSenderKind) Valid() bool {
 	}
 }
 
+// Defines values for OverviewAttentionGroupKind.
+const (
+	OverviewAttentionGroupKindConfiguration OverviewAttentionGroupKind = "configuration"
+	OverviewAttentionGroupKindDelivery      OverviewAttentionGroupKind = "delivery"
+	OverviewAttentionGroupKindDiscovery     OverviewAttentionGroupKind = "discovery"
+	OverviewAttentionGroupKindFormat        OverviewAttentionGroupKind = "format"
+	OverviewAttentionGroupKindMemory        OverviewAttentionGroupKind = "memory"
+	OverviewAttentionGroupKindOffline       OverviewAttentionGroupKind = "offline"
+	OverviewAttentionGroupKindProbe         OverviewAttentionGroupKind = "probe"
+	OverviewAttentionGroupKindRetention     OverviewAttentionGroupKind = "retention"
+	OverviewAttentionGroupKindUpdate        OverviewAttentionGroupKind = "update"
+)
+
+// Valid indicates whether the value is a known member of the OverviewAttentionGroupKind enum.
+func (e OverviewAttentionGroupKind) Valid() bool {
+	switch e {
+	case OverviewAttentionGroupKindConfiguration:
+		return true
+	case OverviewAttentionGroupKindDelivery:
+		return true
+	case OverviewAttentionGroupKindDiscovery:
+		return true
+	case OverviewAttentionGroupKindFormat:
+		return true
+	case OverviewAttentionGroupKindMemory:
+		return true
+	case OverviewAttentionGroupKindOffline:
+		return true
+	case OverviewAttentionGroupKindProbe:
+		return true
+	case OverviewAttentionGroupKindRetention:
+		return true
+	case OverviewAttentionGroupKindUpdate:
+		return true
+	default:
+		return false
+	}
+}
+
 // Defines values for OverviewPublicAddressLatestProbeOutcome.
 const (
 	OverviewPublicAddressLatestProbeOutcomeFailed  OverviewPublicAddressLatestProbeOutcome = "failed"
@@ -2564,12 +2603,13 @@ type NotificationSenderUpdate struct {
 
 // Overview defines model for Overview.
 type Overview struct {
-	ActiveTasks         []OverviewTask         `json:"activeTasks"`
-	CheckedAt           time.Time              `json:"checkedAt"`
-	HistoryOverBudget   bool                   `json:"historyOverBudget"`
-	Nodes               []OverviewNode         `json:"nodes"`
-	RecentAddressEvents []OverviewAddressEvent `json:"recentAddressEvents"`
-	RecentProbeRuns     []ProbeRunSummary      `json:"recentProbeRuns"`
+	ActiveTasks         []OverviewTask           `json:"activeTasks"`
+	Attention           []OverviewAttentionGroup `json:"attention"`
+	CheckedAt           time.Time                `json:"checkedAt"`
+	HistoryOverBudget   bool                     `json:"historyOverBudget"`
+	Nodes               []OverviewNode           `json:"nodes"`
+	RecentAddressEvents []OverviewAddressEvent   `json:"recentAddressEvents"`
+	RecentProbeRuns     []ProbeRunSummary        `json:"recentProbeRuns"`
 }
 
 // OverviewAddressEvent defines model for OverviewAddressEvent.
@@ -2584,6 +2624,18 @@ type OverviewAddressEvent struct {
 	PublicAddress   *string               `json:"publicAddress,omitempty"`
 	PublicAddressId openapi_types.UUID    `json:"publicAddressId"`
 }
+
+// OverviewAttentionGroup defines model for OverviewAttentionGroup.
+type OverviewAttentionGroup struct {
+	Count            int                        `json:"count"`
+	Kind             OverviewAttentionGroupKind `json:"kind"`
+	NodeIds          []openapi_types.UUID       `json:"nodeIds"`
+	PublicAddressIds []openapi_types.UUID       `json:"publicAddressIds"`
+	Samples          []string                   `json:"samples"`
+}
+
+// OverviewAttentionGroupKind defines model for OverviewAttentionGroup.Kind.
+type OverviewAttentionGroupKind string
 
 // OverviewNode defines model for OverviewNode.
 type OverviewNode struct {

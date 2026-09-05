@@ -301,6 +301,7 @@ const healthyStatus = {
 };
 
 const healthyOverview = {
+  attention: [],
   checkedAt: "2026-08-10T08:00:00Z",
   historyOverBudget: false,
   nodes: [
@@ -585,6 +586,29 @@ describe("administrator application", () => {
     getSessionMock.mockResolvedValue(session);
     getOverviewMock.mockResolvedValue({
       ...healthyOverview,
+      attention: [
+        {
+          kind: "probe",
+          count: 12,
+          nodeIds: [healthyOverview.nodes[0].id],
+          publicAddressIds: ["6b15a701-8f23-40dd-a1b2-13982dba217f"],
+          samples: ["203.0.113.10"],
+        },
+        {
+          kind: "offline",
+          count: 1,
+          nodeIds: [healthyOverview.nodes[0].id],
+          publicAddressIds: [],
+          samples: ["edge-1"],
+        },
+        {
+          kind: "memory",
+          count: 1,
+          nodeIds: [healthyOverview.nodes[0].id],
+          publicAddressIds: [],
+          samples: ["edge-1"],
+        },
+      ],
       nodes: [
         {
           ...healthyOverview.nodes[0],
@@ -613,20 +637,48 @@ describe("administrator application", () => {
     renderApplication("/");
 
     expect(
-      await screen.findByText("The latest probe for 203.0.113.10 failed"),
+      await screen.findByText("Latest IP probes failed · 12"),
     ).toBeInTheDocument();
     expect(
       screen.getByRole("link", {
-        name: /The latest probe for 203\.0\.113\.10 failed/,
+        name: /Latest IP probes failed/,
       }),
-    ).toHaveAttribute(
-      "href",
-      "/probe-runs/84e7d535-e04e-47f9-8374-1585a5dce6c9",
-    );
-    expect(screen.getByText("edge-1 is offline")).toBeInTheDocument();
+    ).toHaveAttribute("href", "/nodes?attention=probe");
+    expect(screen.getByText("Nodes offline · 1")).toBeInTheDocument();
     expect(
-      screen.getByText("Complete probes are paused on edge-1"),
+      screen.getByText("Probes paused for low memory · 1"),
     ).toBeInTheDocument();
+  });
+
+  it("filters node attention links and clears the filter", async () => {
+    getSessionMock.mockResolvedValue(session);
+    getEnrollmentMock.mockResolvedValue({ enabled: false, hasKey: false });
+    getAgentUpdateStateMock.mockResolvedValue(agentUpdateState);
+    const other = { ...probeTestNode, id: "other-node", name: "other-node" };
+    listNodesMock.mockResolvedValue([probeTestNode, other]);
+    getOverviewMock.mockResolvedValue({
+      ...healthyOverview,
+      attention: [
+        {
+          kind: "configuration",
+          count: 1,
+          nodeIds: [probeTestNode.id],
+          publicAddressIds: [],
+          samples: [probeTestNode.name],
+        },
+      ],
+    });
+    renderApplication("/nodes?attention=configuration");
+    expect(
+      (
+        await screen.findAllByRole("checkbox", {
+          name: `Select ${probeTestNode.name}`,
+        })
+      ).length,
+    ).toBeGreaterThan(0);
+    expect(screen.queryByText("other-node")).not.toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Clear filters" }));
+    expect(screen.getAllByText("other-node").length).toBeGreaterThan(0);
   });
 
   it("uses the retained node name for deleted-node overview activity", async () => {

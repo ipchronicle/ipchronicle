@@ -1641,6 +1641,68 @@ func (q *Queries) IsProbeSnapshotStarred(ctx context.Context, snapshotID string)
 	return starred, err
 }
 
+const listAttentionDeliveryFailures = `-- name: ListAttentionDeliveryFailures :many
+SELECT delivery.sender_id
+FROM notification_deliveries delivery
+WHERE delivery.status = 'failed'
+  AND delivery.id = (
+    SELECT latest.id FROM notification_deliveries latest
+    WHERE latest.sender_id = delivery.sender_id AND latest.status IN ('succeeded', 'failed')
+    ORDER BY latest.completed_at DESC, latest.id DESC LIMIT 1
+  )
+ORDER BY delivery.sender_id
+`
+
+func (q *Queries) ListAttentionDeliveryFailures(ctx context.Context) ([]string, error) {
+	rows, err := q.db.QueryContext(ctx, listAttentionDeliveryFailures)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []string{}
+	for rows.Next() {
+		var sender_id string
+		if err := rows.Scan(&sender_id); err != nil {
+			return nil, err
+		}
+		items = append(items, sender_id)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listAttentionDiscoveryFailures = `-- name: ListAttentionDiscoveryFailures :many
+SELECT egress_id FROM address_states WHERE status = 'failed' ORDER BY egress_id
+`
+
+func (q *Queries) ListAttentionDiscoveryFailures(ctx context.Context) ([]string, error) {
+	rows, err := q.db.QueryContext(ctx, listAttentionDiscoveryFailures)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []string{}
+	for rows.Next() {
+		var egress_id string
+		if err := rows.Scan(&egress_id); err != nil {
+			return nil, err
+		}
+		items = append(items, egress_id)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const listCurrentProbeSnapshots = `-- name: ListCurrentProbeSnapshots :many
 SELECT egress_id, snapshot_id, observed_at
 FROM current_probe_snapshots

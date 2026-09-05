@@ -18,7 +18,8 @@ import {
   TriangleAlert,
 } from "lucide-react";
 import { useTranslation } from "react-i18next";
-import { useNavigate } from "react-router";
+import { useNavigate, useSearchParams } from "react-router";
+import { getOverview, type Overview } from "@/api/overview";
 
 import {
   getAgentEnrollment,
@@ -618,6 +619,57 @@ function NodeListCard({
   const { t } = useTranslation();
   const navigate = useNavigate();
   const navigationSource = useNavigationSourceState();
+  const [search, setSearch] = useSearchParams();
+  const requestedAttention = search.get("attention");
+  const attentionKind =
+    requestedAttention &&
+    [
+      "offline",
+      "configuration",
+      "discovery",
+      "probe",
+      "memory",
+      "update",
+      "format",
+    ].includes(requestedAttention)
+      ? requestedAttention
+      : null;
+  const [attention, setAttention] = useState<Overview["attention"][number]>();
+  const [attentionState, setAttentionState] = useState<
+    "loading" | "ready" | "error"
+  >("loading");
+  useEffect(() => {
+    if (!attentionKind) return;
+    let controller: AbortController | undefined;
+    let busy = false;
+    let disposed = false;
+    setAttentionState("loading");
+    async function refresh() {
+      if (busy || disposed) return;
+      busy = true;
+      controller = new AbortController();
+      try {
+        const overview = await getOverview(controller.signal);
+        if (!disposed) {
+          setAttention(
+            overview.attention.find((group) => group.kind === attentionKind),
+          );
+          setAttentionState("ready");
+        }
+      } catch {
+        if (!disposed) setAttentionState("error");
+      } finally {
+        busy = false;
+      }
+    }
+    void refresh();
+    const interval = window.setInterval(() => void refresh(), 5000);
+    return () => {
+      disposed = true;
+      controller?.abort();
+      window.clearInterval(interval);
+    };
+  }, [attentionKind]);
   const [query, setQuery] = useState("");
   const [updatesOnly, setUpdatesOnly] = useState(false);
   const [selectedNodeIds, setSelectedNodeIds] = useState<Set<string>>(
@@ -641,7 +693,10 @@ function NodeListCard({
         ...node.publicAddresses.map((address) => address.address),
       ].some((value) => value.toLocaleLowerCase().includes(normalizedQuery));
     return (
-      matchesQuery && (!updatesOnly || nodeHasAvailableUpdate(node, updates))
+      matchesQuery &&
+      (!updatesOnly || nodeHasAvailableUpdate(node, updates)) &&
+      (!attentionKind ||
+        (attentionState === "ready" && attention?.nodeIds.includes(node.id)))
     );
   });
   const allVisibleSelected =
@@ -751,6 +806,33 @@ function NodeListCard({
       ) : (
         <>
           <CardContent className="space-y-4">
+            {attentionKind ? (
+              <div className="flex flex-wrap items-center gap-3">
+                <Badge variant="outline">
+                  {t(`overview.attention.groups.${attentionKind}`)}
+                </Badge>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => {
+                    const next = new URLSearchParams(search);
+                    next.delete("attention");
+                    setSearch(next);
+                  }}
+                >
+                  {t("nodes.inventory.clearFilters")}
+                </Button>
+                {attentionState === "error" ? (
+                  <p role="alert">{t("overview.loadFailed")}</p>
+                ) : null}
+                {attentionState === "loading" ? (
+                  <LoaderCircle
+                    aria-label={t("nodes.batch.working")}
+                    className="size-4 animate-spin"
+                  />
+                ) : null}
+              </div>
+            ) : null}
             {updateLoadFailed ? (
               <Alert>
                 <TriangleAlert aria-hidden="true" />
@@ -848,7 +930,8 @@ function NodeListCard({
             </div>
           </CardContent>
 
-          {visibleNodes.length === 0 ? (
+          {visibleNodes.length === 0 &&
+          (!attentionKind || attentionState === "ready") ? (
             <CardContent>
               <div className="flex flex-col items-center py-10 text-center">
                 <Search
@@ -865,6 +948,9 @@ function NodeListCard({
                   onClick={() => {
                     setQuery("");
                     setUpdatesOnly(false);
+                    const next = new URLSearchParams(search);
+                    next.delete("attention");
+                    setSearch(next);
                   }}
                 >
                   {t("nodes.inventory.clearFilters")}
@@ -974,7 +1060,16 @@ function NodeListCard({
                         <TableCell>
                           <NodePublicAddresses
                             node={node}
-                            addresses={node.publicAddresses}
+                            addresses={
+                              attentionKind &&
+                              attention?.publicAddressIds.length
+                                ? node.publicAddresses.filter((address) =>
+                                    attention.publicAddressIds.includes(
+                                      address.id,
+                                    ),
+                                  )
+                                : node.publicAddresses
+                            }
                           />
                         </TableCell>
                         <TableCell>
@@ -1073,7 +1168,16 @@ function NodeListCard({
                         <dd className="mt-2">
                           <NodePublicAddresses
                             node={node}
-                            addresses={node.publicAddresses}
+                            addresses={
+                              attentionKind &&
+                              attention?.publicAddressIds.length
+                                ? node.publicAddresses.filter((address) =>
+                                    attention.publicAddressIds.includes(
+                                      address.id,
+                                    ),
+                                  )
+                                : node.publicAddresses
+                            }
                           />
                         </dd>
                       </div>
