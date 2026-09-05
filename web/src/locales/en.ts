@@ -467,6 +467,14 @@ export const en = {
         degraded: "Using normal polling",
         until: "Ends",
       },
+      reportPreview: {
+        action: "View report",
+        actionFor: "View report for {{address}}",
+        title: "Latest report · {{address}}",
+        loading: "Loading latest report...",
+        empty: "No successful report is available for this public IP.",
+        open: "Open full report",
+      },
       actions: {
         title: "Node actions",
         group: "Node actions for {{name}}",

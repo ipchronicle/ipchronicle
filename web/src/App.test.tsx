@@ -1330,6 +1330,25 @@ describe("administrator application", () => {
     expect(screen.getAllByText("203.0.113.10").length).toBeGreaterThan(0);
     expect(screen.queryByText(/Source 123456789abc/)).not.toBeInTheDocument();
     expect(screen.queryByText("Current · 1/1")).not.toBeInTheDocument();
+    expect(getNodeNetworkMock).not.toHaveBeenCalled();
+    fireEvent.click(
+      screen.getAllByRole("button", {
+        name: "View report for 203.0.113.10",
+      })[0],
+    );
+    const reportPreview = await screen.findByRole("dialog", {
+      name: "Latest report · 203.0.113.10",
+    });
+    expect(
+      await within(reportPreview).findByText(
+        "No successful report is available for this public IP.",
+      ),
+    ).toBeInTheDocument();
+    expect(getProbeSnapshotMock).not.toHaveBeenCalled();
+    fireEvent.click(
+      within(reportPreview).getByRole("button", { name: "Close" }),
+    );
+    expect(screen.getByRole("heading", { name: "Nodes" })).toBeInTheDocument();
     expect(
       screen.getAllByText("Complete probe disabled").length,
     ).toBeGreaterThan(0);
@@ -1612,7 +1631,7 @@ describe("administrator application", () => {
     renderApplication("/nodes");
 
     await screen.findByRole("heading", { name: "Nodes" });
-    expect(await screen.findAllByText("Source 111111111111")).toHaveLength(4);
+    expect(screen.queryByText("Source 111111111111")).not.toBeInTheDocument();
     fireEvent.click(screen.getByRole("switch", { name: "Updates available" }));
     expect(screen.getAllByText("Update available: 0.2.0")).toHaveLength(4);
     fireEvent.click(

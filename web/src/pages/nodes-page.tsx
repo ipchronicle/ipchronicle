@@ -39,6 +39,7 @@ import {
 } from "@/api/updates";
 import { useAuth } from "@/auth-context";
 import { CompleteProbeDialog } from "@/components/complete-probe-dialog";
+import { LatestReportDialog } from "@/components/latest-report-dialog";
 import { NodeStatusBadge } from "@/components/node-status-badge";
 import {
   AlertDialog,
@@ -948,6 +949,7 @@ function NodeListCard({
                         </TableCell>
                         <TableCell>
                           <NodePublicAddresses
+                            node={node}
                             addresses={node.publicAddresses}
                           />
                         </TableCell>
@@ -1050,6 +1052,7 @@ function NodeListCard({
                         </dt>
                         <dd className="mt-2">
                           <NodePublicAddresses
+                            node={node}
                             addresses={node.publicAddresses}
                           />
                         </dd>
@@ -1106,8 +1109,10 @@ function NodeListCard({
 }
 
 function NodePublicAddresses({
+  node,
   addresses,
 }: {
+  node: Node;
   addresses: Node["publicAddresses"];
 }) {
   const { t } = useTranslation();
@@ -1147,6 +1152,12 @@ function NodePublicAddresses({
               {t("nodes.inventory.addressUnavailable")}
             </Badge>
           ) : null}
+          <LatestReportDialog
+            nodeId={node.id}
+            nodeName={node.name}
+            addressId={address.id}
+            address={address.address}
+          />
         </div>
       ))}
     </div>

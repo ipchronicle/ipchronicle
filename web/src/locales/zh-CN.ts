@@ -435,6 +435,14 @@ export const zhCN = {
         degraded: "使用普通轮询",
         until: "结束时间",
       },
+      reportPreview: {
+        action: "查看报告",
+        actionFor: "查看 {{address}} 的报告",
+        title: "最新报告 · {{address}}",
+        loading: "正在加载最新报告…",
+        empty: "该公网 IP 暂无可查看的成功报告。",
+        open: "打开完整报告",
+      },
       actions: {
         title: "节点操作",
         group: "{{name}} 的节点操作",
