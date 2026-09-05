@@ -359,7 +359,6 @@ export const zhCN = {
         probeDisabled: "完整探测未启用",
         addressUnavailable: "当前不可用",
         agent: "Agent",
-        sourceRevision: "源码 {{value}}",
         configuration: "配置",
         lastSeen: "最后在线",
         search: "搜索节点",

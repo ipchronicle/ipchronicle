@@ -637,7 +637,6 @@ function NodeListCard({
         node.name,
         node.hostname,
         node.agentVersion,
-        node.sourceRevision ?? "",
         ...node.publicAddresses.map((address) => address.address),
       ].some((value) => value.toLocaleLowerCase().includes(normalizedQuery));
     return (
@@ -954,7 +953,6 @@ function NodeListCard({
                         </TableCell>
                         <TableCell>
                           <p>{node.agentVersion}</p>
-                          <AgentSourceRevision value={node.sourceRevision} />
                           <p className="mt-1 text-sm text-muted-foreground">
                             {node.operatingSystem}/{node.architecture}
                           </p>
@@ -1062,7 +1060,6 @@ function NodeListCard({
                         </dt>
                         <dd className="mt-1">
                           {node.agentVersion} · {node.architecture}
-                          <AgentSourceRevision value={node.sourceRevision} />
                           <AgentUpdateStatus
                             task={task}
                             updateAvailable={updateAvailable}
@@ -1207,19 +1204,6 @@ function AgentUpdateFeedback({ value }: { value: UpdateFeedback }) {
         </AlertDescription>
       ) : null}
     </Alert>
-  );
-}
-
-function AgentSourceRevision({ value }: { value?: string }) {
-  const { t } = useTranslation();
-  if (value === undefined) return null;
-  return (
-    <p
-      className="mt-1 truncate font-mono text-sm text-muted-foreground"
-      title={value}
-    >
-      {t("nodes.inventory.sourceRevision", { value: value.slice(0, 12) })}
-    </p>
   );
 }
 
@@ -1438,8 +1422,7 @@ function ConfigurationStatus({ node }: { node: Node }) {
   return (
     <div className="space-y-2">
       <span title={node.configurationError}>
-        {labels[node.configurationStatus]} · {node.appliedConfigurationRevision}
-        /{node.desiredConfigurationRevision}
+        {labels[node.configurationStatus]}
       </span>
       {node.syncStatus !== undefined ? <SyncStatus node={node} /> : null}
     </div>

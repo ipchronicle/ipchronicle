@@ -385,7 +385,6 @@ export const en = {
         probeDisabled: "Complete probe disabled",
         addressUnavailable: "Currently unavailable",
         agent: "Agent",
-        sourceRevision: "Source {{value}}",
         configuration: "Configuration",
         lastSeen: "Last seen",
         search: "Search nodes",

@@ -1172,6 +1172,7 @@ describe("administrator application", () => {
         status: "online",
         enabled: true,
         agentVersion: "0.1.0",
+        sourceRevision: "123456789abcdef123456789abcdef123456789abc",
         logLevel: "info" as const,
         operatingSystem: "linux",
         architecture: "amd64",
@@ -1327,6 +1328,8 @@ describe("administrator application", () => {
     expect(screen.queryByRole("alert")).not.toBeInTheDocument();
     expect((await screen.findAllByText("edge-1")).length).toBeGreaterThan(0);
     expect(screen.getAllByText("203.0.113.10").length).toBeGreaterThan(0);
+    expect(screen.queryByText(/Source 123456789abc/)).not.toBeInTheDocument();
+    expect(screen.queryByText("Current · 1/1")).not.toBeInTheDocument();
     expect(
       screen.getAllByText("Complete probe disabled").length,
     ).toBeGreaterThan(0);
@@ -1389,7 +1392,8 @@ describe("administrator application", () => {
       ),
     );
     expect(screen.getAllByText("Disabled").length).toBeGreaterThan(0);
-    expect(screen.getAllByText("Pending · 1/2").length).toBeGreaterThan(0);
+    expect(screen.getAllByText("Pending").length).toBeGreaterThan(0);
+    expect(screen.queryByText("Pending · 1/2")).not.toBeInTheDocument();
 
     fireEvent.click(screen.getByRole("row", { name: /edge-1/ }));
     expect(
