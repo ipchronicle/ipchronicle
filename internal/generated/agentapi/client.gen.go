@@ -2434,7 +2434,7 @@ type NodeSyncStatus string
 
 // NodeUpdate defines model for NodeUpdate.
 type NodeUpdate struct {
-	Enabled  bool      `json:"enabled"`
+	Enabled  *bool     `json:"enabled,omitempty"`
 	LogLevel *LogLevel `json:"logLevel,omitempty"`
 	Name     *string   `json:"name,omitempty"`
 }

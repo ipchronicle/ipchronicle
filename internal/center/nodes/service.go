@@ -702,10 +702,10 @@ func (s *Service) Get(ctx context.Context, id uuid.UUID) (Node, error) {
 }
 
 func (s *Service) SetEnabled(ctx context.Context, id uuid.UUID, enabled bool) (Node, error) {
-	return s.Update(ctx, id, nil, enabled, nil)
+	return s.Update(ctx, id, nil, &enabled, nil)
 }
 
-func (s *Service) Update(ctx context.Context, id uuid.UUID, name *string, enabled bool, logLevel *string) (Node, error) {
+func (s *Service) Update(ctx context.Context, id uuid.UUID, name *string, enabled *bool, logLevel *string) (Node, error) {
 	if name != nil && !validBoundedText(*name, 128) {
 		return Node{}, ErrInvalidNodeName
 	}
@@ -744,9 +744,9 @@ func (s *Service) Update(ctx context.Context, id uuid.UUID, name *string, enable
 			return Node{}, ErrNodeDeletionPending
 		}
 	}
-	changedConfiguration := (record.Enabled == 1) != enabled
+	changedConfiguration := enabled != nil && (record.Enabled == 1) != *enabled
 	if changedConfiguration {
-		value := boolInteger(enabled)
+		value := boolInteger(*enabled)
 		changed, err := queries.SetNodeEnabled(ctx, configdb.SetNodeEnabledParams{
 			Enabled: value, ID: id.String(), Enabled_2: value,
 		})

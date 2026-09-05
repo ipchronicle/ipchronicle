@@ -5552,7 +5552,7 @@ components:
     NodeUpdate:
       type: object
       additionalProperties: false
-      required: [enabled]
+      minProperties: 1
       properties:
         name:
           type: string

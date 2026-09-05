@@ -2467,7 +2467,7 @@ export interface components {
         NodeSyncStatus: "pending" | "connected" | "degraded";
         NodeUpdate: {
             name?: string;
-            enabled: boolean;
+            enabled?: boolean;
             logLevel?: components["schemas"]["LogLevel"];
         };
         NodeDeletion: {

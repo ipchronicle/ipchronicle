@@ -228,12 +228,12 @@ func TestConfigurationFailureAndNodeLifecycle(t *testing.T) {
 		t.Fatal(err)
 	}
 	renamedName := "edge-primary"
-	renamed, err := service.Update(ctx, registration.NodeID, &renamedName, true, nil)
+	renamed, err := service.Update(ctx, registration.NodeID, &renamedName, nil, nil)
 	if err != nil || renamed.Name != renamedName || renamed.DesiredConfigurationRevision != 1 {
 		t.Fatalf("renamed node = %#v, %v", renamed, err)
 	}
 	invalidName := "  "
-	if _, err := service.Update(ctx, registration.NodeID, &invalidName, true, nil); !errors.Is(err, ErrInvalidNodeName) {
+	if _, err := service.Update(ctx, registration.NodeID, &invalidName, nil, nil); !errors.Is(err, ErrInvalidNodeName) {
 		t.Fatalf("invalid node name error = %v", err)
 	}
 

@@ -113,7 +113,7 @@ func TestRecoverPreservesDurableNodeStateAndClearsOldHostState(t *testing.T) {
 	}
 	name := "retained-edge"
 	logLevel := "debug"
-	if _, err := fixture.service.Update(fixture.ctx, fixture.registration.NodeID, &name, true, &logLevel); err != nil {
+	if _, err := fixture.service.Update(fixture.ctx, fixture.registration.NodeID, &name, nil, &logLevel); err != nil {
 		t.Fatal(err)
 	}
 	probeState, err := fixture.service.Probe(fixture.ctx, fixture.registration.NodeID)

@@ -40,6 +40,7 @@ import {
 import { useAuth } from "@/auth-context";
 import { CompleteProbeDialog } from "@/components/complete-probe-dialog";
 import { LatestReportDialog } from "@/components/latest-report-dialog";
+import { NodeBatchActions } from "@/components/node-batch-actions";
 import { NodeStatusBadge } from "@/components/node-status-badge";
 import {
   AlertDialog,
@@ -83,7 +84,6 @@ import {
 } from "@/components/ui/tooltip";
 import { formatAPIError } from "@/lib/api-error";
 import {
-  canRequestAgentUpdate,
   isTerminalUpdateTask,
   nodeHasAvailableUpdate,
 } from "@/lib/agent-update";
@@ -644,13 +644,10 @@ function NodeListCard({
       matchesQuery && (!updatesOnly || nodeHasAvailableUpdate(node, updates))
     );
   });
-  const selectableVisibleNodes = visibleNodes.filter((node) =>
-    canRequestAgentUpdate(node, tasksByNode.get(node.id), updates),
-  );
   const allVisibleSelected =
-    selectableVisibleNodes.length > 0 &&
-    selectableVisibleNodes.every((node) => selectedNodeIds.has(node.id));
-  const someVisibleSelected = selectableVisibleNodes.some((node) =>
+    visibleNodes.length > 0 &&
+    visibleNodes.every((node) => selectedNodeIds.has(node.id));
+  const someVisibleSelected = visibleNodes.some((node) =>
     selectedNodeIds.has(node.id),
   );
   const showUpdateControls = updates?.availableRelease !== undefined;
@@ -658,17 +655,13 @@ function NodeListCard({
   useEffect(() => {
     setSelectedNodeIds((current) => {
       const next = new Set(
-        [...current].filter((nodeId) => {
-          const node = nodes.find((item) => item.id === nodeId);
-          return (
-            node !== undefined &&
-            canRequestAgentUpdate(node, tasksByNode.get(node.id), updates)
-          );
-        }),
+        [...current].filter((nodeId) =>
+          nodes.some((node) => node.id === nodeId),
+        ),
       );
       return next.size === current.size ? current : next;
     });
-  }, [nodes, tasksByNode, updates]);
+  }, [nodes]);
 
   async function requestUpdates(nodeIds: string[]) {
     const targetVersion = updates?.availableRelease?.version;
@@ -683,7 +676,7 @@ function NodeListCard({
       );
       onUpdateTasksCreated(result);
       const failures = result.items.flatMap((item) => {
-        if (item.accepted || item.error === undefined) return [];
+        if (item.accepted) return [];
         return [
           {
             nodeName:
@@ -694,18 +687,24 @@ function NodeListCard({
         ];
       });
       const acceptedCount = result.items.filter((item) => item.accepted).length;
-      setUpdateFeedback({ acceptedCount, failures });
-      setSelectedNodeIds((current) => {
-        const next = new Set(current);
-        result.items.forEach((item) => {
-          if (item.accepted) next.delete(item.nodeId);
-        });
-        return next;
+      setUpdateFeedback({
+        acceptedCount,
+        failures,
+        acceptedNames: result.items
+          .filter((item) => item.accepted)
+          .map(
+            (item) =>
+              nodes.find((node) => node.id === item.nodeId)?.name ??
+              item.nodeId,
+          ),
       });
     } catch (cause) {
       setUpdateFeedback({
         acceptedCount: 0,
-        failures: [{ nodeName: "", message: formatAPIError(cause, t) }],
+        failures: nodeIds.map((id) => ({
+          nodeName: nodes.find((node) => node.id === id)?.name ?? id,
+          message: formatAPIError(cause, t),
+        })),
       });
     } finally {
       setUpdating(false);
@@ -715,7 +714,7 @@ function NodeListCard({
   function toggleVisibleSelection(checked: boolean) {
     setSelectedNodeIds((current) => {
       const next = new Set(current);
-      selectableVisibleNodes.forEach((node) => {
+      visibleNodes.forEach((node) => {
         if (checked) next.add(node.id);
         else next.delete(node.id);
       });
@@ -812,6 +811,41 @@ function NodeListCard({
                 </>
               ) : null}
             </div>
+            <div className="flex flex-wrap items-center gap-3">
+              <Checkbox
+                checked={
+                  allVisibleSelected
+                    ? true
+                    : someVisibleSelected
+                      ? "indeterminate"
+                      : false
+                }
+                disabled={visibleNodes.length === 0}
+                onCheckedChange={(checked) =>
+                  toggleVisibleSelection(checked === true)
+                }
+                aria-label={t("nodes.batch.selectVisible")}
+              />
+              <span className="text-sm">
+                {t("nodes.batch.selected", { count: selectedNodeIds.size })}
+              </span>
+              {selectedNodeIds.size > 0 ? (
+                <>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => setSelectedNodeIds(new Set())}
+                  >
+                    {t("nodes.batch.clear")}
+                  </Button>
+                  <NodeBatchActions
+                    nodes={nodes.filter((node) => selectedNodeIds.has(node.id))}
+                    csrfToken={csrfToken}
+                    onNodeChange={onNodeChange}
+                  />
+                </>
+              ) : null}
+            </div>
           </CardContent>
 
           {visibleNodes.length === 0 ? (
@@ -844,24 +878,22 @@ function NodeListCard({
               <Table>
                 <TableHeader className="bg-muted/50">
                   <TableRow>
-                    {showUpdateControls ? (
-                      <TableHead className="w-10">
-                        <Checkbox
-                          checked={
-                            allVisibleSelected
-                              ? true
-                              : someVisibleSelected
-                                ? "indeterminate"
-                                : false
-                          }
-                          disabled={selectableVisibleNodes.length === 0}
-                          onCheckedChange={(checked) =>
-                            toggleVisibleSelection(checked === true)
-                          }
-                          aria-label={t("nodes.updates.selectAvailable")}
-                        />
-                      </TableHead>
-                    ) : null}
+                    <TableHead className="w-10">
+                      <Checkbox
+                        checked={
+                          allVisibleSelected
+                            ? true
+                            : someVisibleSelected
+                              ? "indeterminate"
+                              : false
+                        }
+                        disabled={visibleNodes.length === 0}
+                        onCheckedChange={(checked) =>
+                          toggleVisibleSelection(checked === true)
+                        }
+                        aria-label={t("nodes.batch.selectVisible")}
+                      />
+                    </TableHead>
                     <TableHead className="w-[26%]">
                       {t("nodes.inventory.node")}
                     </TableHead>
@@ -888,11 +920,6 @@ function NodeListCard({
                       node,
                       updates,
                     );
-                    const canUpdate = canRequestAgentUpdate(
-                      node,
-                      task,
-                      updates,
-                    );
                     return (
                       <TableRow
                         key={node.id}
@@ -914,25 +941,22 @@ function NodeListCard({
                           });
                         }}
                       >
-                        {showUpdateControls ? (
-                          <TableCell>
-                            <Checkbox
-                              checked={selectedNodeIds.has(node.id)}
-                              disabled={!canUpdate}
-                              onCheckedChange={(checked) =>
-                                setSelectedNodeIds((current) => {
-                                  const next = new Set(current);
-                                  if (checked === true) next.add(node.id);
-                                  else next.delete(node.id);
-                                  return next;
-                                })
-                              }
-                              aria-label={t("nodes.updates.selectNode", {
-                                name: node.name,
-                              })}
-                            />
-                          </TableCell>
-                        ) : null}
+                        <TableCell>
+                          <Checkbox
+                            checked={selectedNodeIds.has(node.id)}
+                            onCheckedChange={(checked) =>
+                              setSelectedNodeIds((current) => {
+                                const next = new Set(current);
+                                if (checked === true) next.add(node.id);
+                                else next.delete(node.id);
+                                return next;
+                              })
+                            }
+                            aria-label={t("nodes.batch.selectNode", {
+                              name: node.name,
+                            })}
+                          />
+                        </TableCell>
                         <TableCell>
                           <NavigationSourceLink
                             to={`/nodes/${node.id}`}
@@ -993,7 +1017,6 @@ function NodeListCard({
               {visibleNodes.map((node) => {
                 const task = tasksByNode.get(node.id);
                 const updateAvailable = nodeHasAvailableUpdate(node, updates);
-                const canUpdate = canRequestAgentUpdate(node, task, updates);
                 return (
                   <div
                     className="cursor-pointer space-y-4 p-4 transition-colors hover:bg-muted/50"
@@ -1013,24 +1036,21 @@ function NodeListCard({
                   >
                     <div className="flex items-start justify-between gap-3">
                       <div className="flex min-w-0 items-start gap-3">
-                        {showUpdateControls ? (
-                          <Checkbox
-                            className="mt-1"
-                            checked={selectedNodeIds.has(node.id)}
-                            disabled={!canUpdate}
-                            onCheckedChange={(checked) =>
-                              setSelectedNodeIds((current) => {
-                                const next = new Set(current);
-                                if (checked === true) next.add(node.id);
-                                else next.delete(node.id);
-                                return next;
-                              })
-                            }
-                            aria-label={t("nodes.updates.selectNode", {
-                              name: node.name,
-                            })}
-                          />
-                        ) : null}
+                        <Checkbox
+                          className="mt-1"
+                          checked={selectedNodeIds.has(node.id)}
+                          onCheckedChange={(checked) =>
+                            setSelectedNodeIds((current) => {
+                              const next = new Set(current);
+                              if (checked === true) next.add(node.id);
+                              else next.delete(node.id);
+                              return next;
+                            })
+                          }
+                          aria-label={t("nodes.batch.selectNode", {
+                            name: node.name,
+                          })}
+                        />
                         <div className="min-w-0">
                           <NavigationSourceLink
                             to={`/nodes/${node.id}`}
@@ -1174,6 +1194,7 @@ function isNodeRowNavigationTarget(row: Element, target: EventTarget | null) {
 
 type UpdateFeedback = {
   acceptedCount: number;
+  acceptedNames?: string[];
   failures: Array<{
     nodeName: string;
     code?: string;
@@ -1201,6 +1222,17 @@ function AgentUpdateFeedback({ value }: { value: UpdateFeedback }) {
           { count: value.acceptedCount },
         )}
       </AlertTitle>
+      {value.acceptedNames?.length ? (
+        <AlertDescription>
+          <ul>
+            {value.acceptedNames.map((name) => (
+              <li key={name}>
+                {name}: {t("nodes.batch.accepted")}
+              </li>
+            ))}
+          </ul>
+        </AlertDescription>
+      ) : null}
       {hasFailures ? (
         <AlertDescription>
           <ul className="mt-1 list-disc space-y-1 pl-4">

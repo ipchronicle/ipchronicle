@@ -1636,12 +1636,12 @@ describe("administrator application", () => {
     expect(screen.getAllByText("Update available: 0.2.0")).toHaveLength(4);
     fireEvent.click(
       screen.getAllByRole("checkbox", {
-        name: "Select edge-1 for Agent update",
+        name: "Select edge-1",
       })[0],
     );
     fireEvent.click(
       screen.getAllByRole("checkbox", {
-        name: "Select edge-2 for Agent update",
+        name: "Select edge-2",
       })[0],
     );
     fireEvent.click(
@@ -1664,6 +1664,136 @@ describe("administrator application", () => {
       ),
     ).toBeInTheDocument();
     expect(screen.getAllByText("Waiting for Agent").length).toBeGreaterThan(0);
+  });
+
+  it("keeps batch selections across filtering and probes independently of recurring enablement", async () => {
+    getSessionMock.mockResolvedValue(session);
+    getEnrollmentMock.mockResolvedValue({ enabled: false, hasKey: false });
+    const online = { ...probeTestNode, name: "batch-online" };
+    const offline = {
+      ...probeTestNode,
+      id: "offline-node",
+      name: "batch-offline",
+      status: "offline" as const,
+    };
+    listNodesMock.mockResolvedValue([online, offline]);
+    getAgentUpdateStateMock.mockResolvedValue({
+      ...agentUpdateState,
+      availableRelease: undefined,
+    });
+    getNodeNetworkMock.mockResolvedValue({
+      publicAddresses: [
+        {
+          id: "public-ip",
+          address: "203.0.113.20",
+          family: "ipv4",
+          available: true,
+          probeEnabled: false,
+          selectedNodeId: online.id,
+          pathCount: 1,
+          likelyNat: false,
+          proxyPath: false,
+          firstSeenAt: "2026-09-05T00:00:00Z",
+          lastSeenAt: "2026-09-05T00:00:00Z",
+        },
+      ],
+      networkProxies: [],
+      addressEvents: [],
+      addressGaps: [],
+    });
+    createProbeTaskMock.mockResolvedValue({
+      id: "batch-task",
+      nodeId: online.id,
+      status: "pending",
+      createdAt: "2026-09-05T00:00:00Z",
+      expiresAt: "2026-09-05T00:02:00Z",
+      offline: false,
+    });
+    renderApplication("/nodes");
+    fireEvent.click(
+      (
+        await screen.findAllByRole("checkbox", {
+          name: "Select all filtered nodes",
+        })
+      )[0],
+    );
+    expect(screen.getByText("2 selected")).toBeInTheDocument();
+    fireEvent.change(screen.getByLabelText("Search nodes"), {
+      target: { value: "batch-online" },
+    });
+    expect(screen.getByText("2 selected")).toBeInTheDocument();
+    window.dispatchEvent(new Event("focus"));
+    await waitFor(() =>
+      expect(listNodesMock.mock.calls.length).toBeGreaterThan(1),
+    );
+    expect(screen.getByText("2 selected")).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Batch probe" }));
+    const dialog = await screen.findByRole("dialog");
+    expect(await within(dialog).findByText(/Node offline/)).toBeInTheDocument();
+    fireEvent.click(within(dialog).getByText(/batch-online/));
+    expect(
+      within(dialog).getByRole("checkbox", { name: "203.0.113.20" }),
+    ).toBeChecked();
+    fireEvent.click(within(dialog).getByRole("button", { name: "Run probe" }));
+    expect(await within(dialog).findByText("Accepted")).toBeInTheDocument();
+    expect(within(dialog).getByText("Skipped")).toBeInTheDocument();
+    expect(createProbeTaskMock).toHaveBeenCalledExactlyOnceWith(
+      online.id,
+      { publicAddressIds: ["public-ip"] },
+      session.csrfToken,
+    );
+    expect(updatePublicAddressMock).not.toHaveBeenCalled();
+    fireEvent.click(
+      within(dialog).getAllByRole("button", { name: "Close" })[0],
+    );
+    expect(screen.getByText("2 selected")).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Clear selection" }));
+    expect(screen.getByText("0 selected")).toBeInTheDocument();
+  });
+
+  it("applies batch log levels per node without changing enabled state", async () => {
+    getSessionMock.mockResolvedValue(session);
+    getEnrollmentMock.mockResolvedValue({ enabled: false, hasKey: false });
+    getAgentUpdateStateMock.mockResolvedValue(agentUpdateState);
+    const first = { ...probeTestNode, name: "logs-first" };
+    const second = {
+      ...probeTestNode,
+      id: "logs-second",
+      name: "logs-second",
+      enabled: false,
+      status: "disabled" as const,
+    };
+    listNodesMock.mockResolvedValue([first, second]);
+    updateNodeMock
+      .mockRejectedValueOnce(new Error("network failure"))
+      .mockResolvedValueOnce({ ...second, logLevel: "info" });
+    renderApplication("/nodes");
+    fireEvent.click(
+      (
+        await screen.findAllByRole("checkbox", {
+          name: "Select all filtered nodes",
+        })
+      )[0],
+    );
+    fireEvent.click(screen.getByRole("button", { name: "Set log level" }));
+    const dialog = await screen.findByRole("dialog");
+    fireEvent.click(
+      within(dialog).getByRole("button", { name: "Save changes" }),
+    );
+    expect(await within(dialog).findByText("Failed")).toBeInTheDocument();
+    expect(await within(dialog).findByText("Accepted")).toBeInTheDocument();
+    expect(updateNodeMock).toHaveBeenNthCalledWith(
+      1,
+      first.id,
+      { logLevel: "info" },
+      session.csrfToken,
+    );
+    expect(updateNodeMock).toHaveBeenNthCalledWith(
+      2,
+      second.id,
+      { logLevel: "info" },
+      session.csrfToken,
+    );
   });
 
   it("keeps an offline update phase and bounded diagnostics visible", async () => {
