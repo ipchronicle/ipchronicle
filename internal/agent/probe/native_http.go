@@ -34,12 +34,15 @@ const (
 )
 
 type probeHTTP struct {
-	client  *http.Client
-	events  agentlogs.Sink
-	context requestLogContext
+	client            *http.Client
+	events            agentlogs.Sink
+	context           requestLogContext
+	retryReadOnlyPost bool
+	attempt           int
 }
 
 type probeHTTPResponse struct {
+	Attempt              int
 	Method               string
 	StatusCode           int
 	Body                 []byte
@@ -64,13 +67,7 @@ func (client probeHTTP) get(ctx context.Context, target string, headers http.Hea
 	return client.do(ctx, http.MethodGet, target, headers, nil)
 }
 
-func (client probeHTTP) do(
-	ctx context.Context,
-	method string,
-	target string,
-	headers http.Header,
-	body []byte,
-) (probeHTTPResponse, error) {
+func (client probeHTTP) doOnce(ctx context.Context, method, target string, headers http.Header, body []byte) (probeHTTPResponse, error) {
 	startedAt := time.Now()
 	requestContext, cancel := context.WithTimeout(ctx, providerRequestTimeout)
 	defer cancel()
@@ -97,7 +94,8 @@ func (client probeHTTP) do(
 	defer response.Body.Close()
 	contents, err := io.ReadAll(io.LimitReader(response.Body, providerResponseLimit+1))
 	result := probeHTTPResponse{
-		Method: method, StatusCode: response.StatusCode, Body: contents, FinalURL: response.Request.URL.String(),
+		Attempt: client.attempt,
+		Method:  method, StatusCode: response.StatusCode, Body: contents, FinalURL: response.Request.URL.String(),
 		ContentType: response.Header.Get("Content-Type"), RateLimitHeaders: agentlogs.RateLimitHeaders(response.Header),
 		DurationMilliseconds: time.Since(startedAt).Milliseconds(),
 	}
@@ -168,6 +166,7 @@ func (client probeHTTP) decodeJSON(response probeHTTPResponse) map[string]any {
 }
 
 func (client probeHTTP) emitInvalidResponse(response probeHTTPResponse, message string) {
+	client.attempt = response.Attempt
 	method := response.Method
 	if method == "" {
 		method = http.MethodGet
@@ -221,6 +220,9 @@ func (client probeHTTP) emitRequestSuccess(method, target string, response probe
 func (client probeHTTP) emit(event agentlogs.Event) {
 	if client.events == nil {
 		return
+	}
+	if client.attempt > 0 {
+		event.Message = fmt.Sprintf("%s (attempt %d)", event.Message, client.attempt)
 	}
 	event.PublicAddressID = client.context.publicAddressID
 	event.PublicAddress = client.context.publicAddress

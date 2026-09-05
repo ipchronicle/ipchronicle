@@ -11,10 +11,7 @@ import (
 	"regexp"
 	"strconv"
 	"strings"
-	"time"
 )
-
-const ipqsProbeAttempts = 3
 
 type providerFinding struct {
 	CountryCode string
@@ -194,7 +191,9 @@ func (engine *nativeEngine) probeIPAPI(ctx context.Context) providerFinding {
 		headers.Set("Content-Type", "application/json")
 		body, _ = json.Marshal(map[string]string{"q": engine.input.Target, "key": engine.input.IPAPIAPIKey})
 	}
-	document, response := engine.explicitLookupHTTP.jsonWithResponse(ctx, method, target, headers, body)
+	lookup := engine.explicitLookupHTTP
+	lookup.retryReadOnlyPost = true
+	document, response := lookup.jsonWithResponse(ctx, method, target, headers, body)
 	if document != nil && !hasIPAPIResult(document) {
 		engine.explicitLookupHTTP.emitInvalidResponse(response, "ipapi response did not contain IP quality data")
 		document = nil
@@ -278,7 +277,9 @@ func (engine *nativeEngine) probeDBIP(ctx context.Context) providerFinding {
 	headers.Set("Content-Type", "text/plain;charset=UTF-8")
 	headers.Set("Origin", "https://db-ip.com")
 	headers.Set("Referer", "https://db-ip.com/")
-	document := engine.explicitLookupHTTP.json(ctx, http.MethodPost, "https://api.db-ip.com/v2/"+
+	lookup := engine.explicitLookupHTTP
+	lookup.retryReadOnlyPost = true
+	document := lookup.json(ctx, http.MethodPost, "https://api.db-ip.com/v2/"+
 		string(match[1])+"/self?convertCurrencies", headers,
 		[]byte(`[["11.49","EUR"],["139.90","EUR"],["699.90","EUR"]]`))
 	level := strings.ToLower(documentString(document, "threatLevel"))
@@ -310,57 +311,13 @@ func (engine *nativeEngine) probeIPData(ctx context.Context) providerFinding {
 }
 
 func (engine *nativeEngine) probeIPQS(ctx context.Context) providerFinding {
-	document := engine.checkPlaceDocumentWithRetry(ctx, "ipqualityscore", ipqsProbeAttempts)
+	document := engine.checkPlaceDocument(ctx, "ipqualityscore")
 	return providerFinding{
 		CountryCode: documentString(document, "country_code"),
 		Proxy:       documentBool(document, "proxy"), Tor: documentBool(document, "tor"),
 		VPN: documentBool(document, "vpn"), Abuser: documentBool(document, "recent_abuse"),
 		Robot: documentBool(document, "bot_status"), Score: documentString(document, "fraud_score"),
 	}
-}
-
-func (engine *nativeEngine) checkPlaceDocumentWithRetry(
-	ctx context.Context,
-	database string,
-	attempts int,
-) map[string]any {
-	for attempt := 0; attempt < attempts; attempt++ {
-		response, err := engine.http.do(ctx, http.MethodGet, engine.checkPlaceURL("db="+database), nil, nil)
-		retry := false
-		if err == nil && response.StatusCode >= 200 && response.StatusCode < 300 {
-			document := decodeJSONDocument(response.Body)
-			if document == nil {
-				engine.http.emitInvalidResponse(response, "Probe provider returned invalid JSON")
-				retry = true
-			} else if documentReportsFailure(document) {
-				engine.http.emitInvalidResponse(response, "Probe provider reported an unsuccessful result")
-				return nil
-			} else {
-				return document
-			}
-		} else {
-			retry = transientProviderFailure(ctx, response.StatusCode, err)
-		}
-		if attempt+1 >= attempts || !retry {
-			return nil
-		}
-		delay := 250 * time.Millisecond * time.Duration(1<<attempt)
-		timer := time.NewTimer(delay)
-		select {
-		case <-ctx.Done():
-			timer.Stop()
-			return nil
-		case <-timer.C:
-		}
-	}
-	return nil
-}
-
-func transientProviderFailure(ctx context.Context, statusCode int, err error) bool {
-	if err != nil {
-		return ctx.Err() == nil
-	}
-	return statusCode == http.StatusRequestTimeout || statusCode == http.StatusTooEarly || statusCode >= 500
 }
 
 func (engine *nativeEngine) checkPlaceDocument(ctx context.Context, database string) map[string]any {
