@@ -8,6 +8,7 @@ COPY web/package.json web/package-lock.json ./web/
 RUN --mount=type=cache,target=/root/.npm npm --prefix web ci
 COPY openapi ./openapi
 COPY web ./web
+COPY internal/center/notifications/assets/NotoSansCJKsc-Regular.otf ./internal/center/notifications/assets/NotoSansCJKsc-Regular.otf
 RUN npm --prefix web run generate:api && npm --prefix web run build
 
 FROM --platform=$TARGETPLATFORM golang:1.26.5-bookworm@sha256:6c5605ab3a9a9fb3c4eafe5b3d63cdbf3881caf113262b67862547b54a9db599 AS go-build
