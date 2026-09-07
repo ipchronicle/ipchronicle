@@ -1162,6 +1162,14 @@ test("generates an Agent installation command from the nodes page", async ({
   expect(copiedPNG?.type).toBe("image/png");
   expect(copiedPNG?.size).toBeGreaterThan(100_000);
   expect(copiedPNG?.signature).toEqual([137, 80, 78, 71, 13, 10, 26, 10]);
+  const clippedReportLabels = await page
+    .locator('[data-report-path] [data-slot="badge"]')
+    .evaluateAll((badges) =>
+      badges
+        .filter((badge) => badge.scrollHeight > badge.clientHeight + 1)
+        .map((badge) => badge.textContent),
+    );
+  expect(clippedReportLabels).toEqual([]);
   const pngDownloadPromise = page.waitForEvent("download");
   await page.getByRole("button", { name: "Export PNG" }).click();
   const pngDownload = await pngDownloadPromise;

@@ -1433,7 +1433,7 @@ function ReportValueBadge({
     <Badge
       variant={tone === "red" ? "destructive" : "outline"}
       className={cn(
-        "max-w-[65%] shrink-0 whitespace-normal break-words text-right",
+        "h-auto min-h-5 max-w-full shrink-0 whitespace-normal break-words text-center",
         reportToneBadgeClass(tone),
       )}
     >
