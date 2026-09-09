@@ -105,7 +105,7 @@ docker load --input "$docker_archive" >/dev/null
 rm -f "$docker_archive"
 image_loaded=true
 
-mkdir -p "$scratch_directory/config" "$scratch_directory/history" "$scratch_directory/agent-state"
+mkdir -p "$scratch_directory/config" "$scratch_directory/history" "$scratch_directory/logs" "$scratch_directory/agent-state"
 chmod 0700 "$scratch_directory/agent-state"
 docker network create "$network_name" >/dev/null
 network_created=true
@@ -117,11 +117,13 @@ docker run --detach --name "$center_name" --platform "linux/$architecture" \
   --env IPCHRONICLE_LISTEN_ADDRESS=:8080 \
   --env IPCHRONICLE_CONFIG_DATABASE_PATH=/var/lib/ipchronicle/config/config.db \
   --env IPCHRONICLE_HISTORY_DATABASE_PATH=/var/lib/ipchronicle/history/history.db \
+  --env IPCHRONICLE_LOGS_DATABASE_PATH=/var/lib/ipchronicle/logs/logs.db \
   --env IPCHRONICLE_MASTER_KEY_PATH=/var/lib/ipchronicle/config/master.key \
   --env IPCHRONICLE_ADMIN_USERNAME=admin --env IPCHRONICLE_ADMIN_PASSWORD=admin \
   --publish 127.0.0.1::8080 \
   --volume "$scratch_directory/config:/var/lib/ipchronicle/config" \
   --volume "$scratch_directory/history:/var/lib/ipchronicle/history" \
+  --volume "$scratch_directory/logs:/var/lib/ipchronicle/logs" \
   --tmpfs /tmp:size=64m,mode=1777 \
   "$image_ref" >/dev/null
 center_started=true

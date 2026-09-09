@@ -41,13 +41,13 @@ COPY --from=go-build /etc/ssl/certs/ca-certificates.crt /etc/ssl/certs/ca-certif
 COPY --from=go-build /usr/share/zoneinfo /usr/share/zoneinfo
 
 RUN install -d /var/lib/ipchronicle /var/lib/ipchronicle/config \
-    /var/lib/ipchronicle/history /licenses
+    /var/lib/ipchronicle/history /var/lib/ipchronicle/logs /licenses
 
 COPY --from=go-build /out/ipchronicle-center /usr/local/bin/ipchronicle-center
 COPY LICENSE THIRD_PARTY_NOTICES.md /licenses/
 
 WORKDIR /var/lib/ipchronicle
-VOLUME ["/var/lib/ipchronicle/config", "/var/lib/ipchronicle/history"]
+VOLUME ["/var/lib/ipchronicle/config", "/var/lib/ipchronicle/history", "/var/lib/ipchronicle/logs"]
 EXPOSE 8080
 ENV IPCHRONICLE_LISTEN_ADDRESS=:8080
 HEALTHCHECK --interval=10s --timeout=5s --start-period=5s --retries=6 \

@@ -12,6 +12,7 @@ services:
       IPCHRONICLE_LISTEN_ADDRESS: :8080
       IPCHRONICLE_CONFIG_DATABASE_PATH: /var/lib/ipchronicle/config/config.db
       IPCHRONICLE_HISTORY_DATABASE_PATH: /var/lib/ipchronicle/history/history.db
+      IPCHRONICLE_LOGS_DATABASE_PATH: /var/lib/ipchronicle/logs/logs.db
       IPCHRONICLE_MASTER_KEY_PATH: /var/lib/ipchronicle/config/master.key
       IPCHRONICLE_ADMIN_USERNAME: ${IPCHRONICLE_ADMIN_USERNAME:-admin}
       IPCHRONICLE_ADMIN_PASSWORD: ${IPCHRONICLE_ADMIN_PASSWORD:-admin}
@@ -20,6 +21,7 @@ services:
     volumes:
       - center-config:/var/lib/ipchronicle/config
       - center-history:/var/lib/ipchronicle/history
+      - center-logs:/var/lib/ipchronicle/logs
     healthcheck:
       test: ["CMD", "/usr/local/bin/ipchronicle-center", "healthcheck"]
       interval: 10s
@@ -28,5 +30,6 @@ services:
       retries: 6
 
 volumes:
+  center-logs:
   center-config:
   center-history:
