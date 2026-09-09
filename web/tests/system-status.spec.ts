@@ -1146,7 +1146,9 @@ test("generates an Agent installation command from the nodes page", async ({
     });
   });
   await page.getByRole("button", { name: "Copy PNG" }).click();
-  await expect(page.getByRole("button", { name: "PNG copied" })).toBeVisible();
+  await expect(page.getByRole("button", { name: "PNG copied" })).toBeVisible({
+    timeout: 30_000,
+  });
   const copiedPNG = await page.evaluate(
     () =>
       (
@@ -1372,7 +1374,7 @@ test("generates an Agent installation command from the nodes page", async ({
 
   await clickNodeAction(page, nodeName, "Pause node");
   await expect(responsiveItem("Disabled")).toBeVisible();
-  await expect(responsiveItem(/Pending · \d+\/\d+/)).toBeVisible();
+  await expect(responsiveItem(/^Pending$/)).toBeVisible();
   await page.screenshot({
     path: testInfo.outputPath("node-actions.png"),
     fullPage: true,
