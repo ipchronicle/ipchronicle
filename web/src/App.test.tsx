@@ -1684,7 +1684,9 @@ describe("administrator application", () => {
 
     await screen.findByRole("heading", { name: "Nodes" });
     expect(screen.queryByText("Source 111111111111")).not.toBeInTheDocument();
-    fireEvent.click(screen.getByRole("switch", { name: "Updates available" }));
+    fireEvent.click(
+      await screen.findByRole("switch", { name: "Updates available" }),
+    );
     expect(screen.getAllByText("Update available: 0.2.0")).toHaveLength(4);
     fireEvent.click(
       screen.getAllByRole("checkbox", {
