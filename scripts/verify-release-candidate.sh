@@ -62,17 +62,29 @@ jq -e --arg image "ghcr.io/ipchronicle/ipchronicle-center:v$version" '
   .services.center.image == $image and
   [.services.center.volumes[] | {type, target}] == [
     {type: "bind", target: "/var/lib/ipchronicle/config"},
-    {type: "bind", target: "/var/lib/ipchronicle/history"}
+    {type: "bind", target: "/var/lib/ipchronicle/history"},
+    {type: "bind", target: "/var/lib/ipchronicle/logs"}
   ]
-' <<<"$compose_json" >/dev/null
+' <<<"$compose_json" >/dev/null || {
+  echo "release Compose must bind configuration, history, and logs directories" >&2
+  exit 1
+}
 
 tunnel_compose_json=$(CLOUDFLARE_TUNNEL_TOKEN=test-token \
   docker compose --env-file "$directory/default.env.example" \
     -f "$directory/compose.cloudflare-tunnel.yaml" config --format json)
 jq -e --arg image "ghcr.io/ipchronicle/ipchronicle-center:v$version" '
   .services.center.image == $image and
-  .services.cftunnel.environment.TUNNEL_TOKEN == "test-token"
-' <<<"$tunnel_compose_json" >/dev/null
+  .services.cftunnel.environment.TUNNEL_TOKEN == "test-token" and
+  [.services.center.volumes[] | {type, target}] == [
+    {type: "bind", target: "/var/lib/ipchronicle/config"},
+    {type: "bind", target: "/var/lib/ipchronicle/history"},
+    {type: "bind", target: "/var/lib/ipchronicle/logs"}
+  ]
+' <<<"$tunnel_compose_json" >/dev/null || {
+  echo "release Tunnel Compose must configure its token and bind configuration, history, and logs directories" >&2
+  exit 1
+}
 
 for architecture in amd64 arm64; do
   "$release_tool" verify-agent \
