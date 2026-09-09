@@ -8,6 +8,7 @@ services:
     volumes:
       - ./data/config:/var/lib/ipchronicle/config
       - ./data/history:/var/lib/ipchronicle/history
+      - ./data/logs:/var/lib/ipchronicle/logs
     networks:
       - ipchronicle_network
 

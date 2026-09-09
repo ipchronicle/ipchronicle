@@ -53,10 +53,11 @@ Open `http://server-address:8080` in a browser. The default login is `admin` /
 change the username or password, switch language, and enable TOTP. Credentials
 in `.env` apply only when the administrator is first created.
 
-Configuration and history are stored under the installation directory:
+Configuration, history, and logs are stored under the installation directory:
 
 - `./data/config` stores `config.db` and `master.key`;
-- `./data/history` stores `history.db`.
+- `./data/history` stores `history.db`;
+- `./data/logs` stores the independently disposable `logs.db`.
 
 Preserve `master.key` together with its `config.db`; encrypted credentials
 cannot be recovered without it.
@@ -98,6 +99,7 @@ image variables are also available:
 | `IPCHRONICLE_DATA_DIR`             | `/var/lib/ipchronicle`                    | Default persistent-data root          |
 | `IPCHRONICLE_CONFIG_DATABASE_PATH` | `/var/lib/ipchronicle/config/config.db`   | Configuration database path           |
 | `IPCHRONICLE_HISTORY_DATABASE_PATH` | `/var/lib/ipchronicle/history/history.db` | History database path                 |
+| `IPCHRONICLE_LOGS_DATABASE_PATH` | `/var/lib/ipchronicle/logs/logs.db` | Agent operational log database path |
 | `IPCHRONICLE_MASTER_KEY_PATH`      | `/var/lib/ipchronicle/config/master.key`  | Credential-encryption master key path |
 | `IPCHRONICLE_ADMIN_USERNAME`       | `admin`                                   | Initial administrator username        |
 | `IPCHRONICLE_ADMIN_PASSWORD`       | `admin`                                   | Initial administrator password        |
@@ -317,6 +319,25 @@ limits, retries, and redaction behavior.
 
 ## Agent And Center Updates
 
+### Upgrading From v0.1.1 To v0.1.2
+
+Upgrade the Center before Agents to enable log uploads and third-party probe
+request retries. Before upgrading, stop the Center and consistently back up
+`./data/config` and `./data/history`; retain `/var/lib/ipchronicle-agent` on
+each node. New ordered configuration migrations preserve accounts, the master
+key, node identities, proxies, schedules, and history. Agent state remains at
+schema 9.
+
+Both Compose examples add `./data/logs:/var/lib/ipchronicle/logs`. Add this mount
+to custom Compose files to preserve logs when recreating containers. Cloudflare
+Tunnel installations should retain the matching Compose file and existing token.
+
+After configuration migration, switching directly to an older Center image is
+unsupported. To roll back, stop the Center, restore the matching pre-upgrade
+backup, and run the older version. Data created after that backup is not restored.
+
+### Routine Updates
+
 The server operator updates the Center with Docker Compose. Review the release
 notes, update the Compose file, and pull the new image:
 
@@ -340,8 +361,29 @@ capabilities, manifest, size, and checksum before atomic replacement. An
 independent root supervisor restores the previous binary and state checkpoint
 if the new Agent fails to start or report healthy. Update and probe work share
 the single immediate-task slot. An in-place Agent update is rejected before
-replacement when the target uses a different local-state schema. For
-unreleased builds, purge and reinstall that Agent so it enrolls as a new node.
+replacement when the target uses a different local-state schema.
+
+## Agent Logs And Node Identity Recovery
+
+In node settings, choose `error`, `warn`, `info`, or `debug`; the default is
+`info`. The level takes effect when the Agent applies its configuration. For
+diagnosis, temporarily choose `debug` and filter the node log tab or global logs
+page by node, time, level, component, task, public IP, and other fields. Failed
+request details include the reason, HTTP status, and original response. Request
+credentials are excluded; third-party failure response bodies may contain
+sensitive content, so inspect them before sharing. Display filters do not change
+the collection level.
+
+Logs default to seven-day retention, with age, size, and indefinite policies.
+The Agent's offline log queue is bounded by both 64 MiB and 10,000 entries. It
+drops the oldest logs and records gaps when full, independently of probe results.
+
+Before reinstalling a node, copy its dedicated recovery installation command
+from node settings. Run it as root after reinstalling to retain the same node,
+Center configuration, and history while revoking the old Agent credential.
+Recovery keys remain valid until rotated in the interface. Treat them as
+credentials because their holders can take over the node. Preserve Agent state
+separately for unuploaded data on the old disk; the Center cannot restore it.
 
 ## Uninstall An Agent
 

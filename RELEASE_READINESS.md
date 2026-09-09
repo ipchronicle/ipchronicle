@@ -1,21 +1,21 @@
-# IPChronicle v0.1.1 发布就绪报告
+# IPChronicle v0.1.2 发布就绪报告
 
 简体中文 | [English](RELEASE_READINESS.en.md)
 
 状态：发布前验证中
 
-本报告定义 `v0.1.1` 的范围、发布产物和验证门禁。最终候选中的
+本报告定义 `v0.1.2` 的范围、发布产物和验证门禁。最终候选中的
 `release-manifest.json` 与 `checksums.txt` 会记录准确的源码修订和产物摘要。
 
 ## 版本身份
 
-- 版本：`0.1.1`
-- Tag：`v0.1.1`
+- 版本：`0.1.2`
+- Tag：`v0.1.2`
 - 渠道：`stable`
 - 许可证：`AGPL-3.0-only`
-- 源码：<https://github.com/ipchronicle/ipchronicle/tree/v0.1.1>
-- Release：<https://github.com/ipchronicle/ipchronicle/releases/tag/v0.1.1>
-- Center 镜像：`ghcr.io/ipchronicle/ipchronicle-center:v0.1.1`
+- 源码：<https://github.com/ipchronicle/ipchronicle/tree/v0.1.2>
+- Release：<https://github.com/ipchronicle/ipchronicle/releases/tag/v0.1.2>
+- Center 镜像：`ghcr.io/ipchronicle/ipchronicle-center:v0.1.2`
 
 ## 发布范围
 
@@ -27,7 +27,9 @@
 - 手动、周期和新公网 IP 自动完整探测，以及结构化结果、原始结果和快照比较；
 - Telegram 文字或图片、Webhook 和隔离 JavaScript 通知；
 - 中英文管理界面；
-- 独立的配置数据库和历史数据库；
+- 独立的配置数据库、历史数据库和 Agent 运维日志数据库；
+- 节点日志等级、离线日志上传、筛选及有界请求重试；
+- 节点身份恢复、批量操作及报告语义和 PNG 修复；
 - 普通反向代理与 Cloudflare Tunnel 两种 Docker Compose 部署示例。
 
 ## 验证门禁
@@ -65,12 +67,14 @@
 - Center 支持 Linux + Docker Compose，TLS 由管理员维护的反向代理终止。
 - Agent 必须以 root 运行，支持文档列出的 AMD64/ARM64 Linux 发行版和
   systemd/OpenRC。
-- `v0.1.0` 没有投入需要保留数据的正式环境，因此准备 `v0.1.1` Release 时没有
-  持久数据兼容基线。
-- `v0.1.1` 首次部署不迁移开发版、候选版或 `v0.1.0` 的配置库、历史库和 Agent
-  本地状态。该版本于 2026-09-04 投入正式使用后成为首个兼容基线。
-- Compose 把配置和历史保存到安装目录下的 `./data/config` 和
-  `./data/history`。
+- `v0.1.1` 是首个持久数据兼容基线。新增有序配置迁移保留账户、节点、凭据引用、
+  计划和历史；历史库格式及 Agent 本地状态 schema 9 保持不变。稳定版夹具升级
+  测试覆盖配置、历史、身份和离线队列。
+- 不支持从开发版、候选版或 `v0.1.0` 数据升级。
+- Compose 把配置、历史和日志分别保存到安装目录下的 `./data/config`、
+  `./data/history` 和 `./data/logs`。
+- 先升级 Center，再升级 Agent。配置迁移后不支持直接降级 Center；回滚需要恢复
+  升级前配套备份。ipapi 缺失及 NAT/目标异常仍待受影响节点的现场日志诊断。
 - 产品没有内置备份或恢复功能。需要保留数据时，由服务器操作者一致备份两个数据
   目录及相关 Agent 状态。
 

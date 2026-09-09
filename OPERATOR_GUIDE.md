@@ -47,10 +47,11 @@ docker compose up -d
 提示修改密码。可以在**账户**页面修改用户名或密码、切换语言并启用 TOTP 两步验证。
 `.env` 中的账号和密码只在首次创建管理员时生效。
 
-配置和历史分别保存在安装目录下：
+配置、历史和日志分别保存在安装目录下：
 
 - `./data/config` 保存 `config.db` 和 `master.key`；
-- `./data/history` 保存 `history.db`。
+- `./data/history` 保存 `history.db`；
+- `./data/logs` 保存可独立清理的 `logs.db`。
 
 `master.key` 必须与对应的 `config.db` 一起保存；丢失它后无法恢复加密凭据。
 
@@ -89,6 +90,7 @@ Center 和 `cftunnel` 通过显式的 `ipchronicle_network` 网络通信，Cente
 | `IPCHRONICLE_DATA_DIR`                 | `/var/lib/ipchronicle`                      | 默认持久数据根目录           |
 | `IPCHRONICLE_CONFIG_DATABASE_PATH`     | `/var/lib/ipchronicle/config/config.db`     | 配置数据库路径               |
 | `IPCHRONICLE_HISTORY_DATABASE_PATH`    | `/var/lib/ipchronicle/history/history.db`   | 历史数据库路径               |
+| `IPCHRONICLE_LOGS_DATABASE_PATH`       | `/var/lib/ipchronicle/logs/logs.db`         | Agent 运维日志数据库路径     |
 | `IPCHRONICLE_MASTER_KEY_PATH`          | `/var/lib/ipchronicle/config/master.key`    | 凭据加密主密钥路径           |
 | `IPCHRONICLE_ADMIN_USERNAME`           | `admin`                                     | 首次启动的管理员用户名       |
 | `IPCHRONICLE_ADMIN_PASSWORD`           | `admin`                                     | 首次启动的管理员密码         |
@@ -258,6 +260,22 @@ JavaScript 事件对象保留机器值。
 
 ## Agent 与 Center 更新
 
+### v0.1.1 升级到 v0.1.2
+
+先升级 Center，再更新 Agent，以启用日志上传和第三方探测请求重试。升级前停止
+Center 并一致备份 `./data/config`、`./data/history`；保留节点的
+`/var/lib/ipchronicle-agent`。Center 自动执行新增配置迁移，保留账户、主密钥、
+节点身份、代理、计划及历史，Agent 本地状态 schema 仍为 9。
+
+两种 Compose 示例均新增 `./data/logs:/var/lib/ipchronicle/logs`。使用自定义
+Compose 时补上该挂载，避免重建容器丢失日志。使用 Cloudflare Tunnel 的安装应
+继续使用对应的 Compose 文件并保留原有 token。
+
+配置库迁移后不支持直接换回旧 Center 镜像。需要回滚时，停止 Center 并恢复升级
+前配套备份，再运行旧版本；升级后新增的数据不会出现在旧备份中。
+
+### 常规更新
+
 服务器操作者通过 Docker Compose 更新 Center。先查看新版本说明，再更新
 Compose 文件并重新拉取镜像：
 
@@ -278,6 +296,22 @@ Agent 的版本发现，但不会自动更新 Center。在**节点**中选择存
 和校验和。新 Agent 无法启动或回报健康时，独立 root supervisor 会恢复旧二进制
 和状态检查点。更新和探测共享唯一立即任务槽。如果目标版本使用不同本地状态
 schema，Agent 会在替换前拒绝原地更新。
+
+## Agent 日志与节点身份恢复
+
+在节点设置中选择 `error`、`warn`、`info` 或 `debug` 日志等级，默认 `info`。
+节点收到配置后生效。排障时可临时选择 `debug`，并在节点日志标签或全局日志页
+按节点、时间、等级、组件、任务和公网 IP 等条件筛选；查看请求失败详情可看到
+失败原因、HTTP 状态和原始响应。请求认证信息不记录，第三方失败响应正文可能
+包含敏感内容，分享前应检查。页面筛选不会改变采集等级。
+
+日志默认保留 7 天，支持按天、容量或永久保留。Agent 离线日志最多保存 64 MiB
+且不超过 10,000 条，超限丢弃最旧日志并记录缺口；它与待上传探测结果分别管理。
+
+重装节点前，在节点设置中复制专属恢复安装命令。重装后以 root 运行该命令可
+保留同一节点及其中心配置和历史，同时撤销旧 Agent 凭据。恢复密钥长期有效，
+可在页面轮换；持有者可以接管节点，应按凭据保管。旧磁盘上未上传的数据需要
+单独保存 Agent 状态，中心无法恢复这部分数据。
 
 ## 卸载 Agent
 

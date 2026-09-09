@@ -1,22 +1,22 @@
-# IPChronicle v0.1.1 Release Readiness
+# IPChronicle v0.1.2 Release Readiness
 
 [简体中文](RELEASE_READINESS.md) | English
 
 Status: Pre-release validation in progress
 
-This report defines the scope, artifacts, and validation gates for `v0.1.1`.
+This report defines the scope, artifacts, and validation gates for `v0.1.2`.
 The final candidate's `release-manifest.json` and `checksums.txt` record the
 exact source revision and artifact digests.
 
 ## Release Identity
 
-- Version: `0.1.1`
-- Tag: `v0.1.1`
+- Version: `0.1.2`
+- Tag: `v0.1.2`
 - Channel: `stable`
 - License: `AGPL-3.0-only`
-- Source: <https://github.com/ipchronicle/ipchronicle/tree/v0.1.1>
-- Release: <https://github.com/ipchronicle/ipchronicle/releases/tag/v0.1.1>
-- Center image: `ghcr.io/ipchronicle/ipchronicle-center:v0.1.1`
+- Source: <https://github.com/ipchronicle/ipchronicle/tree/v0.1.2>
+- Release: <https://github.com/ipchronicle/ipchronicle/releases/tag/v0.1.2>
+- Center image: `ghcr.io/ipchronicle/ipchronicle-center:v0.1.2`
 
 ## Release Scope
 
@@ -32,7 +32,9 @@ This release delivers:
   results, and snapshot comparison;
 - Telegram text or image, Webhook, and isolated JavaScript notifications;
 - a bilingual administrator interface;
-- separate configuration and history databases; and
+- separate configuration, history, and Agent operational log databases;
+- node log levels, offline log uploads, filters, and bounded request retries;
+- node identity recovery, batch operations, report semantics, and PNG fixes; and
 - Docker Compose examples for a conventional reverse proxy and Cloudflare
   Tunnel.
 
@@ -78,15 +80,18 @@ successful candidate from the same source revision.
   proxy terminates TLS.
 - Agents run as root on the documented AMD64/ARM64 Linux distributions with
   systemd or OpenRC.
-- `v0.1.0` was not deployed to an environment with data requiring preservation,
-  so no persisted-data compatibility baseline existed while `v0.1.1` was being
-  prepared.
-- The initial `v0.1.1` deployment does not migrate configuration, history, or
-  Agent-local state from development builds, release candidates, or `v0.1.0`.
-  After entering production use on 2026-09-04, `v0.1.1` became the initial
-  compatibility baseline.
-- Compose stores configuration and history in `./data/config` and
-  `./data/history` under the installation directory.
+- `v0.1.1` is the initial persisted-data compatibility baseline. New ordered
+  configuration migrations preserve accounts, nodes, credential references,
+  schedules, and history. The history format and Agent state schema 9 remain
+  unchanged. Stable-version fixture tests cover configuration, history,
+  identity, and offline queues through upgrades.
+- Development builds, release candidates, and `v0.1.0` are not supported data
+  upgrade sources.
+- Compose stores configuration, history, and logs in `./data/config`,
+  `./data/history`, and `./data/logs` under the installation directory.
+- Upgrade the Center before Agents. Direct Center downgrade after migration is
+  unsupported; restore matching pre-upgrade backups to roll back. Missing ipapi
+  results and NAT/target inconsistencies still require affected-node logs.
 - The product has no built-in backup or restore feature. Operators preserve
   both data directories and related Agent state consistently when needed.
 

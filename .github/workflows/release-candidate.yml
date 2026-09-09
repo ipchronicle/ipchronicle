@@ -6,7 +6,7 @@ on:
       version:
         description: Canonical release version without the v prefix
         required: true
-        default: 0.1.1
+        default: 0.1.2
         type: string
       full_validation:
         description: Run every release validation gate
