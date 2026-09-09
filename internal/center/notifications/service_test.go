@@ -32,6 +32,17 @@ func (discardConfigurationWaker) Wake(string) {}
 
 func TestMain(m *testing.M) {
 	if len(os.Args) == 2 && os.Args[1] == "notification-worker" {
+		if os.Getenv("IPCHRONICLE_TEST_WORKER_MEMORY_DIAGNOSTICS") == "1" {
+			status, err := os.ReadFile("/proc/self/status")
+			if err != nil {
+				panic(err)
+			}
+			for _, line := range strings.Split(string(status), "\n") {
+				if strings.HasPrefix(line, "Vm") || strings.HasPrefix(line, "Threads:") {
+					_, _ = os.Stderr.WriteString(line + "\n")
+				}
+			}
+		}
 		switch os.Getenv("IPCHRONICLE_TEST_NOTIFICATION_WORKER_EXIT") {
 		case "memory-limit":
 			_, _ = os.Stderr.WriteString("runtime: out of memory: test-only-secret\n")

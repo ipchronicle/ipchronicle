@@ -45,6 +45,7 @@ func TestJavaScriptWorkerRepeatedSmallHTTPRequests(t *testing.T) {
 			command := exec.CommandContext(ctx, os.Args[0], "notification-worker")
 			command.Env = environmentWithValue(os.Environ(), "GOMAXPROCS", "1")
 			command.Env = environmentWithValue(command.Env, workerReadyEnvironment, "3")
+			command.Env = environmentWithValue(command.Env, "IPCHRONICLE_TEST_WORKER_MEMORY_DIAGNOSTICS", "1")
 			command.Stdin = bytes.NewReader(request)
 			command.ExtraFiles = []*os.File{readyWriter}
 			var output, diagnostics bytes.Buffer
