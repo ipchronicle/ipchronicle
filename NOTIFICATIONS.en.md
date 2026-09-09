@@ -110,7 +110,9 @@ Each invocation is bounded by:
 - 1 MiB for each request body and response body;
 - 32 headers, with at most 8 KiB per header name/value pair;
 - 256 KiB of source, 1 MiB of event input, and 16 KiB of worker output; and
-- a 128 MiB worker data-segment limit on Linux.
+- a 256 MiB hard worker data-segment limit on Linux, including runtime mappings
+  and native thread reservations rather than just resident memory. A 64 MiB Go
+  memory target encourages earlier collection without replacing the hard limit.
 
 These boundaries limit accidental resource exhaustion; they are not a policy
 sandbox for mutually untrusted administrators. The sole server operator owns

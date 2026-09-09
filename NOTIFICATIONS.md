@@ -93,7 +93,8 @@ HTTP/HTTPS 调用。它不使用 Center 进程配置的 HTTP 代理，也不跟�
 - 每个请求正文和响应正文不超过 1 MiB；
 - 最多 32 个请求头，每个名称/值对不超过 8 KiB；
 - 源码不超过 256 KiB、事件输入不超过 1 MiB、worker 输出不超过 16 KiB；
-- Linux 下 worker data segment 限制为 128 MiB。
+- Linux 下 worker data segment 硬限制为 256 MiB，包含运行时映射和原生线程
+  预留空间；这不是实际驻留内存。Go 内存回收目标为 64 MiB，软目标不替代硬限制。
 
 这些边界限制意外资源耗尽，但不是面向互不信任管理员的策略沙箱。唯一的服务器
 操作者拥有脚本，可以有意把事件数据或脚本内秘密发送到任意可达 HTTP/HTTPS

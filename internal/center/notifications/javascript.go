@@ -11,6 +11,7 @@ import (
 	"net/url"
 	"os"
 	"os/exec"
+	"runtime/debug"
 	"strconv"
 	"strings"
 	"sync/atomic"
@@ -28,7 +29,8 @@ const (
 	javaScriptWorkerStartupTimeout  = 10 * time.Second
 	javaScriptWorkerShutdownGrace   = 2 * time.Second
 	javaScriptRequestTimeout        = 10 * time.Second
-	javaScriptDataLimit             = 128 * 1024 * 1024
+	javaScriptDataLimit             = 256 * 1024 * 1024
+	javaScriptGoMemoryTarget        = 64 * 1024 * 1024
 	maximumJavaScriptRequests       = 10
 	maximumJavaScriptBodyBytes      = 1024 * 1024
 	maximumWorkerOutputBytes        = 16 * 1024
@@ -217,6 +219,10 @@ func executeJavaScriptWorker(input io.Reader, ready io.Writer) (response workerR
 		}
 	}()
 	if !raceInstrumentationEnabled {
+		// RLIMIT_DATA includes runtime mappings and native thread reservations;
+		// small workers can reserve over 128 MiB with less than 20 MiB resident.
+		// Collect Go memory earlier while retaining a separate OS-enforced ceiling.
+		debug.SetMemoryLimit(javaScriptGoMemoryTarget)
 		if err := unix.Setrlimit(unix.RLIMIT_DATA, &unix.Rlimit{Cur: javaScriptDataLimit, Max: javaScriptDataLimit}); err != nil {
 			return workerResponse{Code: "resource-limit-unavailable"}
 		}

@@ -27,6 +27,9 @@ v0.1.1 configuration, history, and node identities.
 - Reports distinguish Yes, No, and No data. PNG fonts and clipped long labels are
   fixed.
 - Development dependencies receive security patches.
+- Fixes intermittent memory-limit failures for small JavaScript HTTP deliveries
+  by allowing for runtime reservations and collecting Go memory earlier, while
+  retaining isolated worker resource and time boundaries.
 
 ## Upgrade From v0.1.1
 
