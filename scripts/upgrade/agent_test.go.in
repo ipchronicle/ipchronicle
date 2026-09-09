@@ -1,0 +1,142 @@
+package state
+
+import (
+	"encoding/json"
+	"os"
+	"path/filepath"
+	"testing"
+	"time"
+
+	bolt "go.etcd.io/bbolt"
+)
+
+func TestStableAgentUpgrade(t *testing.T) {
+	directory := os.Getenv("UPGRADE_FIXTURE_DIRECTORY")
+	if directory == "" {
+		t.Fatal("UPGRADE_FIXTURE_DIRECTORY is required")
+	}
+	stateDirectory := filepath.Join(directory, "agent")
+	manifest := filepath.Join(directory, "agent.json")
+	if os.Getenv("UPGRADE_FIXTURE_MODE") == "seed" {
+		store, _ := openProbeTestStore(t, stateDirectory, 1)
+		defer store.Close()
+		configuration, err := store.Configuration()
+		if err != nil {
+			t.Fatal(err)
+		}
+		configuration.Revision++
+		configuration.IPAPIAPIKey = "synthetic-upgrade-api-key"
+		if err := store.ApplyConfiguration(configuration); err != nil {
+			t.Fatal(err)
+		}
+		at := time.Date(2026, 9, 4, 12, 0, 0, 0, time.UTC)
+		run, err := store.StartProbeRun("schedule", nil, at)
+		if err != nil {
+			t.Fatal(err)
+		}
+		execution, err := store.StartProbeExecution(run.ID, run.Executions[0].ID, at.Add(time.Second))
+		if err != nil {
+			t.Fatal(err)
+		}
+		if _, err := store.CompleteProbeExecution(run.ID, execution.ID, ProbeExecutionOutcome{
+			Status: "succeeded", StartedAt: execution.StartedAt, CompletedAt: at.Add(2 * time.Second),
+			RawResult: []byte(`{"ip":"203.0.113.10"}`),
+		}); err != nil {
+			t.Fatal(err)
+		}
+		if _, err := store.FinishProbeRun(run.ID, at.Add(3*time.Second)); err != nil {
+			t.Fatal(err)
+		}
+		body, err := json.Marshal(upgradeAgentValues(t, store))
+		if err != nil {
+			t.Fatal(err)
+		}
+		if err := os.WriteFile(manifest, body, 0600); err != nil {
+			t.Fatal(err)
+		}
+		return
+	}
+	var expected map[string]map[string]string
+	body, err := os.ReadFile(manifest)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := json.Unmarshal(body, &expected); err != nil {
+		t.Fatal(err)
+	}
+	store, err := Open(stateDirectory)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer store.Close()
+	actual := upgradeAgentValues(t, store)
+	for bucket, entries := range expected {
+		if len(actual[bucket]) != len(entries) {
+			t.Fatalf("bucket %s changed size", bucket)
+		}
+		for key, value := range entries {
+			if actual[bucket][key] != value {
+				t.Fatalf("bucket %s changed retained value", bucket)
+			}
+		}
+	}
+	identity, err := store.Identity()
+	if err != nil || identity.Credential != "ipc_agent_secret-probe-test" {
+		t.Fatal("retained identity is unreadable", err)
+	}
+	configuration, err := store.Configuration()
+	if err != nil || configuration.IPAPIAPIKey != "synthetic-upgrade-api-key" {
+		t.Fatal("retained configuration is unreadable", err)
+	}
+	foundResult := false
+	for i := 0; i < 3; i++ {
+		artifact, err := store.NextProbeArtifact()
+		if err != nil {
+			t.Fatal("offline probe queue is unreadable", err)
+		}
+		if artifact.ID == "" {
+			break
+		}
+		if artifact.Execution != nil {
+			if string(artifact.RawResult) != `{"ip":"203.0.113.10"}` {
+				t.Fatal("offline probe result changed")
+			}
+			foundResult = true
+		}
+		if err := store.AcknowledgeProbeArtifact(ProbeArtifactReceipt{ID: artifact.ID, Revision: artifact.Revision}); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if !foundResult {
+		t.Fatal("offline probe result is missing")
+	}
+	if artifact, err := store.NextProbeArtifact(); err != nil || artifact.ID != "" {
+		t.Fatal("acknowledged offline queue did not drain", err)
+	}
+}
+
+func upgradeAgentValues(t *testing.T, store *Store) map[string]map[string]string {
+	t.Helper()
+	result := make(map[string]map[string]string)
+	if err := store.database.View(func(tx *bolt.Tx) error {
+		return tx.ForEach(func(name []byte, bucket *bolt.Bucket) error {
+			values := make(map[string]string)
+			result[string(name)] = values
+			return bucket.ForEach(func(key, value []byte) error {
+				encodedKey, err := json.Marshal(key)
+				if err != nil {
+					return err
+				}
+				encodedValue, err := json.Marshal(value)
+				if err != nil {
+					return err
+				}
+				values[string(encodedKey)] = string(encodedValue)
+				return nil
+			})
+		})
+	}); err != nil {
+		t.Fatal(err)
+	}
+	return result
+}
