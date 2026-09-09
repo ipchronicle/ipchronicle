@@ -35,7 +35,7 @@ curl --fail --silent --show-error \
 csrf_token="$(jq -er '.csrfToken' "$login_file")"
 curl --fail --silent --show-error --cookie "$cookie_file" \
   "$base_url/api/v1/system/status" >"$status_file"
-if ! jq -e '.service == "ipchronicle-center" and .status == "ok" and .configSchemaVersion == 2 and .historySchemaVersion == 1 and .logsSchemaVersion == 1 and (.version | length > 0)' "$status_file" >/dev/null; then
+if ! jq -e '.service == "ipchronicle-center" and .status == "ok" and .configSchemaVersion == 3 and .historySchemaVersion == 1 and .logsSchemaVersion == 1 and (.version | length > 0)' "$status_file" >/dev/null; then
   echo "system status did not report the expected service and schema versions" >&2
   jq . "$status_file" >&2
   exit 1

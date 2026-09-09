@@ -1122,7 +1122,7 @@ test("generates an Agent installation command from the nodes page", async ({
   ).toHaveClass(/text-amber-700/);
   await expect(
     page.locator('[data-report-path="Media.Reddit.Region"]'),
-  ).toHaveText("—");
+  ).toHaveText("No data");
   await page.evaluate(() => {
     Object.defineProperty(navigator.clipboard, "write", {
       configurable: true,
