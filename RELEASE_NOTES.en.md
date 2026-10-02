@@ -1,12 +1,17 @@
-# IPChronicle v0.1.2
+# IPChronicle v0.1.3
 
 [简体中文](RELEASE_NOTES.md) | English
 
-This release adds detailed Agent logs and central queries, improves node management
-and reports, and bounds retries for third-party probe requests. Upgrades preserve
-v0.1.1 configuration, history, and node identities.
+This release removes user-facing NAT heuristic status while retaining diagnostic
+logs, and updates frontend security dependencies. Upgrades preserve configuration,
+history, and node identities from v0.1.1 and later stable releases.
 
 ## Highlights
+
+- NAT mappings are no longer shown as node or public-IP status and do not affect
+  attention items, probing, or public-IP aggregation. Local and externally
+  observed addresses remain available in node logs for diagnosis.
+- Update frontend transitive dependencies to resolve npm audit security findings.
 
 - Agents log discovery, configuration sync, tasks, and third-party requests. The
   Center supports per-node log levels, filters for time, level, component, public

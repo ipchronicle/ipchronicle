@@ -1,21 +1,21 @@
-# IPChronicle v0.1.2 发布就绪报告
+# IPChronicle v0.1.3 发布就绪报告
 
 简体中文 | [English](RELEASE_READINESS.en.md)
 
 状态：发布前验证中
 
-本报告定义 `v0.1.2` 的范围、发布产物和验证门禁。最终候选中的
+本报告定义 `v0.1.3` 的范围、发布产物和验证门禁。最终候选中的
 `release-manifest.json` 与 `checksums.txt` 会记录准确的源码修订和产物摘要。
 
 ## 版本身份
 
-- 版本：`0.1.2`
-- Tag：`v0.1.2`
+- 版本：`0.1.3`
+- Tag：`v0.1.3`
 - 渠道：`stable`
 - 许可证：`AGPL-3.0-only`
-- 源码：<https://github.com/ipchronicle/ipchronicle/tree/v0.1.2>
-- Release：<https://github.com/ipchronicle/ipchronicle/releases/tag/v0.1.2>
-- Center 镜像：`ghcr.io/ipchronicle/ipchronicle-center:v0.1.2`
+- 源码：<https://github.com/ipchronicle/ipchronicle/tree/v0.1.3>
+- Release：<https://github.com/ipchronicle/ipchronicle/releases/tag/v0.1.3>
+- Center 镜像：`ghcr.io/ipchronicle/ipchronicle-center:v0.1.3`
 
 ## 发布范围
 
@@ -23,7 +23,7 @@
 
 - 单管理员认证、会话、TOTP 和服务器本地账户恢复；
 - root Agent 注册、持久身份、30 秒轮询、临时 WebSocket 同步和原子更新；
-- Linux AMD64/ARM64 公网出口发现、节点级代理、NAT 标记和地址变化历史；
+- Linux AMD64/ARM64 公网出口发现、节点级代理、地址变化历史和内部路径诊断；
 - 手动、周期和新公网 IP 自动完整探测，以及结构化结果、原始结果和快照比较；
 - Telegram 文字或图片、Webhook 和隔离 JavaScript 通知；
 - 中英文管理界面；

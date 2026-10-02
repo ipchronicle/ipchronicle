@@ -1,22 +1,22 @@
-# IPChronicle v0.1.2 Release Readiness
+# IPChronicle v0.1.3 Release Readiness
 
 [简体中文](RELEASE_READINESS.md) | English
 
 Status: Pre-release validation in progress
 
-This report defines the scope, artifacts, and validation gates for `v0.1.2`.
+This report defines the scope, artifacts, and validation gates for `v0.1.3`.
 The final candidate's `release-manifest.json` and `checksums.txt` record the
 exact source revision and artifact digests.
 
 ## Release Identity
 
-- Version: `0.1.2`
-- Tag: `v0.1.2`
+- Version: `0.1.3`
+- Tag: `v0.1.3`
 - Channel: `stable`
 - License: `AGPL-3.0-only`
-- Source: <https://github.com/ipchronicle/ipchronicle/tree/v0.1.2>
-- Release: <https://github.com/ipchronicle/ipchronicle/releases/tag/v0.1.2>
-- Center image: `ghcr.io/ipchronicle/ipchronicle-center:v0.1.2`
+- Source: <https://github.com/ipchronicle/ipchronicle/tree/v0.1.3>
+- Release: <https://github.com/ipchronicle/ipchronicle/releases/tag/v0.1.3>
+- Center image: `ghcr.io/ipchronicle/ipchronicle-center:v0.1.3`
 
 ## Release Scope
 
@@ -26,8 +26,8 @@ This release delivers:
   recovery;
 - root Agent enrollment, persistent identity, 30-second polling, temporary
   WebSocket sync, and atomic updates;
-- Linux AMD64/ARM64 public-egress discovery, node-scoped proxies, NAT markers,
-  and address-change history;
+- Linux AMD64/ARM64 public-egress discovery, node-scoped proxies, address-change
+  history, and internal path diagnostics;
 - manual, scheduled, and new-public-IP complete probes, structured and raw
   results, and snapshot comparison;
 - Telegram text or image, Webhook, and isolated JavaScript notifications;
