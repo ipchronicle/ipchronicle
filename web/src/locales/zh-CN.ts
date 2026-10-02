@@ -737,7 +737,6 @@ export const zhCN = {
         lastSeen: "最近发现：{{value}}",
         executionNode: "当前执行节点",
         noNode: "暂无可用节点",
-        nat: "经 NAT 到达",
         proxy: "经代理到达",
         probeEnabled: "启用完整探测",
         probeEnabledDetail: "仅启用的公网 IP 会进入周期完整探测。",
@@ -754,10 +753,7 @@ export const zhCN = {
         waiting: "等待首次轻量地址观察。",
         unknown: "尚无已确认公网地址",
         proxy: "代理路径",
-        nat: "疑似 NAT",
         temporary: "临时 IPv6 源地址",
-        natDetail:
-          "本地源地址与观察到的公网地址不同。DNS 检查使用节点解析器，可能走默认路由。",
         status: { confirmed: "已确认", failed: "检查失败" },
         failure: {
           "selector-unavailable": "配置的本地选择器当前不可用。",

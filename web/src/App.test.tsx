@@ -2021,7 +2021,6 @@ describe("administrator application", () => {
     expect(screen.getByText("Previously discovered")).toBeInTheDocument();
     expect(screen.getByText("9.9.9.9")).toBeInTheDocument();
     expect(screen.getByText("Historical")).toBeInTheDocument();
-    expect(screen.getByText("Reached through NAT")).toBeInTheDocument();
     expect(screen.queryByText("eth0")).not.toBeInTheDocument();
     expect(screen.queryByText("Primary proxy")).not.toBeInTheDocument();
     fireEvent.click(screen.getByRole("button", { name: "Manage proxies" }));

@@ -781,7 +781,6 @@ export const en = {
         lastSeen: "Last discovered: {{value}}",
         executionNode: "Current execution node",
         noNode: "No available node",
-        nat: "Reached through NAT",
         proxy: "Reached through proxy",
         probeEnabled: "Enable complete probe",
         probeEnabledDetail:
@@ -799,10 +798,7 @@ export const en = {
         waiting: "Waiting for the first lightweight address observation.",
         unknown: "No confirmed public address",
         proxy: "Proxy path",
-        nat: "Likely NAT",
         temporary: "Temporary IPv6 source",
-        natDetail:
-          "The local source differs from the observed public address. DNS checks use the node resolver and may follow its default route.",
         status: { confirmed: "Confirmed", failed: "Check failed" },
         failure: {
           "selector-unavailable":

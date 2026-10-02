@@ -481,9 +481,6 @@ function PublicAddressRow({
               {t(`network.publicAddresses.status.${availability}`)}
             </Badge>
           )}
-          {!historical && address.likelyNat ? (
-            <Badge variant="warning">{t("network.publicAddresses.nat")}</Badge>
-          ) : null}
           {!historical && address.proxyPath ? (
             <Badge variant="info">{t("network.publicAddresses.proxy")}</Badge>
           ) : null}

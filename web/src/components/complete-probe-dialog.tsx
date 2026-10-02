@@ -189,18 +189,11 @@ export function CompleteProbeDialog({
                         {address.family.toUpperCase()}
                       </Badge>
                     </span>
-                    {address.likelyNat || address.proxyPath ? (
+                    {address.proxyPath ? (
                       <span className="mt-2 flex flex-wrap gap-2">
-                        {address.likelyNat ? (
-                          <Badge variant="outline">
-                            {t("network.publicAddresses.nat")}
-                          </Badge>
-                        ) : null}
-                        {address.proxyPath ? (
-                          <Badge variant="outline">
-                            {t("network.publicAddresses.proxy")}
-                          </Badge>
-                        ) : null}
+                        <Badge variant="outline">
+                          {t("network.publicAddresses.proxy")}
+                        </Badge>
                       </span>
                     ) : null}
                   </span>

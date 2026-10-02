@@ -325,9 +325,6 @@ func addressImageContent(event eventEnvelope) (string, imageTone, []imageFact) {
 		pathTone = toneAmber
 	}
 	facts = append(facts, imageFact{label: localizedNotification(event.Locale, "Discovery path", "发现路径"), value: path, tone: pathTone})
-	if data.LikelyNAT {
-		facts = append(facts, imageFact{label: localizedNotification(event.Locale, "Network mapping", "网络映射"), value: localizedNotification(event.Locale, "Likely NAT", "疑似 NAT"), tone: toneAmber})
-	}
 	if data.Temporary {
 		facts = append(facts, imageFact{label: localizedNotification(event.Locale, "Source address", "源地址"), value: localizedNotification(event.Locale, "Temporary IPv6", "临时 IPv6"), tone: toneAmber})
 	}

@@ -235,11 +235,6 @@ export function NodeOverviewPage() {
                                     "nodeDetail.overview.network.probeDisabled",
                                   )}
                             </Badge>
-                            {address.likelyNat ? (
-                              <Badge variant="warning">
-                                {t("network.publicAddresses.nat")}
-                              </Badge>
-                            ) : null}
                             {address.proxyPath ? (
                               <Badge variant="info">
                                 {t("network.publicAddresses.proxy")}
