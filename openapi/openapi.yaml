@@ -5382,7 +5382,7 @@ components:
     NotificationProbeField:
       type: object
       additionalProperties: false
-      required: [id, group, path]
+      required: [id, group, path, scope]
       properties:
         id:
           type: string
@@ -5396,6 +5396,14 @@ components:
           type: string
           minLength: 1
           maxLength: 256
+        scope:
+          type: array
+          minItems: 1
+          maxItems: 8
+          items:
+            type: string
+            minLength: 1
+            maxLength: 256
     NotificationProbeFieldList:
       type: object
       additionalProperties: false
@@ -5432,6 +5440,20 @@ components:
         egressId:
           type: string
           format: uuid
+        excludedEventTypes:
+          type: array
+          maxItems: 16
+          uniqueItems: true
+          items:
+            $ref: "#/components/schemas/NotificationEventType"
+        excludedFieldPrefixes:
+          type: array
+          maxItems: 256
+          uniqueItems: true
+          items:
+            type: string
+            minLength: 1
+            maxLength: 256
     NotificationRule:
       allOf:
         - $ref: "#/components/schemas/NotificationRuleWrite"

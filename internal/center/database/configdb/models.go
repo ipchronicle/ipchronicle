@@ -185,16 +185,18 @@ type NodeSyncSession struct {
 }
 
 type NotificationRule struct {
-	ID        string
-	Name      string
-	Enabled   int64
-	SenderID  string
-	EventType string
-	FieldID   *string
-	NodeID    *string
-	EgressID  *string
-	CreatedAt int64
-	UpdatedAt int64
+	ID                        string
+	Name                      string
+	Enabled                   int64
+	SenderID                  string
+	EventType                 string
+	FieldID                   *string
+	NodeID                    *string
+	EgressID                  *string
+	CreatedAt                 int64
+	UpdatedAt                 int64
+	ExcludedEventTypesJson    string
+	ExcludedFieldPrefixesJson string
 }
 
 type NotificationSender struct {

@@ -436,21 +436,24 @@ func (q *Queries) CreateNodeRecoveryCredential(ctx context.Context, arg CreateNo
 const createNotificationRule = `-- name: CreateNotificationRule :exec
 INSERT INTO notification_rules (
     id, name, enabled, sender_id, event_type, field_id,
-    node_id, egress_id, created_at, updated_at
-) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    node_id, egress_id, excluded_event_types_json, excluded_field_prefixes_json,
+    created_at, updated_at
+) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
 `
 
 type CreateNotificationRuleParams struct {
-	ID        string
-	Name      string
-	Enabled   int64
-	SenderID  string
-	EventType string
-	FieldID   *string
-	NodeID    *string
-	EgressID  *string
-	CreatedAt int64
-	UpdatedAt int64
+	ID                        string
+	Name                      string
+	Enabled                   int64
+	SenderID                  string
+	EventType                 string
+	FieldID                   *string
+	NodeID                    *string
+	EgressID                  *string
+	ExcludedEventTypesJson    string
+	ExcludedFieldPrefixesJson string
+	CreatedAt                 int64
+	UpdatedAt                 int64
 }
 
 func (q *Queries) CreateNotificationRule(ctx context.Context, arg CreateNotificationRuleParams) error {
@@ -463,6 +466,8 @@ func (q *Queries) CreateNotificationRule(ctx context.Context, arg CreateNotifica
 		arg.FieldID,
 		arg.NodeID,
 		arg.EgressID,
+		arg.ExcludedEventTypesJson,
+		arg.ExcludedFieldPrefixesJson,
 		arg.CreatedAt,
 		arg.UpdatedAt,
 	)
@@ -1750,14 +1755,30 @@ func (q *Queries) GetNodeRecoveryTargetByDigest(ctx context.Context, keyDigest [
 
 const getNotificationRule = `-- name: GetNotificationRule :one
 SELECT id, name, enabled, sender_id, event_type, field_id,
-       node_id, egress_id, created_at, updated_at
+       node_id, egress_id, excluded_event_types_json, excluded_field_prefixes_json,
+       created_at, updated_at
 FROM notification_rules
 WHERE id = ?
 `
 
-func (q *Queries) GetNotificationRule(ctx context.Context, id string) (NotificationRule, error) {
+type GetNotificationRuleRow struct {
+	ID                        string
+	Name                      string
+	Enabled                   int64
+	SenderID                  string
+	EventType                 string
+	FieldID                   *string
+	NodeID                    *string
+	EgressID                  *string
+	ExcludedEventTypesJson    string
+	ExcludedFieldPrefixesJson string
+	CreatedAt                 int64
+	UpdatedAt                 int64
+}
+
+func (q *Queries) GetNotificationRule(ctx context.Context, id string) (GetNotificationRuleRow, error) {
 	row := q.db.QueryRowContext(ctx, getNotificationRule, id)
-	var i NotificationRule
+	var i GetNotificationRuleRow
 	err := row.Scan(
 		&i.ID,
 		&i.Name,
@@ -1767,6 +1788,8 @@ func (q *Queries) GetNotificationRule(ctx context.Context, id string) (Notificat
 		&i.FieldID,
 		&i.NodeID,
 		&i.EgressID,
+		&i.ExcludedEventTypesJson,
+		&i.ExcludedFieldPrefixesJson,
 		&i.CreatedAt,
 		&i.UpdatedAt,
 	)
@@ -2445,7 +2468,8 @@ func (q *Queries) ListConfiguredNodeEgresses(ctx context.Context, nodeID string)
 
 const listEnabledNotificationRules = `-- name: ListEnabledNotificationRules :many
 SELECT r.id, r.name, r.sender_id, r.event_type, r.field_id,
-       r.node_id, r.egress_id, s.name AS sender_name, s.kind AS sender_kind
+       r.node_id, r.egress_id, r.excluded_event_types_json, r.excluded_field_prefixes_json,
+       s.name AS sender_name, s.kind AS sender_kind
 FROM notification_rules r
 JOIN notification_senders s ON s.id = r.sender_id
 WHERE r.enabled = 1 AND s.enabled = 1
@@ -2453,15 +2477,17 @@ ORDER BY r.sender_id, r.id
 `
 
 type ListEnabledNotificationRulesRow struct {
-	ID         string
-	Name       string
-	SenderID   string
-	EventType  string
-	FieldID    *string
-	NodeID     *string
-	EgressID   *string
-	SenderName string
-	SenderKind string
+	ID                        string
+	Name                      string
+	SenderID                  string
+	EventType                 string
+	FieldID                   *string
+	NodeID                    *string
+	EgressID                  *string
+	ExcludedEventTypesJson    string
+	ExcludedFieldPrefixesJson string
+	SenderName                string
+	SenderKind                string
 }
 
 func (q *Queries) ListEnabledNotificationRules(ctx context.Context) ([]ListEnabledNotificationRulesRow, error) {
@@ -2481,6 +2507,8 @@ func (q *Queries) ListEnabledNotificationRules(ctx context.Context) ([]ListEnabl
 			&i.FieldID,
 			&i.NodeID,
 			&i.EgressID,
+			&i.ExcludedEventTypesJson,
+			&i.ExcludedFieldPrefixesJson,
 			&i.SenderName,
 			&i.SenderKind,
 		); err != nil {
@@ -3129,20 +3157,36 @@ func (q *Queries) ListNodesWithoutRecoveryCredential(ctx context.Context) ([]str
 
 const listNotificationRules = `-- name: ListNotificationRules :many
 SELECT id, name, enabled, sender_id, event_type, field_id,
-       node_id, egress_id, created_at, updated_at
+       node_id, egress_id, excluded_event_types_json, excluded_field_prefixes_json,
+       created_at, updated_at
 FROM notification_rules
 ORDER BY name COLLATE NOCASE, id
 `
 
-func (q *Queries) ListNotificationRules(ctx context.Context) ([]NotificationRule, error) {
+type ListNotificationRulesRow struct {
+	ID                        string
+	Name                      string
+	Enabled                   int64
+	SenderID                  string
+	EventType                 string
+	FieldID                   *string
+	NodeID                    *string
+	EgressID                  *string
+	ExcludedEventTypesJson    string
+	ExcludedFieldPrefixesJson string
+	CreatedAt                 int64
+	UpdatedAt                 int64
+}
+
+func (q *Queries) ListNotificationRules(ctx context.Context) ([]ListNotificationRulesRow, error) {
 	rows, err := q.db.QueryContext(ctx, listNotificationRules)
 	if err != nil {
 		return nil, err
 	}
 	defer rows.Close()
-	items := []NotificationRule{}
+	items := []ListNotificationRulesRow{}
 	for rows.Next() {
-		var i NotificationRule
+		var i ListNotificationRulesRow
 		if err := rows.Scan(
 			&i.ID,
 			&i.Name,
@@ -3152,6 +3196,8 @@ func (q *Queries) ListNotificationRules(ctx context.Context) ([]NotificationRule
 			&i.FieldID,
 			&i.NodeID,
 			&i.EgressID,
+			&i.ExcludedEventTypesJson,
+			&i.ExcludedFieldPrefixesJson,
 			&i.CreatedAt,
 			&i.UpdatedAt,
 		); err != nil {
@@ -4369,20 +4415,23 @@ func (q *Queries) UpdateNodeRecoveryCredential(ctx context.Context, arg UpdateNo
 const updateNotificationRule = `-- name: UpdateNotificationRule :execrows
 UPDATE notification_rules
 SET name = ?, enabled = ?, sender_id = ?, event_type = ?, field_id = ?,
-    node_id = ?, egress_id = ?, updated_at = ?
+    node_id = ?, egress_id = ?, excluded_event_types_json = ?,
+    excluded_field_prefixes_json = ?, updated_at = ?
 WHERE id = ?
 `
 
 type UpdateNotificationRuleParams struct {
-	Name      string
-	Enabled   int64
-	SenderID  string
-	EventType string
-	FieldID   *string
-	NodeID    *string
-	EgressID  *string
-	UpdatedAt int64
-	ID        string
+	Name                      string
+	Enabled                   int64
+	SenderID                  string
+	EventType                 string
+	FieldID                   *string
+	NodeID                    *string
+	EgressID                  *string
+	ExcludedEventTypesJson    string
+	ExcludedFieldPrefixesJson string
+	UpdatedAt                 int64
+	ID                        string
 }
 
 func (q *Queries) UpdateNotificationRule(ctx context.Context, arg UpdateNotificationRuleParams) (int64, error) {
@@ -4394,6 +4443,8 @@ func (q *Queries) UpdateNotificationRule(ctx context.Context, arg UpdateNotifica
 		arg.FieldID,
 		arg.NodeID,
 		arg.EgressID,
+		arg.ExcludedEventTypesJson,
+		arg.ExcludedFieldPrefixesJson,
 		arg.UpdatedAt,
 		arg.ID,
 	)

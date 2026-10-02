@@ -2389,6 +2389,7 @@ export interface components {
             id: string;
             group: string;
             path: string;
+            scope: string[];
         };
         NotificationProbeFieldList: {
             items: components["schemas"]["NotificationProbeField"][];
@@ -2404,6 +2405,8 @@ export interface components {
             nodeId?: string;
             /** Format: uuid */
             egressId?: string;
+            excludedEventTypes?: components["schemas"]["NotificationEventType"][];
+            excludedFieldPrefixes?: string[];
         };
         NotificationRule: components["schemas"]["NotificationRuleWrite"] & {
             /** Format: uuid */

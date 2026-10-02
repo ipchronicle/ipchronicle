@@ -228,7 +228,7 @@ func TestAdministratorLoginStatusAndLogout(t *testing.T) {
 		t.Fatal(err)
 	}
 	if status.Service != api.IpchronicleCenter || status.Status != api.Ok || status.SourceRevision != "test-revision" ||
-		!status.TransportWarning || status.ConfigSchemaVersion != 3 || status.HistorySchemaVersion != 1 ||
+		!status.TransportWarning || status.ConfigSchemaVersion != 4 || status.HistorySchemaVersion != 1 ||
 		status.LogsSchemaVersion != 1 {
 		t.Fatalf("unexpected status response: %#v", status)
 	}
@@ -464,7 +464,9 @@ func TestNotificationAPIConfigurationRulesAndDeliveryHistory(t *testing.T) {
 
 	createRuleBody, err := json.Marshal(map[string]any{
 		"name": "address changes", "enabled": true, "senderId": sender.Id,
-		"eventType": "address-change",
+		"eventType":             "address-change",
+		"excludedEventTypes":    []string{"address-check-failure"},
+		"excludedFieldPrefixes": []string{"Type/ipapi"},
 	})
 	if err != nil {
 		t.Fatal(err)
@@ -482,7 +484,9 @@ func TestNotificationAPIConfigurationRulesAndDeliveryHistory(t *testing.T) {
 	}
 	updateRuleBody, err := json.Marshal(map[string]any{
 		"name": "all events", "enabled": true, "senderId": sender.Id,
-		"eventType": "all",
+		"eventType":             "all",
+		"excludedEventTypes":    []string{"probe-failure"},
+		"excludedFieldPrefixes": []string{"Media/Youtube/region"},
 	})
 	if err != nil {
 		t.Fatal(err)
@@ -501,7 +505,11 @@ func TestNotificationAPIConfigurationRulesAndDeliveryHistory(t *testing.T) {
 	}
 	var ruleList api.NotificationRuleList
 	if err := json.NewDecoder(rules.Body).Decode(&ruleList); err != nil || len(ruleList.Items) != 1 ||
-		ruleList.Items[0].Name != "all events" || ruleList.Items[0].EventType != api.NotificationEventTypeAll {
+		ruleList.Items[0].Name != "all events" || ruleList.Items[0].EventType != api.NotificationEventTypeAll ||
+		ruleList.Items[0].ExcludedEventTypes == nil || len(*ruleList.Items[0].ExcludedEventTypes) != 1 ||
+		(*ruleList.Items[0].ExcludedEventTypes)[0] != api.NotificationEventType("probe-failure") ||
+		ruleList.Items[0].ExcludedFieldPrefixes == nil || len(*ruleList.Items[0].ExcludedFieldPrefixes) != 1 ||
+		(*ruleList.Items[0].ExcludedFieldPrefixes)[0] != "Media/Youtube/region" {
 		t.Fatalf("notification rule list = %#v, %v", ruleList, err)
 	}
 

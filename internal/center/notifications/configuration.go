@@ -5,6 +5,7 @@ import (
 	"database/sql"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"net/url"
 	"sort"
 	"strings"
@@ -132,15 +133,25 @@ func (s *Service) DeleteSender(ctx context.Context, id uuid.UUID) error {
 
 func (s *Service) CreateRule(ctx context.Context, input RuleCreate) (Rule, error) {
 	input.Name = strings.TrimSpace(input.Name)
+	normalizeRuleExclusions(&input)
 	if err := s.validateRule(ctx, input); err != nil {
 		return Rule{}, err
 	}
 	id := uuid.New()
 	now := s.now().UTC().Unix()
-	err := s.configQueries.CreateNotificationRule(ctx, configdb.CreateNotificationRuleParams{
+	excludedEventTypes, err := json.Marshal(input.ExcludedEventTypes)
+	if err != nil {
+		return Rule{}, err
+	}
+	excludedFieldPrefixes, err := json.Marshal(input.ExcludedFieldPrefixes)
+	if err != nil {
+		return Rule{}, err
+	}
+	err = s.configQueries.CreateNotificationRule(ctx, configdb.CreateNotificationRuleParams{
 		ID: id.String(), Name: input.Name, Enabled: boolInt(input.Enabled), SenderID: input.SenderID.String(),
 		EventType: input.EventType, FieldID: trimOptional(input.FieldID), NodeID: uuidString(input.NodeID),
-		EgressID: uuidString(input.EgressID), CreatedAt: now, UpdatedAt: now,
+		EgressID: uuidString(input.EgressID), ExcludedEventTypesJson: string(excludedEventTypes),
+		ExcludedFieldPrefixesJson: string(excludedFieldPrefixes), CreatedAt: now, UpdatedAt: now,
 	})
 	if isUniqueConstraint(err) {
 		return Rule{}, ErrRuleNameInUse
@@ -159,7 +170,12 @@ func (s *Service) Rule(ctx context.Context, id uuid.UUID) (Rule, error) {
 	if err != nil {
 		return Rule{}, err
 	}
-	return s.ruleFromRecord(ctx, record)
+	return s.ruleFromRecord(ctx, configdb.NotificationRule{
+		ID: record.ID, Name: record.Name, Enabled: record.Enabled, SenderID: record.SenderID,
+		EventType: record.EventType, FieldID: record.FieldID, NodeID: record.NodeID, EgressID: record.EgressID,
+		ExcludedEventTypesJson: record.ExcludedEventTypesJson, ExcludedFieldPrefixesJson: record.ExcludedFieldPrefixesJson,
+		CreatedAt: record.CreatedAt, UpdatedAt: record.UpdatedAt,
+	})
 }
 
 func (s *Service) Rules(ctx context.Context) ([]Rule, error) {
@@ -169,7 +185,12 @@ func (s *Service) Rules(ctx context.Context) ([]Rule, error) {
 	}
 	result := make([]Rule, 0, len(records))
 	for _, record := range records {
-		rule, err := s.ruleFromRecord(ctx, record)
+		rule, err := s.ruleFromRecord(ctx, configdb.NotificationRule{
+			ID: record.ID, Name: record.Name, Enabled: record.Enabled, SenderID: record.SenderID,
+			EventType: record.EventType, FieldID: record.FieldID, NodeID: record.NodeID, EgressID: record.EgressID,
+			ExcludedEventTypesJson: record.ExcludedEventTypesJson, ExcludedFieldPrefixesJson: record.ExcludedFieldPrefixesJson,
+			CreatedAt: record.CreatedAt, UpdatedAt: record.UpdatedAt,
+		})
 		if err != nil {
 			return nil, err
 		}
@@ -183,13 +204,23 @@ func (s *Service) UpdateRule(ctx context.Context, id uuid.UUID, input RuleCreate
 		return Rule{}, err
 	}
 	input.Name = strings.TrimSpace(input.Name)
+	normalizeRuleExclusions(&input)
 	if err := s.validateRule(ctx, input); err != nil {
+		return Rule{}, err
+	}
+	excludedEventTypes, err := json.Marshal(input.ExcludedEventTypes)
+	if err != nil {
+		return Rule{}, err
+	}
+	excludedFieldPrefixes, err := json.Marshal(input.ExcludedFieldPrefixes)
+	if err != nil {
 		return Rule{}, err
 	}
 	changed, err := s.configQueries.UpdateNotificationRule(ctx, configdb.UpdateNotificationRuleParams{
 		Name: input.Name, Enabled: boolInt(input.Enabled), SenderID: input.SenderID.String(),
 		EventType: input.EventType, FieldID: trimOptional(input.FieldID), NodeID: uuidString(input.NodeID),
-		EgressID: uuidString(input.EgressID), UpdatedAt: s.now().UTC().Unix(), ID: id.String(),
+		EgressID: uuidString(input.EgressID), ExcludedEventTypesJson: string(excludedEventTypes),
+		ExcludedFieldPrefixesJson: string(excludedFieldPrefixes), UpdatedAt: s.now().UTC().Unix(), ID: id.String(),
 	})
 	if isUniqueConstraint(err) {
 		return Rule{}, ErrRuleNameInUse
@@ -223,6 +254,19 @@ func (s *Service) validateRule(ctx context.Context, input RuleCreate) error {
 		value := strings.TrimSpace(*input.FieldID)
 		if input.EventType != EventProbeFieldChange || value == "" || len(value) > 256 ||
 			!probefields.IsComparable(value) {
+			return ErrInvalidRule
+		}
+	}
+	if len(input.ExcludedEventTypes) > 16 || len(input.ExcludedFieldPrefixes) > 256 {
+		return ErrInvalidRule
+	}
+	for _, eventType := range input.ExcludedEventTypes {
+		if !validEventType(eventType, false) {
+			return ErrInvalidRule
+		}
+	}
+	for _, prefix := range input.ExcludedFieldPrefixes {
+		if len(prefix) > 256 || !probefields.IsComparablePrefix(prefix) {
 			return ErrInvalidRule
 		}
 	}
@@ -313,12 +357,44 @@ func (s *Service) ruleFromRecord(ctx context.Context, record configdb.Notificati
 		}
 		publicAddress = &address.Address
 	}
+	var excludedEventTypes []string
+	if err := json.Unmarshal([]byte(record.ExcludedEventTypesJson), &excludedEventTypes); err != nil {
+		return Rule{}, fmt.Errorf("decode notification rule event exclusions: %w", err)
+	}
+	var excludedFieldPrefixes []string
+	if err := json.Unmarshal([]byte(record.ExcludedFieldPrefixesJson), &excludedFieldPrefixes); err != nil {
+		return Rule{}, fmt.Errorf("decode notification rule field exclusions: %w", err)
+	}
 	return Rule{
 		ID: id, Name: record.Name, Enabled: record.Enabled == 1, SenderID: senderID,
 		EventType: record.EventType, FieldID: record.FieldID, NodeID: nodeID, EgressID: egressID,
+		ExcludedEventTypes: excludedEventTypes, ExcludedFieldPrefixes: excludedFieldPrefixes,
 		PublicAddress: publicAddress,
 		CreatedAt:     unixTime(record.CreatedAt), UpdatedAt: unixTime(record.UpdatedAt),
 	}, nil
+}
+
+func normalizeRuleExclusions(input *RuleCreate) {
+	input.ExcludedEventTypes = uniqueStrings(input.ExcludedEventTypes)
+	input.ExcludedFieldPrefixes = uniqueStrings(input.ExcludedFieldPrefixes)
+}
+
+func uniqueStrings(values []string) []string {
+	seen := make(map[string]struct{}, len(values))
+	result := make([]string, 0, len(values))
+	for _, value := range values {
+		value = strings.TrimSpace(value)
+		if value == "" {
+			continue
+		}
+		if _, exists := seen[value]; exists {
+			continue
+		}
+		seen[value] = struct{}{}
+		result = append(result, value)
+	}
+	sort.Strings(result)
+	return result
 }
 
 func mergeSenderConfiguration(current Sender, input SenderUpdate) (SenderConfiguration, error) {

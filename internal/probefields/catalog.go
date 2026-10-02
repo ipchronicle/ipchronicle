@@ -43,6 +43,70 @@ func IsComparable(id string) bool {
 	return comparableFieldIDs[id]
 }
 
+// IsComparablePrefix reports whether prefix is a catalog scope containing at
+// least one comparable field. Prefixes are matched on path boundaries.
+func IsComparablePrefix(prefix string) bool {
+	prefix = strings.TrimSuffix(strings.TrimSpace(prefix), ".")
+	if prefix == "" {
+		return false
+	}
+	for id := range comparableFieldIDs {
+		if id == prefix || strings.HasPrefix(id, prefix+".") || containsString(ScopePath(id), prefix) {
+			return true
+		}
+	}
+	return false
+}
+
+// ScopePath returns the stable semantic hierarchy used by notification
+// exclusions. The final entry identifies the individual comparable field.
+func ScopePath(id string) []string {
+	segments := strings.Split(id, ".")
+	if len(segments) == 0 {
+		return nil
+	}
+	result := []string{segments[0]}
+	switch segments[0] {
+	case "Type":
+		if len(segments) >= 3 {
+			result = append(result, "Type/"+segments[2], "Type/"+segments[2]+"/"+strings.ToLower(segments[1]))
+		}
+	case "Score":
+		if len(segments) >= 2 {
+			result = append(result, "Score/"+segments[1])
+		}
+	case "Factor":
+		if len(segments) >= 3 {
+			result = append(result, "Factor/"+segments[2], "Factor/"+segments[2]+"/"+strings.ToLower(segments[1]))
+		}
+	case "Media":
+		if len(segments) >= 3 {
+			result = append(result, "Media/"+segments[1], "Media/"+segments[1]+"/"+strings.ToLower(segments[2]))
+		}
+	case "Mail":
+		if len(segments) >= 2 {
+			result = append(result, "Mail/"+segments[1])
+			if len(segments) >= 3 {
+				result = append(result, "Mail/"+segments[1]+"/"+strings.ToLower(segments[2]))
+			}
+		}
+	default:
+		for index := 2; index <= len(segments); index++ {
+			result = append(result, strings.Join(segments[:index], "."))
+		}
+	}
+	return result
+}
+
+func containsString(values []string, wanted string) bool {
+	for _, value := range values {
+		if value == wanted {
+			return true
+		}
+	}
+	return false
+}
+
 func buildComparableFieldIDs(definitions []Definition) map[string]bool {
 	result := make(map[string]bool, len(definitions))
 	for _, definition := range definitions {

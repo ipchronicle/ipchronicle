@@ -1199,24 +1199,28 @@ WHERE notification_senders.id = ?
 -- name: CreateNotificationRule :exec
 INSERT INTO notification_rules (
     id, name, enabled, sender_id, event_type, field_id,
-    node_id, egress_id, created_at, updated_at
-) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?);
+    node_id, egress_id, excluded_event_types_json, excluded_field_prefixes_json,
+    created_at, updated_at
+) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);
 
 -- name: GetNotificationRule :one
 SELECT id, name, enabled, sender_id, event_type, field_id,
-       node_id, egress_id, created_at, updated_at
+       node_id, egress_id, excluded_event_types_json, excluded_field_prefixes_json,
+       created_at, updated_at
 FROM notification_rules
 WHERE id = ?;
 
 -- name: ListNotificationRules :many
 SELECT id, name, enabled, sender_id, event_type, field_id,
-       node_id, egress_id, created_at, updated_at
+       node_id, egress_id, excluded_event_types_json, excluded_field_prefixes_json,
+       created_at, updated_at
 FROM notification_rules
 ORDER BY name COLLATE NOCASE, id;
 
 -- name: ListEnabledNotificationRules :many
 SELECT r.id, r.name, r.sender_id, r.event_type, r.field_id,
-       r.node_id, r.egress_id, s.name AS sender_name, s.kind AS sender_kind
+       r.node_id, r.egress_id, r.excluded_event_types_json, r.excluded_field_prefixes_json,
+       s.name AS sender_name, s.kind AS sender_kind
 FROM notification_rules r
 JOIN notification_senders s ON s.id = r.sender_id
 WHERE r.enabled = 1 AND s.enabled = 1
@@ -1225,7 +1229,8 @@ ORDER BY r.sender_id, r.id;
 -- name: UpdateNotificationRule :execrows
 UPDATE notification_rules
 SET name = ?, enabled = ?, sender_id = ?, event_type = ?, field_id = ?,
-    node_id = ?, egress_id = ?, updated_at = ?
+    node_id = ?, egress_id = ?, excluded_event_types_json = ?,
+    excluded_field_prefixes_json = ?, updated_at = ?
 WHERE id = ?;
 
 -- name: DeleteNotificationRule :execrows

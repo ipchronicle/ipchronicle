@@ -46,6 +46,7 @@ import {
   allProbeFieldsValue,
   ProbeFieldCombobox,
 } from "@/components/probe-field-combobox";
+import { NotificationExclusionTree } from "@/components/notification-exclusion-tree";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -69,6 +70,7 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
+import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import {
@@ -1072,6 +1074,12 @@ function RuleForm({
     rule?.eventType ?? "address-change",
   );
   const [fieldId, setFieldId] = useState(rule?.fieldId ?? allProbeFieldsValue);
+  const [excludedEventTypes, setExcludedEventTypes] = useState<
+    NotificationEventType[]
+  >(rule?.excludedEventTypes ?? []);
+  const [excludedFieldPrefixes, setExcludedFieldPrefixes] = useState<string[]>(
+    rule?.excludedFieldPrefixes ?? [],
+  );
   const [nodeId, setNodeId] = useState(rule?.nodeId ?? allValue);
   const [egressId, setEgressId] = useState(rule?.egressId ?? allValue);
   const [publicAddresses, setPublicAddresses] = useState<PublicAddress[]>([]);
@@ -1106,6 +1114,8 @@ function RuleForm({
       ...(eventType === "probe-field-change" && fieldId !== allProbeFieldsValue
         ? { fieldId }
         : {}),
+      ...(excludedEventTypes.length > 0 ? { excludedEventTypes } : {}),
+      ...(excludedFieldPrefixes.length > 0 ? { excludedFieldPrefixes } : {}),
       ...(nodeId !== allValue ? { nodeId } : {}),
       ...(egressId !== allValue ? { egressId } : {}),
     };
@@ -1193,6 +1203,45 @@ function RuleForm({
                 />
               </div>
             ) : null}
+            <div className="space-y-2 sm:col-span-2">
+              <Label>{t("notifications.rules.exclusions")}</Label>
+              <p className="text-sm text-muted-foreground">
+                {t("notifications.rules.exclusionsDetail")}
+              </p>
+              <div className="space-y-3 rounded-lg border p-3">
+                {(eventType === "all"
+                  ? notificationEventTypes.filter((type) => type !== "all")
+                  : [eventType]
+                ).map((type) => (
+                  <label key={type} className="flex items-center gap-2 text-sm">
+                    <Checkbox
+                      checked={excludedEventTypes.includes(type)}
+                      onCheckedChange={(checked) => {
+                        setExcludedEventTypes((current) =>
+                          checked === true
+                            ? [...new Set([...current, type])]
+                            : current.filter((item) => item !== type),
+                        );
+                      }}
+                    />
+                    <span>{t(`notifications.eventType.${type}`)}</span>
+                  </label>
+                ))}
+                {!excludedEventTypes.includes("probe-field-change") &&
+                (eventType === "all" || eventType === "probe-field-change") ? (
+                  <div className="space-y-2 pt-1">
+                    <p className="text-sm font-medium">
+                      {t("notifications.rules.probeFieldExclusions")}
+                    </p>
+                    <NotificationExclusionTree
+                      fields={probeFields}
+                      value={excludedFieldPrefixes}
+                      onChange={setExcludedFieldPrefixes}
+                    />
+                  </div>
+                ) : null}
+              </div>
+            </div>
             <div className="space-y-2">
               <Label htmlFor="rule-node">{t("notifications.rules.node")}</Label>
               <Select value={nodeId} onValueChange={setNodeId}>

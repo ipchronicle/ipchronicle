@@ -24,6 +24,7 @@ func (s apiServer) ListNotificationProbeFields(ctx context.Context, _ api.ListNo
 		if definition.Compare {
 			items = append(items, api.NotificationProbeField{
 				Id: definition.ID, Group: definition.Group, Path: strings.Join(definition.Path, "."),
+				Scope: probefields.ScopePath(definition.ID),
 			})
 		}
 	}
@@ -381,20 +382,49 @@ func notificationSenderResponse(sender notifications.Sender) api.NotificationSen
 }
 
 func notificationRuleWrite(input api.NotificationRuleWrite) notifications.RuleCreate {
+	var excludedEventTypes []string
+	if input.ExcludedEventTypes != nil {
+		excludedEventTypes = make([]string, 0, len(*input.ExcludedEventTypes))
+		for _, value := range *input.ExcludedEventTypes {
+			excludedEventTypes = append(excludedEventTypes, string(value))
+		}
+	}
 	return notifications.RuleCreate{
 		Name: input.Name, Enabled: input.Enabled, SenderID: input.SenderId,
 		EventType: string(input.EventType), FieldID: input.FieldId,
 		NodeID: input.NodeId, EgressID: input.EgressId,
+		ExcludedEventTypes: excludedEventTypes, ExcludedFieldPrefixes: dereferenceStrings(input.ExcludedFieldPrefixes),
 	}
 }
 
 func notificationRuleResponse(rule notifications.Rule) api.NotificationRule {
+	var excludedEventTypes *[]api.NotificationEventType
+	if len(rule.ExcludedEventTypes) > 0 {
+		values := make([]api.NotificationEventType, 0, len(rule.ExcludedEventTypes))
+		for _, value := range rule.ExcludedEventTypes {
+			values = append(values, api.NotificationEventType(value))
+		}
+		excludedEventTypes = &values
+	}
+	var excludedFieldPrefixes *[]string
+	if len(rule.ExcludedFieldPrefixes) > 0 {
+		values := append([]string(nil), rule.ExcludedFieldPrefixes...)
+		excludedFieldPrefixes = &values
+	}
 	return api.NotificationRule{
 		Id: rule.ID, Name: rule.Name, Enabled: rule.Enabled, SenderId: rule.SenderID,
 		EventType: api.NotificationEventType(rule.EventType), FieldId: rule.FieldID,
 		NodeId: rule.NodeID, EgressId: rule.EgressID, PublicAddress: rule.PublicAddress,
+		ExcludedEventTypes: excludedEventTypes, ExcludedFieldPrefixes: excludedFieldPrefixes,
 		CreatedAt: rule.CreatedAt, UpdatedAt: rule.UpdatedAt,
 	}
+}
+
+func dereferenceStrings(value *[]string) []string {
+	if value == nil {
+		return nil
+	}
+	return append([]string(nil), (*value)...)
 }
 
 func notificationDeliveryResponse(delivery notifications.Delivery) (api.NotificationDelivery, error) {

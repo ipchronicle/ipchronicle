@@ -2520,9 +2520,10 @@ type NotificationEventType string
 
 // NotificationProbeField defines model for NotificationProbeField.
 type NotificationProbeField struct {
-	Group string `json:"group"`
-	Id    string `json:"id"`
-	Path  string `json:"path"`
+	Group string   `json:"group"`
+	Id    string   `json:"id"`
+	Path  string   `json:"path"`
+	Scope []string `json:"scope"`
 }
 
 // NotificationProbeFieldList defines model for NotificationProbeFieldList.
@@ -2532,17 +2533,19 @@ type NotificationProbeFieldList struct {
 
 // NotificationRule defines model for NotificationRule.
 type NotificationRule struct {
-	CreatedAt     time.Time             `json:"createdAt"`
-	EgressId      *openapi_types.UUID   `json:"egressId,omitempty"`
-	Enabled       bool                  `json:"enabled"`
-	EventType     NotificationEventType `json:"eventType"`
-	FieldId       *string               `json:"fieldId,omitempty"`
-	Id            openapi_types.UUID    `json:"id"`
-	Name          string                `json:"name"`
-	NodeId        *openapi_types.UUID   `json:"nodeId,omitempty"`
-	PublicAddress *string               `json:"publicAddress,omitempty"`
-	SenderId      openapi_types.UUID    `json:"senderId"`
-	UpdatedAt     time.Time             `json:"updatedAt"`
+	CreatedAt             time.Time                `json:"createdAt"`
+	EgressId              *openapi_types.UUID      `json:"egressId,omitempty"`
+	Enabled               bool                     `json:"enabled"`
+	EventType             NotificationEventType    `json:"eventType"`
+	ExcludedEventTypes    *[]NotificationEventType `json:"excludedEventTypes,omitempty"`
+	ExcludedFieldPrefixes *[]string                `json:"excludedFieldPrefixes,omitempty"`
+	FieldId               *string                  `json:"fieldId,omitempty"`
+	Id                    openapi_types.UUID       `json:"id"`
+	Name                  string                   `json:"name"`
+	NodeId                *openapi_types.UUID      `json:"nodeId,omitempty"`
+	PublicAddress         *string                  `json:"publicAddress,omitempty"`
+	SenderId              openapi_types.UUID       `json:"senderId"`
+	UpdatedAt             time.Time                `json:"updatedAt"`
 }
 
 // NotificationRuleList defines model for NotificationRuleList.
@@ -2552,13 +2555,15 @@ type NotificationRuleList struct {
 
 // NotificationRuleWrite defines model for NotificationRuleWrite.
 type NotificationRuleWrite struct {
-	EgressId  *openapi_types.UUID   `json:"egressId,omitempty"`
-	Enabled   bool                  `json:"enabled"`
-	EventType NotificationEventType `json:"eventType"`
-	FieldId   *string               `json:"fieldId,omitempty"`
-	Name      string                `json:"name"`
-	NodeId    *openapi_types.UUID   `json:"nodeId,omitempty"`
-	SenderId  openapi_types.UUID    `json:"senderId"`
+	EgressId              *openapi_types.UUID      `json:"egressId,omitempty"`
+	Enabled               bool                     `json:"enabled"`
+	EventType             NotificationEventType    `json:"eventType"`
+	ExcludedEventTypes    *[]NotificationEventType `json:"excludedEventTypes,omitempty"`
+	ExcludedFieldPrefixes *[]string                `json:"excludedFieldPrefixes,omitempty"`
+	FieldId               *string                  `json:"fieldId,omitempty"`
+	Name                  string                   `json:"name"`
+	NodeId                *openapi_types.UUID      `json:"nodeId,omitempty"`
+	SenderId              openapi_types.UUID       `json:"senderId"`
 }
 
 // NotificationSender defines model for NotificationSender.

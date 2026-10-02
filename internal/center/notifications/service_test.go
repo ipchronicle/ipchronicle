@@ -16,6 +16,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/ipchronicle/ipchronicle/internal/center/admin"
 	"github.com/ipchronicle/ipchronicle/internal/center/database"
+	"github.com/ipchronicle/ipchronicle/internal/center/database/configdb"
 	"github.com/ipchronicle/ipchronicle/internal/center/database/historydb"
 	"github.com/ipchronicle/ipchronicle/internal/center/systemsettings"
 )
@@ -29,6 +30,49 @@ func (function roundTripFunc) RoundTrip(request *http.Request) (*http.Response, 
 type discardConfigurationWaker struct{}
 
 func (discardConfigurationWaker) Wake(string) {}
+
+func TestFilterEventForRuleAppliesEventAndSemanticFieldExclusions(t *testing.T) {
+	nodeID, egressID := uuid.NewString(), uuid.NewString()
+	rule := configdb.ListEnabledNotificationRulesRow{
+		EventType:                 EventAll,
+		NodeID:                    &nodeID,
+		EgressID:                  &egressID,
+		ExcludedEventTypesJson:    `["address-change"]`,
+		ExcludedFieldPrefixesJson: `["Type/ipapi"]`,
+	}
+	event := historydb.NotificationEvent{
+		EventType: EventProbeFieldChange, NodeID: &nodeID, EgressID: &egressID,
+		PayloadJson: mustJSONPayload(ProbeChangeData{Changes: []FieldChange{
+			{FieldID: "Type.Company.ipapi"},
+			{FieldID: "Score.ipapi"},
+			{FieldID: "Media.Youtube.Region"},
+		}}),
+	}
+	filtered, matched := filterEventForRule(rule, event)
+	if !matched {
+		t.Fatal("field exclusion unexpectedly removed the whole event")
+	}
+	var data ProbeChangeData
+	if err := json.Unmarshal(filtered.PayloadJson, &data); err != nil {
+		t.Fatal(err)
+	}
+	if len(data.Changes) != 2 || data.Changes[0].FieldID != "Score.ipapi" || data.Changes[1].FieldID != "Media.Youtube.Region" {
+		t.Fatalf("filtered changes = %#v", data.Changes)
+	}
+
+	event.EventType = EventAddressChange
+	if _, matched := filterEventForRule(rule, event); matched {
+		t.Fatal("excluded event type still matched")
+	}
+}
+
+func mustJSONPayload(value interface{}) []byte {
+	payload, err := json.Marshal(value)
+	if err != nil {
+		panic(err)
+	}
+	return payload
+}
 
 func TestMain(m *testing.M) {
 	if len(os.Args) == 2 && os.Args[1] == "notification-worker" {

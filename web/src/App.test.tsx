@@ -462,8 +462,14 @@ describe("administrator application", () => {
         id: "Factor.VPN.IPQS",
         group: "Factor",
         path: "Factor.VPN.IPQS",
+        scope: ["Factor", "Factor/IPQS", "Factor/IPQS/vpn"],
       },
-      { id: "Info.ASN", group: "Info", path: "Info.ASN" },
+      {
+        id: "Info.ASN",
+        group: "Info",
+        path: "Info.ASN",
+        scope: ["Info", "Info.ASN"],
+      },
     ]);
     listNotificationRulesMock.mockReset();
     listNotificationRulesMock.mockResolvedValue([]);
@@ -1010,7 +1016,9 @@ describe("administrator application", () => {
     fireEvent.change(screen.getByPlaceholderText("Search probe fields..."), {
       target: { value: "VPN" },
     });
-    fireEvent.click(await screen.findByText("VPN indicator (IPQS)"));
+    fireEvent.click(
+      await screen.findByRole("option", { name: "VPN indicator (IPQS)" }),
+    );
     fireEvent.change(screen.getByLabelText("Name"), {
       target: { value: "VPN changes" },
     });

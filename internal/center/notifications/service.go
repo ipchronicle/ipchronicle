@@ -197,17 +197,26 @@ func (s *Service) processEvent(
 	rules []configdb.ListEnabledNotificationRulesRow,
 	locale string,
 ) error {
-	matches := make(map[string][]string)
-	senders := make(map[string]configdb.ListEnabledNotificationRulesRow)
-	for _, rule := range rules {
-		if ruleMatches(rule, event) {
-			matches[rule.SenderID] = append(matches[rule.SenderID], rule.ID)
-			senders[rule.SenderID] = rule
-		}
+	type senderMatch struct {
+		ruleIDs []string
+		sender  configdb.ListEnabledNotificationRulesRow
+		event   historydb.NotificationEvent
 	}
-	envelope, title, body, err := s.buildDeliveryContent(ctx, event, locale)
-	if err != nil {
-		return err
+	matches := make(map[string]*senderMatch)
+	for _, rule := range rules {
+		filtered, matched := filterEventForRule(rule, event)
+		if matched {
+			match := matches[rule.SenderID]
+			if match == nil {
+				match = &senderMatch{sender: rule, event: filtered}
+				matches[rule.SenderID] = match
+			} else if event.EventType == EventProbeFieldChange {
+				if err := mergeProbeChangeEvents(&match.event, filtered); err != nil {
+					return err
+				}
+			}
+			match.ruleIDs = append(match.ruleIDs, rule.ID)
+		}
 	}
 	now := s.now().UTC().Unix()
 	transaction, err := s.historyDatabase.BeginTx(ctx, nil)
@@ -229,8 +238,13 @@ func (s *Service) processEvent(
 	}
 	sort.Strings(senderIDs)
 	for _, senderID := range senderIDs {
-		ruleIDs := matches[senderID]
+		match := matches[senderID]
+		ruleIDs := match.ruleIDs
 		sort.Strings(ruleIDs)
+		envelope, title, body, err := s.buildDeliveryContent(ctx, match.event, locale)
+		if err != nil {
+			return err
+		}
 		matchedJSON, err := json.Marshal(ruleIDs)
 		if err != nil {
 			return err
@@ -250,7 +264,7 @@ func (s *Service) processEvent(
 			code := "queue-full"
 			errorCode = &code
 		}
-		sender := senders[senderID]
+		sender := match.sender
 		if _, err := queries.CreateNotificationDelivery(ctx, historydb.CreateNotificationDeliveryParams{
 			ID: stableID("notification-delivery", event.ID+":"+senderID), EventID: event.ID,
 			SenderID: senderID, SenderName: sender.SenderName, SenderKind: sender.SenderKind,
@@ -274,21 +288,94 @@ func (s *Service) processEvent(
 	return transaction.Commit()
 }
 
-func ruleMatches(rule configdb.ListEnabledNotificationRulesRow, event historydb.NotificationEvent) bool {
+func filterEventForRule(rule configdb.ListEnabledNotificationRulesRow, event historydb.NotificationEvent) (historydb.NotificationEvent, bool) {
 	if (rule.EventType != EventAll && rule.EventType != event.EventType) ||
 		rule.NodeID != nil && !sameOptional(rule.NodeID, event.NodeID) ||
 		rule.EgressID != nil && !sameOptional(rule.EgressID, event.EgressID) {
-		return false
+		return historydb.NotificationEvent{}, false
 	}
-	if rule.FieldID == nil {
-		return true
+	var excludedEventTypes []string
+	if json.Unmarshal([]byte(rule.ExcludedEventTypesJson), &excludedEventTypes) != nil {
+		return historydb.NotificationEvent{}, false
+	}
+	for _, excluded := range excludedEventTypes {
+		if excluded == event.EventType {
+			return historydb.NotificationEvent{}, false
+		}
+	}
+	if event.EventType != EventProbeFieldChange {
+		return event, true
 	}
 	var data ProbeChangeData
 	if json.Unmarshal(event.PayloadJson, &data) != nil {
-		return false
+		return historydb.NotificationEvent{}, false
 	}
+	var excludedPrefixes []string
+	if json.Unmarshal([]byte(rule.ExcludedFieldPrefixesJson), &excludedPrefixes) != nil {
+		return historydb.NotificationEvent{}, false
+	}
+	filtered := make([]FieldChange, 0, len(data.Changes))
 	for _, change := range data.Changes {
-		if change.FieldID == *rule.FieldID {
+		if rule.FieldID != nil && change.FieldID != *rule.FieldID {
+			continue
+		}
+		if hasFieldPrefix(change.FieldID, excludedPrefixes) {
+			continue
+		}
+		filtered = append(filtered, change)
+	}
+	if len(filtered) == 0 {
+		return historydb.NotificationEvent{}, false
+	}
+	data.Changes = filtered
+	payload, err := json.Marshal(data)
+	if err != nil {
+		return historydb.NotificationEvent{}, false
+	}
+	event.PayloadJson = payload
+	return event, true
+}
+
+func mergeProbeChangeEvents(target *historydb.NotificationEvent, source historydb.NotificationEvent) error {
+	var targetData, sourceData ProbeChangeData
+	if err := json.Unmarshal(target.PayloadJson, &targetData); err != nil {
+		return err
+	}
+	if err := json.Unmarshal(source.PayloadJson, &sourceData); err != nil {
+		return err
+	}
+	seen := make(map[string]struct{}, len(targetData.Changes))
+	for _, change := range targetData.Changes {
+		seen[change.FieldID] = struct{}{}
+	}
+	for _, change := range sourceData.Changes {
+		if _, exists := seen[change.FieldID]; exists {
+			continue
+		}
+		targetData.Changes = append(targetData.Changes, change)
+		seen[change.FieldID] = struct{}{}
+	}
+	payload, err := json.Marshal(targetData)
+	if err != nil {
+		return err
+	}
+	target.PayloadJson = payload
+	return nil
+}
+
+func hasFieldPrefix(fieldID string, prefixes []string) bool {
+	scopes := probefields.ScopePath(fieldID)
+	for _, prefix := range prefixes {
+		if fieldID == prefix || strings.HasPrefix(fieldID, prefix+".") || containsScope(scopes, prefix) {
+			return true
+		}
+	}
+	return false
+}
+
+func containsScope(scopes []string, wanted string) bool {
+	for _, scope := range scopes {
+		if scope == wanted {
 			return true
 		}
 	}

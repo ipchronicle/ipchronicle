@@ -16,6 +16,18 @@ func TestComparableFieldsHaveLocalizedDisplayNames(t *testing.T) {
 	}
 }
 
+func TestScopePathKeepsReportAreasSeparate(t *testing.T) {
+	if got := ScopePath("Type.Company.ipapi"); len(got) != 3 || got[0] != "Type" || got[1] != "Type/ipapi" || got[2] != "Type/ipapi/company" {
+		t.Fatalf("Type.Company.ipapi scope = %#v", got)
+	}
+	if got := ScopePath("Score.ipapi"); len(got) != 2 || got[0] != "Score" || got[1] != "Score/ipapi" {
+		t.Fatalf("Score.ipapi scope = %#v", got)
+	}
+	if got := ScopePath("Media.Youtube.Region"); len(got) != 3 || got[1] != "Media/Youtube" || got[2] != "Media/Youtube/region" {
+		t.Fatalf("Media.Youtube.Region scope = %#v", got)
+	}
+}
+
 func TestDisplayValueUsesFieldSemantics(t *testing.T) {
 	tests := []struct {
 		id     string
