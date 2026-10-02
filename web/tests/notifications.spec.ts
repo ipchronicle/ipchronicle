@@ -312,7 +312,9 @@ test("configures and delivers notifications through local receivers", async ({
     await expect(probeField).toContainText("All probe fields");
     await probeField.click();
     await page.getByPlaceholder("Search probe fields...").fill("VPN IPQS");
-    await page.getByText("VPN indicator (IPQS)", { exact: true }).click();
+    await page
+      .getByRole("option", { name: "VPN indicator (IPQS)", exact: true })
+      .click();
     await page.getByLabel("Node").click();
     await page.getByRole("option", { name: nodeName }).click();
     await expect(page.getByLabel("Public IP")).toBeEnabled();
