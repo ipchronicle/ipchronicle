@@ -1278,12 +1278,20 @@ test("generates an Agent installation command from the nodes page", async ({
     page.getByRole("heading", { name: "Snapshot comparison" }),
   ).toBeVisible();
   await expect(page.getByText("2 snapshots")).toBeVisible();
-  await expect(
-    page.getByRole("slider", { name: "Start snapshot" }),
-  ).toHaveAttribute("aria-valuenow", "0");
-  await expect(
-    page.getByRole("slider", { name: "End snapshot" }),
-  ).toHaveAttribute("aria-valuenow", "1");
+  const startSnapshotSlider = page.getByRole("slider", {
+    name: "Start snapshot",
+  });
+  const endSnapshotSlider = page.getByRole("slider", {
+    name: "End snapshot",
+  });
+  await expect(startSnapshotSlider).toHaveAttribute(
+    "aria-valuenow",
+    await startSnapshotSlider.getAttribute("aria-valuemin"),
+  );
+  await expect(endSnapshotSlider).toHaveAttribute(
+    "aria-valuenow",
+    await endSnapshotSlider.getAttribute("aria-valuemax"),
+  );
   await expect(
     page
       .getByRole("region", { name: "Start snapshot" })

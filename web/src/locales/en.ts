@@ -1154,6 +1154,7 @@ export const en = {
       retry: "Retry",
       start: "Start snapshot",
       end: "End snapshot",
+      comparing: "Updating comparison…",
       noChanges: "No fields changed between the selected snapshots",
       changeCount_one: "{{count}} change",
       changeCount_other: "{{count}} changes",
@@ -1166,6 +1167,7 @@ export const en = {
         snapshotCount: "{{count}} snapshots",
         gapCount: "{{count}} history gaps",
         snapshot: "Snapshot",
+        selectSnapshot: "Select snapshot {{sequence}} at {{value}}",
         starred: "Starred",
         gap: "History gap",
         insufficient:

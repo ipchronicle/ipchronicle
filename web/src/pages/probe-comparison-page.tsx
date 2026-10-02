@@ -18,6 +18,7 @@ import {
   type ProbeSnapshotComparison,
   type ProbeSnapshotHistoryPage,
 } from "@/api/history";
+import { getProbeSnapshot, type ProbeSnapshot } from "@/api/probes";
 import { useAuth } from "@/auth-context";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
@@ -45,7 +46,6 @@ import {
 
 type TimelineSnapshot = ProbeSnapshotHistoryPage["items"][number];
 type TimelineGap = ProbeHistoryGapPage["items"][number];
-type ComparisonSide = ProbeSnapshotComparison["fields"][number]["before"];
 
 type TimelineState =
   | { kind: "loading" }
@@ -54,6 +54,7 @@ type TimelineState =
       egressId: string;
       snapshots: TimelineSnapshot[];
       gaps: TimelineGap[];
+      details: Map<string, ProbeSnapshot>;
     }
   | { kind: "invalid" }
   | { kind: "error" };
@@ -76,7 +77,6 @@ export function ProbeComparisonPage() {
   const requestedAfter = search.get("after") ?? "";
   const [timeline, setTimeline] = useState<TimelineState>({ kind: "loading" });
   const [selection, setSelection] = useState<[number, number]>([0, 1]);
-  const [committed, setCommitted] = useState<[number, number]>([0, 1]);
   const [comparison, setComparison] = useState<ComparisonState>({
     kind: "idle",
   });
@@ -105,13 +105,14 @@ export function ProbeComparisonPage() {
           loadAllGaps(egressId, signal),
         ]);
         snapshots.sort(compareTimelineSnapshots);
-        const initial: [number, number] = [
-          0,
-          Math.max(1, snapshots.length - 1),
-        ];
+        const details = await loadAllSnapshotDetails(snapshots, signal);
+        const initial = initialSelection(
+          snapshots,
+          requestedBefore,
+          requestedAfter,
+        );
         setSelection(initial);
-        setCommitted(initial);
-        setTimeline({ kind: "success", egressId, snapshots, gaps });
+        setTimeline({ kind: "success", egressId, snapshots, gaps, details });
       } catch (error) {
         if (error instanceof DOMException && error.name === "AbortError")
           return;
@@ -127,10 +128,20 @@ export function ProbeComparisonPage() {
     return () => controller.abort();
   }, [loadTimeline]);
 
-  const before =
-    timeline.kind === "success" ? timeline.snapshots[committed[0]] : undefined;
-  const after =
-    timeline.kind === "success" ? timeline.snapshots[committed[1]] : undefined;
+  const resolved =
+    timeline.kind === "success"
+      ? resolveSelection(timeline.snapshots, selection)
+      : undefined;
+  const before = resolved?.before;
+  const after = resolved?.after;
+  const beforeDetails =
+    timeline.kind === "success" && before
+      ? timeline.details.get(before.id)
+      : undefined;
+  const afterDetails =
+    timeline.kind === "success" && after
+      ? timeline.details.get(after.id)
+      : undefined;
 
   useEffect(() => {
     if (!before || !after || before.id === after.id) {
@@ -203,12 +214,14 @@ export function ProbeComparisonPage() {
                 onChange={setSelection}
                 onCommit={(value) => {
                   setSelection(value);
-                  setCommitted(value);
+                  const next = resolveSelection(timeline.snapshots, value);
+                  if (!next) return;
+                  const params = new URLSearchParams(search);
+                  params.set("before", next.before.id);
+                  params.set("after", next.after.id);
+                  window.history.replaceState({}, "", `?${params.toString()}`);
                 }}
               />
-              {comparison.kind === "loading" || comparison.kind === "idle" ? (
-                <ReportsSkeleton />
-              ) : null}
               {comparison.kind === "not-found" ? (
                 <ComparisonError title={t("comparison.notFound")} />
               ) : null}
@@ -218,11 +231,18 @@ export function ProbeComparisonPage() {
               {comparison.kind === "error" ? (
                 <ComparisonError title={t("comparison.loadFailed")} />
               ) : null}
-              {comparison.kind === "success" && before && after ? (
+              {before && after && beforeDetails && afterDetails ? (
                 <ComparisonReports
                   before={before}
                   after={after}
-                  comparison={comparison.comparison}
+                  beforeDetails={beforeDetails}
+                  afterDetails={afterDetails}
+                  comparison={
+                    comparison.kind === "success"
+                      ? comparison.comparison
+                      : undefined
+                  }
+                  comparisonLoading={comparison.kind === "loading"}
                   language={i18n.resolvedLanguage}
                   updateTimeline={setTimeline}
                 />
@@ -269,6 +289,26 @@ async function loadAllGaps(egressId: string, signal?: AbortSignal) {
   return items;
 }
 
+async function loadAllSnapshotDetails(
+  snapshots: TimelineSnapshot[],
+  signal?: AbortSignal,
+) {
+  const details = new Map<string, ProbeSnapshot>();
+  let nextIndex = 0;
+  const worker = async () => {
+    while (nextIndex < snapshots.length) {
+      const index = nextIndex;
+      nextIndex += 1;
+      const snapshot = await getProbeSnapshot(snapshots[index].id, signal);
+      details.set(snapshot.id, snapshot);
+    }
+  };
+  await Promise.all(
+    Array.from({ length: Math.min(4, snapshots.length) }, () => worker()),
+  );
+  return details;
+}
+
 function compareTimelineSnapshots(
   left: TimelineSnapshot,
   right: TimelineSnapshot,
@@ -277,6 +317,52 @@ function compareTimelineSnapshots(
   return (
     time || left.sequence - right.sequence || left.id.localeCompare(right.id)
   );
+}
+
+function snapshotAxisValue(snapshot: TimelineSnapshot, index: number) {
+  return Date.parse(snapshot.observedAt) * 1000 + index;
+}
+
+function snapshotAxisValues(snapshots: TimelineSnapshot[]) {
+  return snapshots.map((snapshot, index) => snapshotAxisValue(snapshot, index));
+}
+
+function initialSelection(
+  snapshots: TimelineSnapshot[],
+  beforeID: string,
+  afterID: string,
+): [number, number] {
+  const axis = snapshotAxisValues(snapshots);
+  const beforeIndex = snapshots.findIndex(
+    (snapshot) => snapshot.id === beforeID,
+  );
+  const afterIndex = snapshots.findIndex((snapshot) => snapshot.id === afterID);
+  if (beforeIndex >= 0 && afterIndex >= 0) {
+    return [
+      Math.min(axis[beforeIndex], axis[afterIndex]),
+      Math.max(axis[beforeIndex], axis[afterIndex]),
+    ];
+  }
+  return [axis[0] ?? 0, axis[axis.length - 1] ?? axis[0] ?? 0];
+}
+
+function resolveSelection(
+  snapshots: TimelineSnapshot[],
+  selection: [number, number],
+) {
+  if (snapshots.length === 0) return undefined;
+  const axis = snapshotAxisValues(snapshots);
+  const resolve = (cursor: number) => {
+    let index = 0;
+    for (let candidate = 0; candidate < axis.length; candidate += 1) {
+      if (axis[candidate] > cursor) break;
+      index = candidate;
+    }
+    return snapshots[index];
+  };
+  const before = resolve(selection[0]);
+  const after = resolve(selection[1]);
+  return before && after ? { before, after } : undefined;
 }
 
 function ComparisonTimeline({
@@ -295,9 +381,13 @@ function ComparisonTimeline({
   onCommit: (value: [number, number]) => void;
 }) {
   const { t } = useTranslation();
-  const start = snapshots[selection[0]];
-  const end = snapshots[selection[1]];
-  const denominator = Math.max(1, snapshots.length - 1);
+  const resolved = resolveSelection(snapshots, selection);
+  const start = resolved?.before ?? snapshots[0];
+  const end = resolved?.after ?? snapshots[snapshots.length - 1];
+  const axis = snapshotAxisValues(snapshots);
+  const min = axis[0] ?? 0;
+  const max = axis[axis.length - 1] ?? min;
+  const denominator = Math.max(1, max - min);
   return (
     <Card
       size="sm"
@@ -354,7 +444,9 @@ function ComparisonTimeline({
                     "absolute top-1/2 size-2 -translate-x-1/2 -translate-y-1/2 rounded-full border border-background bg-muted-foreground",
                     snapshot.starred && "bg-amber-500",
                   )}
-                  style={{ left: `${(index / denominator) * 100}%` }}
+                  style={{
+                    left: `${((axis[index] - min) / denominator) * 100}%`,
+                  }}
                   title={formatTime(snapshot.observedAt, language, "")}
                 />
               ))}
@@ -367,10 +459,30 @@ function ComparisonTimeline({
                 />
               ))}
             </div>
+            <div className="pointer-events-none absolute inset-x-0 top-1/2 z-10 h-5 -translate-y-1/2">
+              {snapshots.map((snapshot, index) => (
+                <button
+                  key={`${snapshot.id}-selector`}
+                  type="button"
+                  className="pointer-events-auto absolute top-1/2 size-5 -translate-x-1/2 -translate-y-1/2 rounded-full focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-hidden"
+                  style={{
+                    left: `${((axis[index] - min) / denominator) * 100}%`,
+                  }}
+                  aria-label={t("comparison.timeline.selectSnapshot", {
+                    value: formatTime(snapshot.observedAt, language, ""),
+                    sequence: snapshot.sequence,
+                  })}
+                  title={formatTime(snapshot.observedAt, language, "")}
+                  onClick={() =>
+                    onCommit(selectTimelinePoint(selection, axis[index]))
+                  }
+                />
+              ))}
+            </div>
             <Slider
               value={selection}
-              min={0}
-              max={snapshots.length - 1}
+              min={min}
+              max={max}
               step={1}
               minStepsBetweenThumbs={1}
               thumbLabels={[t("comparison.start"), t("comparison.end")]}
@@ -440,13 +552,19 @@ function TimelineSelection({
 function ComparisonReports({
   before,
   after,
+  beforeDetails,
+  afterDetails,
   comparison,
+  comparisonLoading,
   language,
   updateTimeline,
 }: {
   before: TimelineSnapshot;
   after: TimelineSnapshot;
-  comparison: ProbeSnapshotComparison;
+  beforeDetails: ProbeSnapshot;
+  afterDetails: ProbeSnapshot;
+  comparison?: ProbeSnapshotComparison;
+  comparisonLoading: boolean;
   language?: string;
   updateTimeline: React.Dispatch<React.SetStateAction<TimelineState>>;
 }) {
@@ -457,19 +575,19 @@ function ComparisonReports({
   const changedPaths = useMemo(
     () =>
       new Set(
-        comparison.fields
+        comparison?.fields
           .filter((field) => field.changed)
-          .map((field) => field.path),
+          .map((field) => field.path) ?? [],
       ),
-    [comparison.fields],
+    [comparison],
   );
   const beforeFields = useMemo(
-    () => comparisonFieldMap(comparison, "before"),
-    [comparison],
+    () => new Map(beforeDetails.fields.map((field) => [field.path, field])),
+    [beforeDetails],
   );
   const afterFields = useMemo(
-    () => comparisonFieldMap(comparison, "after"),
-    [comparison],
+    () => new Map(afterDetails.fields.map((field) => [field.path, field])),
+    [afterDetails],
   );
   const csrfToken =
     authState.status === "authenticated" ? authState.session.csrfToken : "";
@@ -507,7 +625,11 @@ function ComparisonReports({
       {changedPaths.size === 0 ? (
         <Alert>
           <CheckCircle2 aria-hidden="true" />
-          <AlertTitle>{t("comparison.noChanges")}</AlertTitle>
+          <AlertTitle>
+            {comparisonLoading
+              ? t("comparison.comparing")
+              : t("comparison.noChanges")}
+          </AlertTitle>
         </Alert>
       ) : (
         <Alert>
@@ -632,31 +754,6 @@ function ComparisonReport({
   );
 }
 
-function comparisonFieldMap(
-  comparison: ProbeSnapshotComparison,
-  side: "before" | "after",
-) {
-  return new Map(
-    comparison.fields.map((field) => [
-      field.path,
-      normalizeComparisonField(field[side], field.changed),
-    ]),
-  );
-}
-
-function normalizeComparisonField(
-  field: ComparisonSide,
-  changed: boolean,
-): ComparisonSide {
-  if (field.status === "available" || !changed) return field;
-  return {
-    ...field,
-    status: "available",
-    actualType: field.actualType ?? field.expectedTypes[0] ?? "string",
-    value: "—",
-  };
-}
-
 function reportFieldValue(fields: ProbeReportFieldMap, path: string) {
   const value = fields.get(path)?.value?.trim();
   return value || "—";
@@ -682,13 +779,31 @@ function ReportHeaderFact({
 
 function gapPositions(snapshots: TimelineSnapshot[], gaps: TimelineGap[]) {
   if (snapshots.length < 2) return [];
+  const axis = snapshotAxisValues(snapshots);
+  const min = axis[0] ?? 0;
+  const max = axis[axis.length - 1] ?? min;
+  const denominator = Math.max(1, max - min);
   return gaps.flatMap((gap) => {
     const next = snapshots.findIndex(
       (snapshot) => snapshot.sequence > gap.lastSequence,
     );
     if (next <= 0) return [];
-    return [((next - 0.5) / (snapshots.length - 1)) * 100];
+    const previous = axis[next - 1] ?? min;
+    const current = axis[next] ?? previous;
+    return [(((previous + current) / 2 - min) / denominator) * 100];
   });
+}
+
+function selectTimelinePoint(
+  selection: [number, number],
+  point: number,
+): [number, number] {
+  const startDistance = Math.abs(selection[0] - point);
+  const endDistance = Math.abs(selection[1] - point);
+  if (point <= selection[1] && startDistance <= endDistance) {
+    return [point, selection[1]];
+  }
+  return [selection[0], point];
 }
 
 function asSelection(value: number[]): [number, number] {
@@ -742,20 +857,5 @@ function ComparisonSkeleton() {
         <Skeleton className="h-5 w-full" />
       </CardContent>
     </Card>
-  );
-}
-
-function ReportsSkeleton() {
-  return (
-    <div className="grid gap-6 xl:grid-cols-2" aria-busy="true">
-      {[0, 1].map((item) => (
-        <Card key={item}>
-          <CardContent className="space-y-4 pt-6">
-            <Skeleton className="h-6 w-48" />
-            <Skeleton className="h-96 w-full" />
-          </CardContent>
-        </Card>
-      ))}
-    </div>
   );
 }

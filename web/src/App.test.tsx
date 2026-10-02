@@ -85,6 +85,7 @@ import {
   previewProbeSchedule,
   resetHistory,
   updateNodeProbeSettings,
+  type ProbeSnapshot,
 } from "@/api/probes";
 import { APIError } from "@/api/errors";
 import {
@@ -361,6 +362,36 @@ function timelineSnapshot(
     changeCount: sequence === 1 ? 0 : 1,
     formatStatus: "compatible" as const,
     formatIssueCount: 0,
+  };
+}
+
+function timelineSnapshotDetail(
+  summary: ReturnType<typeof timelineSnapshot>,
+  status: "available" | "incompatible",
+  value?: string,
+): ProbeSnapshot {
+  return {
+    id: summary.id,
+    executionId: summary.executionId,
+    egressId: summary.egressId,
+    sequence: summary.sequence,
+    observedAt: summary.observedAt,
+    rawResult: "e30=",
+    starred: summary.starred,
+    baseline: summary.baseline,
+    fields: [
+      {
+        id: "Head.IP",
+        group: "Head",
+        path: "Head.IP",
+        expectedTypes: ["string"],
+        status,
+        actualType: status === "available" ? "string" : "number",
+        ...(value === undefined ? {} : { value }),
+      },
+    ],
+    formatIssues: [],
+    changes: [],
   };
 }
 
@@ -3098,6 +3129,28 @@ describe("administrator application", () => {
         timelineSnapshot(firstId, egressId, 1, "2026-08-07T12:00:00Z"),
       ],
     });
+    const first = timelineSnapshot(
+      firstId,
+      egressId,
+      1,
+      "2026-08-07T12:00:00Z",
+    );
+    const middle = timelineSnapshot(
+      "f6f79d7e-bebb-4fae-bf0f-3bcb2c8ea668",
+      egressId,
+      2,
+      "2026-08-08T12:00:00Z",
+    );
+    const last = timelineSnapshot(lastId, egressId, 3, "2026-08-09T12:00:00Z");
+    getProbeSnapshotMock.mockImplementation(async (snapshotId) => {
+      if (snapshotId === first.id) {
+        return timelineSnapshotDetail(first, "available", "203.0.113.1");
+      }
+      if (snapshotId === last.id) {
+        return timelineSnapshotDetail(last, "incompatible");
+      }
+      return timelineSnapshotDetail(middle, "available", "203.0.113.2");
+    });
     compareSnapshotsMock.mockResolvedValue({
       beforeId: firstId,
       afterId: lastId,
@@ -3138,10 +3191,16 @@ describe("administrator application", () => {
     expect(await screen.findByText("3 snapshots")).toBeInTheDocument();
     expect(
       screen.getByRole("slider", { name: "Start snapshot" }),
-    ).toHaveAttribute("aria-valuenow", "0");
+    ).toHaveAttribute(
+      "aria-valuenow",
+      String(Date.parse(first.observedAt) * 1000),
+    );
     expect(
       screen.getByRole("slider", { name: "End snapshot" }),
-    ).toHaveAttribute("aria-valuenow", "2");
+    ).toHaveAttribute(
+      "aria-valuenow",
+      String(Date.parse(last.observedAt) * 1000 + 2),
+    );
     await waitFor(() =>
       expect(compareSnapshotsMock).toHaveBeenCalledWith(
         firstId,
@@ -3155,6 +3214,15 @@ describe("administrator application", () => {
     await i18n.changeLanguage("zh-CN");
     expect(await screen.findByText("3 份快照")).toBeInTheDocument();
     expect(screen.getByText("1 项变化")).toBeInTheDocument();
+    await screen.getByRole("button", { name: /第 2 份快照/ }).click();
+    await waitFor(() =>
+      expect(compareSnapshotsMock).toHaveBeenLastCalledWith(
+        "f6f79d7e-bebb-4fae-bf0f-3bcb2c8ea668",
+        lastId,
+        expect.any(AbortSignal),
+      ),
+    );
+    expect(screen.getAllByText("203.0.113.2").length).toBeGreaterThan(0);
   });
 
   it("clears history only after destructive confirmation", async () => {
