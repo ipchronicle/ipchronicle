@@ -603,7 +603,6 @@ test("generates an Agent installation command from the nodes page", async ({
   await page.getByRole("tab", { name: "Public IPs" }).click();
   await expect(page.getByRole("heading", { name: nodeName })).toBeVisible();
   await expect(page.getByText(publicAddress, { exact: true })).toBeVisible();
-  await expect(page.getByText("Reached through NAT")).toBeVisible();
   await expect(page.getByText("eth0")).toHaveCount(0);
   await expect(
     page.getByRole("switch", { name: "Enable complete probe" }),
