@@ -209,18 +209,19 @@ The Public IPs page follows these rules:
 
 - usable default routes and stable routable sources are discovered
   automatically as hidden paths;
-- one public IP found through several interfaces, sources, NAT mappings,
+- one public IP found through several interfaces, sources, network paths,
   proxies, or nodes appears once across the Center;
 - a newly discovered public IP is enabled for complete probing by default and
   can be disabled by the administrator; and
 - node proxies automatically check single-stack or dual-stack public egresses,
   because those egresses cannot be inferred from direct network inventory.
 
-Interfaces, routes, local source addresses, selectors, and automatic path IDs
-are internal execution details and are not displayed as user objects. Temporary
-IPv6 privacy sources do not create their own durable path. When discovery
-indicates NAT, the Center marks the public IP accordingly. DNS-based checks use
-the node's resolver and may follow its default route.
+Interfaces, routes, local source addresses, selectors, address mappings, and
+automatic path IDs are internal execution details and are not displayed as user
+objects or statuses. Temporary IPv6 privacy sources do not create their own
+durable path. Address-discovery diagnostics retain the local source and external
+observed address in node logs for investigating path mismatches. DNS-based
+checks use the node's resolver and may follow its default route.
 
 Each public IP has a complete-probe switch that defaults on. The node has one
 setting, also enabled by default, that runs a complete probe for a public IP

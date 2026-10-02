@@ -21,6 +21,8 @@ v0.1.1 configuration, history, and node identities.
   have a dialog for their latest successful reports.
 - Homepage attention focuses on actionable failures; a NAT path alone is no
   longer an issue.
+- NAT mappings are no longer shown as public-IP status; they remain in node
+  logs only for diagnosing address-path mismatches.
 - Detail navigation preserves its source. Probe confirmation names the node,
   temporary sync has an explanation, and node lists omit source hashes and
   internal configuration counters.
