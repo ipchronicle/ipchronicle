@@ -62,7 +62,7 @@ jobs:
               fi
               while IFS= read -r path; do
                 case "$path" in
-                  Dockerfile|.dockerignore|.env.example|deploy/*|testdata/compose.yaml|scripts/compose-smoke.sh|scripts/release-images.env)
+                  Dockerfile|.dockerignore|.env.example|deploy/*|web/*|internal/webui/*|testdata/compose.yaml|scripts/compose-smoke.sh|scripts/release-images.env)
                     container=true
                     compose=true
                     ;;
