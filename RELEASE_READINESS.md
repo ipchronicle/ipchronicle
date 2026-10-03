@@ -1,21 +1,21 @@
-# IPChronicle v0.1.3 发布就绪报告
+# IPChronicle v0.1.4 发布就绪报告
 
 简体中文 | [English](RELEASE_READINESS.en.md)
 
 状态：发布前验证中
 
-本报告定义 `v0.1.3` 的范围、发布产物和验证门禁。最终候选中的
+本报告定义 `v0.1.4` 的范围、发布产物和验证门禁。最终候选中的
 `release-manifest.json` 与 `checksums.txt` 会记录准确的源码修订和产物摘要。
 
 ## 版本身份
 
-- 版本：`0.1.3`
-- Tag：`v0.1.3`
+- 版本：`0.1.4`
+- Tag：`v0.1.4`
 - 渠道：`stable`
 - 许可证：`AGPL-3.0-only`
-- 源码：<https://github.com/ipchronicle/ipchronicle/tree/v0.1.3>
-- Release：<https://github.com/ipchronicle/ipchronicle/releases/tag/v0.1.3>
-- Center 镜像：`ghcr.io/ipchronicle/ipchronicle-center:v0.1.3`
+- 源码：<https://github.com/ipchronicle/ipchronicle/tree/v0.1.4>
+- Release：<https://github.com/ipchronicle/ipchronicle/releases/tag/v0.1.4>
+- Center 镜像：`ghcr.io/ipchronicle/ipchronicle-center:v0.1.4`
 
 ## 发布范围
 
@@ -30,6 +30,8 @@
 - 独立的配置数据库、历史数据库和 Agent 运维日志数据库；
 - 节点日志等级、离线日志上传、筛选及有界请求重试；
 - 节点身份恢复、批量操作及报告语义和 PNG 修复；
+- 通知规则的事件排除，以及“全部事件”范围的细化；
+- 快照比较的真实时间轴、连续滑动和即时报告切换；
 - 普通反向代理与 Cloudflare Tunnel 两种 Docker Compose 部署示例。
 
 ## 验证门禁

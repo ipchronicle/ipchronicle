@@ -1,58 +1,36 @@
-# IPChronicle v0.1.3
+# IPChronicle v0.1.4
 
 [简体中文](RELEASE_NOTES.md) | English
 
-This release removes user-facing NAT heuristic status while retaining diagnostic
-logs, and updates frontend security dependencies. Upgrades preserve configuration,
-history, and node identities from v0.1.1 and later stable releases.
+This release adds notification event exclusions and snapshot comparison
+improvements, and cleans up the Web dependency chain. Upgrades preserve
+configuration, history, and node identities from v0.1.1 and later stable
+releases.
 
 ## Highlights
 
-- NAT mappings are no longer shown as node or public-IP status and do not affect
-  attention items, probing, or public-IP aggregation. Local and externally
-  observed addresses remain available in node logs for diagnosis.
-- Update frontend transitive dependencies to resolve npm audit security findings.
-
-- Agents log discovery, configuration sync, tasks, and third-party requests. The
-  Center supports per-node log levels, filters for time, level, component, public
-  IP, task, and other fields, plus failure response details.
-- Logs use independent storage with seven-day default retention. Agents buffer
-  offline logs in a bounded queue and upload them after reconnecting.
-- Transient complete-probe request failures receive at most three attempts,
-  respecting Retry-After and task deadlines, with retry and final-failure logs.
-- Dedicated recovery installation commands let reinstalled hosts take over their
-  original nodes while retaining Center configuration and history.
-- Node selection supports batch updates, probes, and log-level changes. Public IPs
-  have a dialog for their latest successful reports.
-- Homepage attention focuses on actionable failures; a NAT path alone is no
-  longer an issue.
-- NAT mappings are no longer shown as public-IP status; they remain in node
-  logs only for diagnosing address-path mismatches.
-- Detail navigation preserves its source. Probe confirmation names the node,
-  temporary sync has an explanation, and node lists omit source hashes and
-  internal configuration counters.
-- Reports distinguish Yes, No, and No data. PNG fonts and clipped long labels are
-  fixed.
-- Development dependencies receive security patches.
-- Fixes intermittent memory-limit failures for small JavaScript HTTP deliveries
-  by allowing for runtime reservations and collecting Go memory earlier, while
-  retaining isolated worker resource and time boundaries.
+- Notification rules add an all-events option with per-event exclusions. Field
+  change choices use human-readable meanings instead of internal field names.
+- Snapshot comparison uses a real time axis, opens with the earliest and latest
+  snapshots, supports continuous scrolling, and switches reports immediately
+  when a snapshot is selected.
+- Add the notification-exclusion configuration migration while preserving
+  existing senders, rules, nodes, and history.
+- Remove the unused shadcn CLI dependency, reduce the frontend dependency tree,
+  and resolve the dependency audit findings.
 
 ## Upgrade From v0.1.1
 
 Upgrade the Center before Agents. First stop the Center and consistently back up
-`./data/config` and `./data/history`. Retain `/var/lib/ipchronicle-agent` on each node.
+`./data/config` and `./data/history`. Retain `/var/lib/ipchronicle-agent` on
+each node.
 
-The Center applies new log-settings and node-recovery migrations, preserving
-accounts, the master key, nodes, proxies, schedules, and history. Agent state
-remains at schema 9, preserving identity and offline result queues. Both Compose
-examples add a `./data/logs` mount. Add it to custom Compose files to retain
-diagnostic logs across container recreation. Cloudflare Tunnel installations
-should retain the matching example and token.
-
-After configuration migration, switching directly to an older Center image is
-unsupported. To roll back, stop the Center, restore the matching pre-upgrade
-backup, and start the older version. See the [operator guide](OPERATOR_GUIDE.en.md).
+The Center applies the notification-exclusion configuration migration
+automatically, preserving accounts, the master key, nodes, proxies, schedules,
+notification senders, notification rules, and history. Directly switching to
+an older Center image after migration is unsupported. To roll back, stop the
+Center, restore the matching pre-upgrade backup, and start the older version.
+See the [operator guide](OPERATOR_GUIDE.en.md).
 
 ## Issues Awaiting Diagnosis
 
@@ -61,7 +39,7 @@ backup, and start the older version. See the [operator guide](OPERATOR_GUIDE.en.
 - In some networks, NAT markers disagree with direct interface addresses, or a
   task cannot resolve a public IP already displayed by the Center.
 
-The new logs support diagnosis; this release does not claim to fix these root
-causes. Temporarily set affected nodes to `debug`, reproduce the issue, inspect
-request and task logs, and restore `info` afterwards. Inspect third-party failure
-response bodies for sensitive content before sharing logs.
+The existing logs support diagnosis; this release does not claim to fix these
+root causes. Temporarily set affected nodes to `debug`, reproduce the issue,
+inspect request and task logs, and restore `info` afterwards. Inspect
+third-party failure response bodies for sensitive content before sharing logs.

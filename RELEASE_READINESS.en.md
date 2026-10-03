@@ -1,22 +1,22 @@
-# IPChronicle v0.1.3 Release Readiness
+# IPChronicle v0.1.4 Release Readiness
 
 [简体中文](RELEASE_READINESS.md) | English
 
 Status: Pre-release validation in progress
 
-This report defines the scope, artifacts, and validation gates for `v0.1.3`.
+This report defines the scope, artifacts, and validation gates for `v0.1.4`.
 The final candidate's `release-manifest.json` and `checksums.txt` record the
 exact source revision and artifact digests.
 
 ## Release Identity
 
-- Version: `0.1.3`
-- Tag: `v0.1.3`
+- Version: `0.1.4`
+- Tag: `v0.1.4`
 - Channel: `stable`
 - License: `AGPL-3.0-only`
-- Source: <https://github.com/ipchronicle/ipchronicle/tree/v0.1.3>
-- Release: <https://github.com/ipchronicle/ipchronicle/releases/tag/v0.1.3>
-- Center image: `ghcr.io/ipchronicle/ipchronicle-center:v0.1.3`
+- Source: <https://github.com/ipchronicle/ipchronicle/tree/v0.1.4>
+- Release: <https://github.com/ipchronicle/ipchronicle/releases/tag/v0.1.4>
+- Center image: `ghcr.io/ipchronicle/ipchronicle-center:v0.1.4`
 
 ## Release Scope
 
@@ -35,6 +35,8 @@ This release delivers:
 - separate configuration, history, and Agent operational log databases;
 - node log levels, offline log uploads, filters, and bounded request retries;
 - node identity recovery, batch operations, report semantics, and PNG fixes; and
+- notification event exclusions and a refined all-events scope;
+- a real-time snapshot timeline with continuous scrolling and immediate report switching; and
 - Docker Compose examples for a conventional reverse proxy and Cloudflare
   Tunnel.
 
