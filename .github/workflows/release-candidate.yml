@@ -75,7 +75,7 @@ jobs:
           VERSION: ${{ inputs.version }}
         run: make verify-release-candidate VERSION="$VERSION"
       - name: Upload temporary candidate artifact
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: ipchronicle-v${{ inputs.version }}-${{ github.sha }}-unvalidated
           path: dist/release/${{ inputs.version }}/
@@ -309,7 +309,7 @@ jobs:
           VERSION: ${{ inputs.version }}
         run: scripts/finalize-release-candidate.sh "dist/final/$VERSION" "$CI_RUN_URL" "$RC_RUN_URL" "$VALIDATION_DATE"
       - name: Upload final release candidate
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: ipchronicle-v${{ inputs.version }}-${{ github.sha }}
           path: dist/final/${{ inputs.version }}/
