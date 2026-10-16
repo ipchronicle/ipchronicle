@@ -2,7 +2,7 @@
 
 ARG SOURCE_DATE_EPOCH=0
 
-FROM --platform=$BUILDPLATFORM node:24.19.0-bookworm-slim@sha256:3638d9a6fe4030bd716be989438248074489337ba3275657f93595428be4fc03 AS web-build
+FROM --platform=$BUILDPLATFORM node:26.11.1-bookworm-slim@sha256:86f07bc9c5dce4578cf37e5a418b7bfc7f817cda25cde66e2b66e95ed86c4567 AS web-build
 WORKDIR /src
 COPY web/package.json web/package-lock.json ./web/
 RUN --mount=type=cache,target=/root/.npm npm --prefix web ci
