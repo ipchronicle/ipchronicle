@@ -11,7 +11,7 @@ COPY web ./web
 COPY internal/center/notifications/assets/NotoSansCJKsc-Regular.otf ./internal/center/notifications/assets/NotoSansCJKsc-Regular.otf
 RUN npm --prefix web run generate:api && npm --prefix web run build
 
-FROM --platform=$TARGETPLATFORM golang:1.26.5-bookworm@sha256:6c5605ab3a9a9fb3c4eafe5b3d63cdbf3881caf113262b67862547b54a9db599 AS go-build
+FROM --platform=$TARGETPLATFORM golang:1.27.4-bookworm@sha256:4fa7c968ba93f1635670522dbb01a2c78150443e1385746924566079f36570ea AS go-build
 ARG VERSION=dev
 ARG REVISION=unknown
 WORKDIR /src
